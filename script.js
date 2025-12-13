@@ -463,6 +463,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btn-guardar-prueba');
     if (!btn) return; // No estamos en pruebas.html
 
+    async function guardarPruebaEnFirestore(registro) {
+        if (!window.db) {
+            console.warn('Firestore no está inicializado (window.db)');
+            return;
+        }
+
+        try {
+            const { addDoc, collection, serverTimestamp } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+
+            const datos = {
+                ...registro,
+                creadoEn: serverTimestamp()
+            };
+
+            await addDoc(collection(window.db, 'pruebas'), datos);
+            console.log('Prueba guardada en Firestore');
+        } catch (e) {
+            console.error('Error al guardar prueba en Firestore', e);
+        }
+    }
+
     btn.addEventListener('click', () => {
         const fechaPrueba = (document.getElementById('prueba-fecha') || {}).value || '';
         const resultado = (document.getElementById('prueba-resultado') || {}).value || '';
@@ -521,6 +544,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lista.push(registro);
         localStorage.setItem(clave, JSON.stringify(lista));
+
+        // Intentar guardar también en Firestore (si está disponible)
+        guardarPruebaEnFirestore(registro);
 
         btn.textContent = 'Prueba guardada';
         btn.disabled = true;

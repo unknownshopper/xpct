@@ -21,6 +21,10 @@
                 <li><a href="forxmat.html">Formatos</a></li>
             </ul>
         </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
     </header>
 
     <main class="dashboard-page">
@@ -50,6 +54,67 @@
             <a href="pruebaslist.html" class="dash-link">Ver listado de pruebas</a>
         </section>
     </main>
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ⚠️ Reemplaza este objeto con el que te da Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+        authDomain: "xpct-tab.firebaseapp.com",
+        projectId: "xpct-tab",
+        storageBucket: "xpct-tab.firebasestorage.app",
+        messagingSenderId: "614589989974",
+        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    window.db = getFirestore(app);
+    const auth = getAuth(app);
+    window.auth = auth;
+
+    const ADMINS = [
+        "the@unknownshoppers.com",
+        "jalcz@pct.com"
+    ];
+    const INSPECTORES = [
+        "inspector01@pct.com",
+        "inspector02@pct.com"
+    ];
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        // Solo admins deben ver index
+        if (!ADMINS.includes(email)) {
+            if (INSPECTORES.includes(email)) {
+                window.location.href = 'inspeccion.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'login.html';
+            }
+        });
+    }
+    </script>
 
     <script src="script.js"></script>
 </body>

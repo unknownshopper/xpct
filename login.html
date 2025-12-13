@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | PCT</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+    <div class="logo">
+        <img src="img/logopctch.png" alt="Logo PCT">
+    </div>
+    <nav>
+        <ul>
+            <li><a href="login.html" class="active">Login</a></li>
+        </ul>
+    </nav>
+</header>
+
+<main class="pruebas-page" style="max-width:420px;">
+    <section class="card-prueba">
+        <h2>Acceso al sistema</h2>
+        <div class="campo">
+            <label for="login-email">Correo</label>
+            <input type="email" id="login-email" placeholder="usuario@pct.com">
+        </div>
+        <div class="campo">
+            <label for="login-password">Contraseña</label>
+            <input type="password" id="login-password" placeholder="Contraseña">
+        </div>
+        <div class="campo">
+            <button id="btn-login" style="margin-top:0.5rem;">Entrar</button>
+        </div>
+        <p id="login-mensaje" style="font-size:0.85rem; color:#b91c1c; margin-top:0.25rem;"></p>
+    </section>
+</main>
+
+<!-- Inicialización de Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+/* Usa el MISMO config que en index.html */
+const firebaseConfig = {
+    apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+    authDomain: "xpct-tab.firebaseapp.com",
+    projectId: "xpct-tab",
+    storageBucket: "xpct-tab.firebasestorage.app",
+    messagingSenderId: "614589989974",
+    appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// Listas de correos por rol
+const ADMINS = [
+    "the@unknownshoppers.com",
+    "jalcz@pct.com"
+];
+
+const INSPECTORES = [
+    "inspector01@pct.com",
+    "inspector02@pct.com"
+];
+
+// Si ya está logueado, redirigimos según rol
+onAuthStateChanged(auth, (user) => {
+    if (!user) return;
+
+    const email = (user.email || "").toLowerCase();
+
+    if (ADMINS.includes(email)) {
+        window.location.href = "index.html";
+    } else if (INSPECTORES.includes(email)) {
+        window.location.href = "inspeccion.html";
+    } else {
+        // Usuario desconocido: por ahora lo regresamos al login (o podríamos bloquear)
+        auth.signOut();
+    }
+});
+
+// Manejo del botón de login
+const btn = document.getElementById("btn-login");
+const inputEmail = document.getElementById("login-email");
+const inputPass = document.getElementById("login-password");
+const msg = document.getElementById("login-mensaje");
+
+btn.addEventListener("click", async () => {
+    msg.textContent = "";
+    const email = (inputEmail.value || "").trim();
+    const password = inputPass.value || "";
+
+    if (!email || !password) {
+        msg.textContent = "Ingresa correo y contraseña.";
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Entrando...";
+
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged hará la redirección
+    } catch (e) {
+        console.error(e);
+        msg.textContent = "No se pudo iniciar sesión. Verifica tus datos.";
+        btn.disabled = false;
+        btn.textContent = "Entrar";
+    }
+});
+</script>
+</body>
+</html>
