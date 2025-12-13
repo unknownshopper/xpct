@@ -458,6 +458,168 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 });
 
+// Autocompletar información de inventario en pruebas.html desde invre2.csv
+document.addEventListener('DOMContentLoaded', () => {
+    const inputEquipo = document.getElementById('inv-equipo');
+    const datalistEquipos = document.getElementById('lista-equipos-pruebas');
+    if (!inputEquipo || !datalistEquipos) return; // No estamos en pruebas.html
+
+    let filasInv = [];
+    let headersInv = [];
+    const infoPorEquipo = {}; // { serial, propiedad, material }
+
+    fetch('docs/invre2.csv')
+        .then(r => {
+            if (!r.ok) throw new Error('No se pudo cargar invre2.csv');
+            return r.text();
+        })
+        .then(texto => {
+            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lineas.length) return;
+
+            headersInv = parseCSVLine(lineas[0]);
+            filasInv = lineas.slice(1).map(l => parseCSVLine(l));
+
+            const idxEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
+            const idxDesc = headersInv.indexOf('DESCRIPCION');
+
+            const vistos = new Set();
+            filasInv.forEach(cols => {
+                const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
+                if (!eq || vistos.has(eq)) return;
+                vistos.add(eq);
+
+                const opt = document.createElement('option');
+                opt.value = eq;
+                opt.label = desc ? `${eq} - ${desc}` : eq;
+                datalistEquipos.appendChild(opt);
+            });
+        })
+        .catch(err => console.error(err));
+
+    // Mapa de info (serial, propiedad, material) por EQUIPO desde invre.csv
+    fetch('docs/invre.csv')
+        .then(r => {
+            if (!r.ok) throw new Error('No se pudo cargar invre.csv');
+            return r.text();
+        })
+        .then(texto => {
+            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lineas.length) return;
+
+            const headers = parseCSVLine(lineas[0]);
+            const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+            const idxSerial = headers.indexOf('SERIAL');
+            const idxProp = headers.indexOf('PROPIEDAD');
+            const idxAcero = headers.indexOf('ACERO');
+
+            lineas.slice(1).forEach(l => {
+                const cols = parseCSVLine(l);
+                const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                if (!eq) return;
+
+                if (!infoPorEquipo[eq]) {
+                    const sr = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
+                    const prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
+                    const mat = idxAcero >= 0 ? (cols[idxAcero] || '') : '';
+                    infoPorEquipo[eq] = { serial: sr, propiedad: prop, material: mat };
+                }
+            });
+        })
+        .catch(err => console.error(err));
+
+    function autocompletarDesdeInventario() {
+        const valor = inputEquipo.value.trim();
+        if (!valor || !headersInv.length || !filasInv.length) return;
+
+        const idxEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
+        const fila = filasInv.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
+        if (!fila) return;
+
+        const get = (nombreCol) => {
+            const idx = headersInv.indexOf(nombreCol);
+            return idx >= 0 && idx < fila.length ? fila[idx] : '';
+        };
+
+        const campos = {
+            'inv-edo': get('ESTADO'),
+            'inv-producto': get('PRODUCTO'),
+            'inv-descripcion': get('DESCRIPCION'),
+            'inv-tipo-equipo': get('TIPO EQUIPO'),
+            'inv-area': get('ÁREA A INSPECIONAR'),
+        };
+
+        Object.entries(campos).forEach(([id, valorCampo]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = valorCampo || '';
+        });
+
+        // Serial, propiedad y material desde inventario general (invre.csv)
+        const info = infoPorEquipo[valor] || {};
+        const inputSerial = document.getElementById('inv-serial');
+        if (inputSerial) {
+            inputSerial.value = info.serial || '';
+        }
+        const inputProp = document.getElementById('inv-propiedad');
+        if (inputProp && info.propiedad) {
+            inputProp.value = info.propiedad;
+        }
+        const inputMat = document.getElementById('inv-material');
+        if (inputMat && info.material) {
+            inputMat.value = info.material;
+        }
+
+        const selPrueba = document.getElementById('inv-prueba');
+        const prueba = get('PRUEBA / CALIBRACION');
+        if (selPrueba) {
+            // Asegurar catálogo básico de tipos de prueba
+            if (selPrueba.options.length <= 1) {
+                ['LT', 'VT / PT / MT', 'UTT'].forEach(val => {
+                    const opt = document.createElement('option');
+                    opt.value = val;
+                    opt.textContent = val;
+                    selPrueba.appendChild(opt);
+                });
+            }
+
+            // Si el valor de CSV no está en la lista, agregarlo también
+            if (prueba && !Array.from(selPrueba.options).some(o => o.value === prueba)) {
+                const opt = document.createElement('option');
+                opt.value = prueba;
+                opt.textContent = prueba;
+                selPrueba.appendChild(opt);
+            }
+            if (prueba) selPrueba.value = prueba;
+        }
+
+        actualizarVisibilidadDetallePrueba();
+    }
+
+    inputEquipo.addEventListener('change', autocompletarDesdeInventario);
+    inputEquipo.addEventListener('blur', autocompletarDesdeInventario);
+
+    const selPruebaManual = document.getElementById('inv-prueba');
+    if (selPruebaManual) {
+        selPruebaManual.addEventListener('change', () => {
+            actualizarVisibilidadDetallePrueba();
+        });
+    }
+
+    function actualizarVisibilidadDetallePrueba() {
+        const campoDetalle = document.getElementById('campo-prueba-detalle');
+        const sel = document.getElementById('inv-prueba');
+        if (!campoDetalle || !sel) return;
+        if (sel.value) {
+            campoDetalle.style.display = 'block';
+        } else {
+            campoDetalle.style.display = 'none';
+            const det = document.getElementById('inv-prueba-detalle');
+            if (det) det.value = '';
+        }
+    }
+});
+
 // Guardado de pruebas en pruebas.html
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btn-guardar-prueba');
@@ -497,6 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const producto = (document.getElementById('inv-producto') || {}).value || '';
         const descripcion = (document.getElementById('inv-descripcion') || {}).value || '';
         const pruebaTipo = (document.getElementById('inv-prueba') || {}).value || '';
+        const pruebaDetalle = (document.getElementById('inv-prueba-detalle') || {}).value || '';
         const tipoEquipo = (document.getElementById('inv-tipo-equipo') || {}).value || '';
         const material = (document.getElementById('inv-material') || {}).value || '';
         const area = (document.getElementById('inv-area') || {}).value || '';
@@ -520,6 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
             producto,
             descripcion,
             pruebaTipo,
+            pruebaDetalle,
             tipoEquipo,
             material,
             area,
