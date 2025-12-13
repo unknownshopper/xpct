@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspecciones guardadas</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li><a href="pruebas.html">Pruebas</a></li>
+                <li><a href="inspeccion.html">Inspecciones</a></li>
+                <li><a href="inspectlist.html" class="active">Listado</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main style="max-width: 1100px; margin: 1rem auto; padding: 1.5rem;">
+        <section class="detalle-equipo">
+            <h2>Inspecciones guardadas (local)</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Estos datos se almacenan solo en este navegador usando <code>localStorage</code>. Más adelante se pueden enviar a Firebase u otro backend.
+            </p>
+            <div class="tabla-inspecciones-wrapper">
+                <table id="tabla-inspecciones" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:left; padding:0.4rem;">Fecha</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                            <th style="text-align:left; padding:0.4rem;">Reporte</th>
+                            <th style="text-align:left; padding:0.4rem;">Producto</th>
+                            <th style="text-align:left; padding:0.4rem;">Serial</th>
+                            <th style="text-align:left; padding:0.4rem;"># Parámetros</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-inspecciones">
+                    </tbody>
+                </table>
+                <p id="mensaje-sin-inspecciones" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                    No hay inspecciones guardadas todavía.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const clave = 'pct_inspecciones';
+        const tbody = document.getElementById('tbody-inspecciones');
+        const msg = document.getElementById('mensaje-sin-inspecciones');
+
+        let lista = [];
+        try {
+            lista = JSON.parse(localStorage.getItem(clave) || '[]');
+            if (!Array.isArray(lista)) lista = [];
+        } catch (e) {
+            lista = [];
+        }
+
+        if (!lista.length) {
+            msg.style.display = 'block';
+            return;
+        }
+
+        lista.forEach(reg => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${new Date(reg.fecha).toLocaleString()}</td>
+                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.reporte || ''}</td>
+                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
+                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.serial || ''}</td>
+                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">${reg.parametros ? reg.parametros.length : 0}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    });
+    </script>
+</body>
+</html>

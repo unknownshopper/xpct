@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario detallado (invre2)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li><a href="pruebas.html">Pruebas</a></li>
+                <li><a href="inspeccion.html">Inspecciones</a></li>
+                <li><a href="invre.html">Inventario invre</a></li>
+                <li><a href="invre2.html" class="active">Inventario invre2</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main style="margin: 0; padding: 0.5rem 0.5rem 1rem 0.5rem;">
+        <section class="detalle-equipo" style="padding: 0.75rem 0.75rem 0.5rem; max-width: 100%;">
+            <h2>Inventario detallado (invre2.csv)</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Registros por área a inspeccionar según <code>docs/invre2.csv</code>. Aquí podemos analizar pruebas / calibraciones y áreas HEMBRA / MACHO / PUERTO / BRIDA, etc.
+            </p>
+            <div class="filtros-invre" style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:0.5rem;">
+                <div style="min-width:220px;">
+                    <label for="invre2-filtro-texto" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Buscar</label>
+                    <input type="text" id="invre2-filtro-texto" placeholder="Equipo, descripción, área..." style="width:100%; padding:0.35rem 0.5rem; border-radius:0.4rem; border:1px solid #cbd5e1; font-size:0.85rem;">
+                </div>
+                <div style="min-width:220px;">
+                    <label for="invre2-filtro-estado" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Estado</label>
+                    <select id="invre2-filtro-estado" style="width:100%; padding:0.35rem 0.5rem; border-radius:0.4rem; border:1px solid #cbd5e1; font-size:0.85rem;">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div style="min-width:220px;">
+                    <label for="invre2-filtro-prueba" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Prueba / Calibración</label>
+                    <select id="invre2-filtro-prueba" style="width:100%; padding:0.35rem 0.5rem; border-radius:0.4rem; border:1px solid #cbd5e1; font-size:0.85rem;">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+            </div>
+            <div class="tabla-invre-wrapper" style="height: calc(100vh - 140px); overflow:auto; border:1px solid #e5e7eb; border-radius:0.5rem; margin-top:0.5rem;">
+                <table id="tabla-invre2" style="width:100%; min-width:100%; border-collapse:collapse; font-size:0.8rem; table-layout:auto;">
+                    <thead id="thead-invre2"></thead>
+                    <tbody id="tbody-invre2"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

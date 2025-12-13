@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pruebas y calibraciones</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li><a href="pruebas.html" class="active">Pruebas</a></li>
+                <li><a href="inspeccion.html">Inspecciones</a></li>
+                <li><a href="invre.html">Inventario invre</a></li>
+                <li><a href="invre2.html">Inventario invre2</a></li>
+                <li><a href="forxmat.html">Formatos</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="pruebas-page">
+        <section class="card-prueba">
+            <h2>Datos de la prueba</h2>
+            <div class="grid-datos-prueba">
+                <div class="campo">
+                    <label for="prueba-fecha">Fecha de prueba</label>
+                    <input type="date" id="prueba-fecha" name="prueba-fecha">
+                </div>
+                <div class="campo">
+                    <label for="prueba-resultado">Resultado</label>
+                    <select id="prueba-resultado" name="prueba-resultado">
+                        <option value="">Selecciona...</option>
+                        <option value="ACEPTADA">ACEPTADA</option>
+                        <option value="RECHAZADA">RECHAZADA</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="card-prueba">
+            <h2>Información desde inventario</h2>
+            <div class="grid-inventario-prueba">
+                <div class="campo">
+                    <label for="inv-equipo">Equipo / Activo (inventario)</label>
+                    <input type="text" id="inv-equipo" placeholder="Equipo/Activo (inventario)">
+                </div>
+                <div class="campo">
+                    <label for="inv-serial">Serial</label>
+                    <input type="text" id="inv-serial" placeholder="SERIAL">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-edo">Edo. general</label>
+                    <input type="text" id="inv-edo" placeholder="EDO_GENERAL">
+                </div>
+                <div class="campo">
+                    <label for="inv-propiedad">Propiedad</label>
+                    <input type="text" id="inv-propiedad" placeholder="PROPIEDAD">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-producto">Producto</label>
+                    <input type="text" id="inv-producto" placeholder="PRODUCTO">
+                </div>
+                <div class="campo">
+                    <label for="inv-descripcion">Descripción</label>
+                    <input type="text" id="inv-descripcion" placeholder="DESCRIPCION">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-prueba">Prueba / Calibración</label>
+                    <select id="inv-prueba">
+                        <option value="">Selecciona...</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="inv-tipo-equipo">Tipo equipo</label>
+                    <input type="text" id="inv-tipo-equipo" placeholder="TIPO EQUIPO">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-material">Material</label>
+                    <input type="text" id="inv-material" placeholder="Material">
+                </div>
+                <div class="campo">
+                    <label for="inv-area">Área a inspeccionar</label>
+                    <input type="text" id="inv-area" placeholder="ÁREA A INSPECIONAR">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-fecha-realizacion">Fecha realización</label>
+                    <input type="date" id="inv-fecha-realizacion">
+                </div>
+                <div class="campo">
+                    <label for="inv-no-reporte">No. de reporte / certificado</label>
+                    <input type="text" id="inv-no-reporte" placeholder="NO. DE REPORTE / CERTIFICADO">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-ejecucion">Ejecución</label>
+                    <select id="inv-ejecucion">
+                        <option value="INTERNO">INTERNO</option>
+                        <option value="EXTERNO">EXTERNO</option>
+                    </select>
+                </div>
+                <div class="campo">
+                    <label for="inv-emisor">Emisor</label>
+                    <input type="text" id="inv-emisor" placeholder="EMISOR">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-tecnico">Técnico</label>
+                    <input type="text" id="inv-tecnico" placeholder="TECNICO">
+                </div>
+                <div class="campo">
+                    <label for="inv-proxima">Próxima prueba</label>
+                    <input type="date" id="inv-proxima">
+                </div>
+
+                <div class="campo">
+                    <label for="inv-contador">Contador</label>
+                    <input type="text" id="inv-contador" placeholder="CONTADOR">
+                </div>
+            </div>
+        </section>
+
+        <section class="card-prueba">
+            <h2>Observaciones</h2>
+            <div class="campo">
+                <label for="prueba-observaciones">Observaciones</label>
+                <textarea id="prueba-observaciones" rows="4" placeholder="Notas, condiciones de ensayo, evidencias, etc."></textarea>
+            </div>
+        </section>
+
+        <section class="card-prueba" style="display:flex; justify-content:space-between; align-items:center;">
+            <button id="btn-guardar-prueba">Guardar prueba</button>
+            <a href="pruebaslist.html" class="link-inspecciones">Ver pruebas guardadas</a>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

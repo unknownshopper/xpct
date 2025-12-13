@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCT</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <nav>
+            <ul>
+                <li><a href="index.html" class="active">Inicio</a></li>
+                <li><a href="pruebas.html">Pruebas</a></li>
+                <li><a href="inspeccion.html">Inspecciones</a></li>
+                <li><a href="invre.html">Inventario invre</a></li>
+                <li><a href="invre2.html">Inventario invre2</a></li>
+                <li><a href="forxmat.html">Formatos</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="dashboard-page">
+        <section class="dashboard-cards">
+            <div class="dash-card">
+                <div class="dash-card-label">Equipos en inventario (invre)</div>
+                <div class="dash-card-value" id="dash-equipos-invre">--</div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-label">Registros detallados (invre2)</div>
+                <div class="dash-card-value" id="dash-registros-invre2">--</div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-label">Inspecciones guardadas</div>
+                <div class="dash-card-value" id="dash-inspecciones">--</div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-label">Pruebas guardadas</div>
+                <div class="dash-card-value" id="dash-pruebas">--</div>
+            </div>
+        </section>
+
+        <section class="dashboard-links">
+            <a href="inspeccion.html" class="dash-link">Ir a inspecciones</a>
+            <a href="inspectlist.html" class="dash-link">Ver listado de inspecciones</a>
+            <a href="pruebas.html" class="dash-link">Registrar nueva prueba</a>
+            <a href="pruebaslist.html" class="dash-link">Ver listado de pruebas</a>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

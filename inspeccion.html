@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspecciones</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li><a href="pruebas.html">Pruebas</a></li>
+                <li><a href="inspeccion.html" class="active">Inspecciones</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="inspeccion-page">
+        <section class="selector-equipo">
+            <h1>Inspección de equipos</h1>
+            <label for="equipo-input">Equipo</label>
+            <input type="text" id="equipo-input" list="lista-equipos" placeholder="Escriba PUP, XO o parte del código / descripción">
+            <datalist id="lista-equipos"></datalist>
+        </section>
+
+        <section class="detalle-equipo" id="detalle-equipo">
+            <h2>Detalle del equipo</h2>
+            <div id="detalle-equipo-contenido">
+                <p>Seleccione un equipo para ver su información.</p>
+            </div>
+            <div class="acciones-inspeccion">
+                <button id="btn-guardar-inspeccion" disabled>Guardar inspección</button>
+                <a href="inspectlist.html" class="link-inspecciones">Ver inspecciones guardadas</a>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
