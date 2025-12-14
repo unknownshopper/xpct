@@ -670,6 +670,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Dashboard index.html: tarjetas de conteo
+document.addEventListener('DOMContentLoaded', () => {
+    const spanPruebas = document.getElementById('dash-pruebas');
+    const spanInspecciones = document.getElementById('dash-inspecciones');
+    const spanInvre = document.getElementById('dash-equipos-invre');
+    const spanInvre2 = document.getElementById('dash-registros-invre2');
+    const spanActividades = document.getElementById('dash-actividades');
+
+    if (!spanPruebas && !spanInspecciones && !spanInvre && !spanInvre2 && !spanActividades) return; // No estamos en index.html
+
+    // Pruebas guardadas (localStorage)
+    if (spanPruebas) {
+        try {
+            const lista = JSON.parse(localStorage.getItem('pct_pruebas') || '[]');
+            spanPruebas.textContent = Array.isArray(lista) ? String(lista.length) : '0';
+        } catch {
+            spanPruebas.textContent = '0';
+        }
+    }
+
+    // Inspecciones guardadas (localStorage)
+    if (spanInspecciones) {
+        try {
+            const lista = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
+            spanInspecciones.textContent = Array.isArray(lista) ? String(lista.length) : '0';
+        } catch {
+            spanInspecciones.textContent = '0';
+        }
+    }
+
+    // Actividades registradas (localStorage)
+    if (spanActividades) {
+        try {
+            const lista = JSON.parse(localStorage.getItem('pct_actividad') || '[]');
+            spanActividades.textContent = Array.isArray(lista) ? String(lista.length) : '0';
+        } catch {
+            spanActividades.textContent = '0';
+        }
+    }
+
+    // Para invre e invre2 dejamos -- por ahora o podemos calcular desde CSV más adelante
+});
+
 // Registro de actividad en actividad.html
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('actividad-form');
