@@ -529,6 +529,48 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => console.error(err));
 
+    function actualizarAreaSegunEquipoYPrueba() {
+        if (!headersInv.length || !filasInv.length) return;
+
+        const equipoSel = inputEquipo.value.trim();
+        const selPrueba = document.getElementById('inv-prueba');
+        const areaInput = document.getElementById('inv-area');
+        const selDetalle = document.getElementById('inv-prueba-detalle');
+        if (!equipoSel || !selPrueba || !areaInput) return;
+
+        const idxEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
+        const idxPruebaCal = headersInv.indexOf('PRUEBA / CALIBRACION');
+        const idxArea = headersInv.indexOf('ÁREA A INSPECIONAR');
+        if (idxEquipo < 0 || idxPruebaCal < 0 || idxArea < 0) return;
+
+        const filasCoincidentes = filasInv.filter(cols =>
+            cols[idxEquipo] === equipoSel && cols[idxPruebaCal] === selPrueba.value
+        );
+        if (!filasCoincidentes.length) return;
+
+        let filaArea = filasCoincidentes[0];
+
+        // Si es VT / PT / MT y hay un detalle seleccionado, intentar afinar el área
+        if (selPrueba.value === 'VT / PT / MT' && selDetalle && selDetalle.value && filasCoincidentes.length > 1) {
+            const detalleUpper = selDetalle.value.toUpperCase();
+
+            if (detalleUpper.includes('ROSCA')) {
+                const filaRosca = filasCoincidentes.find(cols =>
+                    String(cols[idxArea] || '').toUpperCase().includes('ROSCA')
+                );
+                if (filaRosca) filaArea = filaRosca;
+            } else if (detalleUpper.includes('RETENEDORA')) {
+                const filaRet = filasCoincidentes.find(cols => {
+                    const areaUpper = String(cols[idxArea] || '').toUpperCase();
+                    return areaUpper.includes('RET') || areaUpper.includes('A. RET');
+                });
+                if (filaRet) filaArea = filaRet;
+            }
+        }
+
+        areaInput.value = filaArea[idxArea] || '';
+    }
+
     function autocompletarDesdeInventario() {
         const valor = inputEquipo.value.trim();
         if (!valor || !headersInv.length || !filasInv.length) return;
@@ -547,7 +589,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'inv-producto': get('PRODUCTO'),
             'inv-descripcion': get('DESCRIPCION'),
             'inv-tipo-equipo': get('TIPO EQUIPO'),
-            'inv-area': get('ÁREA A INSPECIONAR'),
         };
 
         Object.entries(campos).forEach(([id, valorCampo]) => {
@@ -594,6 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         actualizarVisibilidadDetallePrueba();
+        actualizarAreaSegunEquipoYPrueba();
     }
 
     inputEquipo.addEventListener('change', autocompletarDesdeInventario);
@@ -603,6 +645,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selPruebaManual) {
         selPruebaManual.addEventListener('change', () => {
             actualizarVisibilidadDetallePrueba();
+            actualizarAreaSegunEquipoYPrueba();
+        });
+    }
+
+    const selDetalleManual = document.getElementById('inv-prueba-detalle');
+    if (selDetalleManual) {
+        selDetalleManual.addEventListener('change', () => {
+            actualizarAreaSegunEquipoYPrueba();
         });
     }
 
@@ -624,6 +674,75 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btn-guardar-prueba');
     if (!btn) return; // No estamos en pruebas.html
+
+    // Fecha de prueba = siempre fecha actual (timestamp humano)
+    const inputFechaPrueba = document.getElementById('prueba-fecha');
+    if (inputFechaPrueba && !inputFechaPrueba.value) {
+        const hoy = new Date();
+        const yyyy = hoy.getFullYear();
+        const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+        const dd = String(hoy.getDate()).padStart(2, '0');
+        inputFechaPrueba.value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    const inputFechaReal = document.getElementById('inv-fecha-realizacion');
+    const inputProxima = document.getElementById('inv-proxima');
+
+    function formatearFechaRealizacion(valor) {
+        const soloDigitos = valor.replace(/\D/g, '').slice(0, 6);
+        let res = soloDigitos;
+        if (soloDigitos.length >= 3 && soloDigitos.length <= 4) {
+            res = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2);
+        } else if (soloDigitos.length >= 5) {
+            res =
+                soloDigitos.slice(0, 2) +
+                '/' +
+                soloDigitos.slice(2, 4) +
+                '/' +
+                soloDigitos.slice(4);
+        }
+        return res;
+    }
+
+    function actualizarProximaDesdeFechaRealizacion() {
+        if (!inputFechaReal || !inputProxima) return;
+        const valor = inputFechaReal.value.trim();
+        if (valor.length !== 8) return; // dd/mm/aa
+
+        const partes = valor.split('/');
+        if (partes.length !== 3) return;
+        const [ddStr, mmStr, aaStr] = partes;
+        const dd = parseInt(ddStr, 10);
+        const mm = parseInt(mmStr, 10);
+        const aa = parseInt(aaStr, 10);
+        if (!dd || !mm || isNaN(aa)) return;
+
+        const baseYear = 2000 + aa; // 2 dígitos de año
+        const fecha = new Date(baseYear, mm - 1, dd);
+        if (isNaN(fecha.getTime())) return;
+
+        fecha.setFullYear(fecha.getFullYear() + 1);
+        const yyyyNext = fecha.getFullYear();
+        const mmNext = String(fecha.getMonth() + 1).padStart(2, '0');
+        const ddNext = String(fecha.getDate()).padStart(2, '0');
+        inputProxima.value = `${yyyyNext}-${mmNext}-${ddNext}`;
+    }
+
+    if (inputFechaReal) {
+        inputFechaReal.addEventListener('input', () => {
+            const cursorPos = inputFechaReal.selectionStart;
+            const antes = inputFechaReal.value;
+            const formateado = formatearFechaRealizacion(antes);
+            inputFechaReal.value = formateado;
+            // Mejor no forzar la posición de cursor para evitar comportamientos raros
+        });
+
+        inputFechaReal.addEventListener('blur', () => {
+            // Asegurar formato final y actualizar próxima prueba
+            inputFechaReal.value = formatearFechaRealizacion(inputFechaReal.value);
+            actualizarProximaDesdeFechaRealizacion();
+        });
+    }
 
     async function guardarPruebaEnFirestore(registro) {
         if (!window.db) {
@@ -648,6 +767,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function limpiarFormularioPruebas() {
+        const camposTexto = [
+            'inv-equipo',
+            'inv-serial',
+            'inv-edo',
+            'inv-propiedad',
+            'inv-producto',
+            'inv-descripcion',
+            'inv-tipo-equipo',
+            'inv-material',
+            'inv-area',
+            'inv-fecha-realizacion',
+            'inv-no-reporte',
+            'inv-emisor',
+            'inv-tecnico',
+            'inv-contador',
+            'prueba-observaciones'
+        ];
+
+        camposTexto.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+
+        const selResultado = document.getElementById('prueba-resultado');
+        if (selResultado) selResultado.value = '';
+
+        const selPrueba = document.getElementById('inv-prueba');
+        if (selPrueba) selPrueba.value = '';
+
+        const selDetalle = document.getElementById('inv-prueba-detalle');
+        if (selDetalle) selDetalle.value = '';
+
+        const selEjecucion = document.getElementById('inv-ejecucion');
+        if (selEjecucion) selEjecucion.value = 'INTERNO';
+
+        const inputProx = document.getElementById('inv-proxima');
+        if (inputProx) inputProx.value = '';
+
+        const inputFecha = document.getElementById('prueba-fecha');
+        if (inputFecha) {
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoy.getDate()).padStart(2, '0');
+            inputFecha.value = `${yyyy}-${mm}-${dd}`;
+        }
+    }
+
     btn.addEventListener('click', () => {
         const fechaPrueba = (document.getElementById('prueba-fecha') || {}).value || '';
         const resultado = (document.getElementById('prueba-resultado') || {}).value || '';
@@ -664,13 +832,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const material = (document.getElementById('inv-material') || {}).value || '';
         const area = (document.getElementById('inv-area') || {}).value || '';
         const fechaReal = (document.getElementById('inv-fecha-realizacion') || {}).value || '';
-        const noReporte = (document.getElementById('inv-no-reporte') || {}).value || '';
+        let noReporte = (document.getElementById('inv-no-reporte') || {}).value || '';
         const ejecucion = (document.getElementById('inv-ejecucion') || {}).value || '';
         const emisor = (document.getElementById('inv-emisor') || {}).value || '';
         const tecnico = (document.getElementById('inv-tecnico') || {}).value || '';
         const proxPrueba = (document.getElementById('inv-proxima') || {}).value || '';
         const contador = (document.getElementById('inv-contador') || {}).value || '';
         const observaciones = (document.getElementById('prueba-observaciones') || {}).value || '';
+
+        const clave = 'pct_pruebas';
+        let lista = [];
+        try {
+            lista = JSON.parse(localStorage.getItem(clave) || '[]');
+            if (!Array.isArray(lista)) lista = [];
+        } catch (e) {
+            lista = [];
+        }
+
+        // Generar número de reporte/certificado automático por equipo si está vacío
+        if (!noReporte) {
+            const baseEquipo = (equipo || 'REP').replace(/\s+/g, '-');
+            const existentes = lista.filter(reg => reg.equipo === equipo);
+            const siguiente = existentes.length + 1;
+            const consecutivo = String(siguiente).padStart(3, '0');
+            noReporte = `${baseEquipo}-${consecutivo}`;
+        }
 
         const registro = {
             fechaRegistro: new Date().toISOString(),
@@ -697,20 +883,15 @@ document.addEventListener('DOMContentLoaded', () => {
             observaciones
         };
 
-        const clave = 'pct_pruebas';
-        let lista = [];
-        try {
-            lista = JSON.parse(localStorage.getItem(clave) || '[]');
-            if (!Array.isArray(lista)) lista = [];
-        } catch (e) {
-            lista = [];
-        }
-
         lista.push(registro);
         localStorage.setItem(clave, JSON.stringify(lista));
 
         // Intentar guardar también en Firestore (si está disponible)
         guardarPruebaEnFirestore(registro);
+
+        // Notificación y limpieza de formulario
+        alert('Prueba guardada correctamente');
+        limpiarFormularioPruebas();
 
         btn.textContent = 'Prueba guardada';
         btn.disabled = true;

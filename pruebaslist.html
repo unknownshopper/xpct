@@ -25,23 +25,24 @@
         </div>
     </header>
 
-    <main style="max-width: 1100px; margin: 1rem auto; padding: 1.5rem;">
+    <main style="max-width: 100%; margin: 0 auto; padding: 1.5rem;">
         <section class="detalle-equipo">
             <h2>Pruebas guardadas (local)</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
                 Estas pruebas se almacenan solo en este navegador usando <code>localStorage</code>. Más adelante se pueden enviar a un backend.
             </p>
-            <div class="tabla-inspecciones-wrapper">
-                <table id="tabla-pruebas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+            <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                <table id="tabla-pruebas" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
                     <thead>
                         <tr style="background:#f3f4f6;">
                             <th style="text-align:left; padding:0.4rem;">Fecha prueba</th>
-                            <th style="text-align:left; padding:0.4rem;">Resultado</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo</th>
                             <th style="text-align:left; padding:0.4rem;">Serial</th>
                             <th style="text-align:left; padding:0.4rem;">Producto</th>
                             <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
                             <th style="text-align:left; padding:0.4rem;">Técnico</th>
+                            <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-pruebas"></tbody>
@@ -67,24 +68,63 @@
             lista = [];
         }
 
-        if (!lista.length) {
-            msg.style.display = 'block';
-            return;
+        function guardarLista() {
+            localStorage.setItem(clave, JSON.stringify(lista));
         }
 
-        lista.forEach(reg => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaPrueba || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.resultado || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.serial || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.pruebaTipo || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
-            `;
-            tbody.appendChild(tr);
+        function renderTabla() {
+            tbody.innerHTML = '';
+
+            if (!lista.length) {
+                msg.style.display = 'block';
+                return;
+            }
+            msg.style.display = 'none';
+
+            lista.forEach((reg, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaPrueba || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.serial || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.pruebaTipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.noReporte || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <button data-accion="editar" data-idx="${idx}" style="margin-right:0.25rem;">Editar</button>
+                        <button data-accion="eliminar" data-idx="${idx}">Eliminar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-accion]');
+            if (!btn) return;
+
+            const idx = parseInt(btn.getAttribute('data-idx'), 10);
+            if (isNaN(idx) || idx < 0 || idx >= lista.length) return;
+
+            const accion = btn.getAttribute('data-accion');
+
+            if (accion === 'eliminar') {
+                if (!confirm('¿Eliminar esta prueba?')) return;
+                lista.splice(idx, 1);
+                guardarLista();
+                renderTabla();
+            } else if (accion === 'editar') {
+                const reg = lista[idx];
+                const nuevoNoRep = prompt('Editar No. de reporte / certificado:', reg.noReporte || '');
+                if (nuevoNoRep === null) return;
+                lista[idx] = { ...reg, noReporte: nuevoNoRep.trim() };
+                guardarLista();
+                renderTabla();
+            }
         });
+
+        renderTabla();
     });
     </script>
 </body>

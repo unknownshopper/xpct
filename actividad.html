@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de actividad</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li><a href="pruebas.html">Pruebas</a></li>
+                <li><a href="inspeccion.html">Inspecciones</a></li>
+                <li><a href="invre.html">Inventario invre</a></li>
+                <li><a href="invre2.html">Inventario invre2</a></li>
+                <li><a href="forxmat.html">Formatos</a></li>
+                <li><a href="actividad.html" class="active">Actividad</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="actividad-page">
+        <!-- Tarjetas de resumen -->
+        <section class="dashboard-cards actividad-resumen">
+            <div class="dash-card">
+                <div class="dash-card-label">Clientes activos</div>
+                <div class="dash-card-value" id="act-clientes-activos">0</div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-label">Equipos en servicio</div>
+                <div class="dash-card-value" id="act-equipos-servicio">0</div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-label">Promedio días en servicio (activos)</div>
+                <div class="dash-card-value" id="act-promedio-dias">0</div>
+            </div>
+        </section>
+
+        <!-- Barra superior: buscador y acciones -->
+        <section class="actividad-toolbar">
+            <div class="actividad-toolbar-left">
+                <input type="search" id="act-buscar" placeholder="Buscar...">
+            </div>
+            <div class="actividad-toolbar-right">
+                <button id="act-btn-limpiar">Limpiar</button>
+                <button id="act-btn-todos-clientes">Todos los clientes</button>
+                <button id="act-btn-guardar">Guardar</button>
+                <button id="act-btn-cancelar">Cancelar</button>
+            </div>
+        </section>
+
+        <!-- Formulario nuevo registro -->
+        <section class="actividad-form-card">
+            <h2>Nuevo registro</h2>
+            <form id="actividad-form" class="actividad-form">
+                <div class="actividad-form-grid">
+                    <div class="campo">
+                        <label for="act-tipo">Tipo</label>
+                        <select id="act-tipo">
+                            <option value="PROPIO">Propio</option>
+                            <option value="TERCERO">Tercero</option>
+                        </select>
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-cliente">Cliente</label>
+                        <input type="text" id="act-cliente" placeholder="Cliente">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-equipo">Equipo / Activo</label>
+                        <input type="text" id="act-equipo" placeholder="Equipo / Activo">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-area-cliente">Área del cliente</label>
+                        <input type="text" id="act-area-cliente" placeholder="Área del cliente">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-ubicacion">Ubicación</label>
+                        <input type="text" id="act-ubicacion" placeholder="Ubicación">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-os">Orden de Servicio</label>
+                        <input type="text" id="act-os" placeholder="O.S.">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-orden-suministro">Orden de suministro</label>
+                        <input type="text" id="act-orden-suministro" placeholder="Orden de suministro">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-factura">Factura</label>
+                        <input type="text" id="act-factura" placeholder="Factura">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-est-cot">EST-COT</label>
+                        <input type="text" id="act-est-cot" placeholder="Cotización / Estimación">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-fecha-embarque">Fecha Embarque</label>
+                        <input type="date" id="act-fecha-embarque">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-inicio-servicio">Inicio del servicio</label>
+                        <input type="date" id="act-inicio-servicio">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-dias-servicio">Días en servicio</label>
+                        <input type="number" id="act-dias-servicio" min="0" step="1">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-precio">Precio</label>
+                        <input type="text" id="act-precio" placeholder="Asignar en AdminTab">
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-serial-auto">Serial (auto)</label>
+                        <input type="text" id="act-serial-auto" disabled>
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-estado-auto">Estado (auto)</label>
+                        <input type="text" id="act-estado-auto" disabled>
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-propiedad-auto">Propiedad (auto)</label>
+                        <input type="text" id="act-propiedad-auto" disabled>
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-no-reporte-auto">No. de reporte / certificado (auto)</label>
+                        <input type="text" id="act-no-reporte-auto" disabled>
+                    </div>
+
+                    <div class="campo">
+                        <label for="act-descripcion-auto">Descripción (auto)</label>
+                        <input type="text" id="act-descripcion-auto" disabled>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Aquí más adelante podremos listar actividad histórica -->
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
