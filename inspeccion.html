@@ -11,11 +11,37 @@
         <div class="logo">
             <img src="img/logopctch.png" alt="Logo PCT">
         </div>
-        <nav>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
             <ul>
                 <li><a href="index.html">Inicio</a></li>
-                <li><a href="pruebas.html">Pruebas</a></li>
-                <li><a href="inspeccion.html" class="active">Inspecciones</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="pruebas.html">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="inspeccion.html" class="active">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="actividad.html">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
+                    </ul>
+                </li>
             </ul>
         </nav>
         <div class="user-info">
@@ -81,6 +107,9 @@
 
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
+
+        // Marcar flag global de admin para el navbar
+        window.isAdmin = ADMINS.includes(email);
 
         // Solo admins e inspectores pueden estar aquí
         if (!ADMINS.includes(email) && !INSPECTORES.includes(email)) {

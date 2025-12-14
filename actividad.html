@@ -11,15 +11,37 @@
         <div class="logo">
             <img src="img/logopctch.png" alt="Logo PCT">
         </div>
-        <nav>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
             <ul>
                 <li><a href="index.html">Inicio</a></li>
-                <li><a href="pruebas.html">Pruebas</a></li>
-                <li><a href="inspeccion.html">Inspecciones</a></li>
-                <li><a href="invre.html">Inventario invre</a></li>
-                <li><a href="invre2.html">Inventario invre2</a></li>
-                <li><a href="forxmat.html">Formatos</a></li>
-                <li><a href="actividad.html" class="active">Actividad</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="pruebas.html">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="inspeccion.html">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="actividad.html" class="active">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
+                    </ul>
+                </li>
             </ul>
         </nav>
         <div class="user-info">
@@ -127,12 +149,12 @@
                 <div class="actividad-form-grid">
                     <div class="campo">
                         <label for="act-fecha-embarque">Fecha Embarque</label>
-                        <input type="date" id="act-fecha-embarque">
+                        <input type="text" id="act-fecha-embarque" placeholder="dd/mm/aa">
                     </div>
 
                     <div class="campo">
                         <label for="act-inicio-servicio">Inicio del servicio</label>
-                        <input type="date" id="act-inicio-servicio">
+                        <input type="text" id="act-inicio-servicio" placeholder="dd/mm/aa">
                     </div>
 
                     <div class="campo">
@@ -185,6 +207,71 @@
 
         <!-- Aquí más adelante podremos listar actividad histórica -->
     </main>
+
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+        authDomain: "xpct-tab.firebaseapp.com",
+        projectId: "xpct-tab",
+        storageBucket: "xpct-tab.firebasestorage.app",
+        messagingSenderId: "614589989974",
+        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    window.db = db;
+
+    const auth = getAuth(app);
+    window.auth = auth;
+
+    const ADMINS = [
+        "the@unknownshoppers.com",
+        "jalcz@pct.com"
+    ];
+    const INSPECTORES = [
+        "inspector01@pct.com",
+        "inspector02@pct.com"
+    ];
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        window.isAdmin = ADMINS.includes(email);
+
+        // Solo admins deben ver esta página
+        if (!ADMINS.includes(email)) {
+            if (INSPECTORES.includes(email)) {
+                window.location.href = 'inspeccion.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'login.html';
+            }
+        });
+    }
+    </script>
 
     <script src="script.js"></script>
 </body>

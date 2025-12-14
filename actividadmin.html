@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actividad - Administración (Ingresos)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="pruebas.html">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="inspeccion.html">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="actividad.html" class="active">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="actividad-page" style="max-width: 1200px; margin: 1rem auto;">
+        <!-- Tarjetas resumen -->
+        <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
+            <div class="dash-card">
+                <div class="dash-card-label">Ingresos acumulados (visibles)</div>
+                <div class="dash-card-value" id="adm-total-ingresos">$0</div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-label">Rentas acumuladas (visibles)</div>
+                <div class="dash-card-value" id="adm-total-rentas">$0</div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-label">Ticket promedio (visibles)</div>
+                <div class="dash-card-value" id="adm-ticket-promedio">$0</div>
+            </div>
+        </section>
+
+        <!-- Filtro y contador -->
+        <section class="actividad-toolbar" style="margin-bottom: 0.75rem;">
+            <div class="actividad-toolbar-left">
+                <input type="search" id="adm-buscar" placeholder="Buscar por cliente, equipo, OS, factura..." style="min-width: 260px;">
+            </div>
+            <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563;">
+                <span id="adm-contador">0 registros</span>
+            </div>
+        </section>
+
+        <!-- Tabla editable -->
+        <section class="detalle-equipo" style="padding: 0.75rem 0.75rem 1rem; max-width: 100%;">
+            <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:left; padding:0.4rem;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Terminación del servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Precio</th>
+                            <th style="text-align:left; padding:0.4rem;">Ingreso acumulado</th>
+                            <th style="text-align:left; padding:0.4rem;">Orden de servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Factura</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adm-tbody-actividad"></tbody>
+                </table>
+            </div>
+            <p id="adm-msg-vacio" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                No hay registros de actividad todavía.
+            </p>
+        </section>
+    </main>
+
+    <!-- Inicialización de Firebase/Auth/Firestore para esta página -->
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+        authDomain: "xpct-tab.firebaseapp.com",
+        projectId: "xpct-tab",
+        storageBucket: "xpct-tab.firebasestorage.app",
+        messagingSenderId: "614589989974",
+        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    window.db = db;
+
+    const auth = getAuth(app);
+    window.auth = auth;
+
+    const ADMINS = [
+        "the@unknownshoppers.com",
+        "jalcz@pct.com"
+    ];
+    const INSPECTORES = [
+        "inspector01@pct.com",
+        "inspector02@pct.com"
+    ];
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        window.isAdmin = ADMINS.includes(email);
+
+        // Solo admins deben ver esta página
+        if (!ADMINS.includes(email)) {
+            if (INSPECTORES.includes(email)) {
+                window.location.href = 'inspeccion.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'login.html';
+            }
+        });
+    }
+    </script>
+
+    <!-- Lógica de administración de actividades usando Firestore -->
+    <script>
+    (function() {
+        let listaActividad = [];
+
+        function formatearMoneda(valor) {
+            const n = Number(valor) || 0;
+            return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
+        }
+
+        function fechaISOaInput(fechaISO) {
+            if (!fechaISO) return '';
+            const d = new Date(fechaISO);
+            if (isNaN(d.getTime())) return '';
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function sumarDias(fechaISO, dias) {
+            if (!fechaISO || !dias) return '';
+            const d = new Date(fechaISO);
+            if (isNaN(d.getTime())) return '';
+            d.setDate(d.getDate() + Number(dias));
+            return d.toISOString();
+        }
+
+        async function cargarActividadDesdeFirestore() {
+            if (!window.db) {
+                console.warn('Firestore (window.db) no está disponible en actividadmin');
+                listaActividad = [];
+                renderTabla();
+                return;
+            }
+
+            try {
+                const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const colRef = collection(db, 'actividades');
+                const snap = await getDocs(colRef);
+                listaActividad = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (e) {
+                console.error('Error al cargar actividades desde Firestore (admin)', e);
+                listaActividad = [];
+            }
+
+            renderTabla();
+        }
+
+        async function actualizarActividadEnFirestore(id, cambios) {
+            if (!window.db) {
+                console.warn('Firestore (window.db) no está disponible para actualizar');
+                return;
+            }
+
+            try {
+                const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const ref = doc(db, 'actividades', id);
+                await updateDoc(ref, cambios);
+            } catch (e) {
+                console.error('Error al actualizar actividad en Firestore', e);
+            }
+        }
+
+        function renderTabla() {
+            const tbody = document.getElementById('adm-tbody-actividad');
+            const msgVacio = document.getElementById('adm-msg-vacio');
+            const lblCont = document.getElementById('adm-contador');
+            const inputBuscar = document.getElementById('adm-buscar');
+            const spanIngresos = document.getElementById('adm-total-ingresos');
+            const spanRentas = document.getElementById('adm-total-rentas');
+            const spanTicket = document.getElementById('adm-ticket-promedio');
+
+            if (!tbody) return;
+
+            const lista = Array.isArray(listaActividad) ? listaActividad : [];
+            let filtro = (inputBuscar?.value || '').toLowerCase().trim();
+
+            tbody.innerHTML = '';
+
+            if (!lista.length) {
+                msgVacio.style.display = 'block';
+                lblCont.textContent = '0 registros';
+                spanIngresos.textContent = '$0';
+                spanRentas.textContent = '$0';
+                spanTicket.textContent = '$0';
+                return;
+            }
+
+            msgVacio.style.display = 'none';
+
+            let totalIngresos = 0;
+            let totalRentas = 0;
+            let sumaPrecios = 0;
+            let cuentaPrecios = 0;
+            let visibles = 0;
+
+            lista.forEach((reg) => {
+                const id = reg.id;
+                const cliente = reg.cliente || '';
+                const inicio = reg.inicioServicio || '';
+                const os = reg.os || '';
+                const factura = reg.factura || '';
+                const precio = Number(reg.precio || 0);
+
+                const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
+                    ? reg.equipos
+                    : (reg.equipo ? [reg.equipo] : []);
+
+                const precioPorEquipo = equiposArr.length ? (precio / equiposArr.length) : precio;
+
+                // Calcular días efectivos en servicio a partir de inicio/terminación (o hoy)
+                let dias = Number(reg.diasServicio || 0);
+                if (inicio) {
+                    const dInicio = new Date(inicio);
+                    if (!isNaN(dInicio.getTime())) {
+                        const dFin = reg.terminacionServicio
+                            ? new Date(reg.terminacionServicio)
+                            : new Date();
+
+                        if (!isNaN(dFin.getTime())) {
+                            const diffMs = dFin.getTime() - dInicio.getTime();
+                            const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                            if (diffDias >= 0) {
+                                dias = diffDias;
+                            }
+                        }
+                    }
+                }
+
+                const termISO = reg.terminacionServicio || (inicio && dias ? sumarDias(inicio, dias) : '');
+                const termInput = fechaISOaInput(termISO);
+
+                equiposArr.forEach(equipoNombre => {
+                    const textoBuscar = `${cliente} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                    if (filtro && !textoBuscar.includes(filtro)) {
+                        return;
+                    }
+
+                    visibles += 1;
+
+                    const ingresoEquipo = precioPorEquipo * (dias || 0);
+                    totalIngresos += ingresoEquipo;
+                    totalRentas += ingresoEquipo;
+
+                    if (precioPorEquipo > 0) {
+                        sumaPrecios += precioPorEquipo;
+                        cuentaPrecios += 1;
+                    }
+
+                    const tr = document.createElement('tr');
+
+                    tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            ${inicio ? fechaISOaInput(inicio) : ''}
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            <input type="date" class="adm-input-term" data-id="${id}" value="${termInput}" style="font-size:0.8rem;">
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">
+                            ${dias || ''}
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            <input type="number" min="0" step="1" class="adm-input-precio" data-id="${id}"
+                                   value="${precio || ''}" style="width:80px; font-size:0.8rem;">
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            ${ingresoEquipo ? formatearMoneda(ingresoEquipo) : ''}
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            <button type="button" class="adm-btn-guardar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
+                                Guardar
+                            </button>
+                            <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
+                                Eliminar
+                            </button>
+                        </td>
+                    `;
+
+                    tbody.appendChild(tr);
+                });
+            });
+
+            lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
+            spanIngresos.textContent = formatearMoneda(totalIngresos);
+            spanRentas.textContent = formatearMoneda(totalRentas);
+            spanTicket.textContent = cuentaPrecios ? formatearMoneda(sumaPrecios / cuentaPrecios) : '$0';
+
+            tbody.querySelectorAll('.adm-btn-guardar').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-id');
+                    if (!id) return;
+
+                    const inputPrecio = tbody.querySelector(`.adm-input-precio[data-id="${id}"]`);
+                    const inputTerm = tbody.querySelector(`.adm-input-term[data-id="${id}"]`);
+
+                    const nuevoPrecio = inputPrecio ? Number(inputPrecio.value || 0) : 0;
+                    const nuevaTerm = inputTerm ? inputTerm.value : '';
+
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+
+                    regLocal.precio = nuevoPrecio;
+
+                    let cambios = { precio: nuevoPrecio };
+
+                    if (nuevaTerm) {
+                        const d = new Date(nuevaTerm);
+                        if (!isNaN(d.getTime())) {
+                            const iso = d.toISOString();
+                            regLocal.terminacionServicio = iso;
+                            cambios.terminacionServicio = iso;
+                        }
+                    } else {
+                        delete regLocal.terminacionServicio;
+                        cambios.terminacionServicio = null;
+                    }
+
+                    await actualizarActividadEnFirestore(id, cambios);
+                    renderTabla();
+                });
+            });
+
+            tbody.querySelectorAll('.adm-btn-eliminar').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-id');
+                    if (!id) return;
+
+                    if (!confirm('¿Eliminar esta actividad? Esta acción no se puede deshacer.')) return;
+
+                    try {
+                        const { getFirestore, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        const db = getFirestore();
+                        const ref = doc(db, 'actividades', id);
+                        await deleteDoc(ref);
+
+                        listaActividad = listaActividad.filter(r => r.id !== id);
+                        renderTabla();
+                    } catch (e) {
+                        console.error('Error al eliminar actividad en Firestore', e);
+                    }
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputBuscar = document.getElementById('adm-buscar');
+            if (inputBuscar) {
+                inputBuscar.addEventListener('input', () => {
+                    renderTabla();
+                });
+            }
+
+            cargarActividadDesdeFirestore();
+        });
+    })();
+    </script>
+
+    <!-- script.js para navbar, menús, etc. -->
+    <script src="script.js"></script>
+</body>
+</html>

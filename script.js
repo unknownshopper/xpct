@@ -458,6 +458,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 });
 
+// Dropdowns del navbar: abrir/cerrar al hacer click en el enlace padre
+document.addEventListener('DOMContentLoaded', () => {
+    const navMain = document.querySelector('.nav-main');
+    if (!navMain) return;
+
+    // Asegurar que todos los dropdowns inicien colapsados
+    navMain.querySelectorAll('.nav-item-has-dropdown').forEach(el => {
+        el.classList.remove('is-open');
+    });
+
+    navMain.addEventListener('click', (event) => {
+        const trigger = event.target.closest('.nav-item-has-dropdown > a');
+        if (!trigger) return;
+
+        event.preventDefault();
+
+        const item = trigger.parentElement;
+
+        const yaAbierto = item.classList.contains('is-open');
+
+        // Cerrar todos
+        navMain.querySelectorAll('.nav-item-has-dropdown.is-open').forEach(el => {
+            el.classList.remove('is-open');
+        });
+
+        // Si no estaba abierto, abrir solo este
+        if (!yaAbierto) {
+            item.classList.add('is-open');
+        }
+    });
+});
+
 // Autocompletar información de inventario en pruebas.html desde invre2.csv
 document.addEventListener('DOMContentLoaded', () => {
     const inputEquipo = document.getElementById('inv-equipo');
@@ -779,17 +811,29 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => console.error(err));
 
-    const CLAVE_ACT = 'pct_actividad';
+    // Actividad ahora se almacena en Firestore (colección "actividades") en lugar de localStorage
     let listaActividad = [];
-    try {
-        listaActividad = JSON.parse(localStorage.getItem(CLAVE_ACT) || '[]');
-        if (!Array.isArray(listaActividad)) listaActividad = [];
-    } catch (e) {
-        listaActividad = [];
-    }
 
-    function guardarListaActividad() {
-        localStorage.setItem(CLAVE_ACT, JSON.stringify(listaActividad));
+    async function cargarActividadDesdeFirestore() {
+        if (!window.db) {
+            console.warn('Firestore (window.db) no está disponible');
+            listaActividad = [];
+            actualizarResumenActividad();
+            return;
+        }
+
+        try {
+            const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore();
+            const colRef = collection(db, 'actividades');
+            const snap = await getDocs(colRef);
+            listaActividad = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.error('Error al cargar actividades desde Firestore', e);
+            listaActividad = [];
+        }
+
+        actualizarResumenActividad();
     }
 
     function actualizarResumenActividad() {
@@ -827,7 +871,8 @@ document.addEventListener('DOMContentLoaded', () => {
         spanPromDias.textContent = cuentaDias ? Math.round(sumaDias / cuentaDias) : 0;
     }
 
-    actualizarResumenActividad();
+    // Cargar resumen inicial desde Firestore
+    cargarActividadDesdeFirestore();
 
     function renderEquiposSeleccionados() {
         if (!contEquiposSel) return;
@@ -928,6 +973,59 @@ document.addEventListener('DOMContentLoaded', () => {
         agregarEquipoDesdeInput();
     });
 
+    function formatearFechaCorta(valor) {
+        const soloDigitos = valor.replace(/\D/g, '').slice(0, 6);
+        let res = soloDigitos;
+        if (soloDigitos.length >= 3 && soloDigitos.length <= 4) {
+            res = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2);
+        } else if (soloDigitos.length >= 5) {
+            res =
+                soloDigitos.slice(0, 2) +
+                '/' +
+                soloDigitos.slice(2, 4) +
+                '/' +
+                soloDigitos.slice(4);
+        }
+        return res;
+    }
+
+    function fechaCortaAISO(valor) {
+        const v = (valor || '').trim();
+        if (v.length !== 8) return '';
+        const partes = v.split('/');
+        if (partes.length !== 3) return '';
+        const [ddStr, mmStr, aaStr] = partes;
+        const dd = parseInt(ddStr, 10);
+        const mm = parseInt(mmStr, 10);
+        const aa = parseInt(aaStr, 10);
+        if (!dd || !mm || isNaN(aa)) return '';
+        const year = 2000 + aa;
+        const fecha = new Date(year, mm - 1, dd);
+        if (isNaN(fecha.getTime())) return '';
+        return fecha.toISOString();
+    }
+
+    const inputFechaEmb = document.getElementById('act-fecha-embarque');
+    const inputInicioServ = document.getElementById('act-inicio-servicio');
+
+    if (inputFechaEmb) {
+        inputFechaEmb.addEventListener('input', () => {
+            inputFechaEmb.value = formatearFechaCorta(inputFechaEmb.value);
+        });
+        inputFechaEmb.addEventListener('blur', () => {
+            inputFechaEmb.value = formatearFechaCorta(inputFechaEmb.value);
+        });
+    }
+
+    if (inputInicioServ) {
+        inputInicioServ.addEventListener('input', () => {
+            inputInicioServ.value = formatearFechaCorta(inputInicioServ.value);
+        });
+        inputInicioServ.addEventListener('blur', () => {
+            inputInicioServ.value = formatearFechaCorta(inputInicioServ.value);
+        });
+    }
+
     function limpiarFormularioActividad() {
         const idsTexto = [
             'act-cliente',
@@ -989,7 +1087,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 creadoEn: serverTimestamp()
             };
 
-            await addDoc(collection(window.db, 'actividad'), datos);
+            const docRef = await addDoc(collection(window.db, 'actividades'), datos);
+
+            // Actualizar lista local y resumen para que el dashboard refleje el nuevo registro
+            listaActividad.push({ id: docRef.id, ...datos });
+            actualizarResumenActividad();
+
             console.log('Actividad guardada en Firestore');
         } catch (e) {
             console.error('Error al guardar actividad en Firestore', e);
@@ -1009,8 +1112,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const ordenSuministro = (document.getElementById('act-orden-suministro') || {}).value || '';
             const factura = (document.getElementById('act-factura') || {}).value || '';
             const estCot = (document.getElementById('act-est-cot') || {}).value || '';
-            const fechaEmbarque = (document.getElementById('act-fecha-embarque') || {}).value || '';
-            const inicioServicio = (document.getElementById('act-inicio-servicio') || {}).value || '';
+            const fechaEmbarqueTexto = (document.getElementById('act-fecha-embarque') || {}).value || '';
+            const inicioServicioTexto = (document.getElementById('act-inicio-servicio') || {}).value || '';
             const diasServicioStr = (document.getElementById('act-dias-servicio') || {}).value || '';
             const precio = (document.getElementById('act-precio') || {}).value || '';
 
@@ -1032,6 +1135,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const diasServicio = diasServicioStr ? Number(diasServicioStr) : 0;
 
+            // OS automática por cliente + área si no se capturó
+            let osFinal = os;
+            if (!osFinal) {
+                const clienteKey = (cliente || '').trim().toUpperCase();
+                const areaKey = (areaCliente || '').trim().toUpperCase();
+
+                const baseCliente = clienteKey.replace(/\s+/g, '-') || 'CLIENTE';
+                const baseArea = areaKey.replace(/\s+/g, '-');
+                const base = baseArea ? `${baseCliente}-${baseArea}` : baseCliente;
+
+                const existentes = Array.isArray(listaActividad)
+                    ? listaActividad.filter(reg =>
+                        (reg.cliente || '').trim().toUpperCase() === clienteKey &&
+                        (reg.areaCliente || '').trim().toUpperCase() === areaKey
+                    )
+                    : [];
+
+                const consecutivo = String(existentes.length + 1).padStart(3, '0');
+                osFinal = `${base}-${consecutivo}`;
+            }
+
             const equipos = [...equiposSeleccionados];
             const equipoPrincipal = equipos[0] || '';
             const infoPrincipal = equipoPrincipal ? (infoPorEquipoAct[equipoPrincipal] || {}) : {};
@@ -1044,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ubicacion,
                 equipo: equipoPrincipal,
                 equipos,
-                os,
+                os: osFinal,
                 ordenSuministro,
                 factura,
                 estCot,
@@ -1059,11 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 descripcion: inputDescAuto ? inputDescAuto.value || infoPrincipal.descripcion || '' : infoPrincipal.descripcion || '',
             };
 
-            listaActividad.push(registro);
-            guardarActividadEnFirestore(registro);
-
-            guardarListaActividad();
-            actualizarResumenActividad();
+            await guardarActividadEnFirestore(registro);
             alert('Actividad guardada');
             limpiarFormularioActividad();
         });
@@ -1346,6 +1466,156 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch {
         elPruebas.textContent = '0';
     }
+});
+
+// Listado de actividades en actividadlist.html
+document.addEventListener('DOMContentLoaded', () => {
+    const tbody = document.getElementById('actlist-tbody');
+    if (!tbody) return; // No estamos en actividadlist.html
+
+    const msgVacio = document.getElementById('actlist-msg-vacio');
+    const lblCont = document.getElementById('actlist-contador');
+    const inputBuscar = document.getElementById('actlist-buscar');
+
+    let listaActividad = [];
+
+    function fechaISOaInput(fechaISO) {
+        if (!fechaISO) return '';
+        const d = new Date(fechaISO);
+        if (isNaN(d.getTime())) return '';
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy}`;
+    }
+
+    function formatearMoneda(valor) {
+        const n = Number(valor) || 0;
+        return n.toLocaleString('es-MX', {
+            style: 'currency',
+            currency: 'MXN',
+            maximumFractionDigits: 0
+        });
+    }
+
+    function renderTabla() {
+        const lista = Array.isArray(listaActividad) ? listaActividad : [];
+        const filtro = (inputBuscar?.value || '').toLowerCase().trim();
+
+        tbody.innerHTML = '';
+
+        if (!lista.length) {
+            if (msgVacio) msgVacio.style.display = 'block';
+            if (lblCont) lblCont.textContent = '0 registros';
+            return;
+        }
+
+        if (msgVacio) msgVacio.style.display = 'none';
+
+        let visibles = 0;
+
+        lista.forEach(reg => {
+            const cliente = reg.cliente || '';
+            const inicio = reg.inicioServicio || '';
+            const dias = Number(reg.diasServicio || 0);
+            const os = reg.os || '';
+            const factura = reg.factura || '';
+            const precio = Number(reg.precio || 0);
+
+            const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
+                ? reg.equipos
+                : (reg.equipo ? [reg.equipo] : []);
+
+            equiposArr.forEach(equipoNombre => {
+                const textoBuscar = `${cliente} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                if (filtro && !textoBuscar.includes(filtro)) return;
+
+                visibles += 1;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        ${inicio ? fechaISOaInput(inicio) : ''}
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">
+                        ${dias || ''}
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        ${precio ? formatearMoneda(precio) : ''}
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <button type="button" class="actlist-btn-eliminar" data-id="${reg.id}" style="font-size:0.75rem; color:#b91c1c;">
+                            Eliminar
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+
+        if (lblCont) {
+            lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
+        }
+
+        tbody.querySelectorAll('.actlist-btn-eliminar').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.getAttribute('data-id');
+                if (!id) return;
+
+                if (!confirm('¿Eliminar esta actividad? Esta acción no se puede deshacer.')) return;
+
+                try {
+                    const { getFirestore, doc, deleteDoc } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+                    const db = getFirestore();
+                    const ref = doc(db, 'actividades', id);
+                    await deleteDoc(ref);
+
+                    listaActividad = listaActividad.filter(r => r.id !== id);
+                    renderTabla();
+                } catch (e) {
+                    console.error('Error al eliminar actividad en Firestore (listado)', e);
+                }
+            });
+        });
+    }
+
+    async function cargarActividadDesdeFirestoreParaListado() {
+        if (!window.db) {
+            console.warn('Firestore (window.db) no está disponible en actividadlist');
+            listaActividad = [];
+            renderTabla();
+            return;
+        }
+
+        try {
+            const { getFirestore, collection, getDocs } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
+            const colRef = collection(db, 'actividades');
+            const snap = await getDocs(colRef);
+            listaActividad = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.error('Error al cargar actividades desde Firestore (listado)', e);
+            listaActividad = [];
+        }
+
+        renderTabla();
+    }
+
+    if (inputBuscar) {
+        inputBuscar.addEventListener('input', () => {
+            renderTabla();
+        });
+    }
+
+    cargarActividadDesdeFirestoreParaListado();
 });
 
 // Visualización de formatos en forxmat.html

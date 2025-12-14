@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listado de actividades</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="pruebas.html">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="inspeccion.html">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="actividad.html" class="active">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="actividad-page">
+        <section class="actividad-toolbar" style="margin-bottom: 0.75rem;">
+            <div class="actividad-toolbar-left">
+                <input type="search" id="actlist-buscar" placeholder="Buscar por cliente, equipo, OS, factura...">
+            </div>
+            <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563;">
+                <span id="actlist-contador">0 registros</span>
+            </div>
+        </section>
+
+        <section class="detalle-equipo" style="padding: 0.75rem 0.75rem 1rem; max-width: 100%;">
+            <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:left; padding:0.4rem;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Orden de servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Factura</th>
+                            <th style="text-align:left; padding:0.4rem;">Precio</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="actlist-tbody"></tbody>
+                </table>
+            </div>
+            <p id="actlist-msg-vacio" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                No hay actividades registradas.
+            </p>
+        </section>
+    </main>
+
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+        authDomain: "xpct-tab.firebaseapp.com",
+        projectId: "xpct-tab",
+        storageBucket: "xpct-tab.firebasestorage.app",
+        messagingSenderId: "614589989974",
+        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    window.db = db;
+
+    const auth = getAuth(app);
+    window.auth = auth;
+
+    const ADMINS = [
+        "the@unknownshoppers.com",
+        "jalcz@pct.com"
+    ];
+    const INSPECTORES = [
+        "inspector01@pct.com",
+        "inspector02@pct.com"
+    ];
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        window.isAdmin = ADMINS.includes(email);
+
+        // Solo admins deben ver esta página
+        if (!ADMINS.includes(email)) {
+            if (INSPECTORES.includes(email)) {
+                window.location.href = 'inspeccion.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'login.html';
+            }
+        });
+    }
+    </script>
+
+    <script src="script.js"></script>
+</body>
+</html>
