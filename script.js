@@ -670,6 +670,363 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Registro de actividad en actividad.html
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('actividad-form');
+    const inputEquipo = document.getElementById('act-equipo');
+    const datalistEquipos = document.getElementById('lista-equipos-actividad');
+    if (!form || !inputEquipo || !datalistEquipos) return; // No estamos en actividad.html
+
+    const inputSerialAuto = document.getElementById('act-serial-auto');
+    const inputEstadoAuto = document.getElementById('act-estado-auto');
+    const inputPropAuto = document.getElementById('act-propiedad-auto');
+    const inputNoRepAuto = document.getElementById('act-no-reporte-auto');
+    const inputDescAuto = document.getElementById('act-descripcion-auto');
+    const contEquiposSel = document.getElementById('act-equipos-seleccionados');
+
+    const btnGuardar = document.getElementById('act-btn-guardar');
+    const btnLimpiar = document.getElementById('act-btn-limpiar');
+
+    let headersAct = [];
+    let filasAct = [];
+    const infoPorEquipoAct = {}; // { serial, estado, propiedad, descripcion }
+    let equiposSeleccionados = [];
+
+    // Cargar inventario (invre.csv) para datalist y datos automáticos
+    fetch('docs/invre.csv')
+        .then(r => {
+            if (!r.ok) throw new Error('No se pudo cargar invre.csv');
+            return r.text();
+        })
+        .then(texto => {
+            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lineas.length) return;
+
+            headersAct = parseCSVLine(lineas[0]);
+            filasAct = lineas.slice(1).map(l => parseCSVLine(l));
+
+            const idxEquipo = headersAct.indexOf('EQUIPO / ACTIVO');
+            const idxDesc = headersAct.indexOf('DESCRIPCION');
+            const idxSerial = headersAct.indexOf('SERIAL');
+            const idxEdo = headersAct.indexOf('EDO');
+            const idxProp = headersAct.indexOf('PROPIEDAD');
+
+            const vistos = new Set();
+            filasAct.forEach(cols => {
+                const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                if (!eq || vistos.has(eq)) return;
+                vistos.add(eq);
+
+                const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
+                const opt = document.createElement('option');
+                opt.value = eq;
+                opt.label = desc ? `${eq} - ${desc}` : eq;
+                datalistEquipos.appendChild(opt);
+
+                const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
+                const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
+                const prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
+                infoPorEquipoAct[eq] = {
+                    serial,
+                    estado: edo,
+                    propiedad: prop,
+                    descripcion: desc
+                };
+            });
+        })
+        .catch(err => console.error(err));
+
+    const CLAVE_ACT = 'pct_actividad';
+    let listaActividad = [];
+    try {
+        listaActividad = JSON.parse(localStorage.getItem(CLAVE_ACT) || '[]');
+        if (!Array.isArray(listaActividad)) listaActividad = [];
+    } catch (e) {
+        listaActividad = [];
+    }
+
+    function guardarListaActividad() {
+        localStorage.setItem(CLAVE_ACT, JSON.stringify(listaActividad));
+    }
+
+    function actualizarResumenActividad() {
+        const spanClientes = document.getElementById('act-clientes-activos');
+        const spanEquipos = document.getElementById('act-equipos-servicio');
+        const spanPromDias = document.getElementById('act-promedio-dias');
+
+        if (!spanClientes || !spanEquipos || !spanPromDias) return;
+
+        const clientes = new Set();
+        const equipos = new Set();
+        let sumaDias = 0;
+        let cuentaDias = 0;
+
+        listaActividad.forEach(reg => {
+            if (reg.cliente) clientes.add(reg.cliente);
+
+            // contar todos los equipos asociados al registro
+            if (Array.isArray(reg.equipos) && reg.equipos.length) {
+                reg.equipos.forEach(eq => {
+                    if (eq) equipos.add(eq);
+                });
+            } else if (reg.equipo) {
+                equipos.add(reg.equipo);
+            }
+            const d = Number(reg.diasServicio || 0);
+            if (d > 0) {
+                sumaDias += d;
+                cuentaDias += 1;
+            }
+        });
+
+        spanClientes.textContent = String(clientes.size || 0);
+        spanEquipos.textContent = String(equipos.size || 0);
+        spanPromDias.textContent = cuentaDias ? Math.round(sumaDias / cuentaDias) : 0;
+    }
+
+    actualizarResumenActividad();
+
+    function renderEquiposSeleccionados() {
+        if (!contEquiposSel) return;
+        contEquiposSel.innerHTML = '';
+
+        const clienteActual = (document.getElementById('act-cliente') || {}).value || '';
+
+        equiposSeleccionados.forEach(eq => {
+            const info = infoPorEquipoAct[eq] || {};
+
+            const row = document.createElement('div');
+            row.className = 'actividad-equipos-row';
+
+            const colEquipo = document.createElement('span');
+            colEquipo.textContent = eq;
+
+            const colCliente = document.createElement('span');
+            colCliente.textContent = clienteActual || '';
+
+            const colDesc = document.createElement('span');
+            colDesc.textContent = info.descripcion || '';
+
+            const colAccion = document.createElement('span');
+            const btnX = document.createElement('button');
+            btnX.type = 'button';
+            btnX.className = 'actividad-equipos-row-remove';
+            btnX.textContent = 'Quitar';
+            btnX.addEventListener('click', () => {
+                equiposSeleccionados = equiposSeleccionados.filter(e => e !== eq);
+                renderEquiposSeleccionados();
+            });
+            colAccion.appendChild(btnX);
+
+            row.appendChild(colEquipo);
+            row.appendChild(colCliente);
+            row.appendChild(colDesc);
+            row.appendChild(colAccion);
+
+            contEquiposSel.appendChild(row);
+        });
+    }
+
+    function agregarEquipoDesdeInput() {
+        const valor = inputEquipo.value.trim();
+        if (!valor) return;
+        if (equiposSeleccionados.includes(valor)) {
+            inputEquipo.value = '';
+            return;
+        }
+        equiposSeleccionados.push(valor);
+        renderEquiposSeleccionados();
+        inputEquipo.value = '';
+    }
+
+    function autocompletarDatosAutoActividad() {
+        const valor = inputEquipo.value.trim();
+        if (!valor) {
+            if (inputSerialAuto) inputSerialAuto.value = '';
+            if (inputEstadoAuto) inputEstadoAuto.value = '';
+            if (inputPropAuto) inputPropAuto.value = '';
+            if (inputDescAuto) inputDescAuto.value = '';
+            return;
+        }
+
+        const info = infoPorEquipoAct[valor] || {};
+        if (inputSerialAuto) inputSerialAuto.value = info.serial || '';
+        if (inputEstadoAuto) inputEstadoAuto.value = info.estado || '';
+        if (inputPropAuto) inputPropAuto.value = info.propiedad || '';
+        if (inputDescAuto) inputDescAuto.value = info.descripcion || '';
+
+        // Último número de reporte usado en pruebas para este equipo (si existe)
+        try {
+            const listaPruebas = JSON.parse(localStorage.getItem('pct_pruebas') || '[]');
+            if (Array.isArray(listaPruebas)) {
+                const filtradas = listaPruebas.filter(r => r.equipo === valor && r.noReporte);
+                if (filtradas.length && inputNoRepAuto) {
+                    const ultima = filtradas[filtradas.length - 1];
+                    inputNoRepAuto.value = ultima.noReporte || '';
+                }
+            }
+        } catch (e) {
+            // ignorar errores de parseo
+        }
+    }
+
+    inputEquipo.addEventListener('change', autocompletarDatosAutoActividad);
+    inputEquipo.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+            ev.preventDefault();
+            autocompletarDatosAutoActividad();
+            agregarEquipoDesdeInput();
+        }
+    });
+
+    inputEquipo.addEventListener('blur', () => {
+        // Al salir con Tab/Click: autocompletar y agregar si hay valor
+        autocompletarDatosAutoActividad();
+        agregarEquipoDesdeInput();
+    });
+
+    function limpiarFormularioActividad() {
+        const idsTexto = [
+            'act-cliente',
+            'act-area-cliente',
+            'act-ubicacion',
+            'act-equipo',
+            'act-os',
+            'act-orden-suministro',
+            'act-factura',
+            'act-est-cot',
+            'act-precio'
+        ];
+
+        idsTexto.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+
+        const inputFechaEmb = document.getElementById('act-fecha-embarque');
+        const inputInicio = document.getElementById('act-inicio-servicio');
+        const inputDias = document.getElementById('act-dias-servicio');
+        if (inputFechaEmb) inputFechaEmb.value = '';
+        if (inputInicio) inputInicio.value = '';
+        if (inputDias) inputDias.value = '';
+
+        const selTipo = document.getElementById('act-tipo');
+        if (selTipo) selTipo.value = 'PROPIO';
+
+        if (inputSerialAuto) inputSerialAuto.value = '';
+        if (inputEstadoAuto) inputEstadoAuto.value = '';
+        if (inputPropAuto) inputPropAuto.value = '';
+        if (inputNoRepAuto) inputNoRepAuto.value = '';
+        if (inputDescAuto) inputDescAuto.value = '';
+
+        equiposSeleccionados = [];
+        renderEquiposSeleccionados();
+    }
+
+    if (btnLimpiar) {
+        btnLimpiar.addEventListener('click', (e) => {
+            e.preventDefault();
+            limpiarFormularioActividad();
+        });
+    }
+
+    async function guardarActividadEnFirestore(registro) {
+        if (!window.db) {
+            console.warn('Firestore no está inicializado (window.db)');
+            return;
+        }
+
+        try {
+            const { addDoc, collection, serverTimestamp } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+
+            const datos = {
+                ...registro,
+                creadoEn: serverTimestamp()
+            };
+
+            await addDoc(collection(window.db, 'actividad'), datos);
+            console.log('Actividad guardada en Firestore');
+        } catch (e) {
+            console.error('Error al guardar actividad en Firestore', e);
+        }
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const tipo = (document.getElementById('act-tipo') || {}).value || '';
+            const cliente = (document.getElementById('act-cliente') || {}).value || '';
+            const areaCliente = (document.getElementById('act-area-cliente') || {}).value || '';
+            const ubicacion = (document.getElementById('act-ubicacion') || {}).value || '';
+            const equiposRaw = (document.getElementById('act-equipo') || {}).value || '';
+            const os = (document.getElementById('act-os') || {}).value || '';
+            const ordenSuministro = (document.getElementById('act-orden-suministro') || {}).value || '';
+            const factura = (document.getElementById('act-factura') || {}).value || '';
+            const estCot = (document.getElementById('act-est-cot') || {}).value || '';
+            const fechaEmbarque = (document.getElementById('act-fecha-embarque') || {}).value || '';
+            const inicioServicio = (document.getElementById('act-inicio-servicio') || {}).value || '';
+            const diasServicioStr = (document.getElementById('act-dias-servicio') || {}).value || '';
+            const precio = (document.getElementById('act-precio') || {}).value || '';
+
+            if (!cliente) {
+                alert('Captura al menos Cliente');
+                return;
+            }
+
+            // Si el usuario escribió un equipo pero no lo ha agregado aún, agrégalo
+            if (equiposRaw && !equiposSeleccionados.length) {
+                autocompletarDatosAutoActividad();
+                agregarEquipoDesdeInput();
+            }
+
+            if (!equiposSeleccionados.length) {
+                alert('Agrega al menos un Equipo / Activo al registro');
+                return;
+            }
+
+            const diasServicio = diasServicioStr ? Number(diasServicioStr) : 0;
+
+            const equipos = [...equiposSeleccionados];
+            const equipoPrincipal = equipos[0] || '';
+            const infoPrincipal = equipoPrincipal ? (infoPorEquipoAct[equipoPrincipal] || {}) : {};
+
+            const registro = {
+                fechaRegistro: new Date().toISOString(),
+                tipo,
+                cliente,
+                areaCliente,
+                ubicacion,
+                equipo: equipoPrincipal,
+                equipos,
+                os,
+                ordenSuministro,
+                factura,
+                estCot,
+                fechaEmbarque,
+                inicioServicio,
+                diasServicio,
+                precio,
+                serial: inputSerialAuto ? inputSerialAuto.value || infoPrincipal.serial || '' : infoPrincipal.serial || '',
+                estado: inputEstadoAuto ? inputEstadoAuto.value || infoPrincipal.estado || '' : infoPrincipal.estado || '',
+                propiedad: inputPropAuto ? inputPropAuto.value || infoPrincipal.propiedad || '' : infoPrincipal.propiedad || '',
+                noReporte: inputNoRepAuto ? inputNoRepAuto.value || '' : '',
+                descripcion: inputDescAuto ? inputDescAuto.value || infoPrincipal.descripcion || '' : infoPrincipal.descripcion || '',
+            };
+
+            listaActividad.push(registro);
+            guardarActividadEnFirestore(registro);
+
+            guardarListaActividad();
+            actualizarResumenActividad();
+            alert('Actividad guardada');
+            limpiarFormularioActividad();
+        });
+    }
+});
+
 // Guardado de pruebas en pruebas.html
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btn-guardar-prueba');

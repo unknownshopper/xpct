@@ -62,6 +62,8 @@
         <section class="actividad-form-card">
             <h2>Nuevo registro</h2>
             <form id="actividad-form" class="actividad-form">
+
+                <div class="actividad-form-section-title">Datos del cliente y equipo</div>
                 <div class="actividad-form-grid">
                     <div class="campo">
                         <label for="act-tipo">Tipo</label>
@@ -77,11 +79,6 @@
                     </div>
 
                     <div class="campo">
-                        <label for="act-equipo">Equipo / Activo</label>
-                        <input type="text" id="act-equipo" placeholder="Equipo / Activo">
-                    </div>
-
-                    <div class="campo">
                         <label for="act-area-cliente">Área del cliente</label>
                         <input type="text" id="act-area-cliente" placeholder="Área del cliente">
                     </div>
@@ -91,6 +88,15 @@
                         <input type="text" id="act-ubicacion" placeholder="Ubicación">
                     </div>
 
+                    <div class="campo">
+                        <label for="act-equipo">Equipo / Activo</label>
+                        <input type="text" id="act-equipo" list="lista-equipos-actividad" placeholder="Equipo / Activo">
+                        <datalist id="lista-equipos-actividad"></datalist>
+                    </div>
+                </div>
+
+                <div class="actividad-form-section-title">Servicio y documentos</div>
+                <div class="actividad-form-grid">
                     <div class="campo">
                         <label for="act-os">Orden de Servicio</label>
                         <input type="text" id="act-os" placeholder="O.S.">
@@ -112,6 +118,14 @@
                     </div>
 
                     <div class="campo">
+                        <label for="act-precio">Precio</label>
+                        <input type="text" id="act-precio" placeholder="Asignar en AdminTab">
+                    </div>
+                </div>
+
+                <div class="actividad-form-section-title">Fechas y días en servicio</div>
+                <div class="actividad-form-grid">
+                    <div class="campo">
                         <label for="act-fecha-embarque">Fecha Embarque</label>
                         <input type="date" id="act-fecha-embarque">
                     </div>
@@ -125,12 +139,10 @@
                         <label for="act-dias-servicio">Días en servicio</label>
                         <input type="number" id="act-dias-servicio" min="0" step="1">
                     </div>
+                </div>
 
-                    <div class="campo">
-                        <label for="act-precio">Precio</label>
-                        <input type="text" id="act-precio" placeholder="Asignar en AdminTab">
-                    </div>
-
+                <div class="actividad-form-section-title">Datos automáticos</div>
+                <div class="actividad-form-grid">
                     <div class="campo">
                         <label for="act-serial-auto">Serial (auto)</label>
                         <input type="text" id="act-serial-auto" disabled>
@@ -156,6 +168,18 @@
                         <input type="text" id="act-descripcion-auto" disabled>
                     </div>
                 </div>
+
+                <div class="actividad-equipos-panel">
+                    <div class="actividad-equipos-panel-header">Equipos seleccionados en este registro</div>
+                    <div class="actividad-equipos-list-header">
+                        <span>Equipo / Activo</span>
+                        <span>Cliente</span>
+                        <span>Descripción</span>
+                        <span></span>
+                    </div>
+                    <div id="act-equipos-seleccionados" class="actividad-equipos-list"></div>
+                </div>
+
             </form>
         </section>
 

@@ -15,7 +15,7 @@ header {
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 1rem;
-    background: #0b3b5c;
+    background: #b8580f;
     color: #fff;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
@@ -44,7 +44,7 @@ nav a:hover {
 
 nav a.active {
     background-color: #10b981;
-    color: #062b42;
+    color: #b8580f;
 }
 
 main {
@@ -94,13 +94,21 @@ main {
     padding: 0.45rem 0.9rem;
     border-radius: 999px;
     background: #e0f2fe;
-    color: #0b3b5c;
+    color: #b8580f;
     font-size: 0.9rem;
     text-decoration: none;
 }
 
 .pruebas-page {
     max-width: 1100px;
+    margin: 1rem auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.actividad-page {
+    max-width: 1200px;
     margin: 1rem auto;
     display: flex;
     flex-direction: column;
@@ -329,6 +337,130 @@ main {
     border-radius: 0.35rem;
     border: 1px solid #d1d5db;
     font-size: 0.85rem;
+}
+
+/* Actividad (registro de servicio) */
+.actividad-resumen {
+    margin-bottom: 0.5rem;
+}
+
+.actividad-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    background: #ffffff;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.actividad-toolbar-left input[type="search"] {
+    min-width: 220px;
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.9rem;
+}
+
+.actividad-toolbar-right {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.actividad-toolbar-right button {
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    background: #f9fafb;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.actividad-toolbar-right button#act-btn-guardar {
+    background-color: #10b981;
+    color: #062b42;
+    border-color: #10b981;
+    font-weight: 600;
+}
+
+.actividad-form-card {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.actividad-form-card h2 {
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+}
+
+.actividad-form-section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    margin-top: 0.75rem;
+    margin-bottom: 0.35rem;
+}
+
+.actividad-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.actividad-equipos-panel {
+    margin-top: 1.25rem;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 0.75rem;
+}
+
+.actividad-equipos-panel-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.35rem;
+}
+
+.actividad-equipos-list-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 2fr) auto;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.actividad-equipos-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.actividad-equipos-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 2fr) auto;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.5rem;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    font-size: 0.8rem;
+}
+
+.actividad-equipos-row-remove {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #9ca3af;
 }
 
 /* Encabezado fijo para la tabla de inventario en invre.html */
