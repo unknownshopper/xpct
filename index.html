@@ -19,6 +19,15 @@
                 <li><a href="index.html" class="active">Inicio</a></li>
 
                 <li class="nav-item-has-dropdown">
+                    <a href="actividad.html">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
                     <a href="pruebas.html">Pruebas</a>
                     <ul class="nav-dropdown">
                         <li><a href="pruebas.html">Registrar prueba</a></li>
@@ -34,14 +43,7 @@
                     </ul>
                 </li>
 
-                <li class="nav-item-has-dropdown">
-                    <a href="actividad.html">Actividad</a>
-                    <ul class="nav-dropdown">
-                        <li><a href="actividad.html">Registrar actividad</a></li>
-                        <li><a href="actividadlist.html">Listado de actividades</a></li>
-                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
-                    </ul>
-                </li>
+                
             </ul>
         </nav>
         <div class="user-info">
@@ -53,34 +55,34 @@
     <main class="dashboard-page">
         <section class="dashboard-cards">
             <div class="dash-card">
-                <div class="dash-card-label">Equipos en inventario (invre)</div>
+                <div class="dash-card-label">Inventario de equipos</div>
                 <div class="dash-card-value" id="dash-equipos-invre">--</div>
             </div>
-            <div class="dash-card">
-                <div class="dash-card-label">Registros detallados (invre2)</div>
-                <div class="dash-card-value" id="dash-registros-invre2">--</div>
-            </div>
-            <div class="dash-card">
-                <div class="dash-card-label">Inspecciones guardadas</div>
-                <div class="dash-card-value" id="dash-inspecciones">--</div>
+             <div class="dash-card">
+                <div class="dash-card-label">Actividades registradas</div>
+                <div class="dash-card-value" id="dash-actividades">--</div>
             </div>
             <div class="dash-card">
                 <div class="dash-card-label">Pruebas guardadas</div>
                 <div class="dash-card-value" id="dash-pruebas">--</div>
             </div>
             <div class="dash-card">
-                <div class="dash-card-label">Actividades registradas</div>
-                <div class="dash-card-value" id="dash-actividades">--</div>
+                <div class="dash-card-label">Inspecciones guardadas</div>
+                <div class="dash-card-value" id="dash-inspecciones">--</div>
             </div>
+            
+           
         </section>
 
         <section class="dashboard-links">
-            <a href="inspeccion.html" class="dash-link">Ir a inspecciones</a>
-            <a href="inspectlist.html" class="dash-link">Ver listado de inspecciones</a>
-            <a href="pruebas.html" class="dash-link">Registrar nueva prueba</a>
-            <a href="pruebaslist.html" class="dash-link">Ver listado de pruebas</a>
             <a href="actividad.html" class="dash-link">Registrar nueva actividad</a>
             <a href="actividadlist.html" class="dash-link">Ver listado de actividades</a>
+            <a href="pruebas.html" class="dash-link">Registrar nueva prueba</a>
+            <a href="pruebaslist.html" class="dash-link">Ver listado de pruebas</a>
+            <a href="inspeccion.html" class="dash-link">Ir a inspecciones</a>
+            <a href="inspectlist.html" class="dash-link">Ver listado de inspecciones</a>
+            
+            
         </section>
     </main>
     <script type="module">

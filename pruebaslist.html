@@ -11,12 +11,37 @@
         <div class="logo">
             <img src="img/logopctch.png" alt="Logo PCT">
         </div>
-        <nav>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
             <ul>
                 <li><a href="index.html">Inicio</a></li>
-                <li><a href="pruebas.html">Pruebas</a></li>
-                <li><a href="inspeccion.html">Inspecciones</a></li>
-                <li><a href="pruebaslist.html" class="active">Listado pruebas</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="pruebas.html" class="active">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="inspeccion.html">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="actividad.html">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                    </ul>
+                </li>
             </ul>
         </nav>
         <div class="user-info">
@@ -90,10 +115,13 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.pruebaTipo || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.noReporte || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        <button data-accion="editar" data-idx="${idx}" style="margin-right:0.25rem;">Editar</button>
-                        <button data-accion="eliminar" data-idx="${idx}">Eliminar</button>
+                        <input type="text" class="pl-no-rep" data-idx="${idx}" value="${reg.noReporte || ''}" style="font-size:0.8rem; width:130px;">
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <button data-accion="guardar" data-idx="${idx}" style="font-size:0.75rem; margin-right:0.25rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb;">Guardar</button>
+                        <button data-accion="editar" data-idx="${idx}" style="font-size:0.75rem; margin-right:0.25rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">Editar</button>
+                        <button data-accion="eliminar" data-idx="${idx}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -115,12 +143,19 @@
                 guardarLista();
                 renderTabla();
             } else if (accion === 'editar') {
+                const input = tbody.querySelector(`.pl-no-rep[data-idx="${idx}"]`);
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            } else if (accion === 'guardar') {
+                const input = tbody.querySelector(`.pl-no-rep[data-idx="${idx}"]`);
+                if (!input) return;
+                const nuevoNoRep = (input.value || '').trim();
                 const reg = lista[idx];
-                const nuevoNoRep = prompt('Editar No. de reporte / certificado:', reg.noReporte || '');
-                if (nuevoNoRep === null) return;
-                lista[idx] = { ...reg, noReporte: nuevoNoRep.trim() };
+                lista[idx] = { ...reg, noReporte: nuevoNoRep };
                 guardarLista();
-                renderTabla();
+                alert('No. de reporte / certificado actualizado');
             }
         });
 

@@ -283,6 +283,13 @@ main {
     gap: 1rem;
 }
 
+/* En el listado de actividades queremos usar todo el ancho del navegador */
+.actividad-page.actividadlist-wrap {
+    max-width: 100%;
+    margin: 0;
+    padding: 0; /* quitamos el padding heredado de main en esta página */
+}
+
 .card-prueba {
     background: #ffffff;
     border-radius: 0.75rem;
@@ -344,7 +351,35 @@ main {
     background: #ffffff;
     border-radius: 0.75rem;
     padding: 1.25rem 1.5rem;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+    /* max-width eliminado para permitir ancho completo donde se requiera */
+    margin: 1rem auto;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+}
+
+/* Contenedor de listado de inspecciones a ancho completo */
+.inspectlist-wrap {
+    background: #ffffff;
+    width: 100vw;
+    margin: 0;
+    padding: 1rem 1.5rem 2rem;
+}
+
+/* Contenedor de listado de actividades a ancho completo */
+.actividadlist-wrap {
+    background: #ffffff;
+    width: 100%;
+    min-height: calc(100vh - 64px);
+    margin: 0;
+    padding: 1rem 0 2rem;
+}
+
+.actividadlist-wrap .detalle-equipo {
+    margin: 0;
+    width: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    padding-left: 0;
+    padding-right: 0;
 }
 
 .selector-equipo h1 {

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Listado de actividades</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="img/logopctch.png" type="image/png">
 </head>
 <body>
     <header>
@@ -39,7 +40,7 @@
                     <ul class="nav-dropdown">
                         <li><a href="actividad.html">Registrar actividad</a></li>
                         <li><a href="actividadlist.html">Listado de actividades</a></li>
-                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
                     </ul>
                 </li>
             </ul>
@@ -50,7 +51,7 @@
         </div>
     </header>
 
-    <main class="actividad-page">
+    <main class="actividad-page actividadlist-wrap">
         <section class="actividad-toolbar" style="margin-bottom: 0.75rem;">
             <div class="actividad-toolbar-left">
                 <input type="search" id="actlist-buscar" placeholder="Buscar por cliente, equipo, OS, factura...">
@@ -66,8 +67,10 @@
                     <thead>
                         <tr style="background:#f3f4f6;">
                             <th style="text-align:left; padding:0.4rem;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
                             <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Terminación del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Orden de servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Factura</th>

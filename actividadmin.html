@@ -39,7 +39,7 @@
                     <ul class="nav-dropdown">
                         <li><a href="actividad.html">Registrar actividad</a></li>
                         <li><a href="actividadlist.html">Listado de actividades</a></li>
-                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
                     </ul>
                 </li>
             </ul>
@@ -180,22 +180,37 @@
             return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
         }
 
-        function fechaISOaInput(fechaISO) {
-            if (!fechaISO) return '';
-            const d = new Date(fechaISO);
-            if (isNaN(d.getTime())) return '';
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`;
+        // Convierte fecha en formato dd/mm/aa a objeto Date (año base 2000+aa)
+        function parseFechaDdMmAa(fechaTexto) {
+            if (!fechaTexto) return null;
+            const partes = fechaTexto.split('/');
+            if (partes.length !== 3) return null;
+            const [ddStr, mmStr, aaStr] = partes;
+            const dd = parseInt(ddStr, 10);
+            const mm = parseInt(mmStr, 10);
+            const aa = parseInt(aaStr, 10);
+            if (!dd || !mm || isNaN(aa)) return null;
+            const yyyy = 2000 + aa;
+            const d = new Date(yyyy, mm - 1, dd);
+            if (isNaN(d.getTime())) return null;
+            return d;
         }
 
-        function sumarDias(fechaISO, dias) {
-            if (!fechaISO || !dias) return '';
-            const d = new Date(fechaISO);
-            if (isNaN(d.getTime())) return '';
-            d.setDate(d.getDate() + Number(dias));
-            return d.toISOString();
+        // Autoformato para inputs dd/mm/aa (similar a pruebas)
+        function formatearFechaDdMmAaInput(valor) {
+            const soloDigitos = (valor || '').replace(/\D/g, '').slice(0, 6);
+            let res = soloDigitos;
+            if (soloDigitos.length >= 3 && soloDigitos.length <= 4) {
+                res = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2);
+            } else if (soloDigitos.length >= 5) {
+                res =
+                    soloDigitos.slice(0, 2) +
+                    '/' +
+                    soloDigitos.slice(2, 4) +
+                    '/' +
+                    soloDigitos.slice(4);
+            }
+            return res;
         }
 
         async function cargarActividadDesdeFirestore() {
@@ -236,6 +251,55 @@
             }
         }
 
+        // MIGRACIÓN OPCIONAL: convertir documentos con `equipos` (array) en 1 doc por equipo
+        // Uso: abrir consola en actividadmin.html y ejecutar: migrarActividadesMultiEquipo()
+        async function migrarActividadesMultiEquipo() {
+            if (!window.db) {
+                console.warn('Firestore (window.db) no está disponible para migrar');
+                return;
+            }
+
+            try {
+                const { getFirestore, collection, getDocs, addDoc, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const colRef = collection(db, 'actividades');
+                const snap = await getDocs(colRef);
+
+                let migrados = 0;
+
+                for (const d of snap.docs) {
+                    const data = d.data() || {};
+                    const equiposArr = Array.isArray(data.equipos) && data.equipos.length > 1
+                        ? data.equipos
+                        : null;
+
+                    if (!equiposArr) continue; // nada que migrar
+
+                    const {
+                        equipos,
+                        equipo,
+                        ...resto
+                    } = data;
+
+                    for (const equipoNombre of equiposArr) {
+                        const nuevo = {
+                            ...resto,
+                            equipo: equipoNombre,
+                        };
+                        await addDoc(colRef, nuevo);
+                    }
+
+                    await deleteDoc(doc(db, 'actividades', d.id));
+                    migrados++;
+                }
+
+                console.log(`Migración completa. Documentos origen eliminados: ${migrados}`);
+                await cargarActividadDesdeFirestore();
+            } catch (e) {
+                console.error('Error durante la migración de actividades multi-equipo', e);
+            }
+        }
+
         function renderTabla() {
             const tbody = document.getElementById('adm-tbody-actividad');
             const msgVacio = document.getElementById('adm-msg-vacio');
@@ -272,7 +336,9 @@
             lista.forEach((reg) => {
                 const id = reg.id;
                 const cliente = reg.cliente || '';
-                const inicio = reg.inicioServicio || '';
+                // Inicio y terminación se guardan como texto dd/mm/aa
+                const inicioTexto = reg.inicioServicio || '';
+                const termTexto = reg.terminacionServicio || '';
                 const os = reg.os || '';
                 const factura = reg.factura || '';
                 const precio = Number(reg.precio || 0);
@@ -283,27 +349,19 @@
 
                 const precioPorEquipo = equiposArr.length ? (precio / equiposArr.length) : precio;
 
-                // Calcular días efectivos en servicio a partir de inicio/terminación (o hoy)
-                let dias = Number(reg.diasServicio || 0);
-                if (inicio) {
-                    const dInicio = new Date(inicio);
-                    if (!isNaN(dInicio.getTime())) {
-                        const dFin = reg.terminacionServicio
-                            ? new Date(reg.terminacionServicio)
-                            : new Date();
-
-                        if (!isNaN(dFin.getTime())) {
-                            const diffMs = dFin.getTime() - dInicio.getTime();
-                            const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                            if (diffDias >= 0) {
-                                dias = diffDias;
-                            }
-                        }
-                    }
+                // Calcular días efectivos en servicio:
+                // - Si hay terminación, días entre inicio y terminación (servicio cerrado).
+                // - Si no hay terminación, días entre inicio y hoy (servicio abierto).
+                let dias = 0;
+                const dInicio = parseFechaDdMmAa(inicioTexto);
+                const dFin = termTexto ? parseFechaDdMmAa(termTexto) : new Date();
+                if (dInicio && dFin) {
+                    const diffMs = dFin.getTime() - dInicio.getTime();
+                    const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    if (diffDias >= 0) dias = diffDias; // si inicio es hoy, días = 0
                 }
 
-                const termISO = reg.terminacionServicio || (inicio && dias ? sumarDias(inicio, dias) : '');
-                const termInput = fechaISOaInput(termISO);
+                const termInput = termTexto || '';
 
                 equiposArr.forEach(equipoNombre => {
                     const textoBuscar = `${cliente} ${equipoNombre} ${os} ${factura}`.toLowerCase();
@@ -328,10 +386,10 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                            ${inicio ? fechaISOaInput(inicio) : ''}
+                            ${inicioTexto}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                            <input type="date" class="adm-input-term" data-id="${id}" value="${termInput}" style="font-size:0.8rem;">
+                            <input type="text" class="adm-input-term" data-id="${id}" value="${termInput}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px;">
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">
                             ${dias || ''}
@@ -349,6 +407,9 @@
                             <button type="button" class="adm-btn-guardar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
                                 Guardar
                             </button>
+                            <button type="button" class="adm-btn-editar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
+                                Editar
+                            </button>
                             <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
                                 Eliminar
                             </button>
@@ -364,6 +425,15 @@
             spanRentas.textContent = formatearMoneda(totalRentas);
             spanTicket.textContent = cuentaPrecios ? formatearMoneda(sumaPrecios / cuentaPrecios) : '$0';
 
+            // Autoformato dd/mm/aa en los inputs de terminación
+            tbody.querySelectorAll('.adm-input-term').forEach(input => {
+                input.addEventListener('input', () => {
+                    const formateada = formatearFechaDdMmAaInput(input.value);
+                    input.value = formateada;
+                });
+            });
+
+            // Botón GUARDAR: persiste precio y terminación en Firestore
             tbody.querySelectorAll('.adm-btn-guardar').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const id = btn.getAttribute('data-id');
@@ -373,7 +443,7 @@
                     const inputTerm = tbody.querySelector(`.adm-input-term[data-id="${id}"]`);
 
                     const nuevoPrecio = inputPrecio ? Number(inputPrecio.value || 0) : 0;
-                    const nuevaTerm = inputTerm ? inputTerm.value : '';
+                    const nuevaTerm = inputTerm ? (inputTerm.value || '').trim() : '';
 
                     const regLocal = listaActividad.find(r => r.id === id);
                     if (!regLocal) return;
@@ -383,19 +453,40 @@
                     let cambios = { precio: nuevoPrecio };
 
                     if (nuevaTerm) {
-                        const d = new Date(nuevaTerm);
-                        if (!isNaN(d.getTime())) {
-                            const iso = d.toISOString();
-                            regLocal.terminacionServicio = iso;
-                            cambios.terminacionServicio = iso;
+                        // Validar formato dd/mm/aa
+                        const d = parseFechaDdMmAa(nuevaTerm);
+                        if (!d) {
+                            alert('Formato de fecha inválido. Usa dd/mm/aa');
+                            return;
                         }
+                        regLocal.terminacionServicio = nuevaTerm;
+                        cambios.terminacionServicio = nuevaTerm;
                     } else {
                         delete regLocal.terminacionServicio;
-                        cambios.terminacionServicio = null;
+                        cambios.terminacionServicio = '';
                     }
 
                     await actualizarActividadEnFirestore(id, cambios);
                     renderTabla();
+                });
+            });
+
+            // Botón EDITAR: solo enfoca los campos editables de la fila
+            tbody.querySelectorAll('.adm-btn-editar').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    if (!id) return;
+
+                    const inputTerm = tbody.querySelector(`.adm-input-term[data-id="${id}"]`);
+                    const inputPrecio = tbody.querySelector(`.adm-input-precio[data-id="${id}"]`);
+
+                    if (inputTerm) {
+                        inputTerm.focus();
+                        inputTerm.select();
+                    } else if (inputPrecio) {
+                        inputPrecio.focus();
+                        inputPrecio.select();
+                    }
                 });
             });
 
@@ -430,6 +521,8 @@
             }
 
             cargarActividadDesdeFirestore();
+            // Exponer función de migración sólo para admins (uso desde consola)
+            window.migrarActividadesMultiEquipo = migrarActividadesMultiEquipo;
         });
     })();
     </script>

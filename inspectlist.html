@@ -6,17 +6,43 @@
     <title>Inspecciones guardadas</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body style="margin:0;">
     <header>
         <div class="logo">
             <img src="img/logopctch.png" alt="Logo PCT">
         </div>
-        <nav>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
             <ul>
                 <li><a href="index.html">Inicio</a></li>
-                <li><a href="pruebas.html">Pruebas</a></li>
-                <li><a href="inspeccion.html">Inspecciones</a></li>
-                <li><a href="inspectlist.html" class="active">Listado</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="actividad.html">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="pruebas.html">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="inspeccion.html" class="active">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+
             </ul>
         </nav>
         <div class="user-info">
@@ -25,8 +51,8 @@
         </div>
     </header>
 
-    <main style="max-width: 1100px; margin: 1rem auto; padding: 1.5rem;">
-        <section class="detalle-equipo">
+    <main class="inspeccion-page" style="max-width: 100%; margin: 0; padding: 0;">
+        <section class="inspectlist-wrap">
             <h2>Inspecciones guardadas (local)</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
                 Estos datos se almacenan solo en este navegador usando <code>localStorage</code>. Más adelante se pueden enviar a Firebase u otro backend.
@@ -35,16 +61,18 @@
                 <table id="tabla-inspecciones" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f3f4f6;">
-                            <th style="text-align:left; padding:0.4rem;">Fecha</th>
-                            <th style="text-align:left; padding:0.4rem;">Equipo</th>
-                            <th style="text-align:left; padding:0.4rem;">Reporte</th>
-                            <th style="text-align:left; padding:0.4rem;">Producto</th>
-                            <th style="text-align:left; padding:0.4rem;">Serial</th>
-                            <th style="text-align:left; padding:0.4rem;"># Parámetros</th>
+                            <th style="text-align:left; padding:0.4rem;">Fecha (registro)</th>
+                            <th style="text-align:left; padding:0.4rem;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem;">Área</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Lugar</th>
+                            <th style="text-align:left; padding:0.4rem;">Evaluación</th>
+                            <th style="text-align:left; padding:0.4rem;">Usuario</th>
+                            <th style="text-align:left; padding:0.4rem;">Observaciones</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="tbody-inspecciones">
-                    </tbody>
+                    <tbody id="tbody-inspecciones"></tbody>
                 </table>
                 <p id="mensaje-sin-inspecciones" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay inspecciones guardadas todavía.
@@ -55,35 +83,130 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const clave = 'pct_inspecciones';
         const tbody = document.getElementById('tbody-inspecciones');
         const msg = document.getElementById('mensaje-sin-inspecciones');
 
-        let lista = [];
-        try {
-            lista = JSON.parse(localStorage.getItem(clave) || '[]');
-            if (!Array.isArray(lista)) lista = [];
-        } catch (e) {
-            lista = [];
+        const claveInspecciones = 'pct_inspecciones';
+
+        function formatearFechaRegistro(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleString('es-MX');
         }
 
-        if (!lista.length) {
-            msg.style.display = 'block';
-            return;
+        async function cargarDatos() {
+            tbody.innerHTML = '';
+            msg.style.display = 'none';
+
+            // 1) Leer inspecciones locales
+            let inspecciones = [];
+            try {
+                inspecciones = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
+                if (!Array.isArray(inspecciones)) inspecciones = [];
+            } catch {
+                inspecciones = [];
+            }
+
+            // Mapa por actividadId para cruce rápido
+            const inspeccionPorActividad = new Map();
+            inspecciones.forEach((reg, idx) => {
+                if (reg && reg.actividadId) {
+                    inspeccionPorActividad.set(reg.actividadId, { ...reg, _indexLocal: idx });
+                }
+            });
+
+            // 2) Leer actividades desde Firestore
+            let actividades = [];
+            try {
+                const { getFirestore, collection, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'actividades');
+                const snap = await getDocs(colRef);
+
+                actividades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (e) {
+                console.error('Error al leer actividades para inspectlist', e);
+                actividades = [];
+            }
+
+            if (!actividades.length && !inspecciones.length) {
+                msg.style.display = 'block';
+                return;
+            }
+
+            // 3) Construir filas a partir de actividades, marcando si hay inspección realizada
+            actividades.forEach(act => {
+                const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
+
+                const tr = document.createElement('tr');
+
+                const fechaTexto = formatearFechaRegistro(insp ? insp.fecha : act.fechaRegistro);
+
+                let evaluacion = 'Pendiente';
+                if (insp && Array.isArray(insp.parametros) && insp.parametros.length) {
+                    let evaluacionCalc = 'Operativo';
+                    const hayFallo = insp.parametros.some(p => {
+                        const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
+                        return est === 'MALO' || est === 'NO LEGIBLE';
+                    });
+                    if (hayFallo) evaluacionCalc = 'No operativo';
+                    evaluacion = evaluacionCalc;
+                }
+
+                const cliente = insp?.cliente || act.cliente || '';
+                const area = insp?.areaCliente || act.areaCliente || '';
+                const lugar = insp?.ubicacion || act.ubicacion || '';
+                const equipo = insp?.equipo || act.equipo || '';
+                const usuario = insp?.usuarioInspeccion || '';
+                const observaciones = insp?.observaciones || '';
+
+                tr.innerHTML = `
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaTexto}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${area}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${evaluacion}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        ${insp ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar inspección</button>` : ''}
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+
+            // 4) Manejar eliminación de inspecciones realizadas (no toca actividades)
+            tbody.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const actividadId = btn.getAttribute('data-actividad-id') || '';
+                    if (!actividadId) return;
+
+                    if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
+
+                    // Filtrar inspecciones en localStorage
+                    let actuales = [];
+                    try {
+                        actuales = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
+                        if (!Array.isArray(actuales)) actuales = [];
+                    } catch {
+                        actuales = [];
+                    }
+
+                    actuales = actuales.filter(reg => reg.actividadId !== actividadId);
+                    localStorage.setItem(claveInspecciones, JSON.stringify(actuales));
+
+                    cargarDatos();
+                });
+            });
         }
 
-        lista.forEach(reg => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${new Date(reg.fecha).toLocaleString()}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.reporte || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.serial || ''}</td>
-                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">${reg.parametros ? reg.parametros.length : 0}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+        cargarDatos();
     });
     </script>
 </body>

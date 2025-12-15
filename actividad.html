@@ -17,6 +17,14 @@
         <nav class="nav-main">
             <ul>
                 <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="actividad.html" class="active">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                    </ul>
+                </li>
 
                 <li class="nav-item-has-dropdown">
                     <a href="pruebas.html">Pruebas</a>
@@ -34,14 +42,7 @@
                     </ul>
                 </li>
 
-                <li class="nav-item-has-dropdown">
-                    <a href="actividad.html" class="active">Actividad</a>
-                    <ul class="nav-dropdown">
-                        <li><a href="actividad.html">Registrar actividad</a></li>
-                        <li><a href="actividadlist.html">Listado de actividades</a></li>
-                        <li><a href="actividadmin.html" class="nav-admin-only">Actividad mínima (admin)</a></li>
-                    </ul>
-                </li>
+                
             </ul>
         </nav>
         <div class="user-info">
@@ -163,8 +164,8 @@
                     </div>
                 </div>
 
-                <div class="actividad-form-section-title">Datos automáticos</div>
-                <div class="actividad-form-grid">
+                <div class="actividad-form-section-title" style="display:none;">Datos automáticos</div>
+                <div class="actividad-form-grid" style="display:none;">
                     <div class="campo">
                         <label for="act-serial-auto">Serial (auto)</label>
                         <input type="text" id="act-serial-auto" disabled>
@@ -196,6 +197,9 @@
                     <div class="actividad-equipos-list-header">
                         <span>Equipo / Activo</span>
                         <span>Cliente</span>
+                        <span>Serial</span>
+                        <span>Estado</span>
+                        <span>Propiedad</span>
                         <span>Descripción</span>
                         <span></span>
                     </div>

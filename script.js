@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let equipos = [];
     let headers = [];
     let formatosPorCodigo = {};
+    let guardandoInspeccion = false; // evita doble guardado
 
     // Cargar inventario de equipos
     fetch('docs/invre.csv')
@@ -28,14 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
             headers = parseCSVLine(lineas[0]);
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxDescripcion = headers.indexOf('DESCRIPCION');
+            const idxEdo = headers.indexOf('EDO');
 
             equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
 
-            // Poblar datalist
+            // Poblar datalist (solo equipos que no estén OFF)
             equipos.forEach(cols => {
-                const equipoId = idxEquipo >= 0 ? cols[idxEquipo] : '';
-                const descripcion = idxDescripcion >= 0 ? cols[idxDescripcion] : '';
+                const equipoId = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                const descripcion = idxDescripcion >= 0 ? (cols[idxDescripcion] || '') : '';
+                const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
                 if (!equipoId) return;
+                if (edo.trim().toUpperCase() === 'OFF') return;
 
                 const option = document.createElement('option');
                 option.value = equipoId;
@@ -133,20 +137,102 @@ document.addEventListener('DOMContentLoaded', () => {
             return !nombresAuto.some(auto => base.startsWith(auto));
         });
 
-        const tiposDano = [
-            '',
-            'DEFORMADO',
-            'NO LEGIBLE',
-            'SIN FLEJE',
-            'DEFORMACION',
-            'ABRASION',
-            'LAVADURA',
-            'CORTADO',
-            'RESECO',
-            'DEGRADADO',
-            'HINCHADO',
-            'OTRO'
-        ];
+        // Catálogos de tipo de daño según el nombre del parámetro
+        function obtenerTiposDano(nombreParametro) {
+            const base = (nombreParametro || '').toLowerCase();
+
+            // Fleje: el estado ya es LEGIBLE / NO LEGIBLE, no se usa catálogo de daño
+            if (base.includes('fleje')) {
+                return [];
+            }
+
+            // Estado del Elastómero
+            if (base.includes('elastómero') || base.includes('elastomero')) {
+                return [
+                    '',
+                    'SIN ELASTOMERO',
+                    'DEFORMADO',
+                    'CORTADO',
+                    'RESECO',
+                    'DEGRADADO',
+                    'HINCHADO',
+                    'OTRO'
+                ];
+            }
+
+            // Recubrimiento
+            if (base.includes('recubrimiento')) {
+                return [
+                    '',
+                    'SIN ELASTOMERO',
+                    'DEFORMADO',
+                    'CORTADO',
+                    'RESECO',
+                    'DEGRADADO',
+                    'OTRO'
+                ];
+            }
+
+            // Cuerpo
+            if (base.includes('cuerpo')) {
+                return [
+                    '',
+                    'GOLPE',
+                    'DEFORMACION',
+                    'ABRASION',
+                    'LAVADURA',
+                    'CORTADO',
+                    'OTRO'
+                ];
+            }
+
+            // Área de sellado, rosca, puerto, espárragos
+            if (
+                base.includes('área de sellado') || base.includes('area de sellado') ||
+                base.includes('rosca') ||
+                base.includes('estado del puerto') ||
+                base.includes('esparragos') || base.includes('espárragos') || base.includes('esparragos')
+            ) {
+                return [
+                    '',
+                    'GOLPE',
+                    'DEFORMACION',
+                    'ABRASION',
+                    'LAVADURA',
+                    'CORTADO',
+                    'OTRO'
+                ];
+            }
+
+            // Anillo retenedor, insertos, mariposa, piñón
+            if (
+                base.includes('anillo retenedor') ||
+                base.includes('insertos') ||
+                base.includes('mariposa') ||
+                base.includes('piñón') || base.includes('piñon') || base.includes('pinon')
+            ) {
+                return [
+                    '',
+                    'GOLPE',
+                    'DEFORMACION',
+                    'ABRASION',
+                    'LAVADURA',
+                    'CORTADO',
+                    'OTRO'
+                ];
+            }
+
+            // Default para otros parámetros de inspección
+            return [
+                '',
+                'GOLPE',
+                'DEFORMACION',
+                'ABRASION',
+                'LAVADURA',
+                'CORTADO',
+                'OTRO'
+            ];
+        }
 
         const parametrosHtml = parametrosInspeccion.length
             ? `
@@ -158,21 +244,39 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="col-estado">Estado</div>
                             <div class="col-dano">Tipo de daño</div>
                         </div>
-                        ${parametrosInspeccion.map((p, idx) => `
+                        ${parametrosInspeccion.map((p, idx) => {
+                            const baseNombre = (p || '').toLowerCase();
+
+                            // Para Fleje: solo estado LEGIBLE / NO LEGIBLE, sin tipo de daño adicional
+                            if (baseNombre.includes('fleje')) {
+                                return `
+                            <div class="parametros-fila">
+                                <div class="col-nombre">${p}</div>
+                                <div class="col-estado">
+                                    <label><input type="radio" name="param-${idx}-estado" value="LEGIBLE" checked> LEGIBLE</label>
+                                    <label><input type="radio" name="param-${idx}-estado" value="NO LEGIBLE"> NO LEGIBLE</label>
+                                </div>
+                            </div>
+                        `;
+                            }
+
+                            const tiposDano = obtenerTiposDano(p);
+                            return `
                             <div class="parametros-fila">
                                 <div class="col-nombre">${p}</div>
                                 <div class="col-estado">
                                     <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
                                     <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
-                                    <label><input type="radio" name="param-${idx}-estado" value="NO APLICA"> N/A</label>
                                 </div>
-                                <div class="col-dano">
-                                    <select name="param-${idx}-dano">
+                                <div class="col-dano" data-param-idx="${idx}" style="display:none;">
+                                    <select name="param-${idx}-dano" disabled>
                                         ${tiposDano.map(op => op ? `<option value="${op}">${op}</option>` : '<option value="">(Sin daño)</option>').join('')}
                                     </select>
+                                    <input type="text" name="param-${idx}-dano-otro" placeholder="Describa el hallazgo" style="display:none; margin-top:0.25rem; font-size:0.8rem; width:100%;" disabled>
                                 </div>
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                 </div>
             `
@@ -240,6 +344,63 @@ document.addEventListener('DOMContentLoaded', () => {
             ${parametrosHtml}
         `;
 
+        // Mostrar el selector de tipo de daño solo cuando el estado sea MALO
+        detalleContenedor.querySelectorAll('.parametros-fila').forEach((filaHtml, idx) => {
+            const radios = filaHtml.querySelectorAll(`input[name="param-${idx}-estado"]`);
+            const colDano = filaHtml.querySelector('.col-dano');
+            const selectDano = colDano ? colDano.querySelector('select') : null;
+            const inputOtro = colDano ? colDano.querySelector(`input[name="param-${idx}-dano-otro"]`) : null;
+
+            const actualizarVisibilidadOtro = () => {
+                if (!selectDano || !inputOtro) return;
+                const val = (selectDano.value || '').trim().toUpperCase();
+                if (val === 'OTRO') {
+                    inputOtro.style.display = '';
+                    inputOtro.disabled = false;
+                } else {
+                    inputOtro.style.display = 'none';
+                    inputOtro.disabled = true;
+                    inputOtro.value = '';
+                }
+            };
+
+            const actualizarVisibilidadDano = () => {
+                if (!colDano || !selectDano) return;
+                let estado = '';
+                radios.forEach(r => {
+                    if (r.checked) estado = r.value;
+                });
+                if (estado === 'MALO') {
+                    colDano.style.display = '';
+                    if (selectDano) {
+                        selectDano.disabled = false;
+                        actualizarVisibilidadOtro();
+                    }
+                } else {
+                    colDano.style.display = 'none';
+                    if (selectDano) {
+                        selectDano.disabled = true;
+                        selectDano.value = '';
+                    }
+                    if (inputOtro) {
+                        inputOtro.style.display = 'none';
+                        inputOtro.disabled = true;
+                        inputOtro.value = '';
+                    }
+                }
+            };
+
+            radios.forEach(r => {
+                r.addEventListener('change', actualizarVisibilidadDano);
+            });
+
+            if (selectDano) {
+                selectDano.addEventListener('change', actualizarVisibilidadOtro);
+            }
+
+            actualizarVisibilidadDano();
+        });
+
         if (btnGuardar) btnGuardar.disabled = false;
     }
 
@@ -247,7 +408,9 @@ document.addEventListener('DOMContentLoaded', () => {
     inputEquipo.addEventListener('blur', actualizarDetalleDesdeInput);
 
     if (btnGuardar) {
-        btnGuardar.addEventListener('click', () => {
+        btnGuardar.addEventListener('click', async () => {
+            if (guardandoInspeccion) return;
+            guardandoInspeccion = true;
             const valor = inputEquipo.value.trim();
             if (!valor) return;
 
@@ -270,8 +433,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 const estado = estadoInput ? estadoInput.value : '';
                 const danoSelect = filaHtml.querySelector(`select[name="param-${idx}-dano"]`);
                 const tipoDano = danoSelect ? danoSelect.value : '';
-                parametrosCapturados.push({ nombre, estado, tipoDano });
+                const inputOtro = filaHtml.querySelector(`input[name="param-${idx}-dano-otro"]`);
+                const detalleOtro = inputOtro ? (inputOtro.value || '').trim() : '';
+                parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro });
             });
+
+            // Intentar recuperar datos desde la actividad en Firestore
+            let fechaEmbarque = '';
+            let inicioServicio = '';
+            let terminacionServicio = '';
+            let cliente = '';
+            let areaCliente = '';
+            let ubicacion = '';
+            let actividadId = '';
+
+            try {
+                const { getFirestore, collection, query, where, orderBy, limit, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'actividades');
+
+                // Buscar actividades por equipo, tomando la más reciente
+                const q = query(
+                    colRef,
+                    where('equipo', '==', get(idxEquipo)),
+                    orderBy('fechaRegistro', 'desc'),
+                    limit(1)
+                );
+
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const docAct = snap.docs[0];
+                    const data = docAct.data() || {};
+                    fechaEmbarque = data.fechaEmbarque || '';
+                    inicioServicio = data.inicioServicio || '';
+                    terminacionServicio = data.terminacionServicio || '';
+                    cliente = data.cliente || '';
+                    areaCliente = data.areaCliente || '';
+                    ubicacion = data.ubicacion || '';
+                    actividadId = docAct.id || '';
+                }
+            } catch (e) {
+                console.warn('No se pudieron leer fechas de actividad para la inspección', e);
+            }
+
+            // Usuario actual (correo) para registrar quién hizo la inspección
+            let usuarioInspeccion = '';
+            try {
+                if (window.auth && window.auth.currentUser && window.auth.currentUser.email) {
+                    usuarioInspeccion = String(window.auth.currentUser.email).toLowerCase();
+                }
+            } catch (e) {
+                console.warn('No se pudo leer el usuario actual para la inspección', e);
+            }
 
             const registro = {
                 fecha: new Date().toISOString(),
@@ -280,7 +496,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 serial: get(idxSerial),
                 descripcion: get(idxDescripcion),
                 reporte: get(idxReporte),
-                parametros: parametrosCapturados
+                parametros: parametrosCapturados,
+                fechaEmbarque,
+                inicioServicio,
+                terminacionServicio,
+                cliente,
+                areaCliente,
+                ubicacion,
+                usuarioInspeccion,
+                actividadId,
+                observaciones: '',
             };
 
             const clave = 'pct_inspecciones';
@@ -295,12 +520,27 @@ document.addEventListener('DOMContentLoaded', () => {
             lista.push(registro);
             localStorage.setItem(clave, JSON.stringify(lista));
 
-            btnGuardar.textContent = 'Inspección guardada';
+            // Mensaje visible de confirmación en el panel de detalle
+            const panelDetalle = document.getElementById('detalle-equipo');
+            if (panelDetalle && panelDetalle.scrollIntoView) {
+                panelDetalle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            inputEquipo.value = '';
+            detalleContenedor.innerHTML = `
+                <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #22c55e; background:#ecfdf5; text-align:center; font-size:1rem; font-weight:600; color:#166534; margin-bottom:0.5rem;">
+                    Inspección guardada
+                </div>
+                <p style="font-size:0.85rem; color:#4b5563; text-align:center;">
+                    Seleccione otro equipo para realizar una nueva inspección.
+                </p>
+            `;
+
+            // Deshabilitar botón hasta que se seleccione otro equipo
+            btnGuardar.textContent = 'Guardar inspección';
             btnGuardar.disabled = true;
-            setTimeout(() => {
-                btnGuardar.textContent = 'Guardar inspección';
-                btnGuardar.disabled = false;
-            }, 1200);
+
+            guardandoInspeccion = false;
         });
     }
 });
@@ -514,12 +754,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const idxEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
             const idxDesc = headersInv.indexOf('DESCRIPCION');
+            const idxEstado = headersInv.indexOf('ESTADO');
 
             const vistos = new Set();
             filasInv.forEach(cols => {
                 const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
                 const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
+                const edo = idxEstado >= 0 ? (cols[idxEstado] || '') : '';
                 if (!eq || vistos.has(eq)) return;
+                if (edo.trim().toUpperCase() === 'OFF') return;
                 vistos.add(eq);
 
                 const opt = document.createElement('option');
@@ -732,14 +975,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Actividades registradas (localStorage)
+    // Actividades registradas: leer desde Firestore y clasificar en totales, concluidas y pendientes
     if (spanActividades) {
-        try {
-            const lista = JSON.parse(localStorage.getItem('pct_actividad') || '[]');
-            spanActividades.textContent = Array.isArray(lista) ? String(lista.length) : '0';
-        } catch {
-            spanActividades.textContent = '0';
-        }
+        spanActividades.textContent = 'Cargando...';
+
+        (async () => {
+            try {
+                const { getFirestore, collection, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'actividades');
+                const snap = await getDocs(colRef);
+
+                let total = 0;
+                let concluidas = 0;
+                let pendientes = 0;
+
+                snap.forEach(doc => {
+                    total += 1;
+                    const data = doc.data() || {};
+                    const term = (data.terminacionServicio || '').trim();
+                    if (term) {
+                        concluidas += 1;
+                    } else {
+                        pendientes += 1;
+                    }
+                });
+
+                spanActividades.innerHTML = `
+                    <div style="font-size:0.85rem; line-height:1.4;">
+                        Registradas: <strong>${total}</strong><br>
+                        Concluidas: <strong>${concluidas}</strong><br>
+                        Pendientes: <strong>${pendientes}</strong>
+                    </div>
+                `;
+            } catch (e) {
+                console.error('Error al leer resumen de actividades para el dashboard', e);
+                spanActividades.textContent = 'Error';
+            }
+        })();
     }
 
     // Para invre e invre2 dejamos -- por ahora o podemos calcular desde CSV más adelante
@@ -793,13 +1069,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 vistos.add(eq);
 
                 const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
-                const opt = document.createElement('option');
-                opt.value = eq;
-                opt.label = desc ? `${eq} - ${desc}` : eq;
-                datalistEquipos.appendChild(opt);
+                const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
+
+                // Solo equipos que no estén OFF se ofrecen en el datalist
+                if (edo.trim().toUpperCase() !== 'OFF') {
+                    const opt = document.createElement('option');
+                    opt.value = eq;
+                    opt.label = desc ? `${eq} - ${desc}` : eq;
+                    datalistEquipos.appendChild(opt);
+                }
 
                 const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
-                const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
                 const prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
                 infoPorEquipoAct[eq] = {
                     serial,
@@ -892,6 +1172,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const colCliente = document.createElement('span');
             colCliente.textContent = clienteActual || '';
 
+            const colSerial = document.createElement('span');
+            colSerial.textContent = info.serial || '';
+
+            const colEstado = document.createElement('span');
+            colEstado.textContent = info.estado || '';
+
+            const colProp = document.createElement('span');
+            colProp.textContent = info.propiedad || '';
+
             const colDesc = document.createElement('span');
             colDesc.textContent = info.descripcion || '';
 
@@ -908,6 +1197,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             row.appendChild(colEquipo);
             row.appendChild(colCliente);
+            row.appendChild(colSerial);
+            row.appendChild(colEstado);
+            row.appendChild(colProp);
             row.appendChild(colDesc);
             row.appendChild(colAccion);
 
@@ -1135,6 +1427,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const diasServicio = diasServicioStr ? Number(diasServicioStr) : 0;
 
+            // Normalizar fechas de embarque e inicio de servicio (por ahora se guardan tal cual texto)
+            const fechaEmbarque = fechaEmbarqueTexto || '';
+            const inicioServicio = inicioServicioTexto || '';
+
             // OS automática por cliente + área si no se capturó
             let osFinal = os;
             if (!osFinal) {
@@ -1157,17 +1453,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const equipos = [...equiposSeleccionados];
-            const equipoPrincipal = equipos[0] || '';
-            const infoPrincipal = equipoPrincipal ? (infoPorEquipoAct[equipoPrincipal] || {}) : {};
 
-            const registro = {
+            // Base común para todos los equipos del lote
+            const registroBase = {
                 fechaRegistro: new Date().toISOString(),
                 tipo,
                 cliente,
                 areaCliente,
                 ubicacion,
-                equipo: equipoPrincipal,
-                equipos,
                 os: osFinal,
                 ordenSuministro,
                 factura,
@@ -1175,15 +1468,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 fechaEmbarque,
                 inicioServicio,
                 diasServicio,
-                precio,
-                serial: inputSerialAuto ? inputSerialAuto.value || infoPrincipal.serial || '' : infoPrincipal.serial || '',
-                estado: inputEstadoAuto ? inputEstadoAuto.value || infoPrincipal.estado || '' : infoPrincipal.estado || '',
-                propiedad: inputPropAuto ? inputPropAuto.value || infoPrincipal.propiedad || '' : infoPrincipal.propiedad || '',
+                precio, // se inicia igual para todos; luego se puede ajustar por equipo en actividadmin
                 noReporte: inputNoRepAuto ? inputNoRepAuto.value || '' : '',
-                descripcion: inputDescAuto ? inputDescAuto.value || infoPrincipal.descripcion || '' : infoPrincipal.descripcion || '',
             };
 
-            await guardarActividadEnFirestore(registro);
+            // Crear un documento por equipo
+            for (const equipoNombre of equipos) {
+                const info = equipoNombre ? (infoPorEquipoAct[equipoNombre] || {}) : {};
+
+                const registroPorEquipo = {
+                    ...registroBase,
+                    equipo: equipoNombre,
+                    serial: inputSerialAuto ? inputSerialAuto.value || info.serial || '' : info.serial || '',
+                    estado: inputEstadoAuto ? inputEstadoAuto.value || info.estado || '' : info.estado || '',
+                    propiedad: inputPropAuto ? inputPropAuto.value || info.propiedad || '' : info.propiedad || '',
+                    descripcion: inputDescAuto ? inputDescAuto.value || info.descripcion || '' : info.descripcion || '',
+                };
+
+                await guardarActividadEnFirestore(registroPorEquipo);
+            }
+
             alert('Actividad guardada');
             limpiarFormularioActividad();
         });
@@ -1425,47 +1729,86 @@ document.addEventListener('DOMContentLoaded', () => {
 // Dashboard en index.html
 document.addEventListener('DOMContentLoaded', () => {
     const elEquiposInvre = document.getElementById('dash-equipos-invre');
-    const elRegInvre2 = document.getElementById('dash-registros-invre2');
-    const elInspecciones = document.getElementById('dash-inspecciones');
-    const elPruebas = document.getElementById('dash-pruebas');
-    if (!elEquiposInvre || !elRegInvre2 || !elInspecciones || !elPruebas) return; // No estamos en index
+    if (!elEquiposInvre) return; // No estamos en index
 
-    // Contar equipos en invre.csv
+    // 1) Determinar equipos "fuera de servicio" a partir de inspecciones locales
+    //    Regla: si un equipo tiene al menos una inspección con algún parámetro en estado MALO,
+    //    se considera fuera de servicio (independiente de OFF/WIP en inventario; se cruza con ON).
+    const equiposFueraServicio = new Set();
+    try {
+        const listaInsp = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
+        if (Array.isArray(listaInsp)) {
+            listaInsp.forEach(reg => {
+                const equipo = (reg && reg.equipo) ? String(reg.equipo).trim() : '';
+                const parametros = (reg && Array.isArray(reg.parametros)) ? reg.parametros : [];
+                if (!equipo || !parametros.length) return;
+
+                const tieneMalo = parametros.some(p => {
+                    const est = (p && p.estado) ? String(p.estado).trim().toUpperCase() : '';
+                    return est === 'MALO';
+                });
+                if (tieneMalo) {
+                    equiposFueraServicio.add(equipo);
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('No se pudo interpretar pct_inspecciones para fuera de servicio', e);
+    }
+
+    // 2) Contar equipos por estado (ON / OFF / WIP) en invre.csv y cruzar ON con "fuera de servicio"
     fetch('docs/invre.csv')
         .then(r => (r.ok ? r.text() : ''))
         .then(t => {
             if (!t) return;
+
             const lineas = t.split(/\r?\n/).filter(l => l.trim() !== '');
-            const total = Math.max(lineas.length - 1, 0); // restar encabezado
-            elEquiposInvre.textContent = total || '0';
+            if (!lineas.length) return;
+
+            const headersLocal = parseCSVLine(lineas[0]);
+            // En invre.csv la columna de estado se llama "EDO"
+            const idxEstado = headersLocal.indexOf('EDO');
+            const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
+
+            let onCount = 0;
+            let offCount = 0;
+            let wipCount = 0;
+            let fueraServicioCount = 0;
+
+            lineas.slice(1).forEach(linea => {
+                const cols = parseCSVLine(linea);
+                if (!cols.length || idxEstado < 0) return;
+
+                const valor = (cols[idxEstado] || '').trim().toUpperCase();
+                if (!valor) return;
+
+                const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '').trim() : '';
+
+                if (valor === 'ON') {
+                    onCount += 1;
+                    // Equipo ON que tiene alguna inspección con parámetro MALO
+                    if (equipo && equiposFueraServicio.has(equipo)) {
+                        fueraServicioCount += 1;
+                    }
+                } else if (valor === 'OFF') {
+                    offCount += 1;
+                } else if (valor === 'WIP') {
+                    wipCount += 1;
+                }
+            });
+
+            elEquiposInvre.innerHTML = `
+                <div style="font-size:0.85rem; line-height:1.4;">
+                    ON: <strong>${onCount}</strong><br>
+                    OFF: <strong>${offCount}</strong><br>
+                    WIP: <strong>${wipCount}</strong><br>
+                    Fuera de servicio: <strong>${fueraServicioCount}</strong>
+                </div>
+            `;
         })
-        .catch(() => {});
-
-    // Contar registros en invre2.csv
-    fetch('docs/invre2.csv')
-        .then(r => (r.ok ? r.text() : ''))
-        .then(t => {
-            if (!t) return;
-            const lineas = t.split(/\r?\n/).filter(l => l.trim() !== '');
-            const total = Math.max(lineas.length - 1, 0);
-            elRegInvre2.textContent = total || '0';
-        })
-        .catch(() => {});
-
-    // Inspecciones y pruebas desde localStorage
-    try {
-        const insp = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
-        elInspecciones.textContent = Array.isArray(insp) ? insp.length : 0;
-    } catch {
-        elInspecciones.textContent = '0';
-    }
-
-    try {
-        const pruebas = JSON.parse(localStorage.getItem('pct_pruebas') || '[]');
-        elPruebas.textContent = Array.isArray(pruebas) ? pruebas.length : 0;
-    } catch {
-        elPruebas.textContent = '0';
-    }
+        .catch(() => {
+            elEquiposInvre.textContent = '--';
+        });
 });
 
 // Listado de actividades en actividadlist.html
@@ -1479,14 +1822,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let listaActividad = [];
 
-    function fechaISOaInput(fechaISO) {
-        if (!fechaISO) return '';
-        const d = new Date(fechaISO);
-        if (isNaN(d.getTime())) return '';
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${dd}/${mm}/${yyyy}`;
+    // Convierte fecha dd/mm/aa a objeto Date (año base 2000+aa)
+    function parseFechaDdMmAaListado(fechaTexto) {
+        if (!fechaTexto) return null;
+        const partes = fechaTexto.split('/');
+        if (partes.length !== 3) return null;
+        const [ddStr, mmStr, aaStr] = partes;
+        const dd = parseInt(ddStr, 10);
+        const mm = parseInt(mmStr, 10);
+        const aa = parseInt(aaStr, 10);
+        if (!dd || !mm || isNaN(aa)) return null;
+        const yyyy = 2000 + aa;
+        const d = new Date(yyyy, mm - 1, dd);
+        return isNaN(d.getTime()) ? null : d;
     }
 
     function formatearMoneda(valor) {
@@ -1516,8 +1864,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lista.forEach(reg => {
             const cliente = reg.cliente || '';
-            const inicio = reg.inicioServicio || '';
-            const dias = Number(reg.diasServicio || 0);
+            const area = reg.areaCliente || '';
+            const inicioTexto = reg.inicioServicio || '';
+            const terminacionTexto = reg.terminacionServicio || '';
+
+            // Calcular días en servicio:
+            // - Si hay terminación, días entre inicio y terminación (servicio cerrado).
+            // - Si no hay terminación, días entre inicio y hoy (servicio abierto).
+            let dias = 0;
+            const dInicio = parseFechaDdMmAaListado(inicioTexto);
+            const dFin = terminacionTexto ? parseFechaDdMmAaListado(terminacionTexto) : new Date();
+            if (dInicio && dFin) {
+                const diffMs = dFin.getTime() - dInicio.getTime();
+                const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                if (diffDias >= 0) dias = diffDias;
+            }
             const os = reg.os || '';
             const factura = reg.factura || '';
             const precio = Number(reg.precio || 0);
@@ -1527,7 +1888,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : (reg.equipo ? [reg.equipo] : []);
 
             equiposArr.forEach(equipoNombre => {
-                const textoBuscar = `${cliente} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                const textoBuscar = `${cliente} ${area} ${equipoNombre} ${os} ${factura}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 visibles += 1;
@@ -1535,11 +1896,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${area}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        ${inicio ? fechaISOaInput(inicio) : ''}
+                        ${inicioTexto}
                     </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        ${terminacionTexto || 'Pendiente'}
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center; width:80px;">
                         ${dias || ''}
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
@@ -1548,6 +1913,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${precio ? formatearMoneda(precio) : ''}
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <button type="button" class="actlist-btn-editar" data-id="${reg.id}" style="font-size:0.75rem; margin-right:0.25rem;">
+                            Editar
+                        </button>
                         <button type="button" class="actlist-btn-eliminar" data-id="${reg.id}" style="font-size:0.75rem; color:#b91c1c;">
                             Eliminar
                         </button>
@@ -1560,6 +1928,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lblCont) {
             lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
         }
+
+        // Botón Editar: por ahora no cambia de URL, se reservará para edición en línea
+        tbody.querySelectorAll('.actlist-btn-editar').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                if (!id) return;
+                // Aquí implementaremos la edición en línea de la actividad seleccionada
+                console.log('Editar actividad con id:', id);
+            });
+        });
 
         tbody.querySelectorAll('.actlist-btn-eliminar').forEach(btn => {
             btn.addEventListener('click', async () => {
