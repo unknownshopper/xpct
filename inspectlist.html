@@ -159,13 +159,26 @@
             tbody.innerHTML = '';
             msg.style.display = 'none';
 
-            // 1) Leer inspecciones locales
+            // 1) Leer inspecciones desde Firestore
             let inspecciones = [];
             try {
-                inspecciones = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
-                if (!Array.isArray(inspecciones)) inspecciones = [];
-            } catch {
-                inspecciones = [];
+                const { getFirestore, collection, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colInsp = collection(db, 'inspecciones');
+                const snapInsp = await getDocs(colInsp);
+                inspecciones = snapInsp.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (e) {
+                console.error('Error al leer inspecciones desde Firestore, se usará localStorage como respaldo', e);
+
+                try {
+                    const crudo = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
+                    if (Array.isArray(crudo)) inspecciones = crudo;
+                } catch {
+                    inspecciones = [];
+                }
             }
 
             // Mapa por actividadId para cruce rápido
@@ -314,19 +327,37 @@
 
                     if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
 
-                    // Filtrar inspecciones en localStorage
-                    let actuales = [];
-                    try {
-                        actuales = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
-                        if (!Array.isArray(actuales)) actuales = [];
-                    } catch {
-                        actuales = [];
-                    }
+                    (async () => {
+                        try {
+                            // Eliminar de Firestore
+                            const { getFirestore, collection, query, where, getDocs, deleteDoc, doc } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                            );
 
-                    actuales = actuales.filter(reg => reg.actividadId !== actividadId);
-                    localStorage.setItem(claveInspecciones, JSON.stringify(actuales));
+                            const db = getFirestore();
+                            const colInsp = collection(db, 'inspecciones');
+                            const q = query(colInsp, where('actividadId', '==', actividadId));
+                            const snap = await getDocs(q);
+                            const ops = snap.docs.map(d => deleteDoc(doc(db, 'inspecciones', d.id)));
+                            await Promise.all(ops);
+                        } catch (e) {
+                            console.error('No se pudo eliminar la inspección en Firestore', e);
+                        }
 
-                    cargarDatos();
+                        // También limpiar en localStorage como respaldo
+                        let actuales = [];
+                        try {
+                            actuales = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
+                            if (!Array.isArray(actuales)) actuales = [];
+                        } catch {
+                            actuales = [];
+                        }
+
+                        actuales = actuales.filter(reg => reg.actividadId !== actividadId);
+                        localStorage.setItem(claveInspecciones, JSON.stringify(actuales));
+
+                        cargarDatos();
+                    })();
                 });
             });
         }

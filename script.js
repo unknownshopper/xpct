@@ -520,6 +520,23 @@ document.addEventListener('DOMContentLoaded', () => {
             lista.push(registro);
             localStorage.setItem(clave, JSON.stringify(lista));
 
+            // También guardar en Firestore para que las inspecciones sean visibles en cualquier dispositivo
+            try {
+                const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'inspecciones');
+                const payload = {
+                    ...registro,
+                    creadoEn: serverTimestamp(),
+                };
+                await addDoc(colRef, payload);
+            } catch (e) {
+                console.warn('No se pudo guardar la inspección en Firestore, solo local:', e);
+            }
+
             // Mensaje visible de confirmación en el panel de detalle
             const panelDetalle = document.getElementById('detalle-equipo');
             if (panelDetalle && panelDetalle.scrollIntoView) {
