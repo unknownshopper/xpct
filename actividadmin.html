@@ -160,6 +160,7 @@
                         <input id="adm-per-obs" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
                     </div>
                     <div style="flex:0 0 auto;">
+                        <button id="adm-per-generar" type="button" style="margin-top:1rem; margin-right:0.5rem; font-size:0.8rem;">Generar períodos</button>
                         <button id="adm-per-guardar" type="button" style="margin-top:1rem; font-size:0.8rem;">Agregar período</button>
                     </div>
                 </div>
@@ -531,6 +532,9 @@
                             <button type="button" class="adm-btn-editar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
                                 Editar
                             </button>
+                            <button type="button" class="adm-btn-tabulador" data-id="${id}" data-cliente="${cliente}" data-area="${area}" data-equipo="${equipoNombre}" data-precioequipo="${precioPorEquipo}" data-os="${os}" data-inicio="${inicioTexto}" data-terminacion="${termTexto}" style="font-size:0.75rem; margin-right:0.25rem;">
+                                Tabulador
+                            </button>
                             <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
                                 Eliminar
                             </button>
@@ -650,5 +654,7 @@
 
     <!-- script.js para navbar, menús, etc. -->
     <script src="script.js"></script>
+    <!-- Lógica de tabulador de períodos -->
+    <script src="tabulador.js"></script>
 </body>
 </html>
