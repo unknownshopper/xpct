@@ -209,34 +209,46 @@ main {
 }
 
 .dash-card {
+    position: relative;
+    overflow: hidden;
     background: radial-gradient(circle at top left, #ffffff 0%, #f9fafb 45%, #eef2ff 100%);
     border-radius: 1rem;
-    padding: 1.15rem 1.35rem;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
-    border: 1px solid rgba(148, 163, 184, 0.3);
+    padding: 1.15rem 1.35rem 1.1rem;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.35);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     min-height: 110px;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.dash-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #0ea5e9, #22c55e, #facc15);
+    opacity: 0.9;
 }
 
 .dash-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
-    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
+    border-color: rgba(59, 130, 246, 0.7);
+    background: radial-gradient(circle at top left, #ffffff 0%, #eff6ff 40%, #e0f2fe 100%);
 }
 
 .dash-card-label {
-    font-size: 0.86rem;
-    letter-spacing: 0.02em;
+    font-size: 0.84rem;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #6b7280;
-    margin-bottom: 0.45rem;
+    margin-bottom: 0.35rem;
 }
 
 .dash-card-value {
-    font-size: 1.8rem;
+    font-size: 1.65rem;
     font-weight: 700;
     color: #0f172a;
 }
@@ -461,6 +473,50 @@ main {
     cursor: not-allowed;
 }
 
+/* Vista móvil / tablet para inspeccion.html */
+@media (max-width: 900px) {
+    .inspeccion-page {
+        max-width: 100%;
+        margin: 0.75rem auto;
+        padding: 0 0.75rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .selector-equipo,
+    .detalle-equipo {
+        margin: 0;
+        border-radius: 0.75rem;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+        padding: 1rem 1.1rem;
+    }
+
+    .selector-equipo h1 {
+        font-size: 1.1rem;
+    }
+
+    #equipo-input {
+        font-size: 0.95rem;
+    }
+
+    .acciones-inspeccion {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    #btn-guardar-inspeccion {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .link-inspecciones {
+        text-align: center;
+        display: block;
+    }
+}
+
 .link-inspecciones {
     font-size: 0.85rem;
     color: #0b3b5c;
@@ -540,6 +596,30 @@ main {
     border-radius: 0.35rem;
     border: 1px solid #d1d5db;
     font-size: 0.85rem;
+}
+
+/* Ajustes específicos para parámetros en vista móvil: evitar que el select
+   de tipo de daño se salga visualmente del área de inspección */
+@media (max-width: 900px) {
+    .parametros-tabla {
+        overflow: visible;
+    }
+
+    .parametros-header,
+    .parametros-fila {
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr);
+        grid-template-rows: auto auto;
+    }
+
+    .parametros-header .col-dano {
+        grid-column: 1 / -1;
+        margin-top: 0.25rem;
+    }
+
+    .parametros-fila .col-dano {
+        grid-column: 1 / -1;
+        margin-top: 0.15rem;
+    }
 }
 
 /* Actividad (registro de servicio) */
