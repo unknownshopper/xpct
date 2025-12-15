@@ -216,6 +216,11 @@
                 const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
 
                 const tr = document.createElement('tr');
+                tr.setAttribute('data-actividad-id', act.id || '');
+                if (!insp) {
+                    tr.classList.add('insp-fila-pendiente');
+                    tr.style.cursor = 'pointer';
+                }
 
                 const fechaTexto = formatearFechaRegistro(insp ? insp.fecha : act.fechaRegistro);
 
@@ -272,7 +277,20 @@
                 tbody.appendChild(tr);
             });
 
-            // 4) Manejar asignación de inspector (admin)
+            // 4) Permitir abrir la inspección desde una fila pendiente
+            tbody.querySelectorAll('tr.insp-fila-pendiente').forEach(tr => {
+                tr.addEventListener('click', (ev) => {
+                    // No disparar cuando se hace clic en botones, selects o enlaces dentro de la fila
+                    if (ev.target.closest('button, select, a')) return;
+
+                    const actividadId = tr.getAttribute('data-actividad-id') || '';
+                    if (!actividadId) return;
+
+                    window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
+                });
+            });
+
+            // 5) Manejar asignación de inspector (admin)
             tbody.querySelectorAll('.insp-select-asignado').forEach(sel => {
                 sel.addEventListener('change', async () => {
                     const actividadId = sel.getAttribute('data-actividad-id') || '';
@@ -294,7 +312,7 @@
                 });
             });
 
-            // 5) Inspectores pueden reclamar inspecciones no asignadas
+            // 6) Inspectores pueden reclamar inspecciones no asignadas
             tbody.querySelectorAll('.insp-btn-claim').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const actividadId = btn.getAttribute('data-actividad-id') || '';
@@ -319,7 +337,7 @@
                 });
             });
 
-            // 6) Manejar eliminación de inspecciones realizadas (no toca actividades)
+            // 7) Manejar eliminación de inspecciones realizadas (no toca actividades)
             tbody.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const actividadId = btn.getAttribute('data-actividad-id') || '';

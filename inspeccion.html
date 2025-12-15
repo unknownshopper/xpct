@@ -100,7 +100,7 @@
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
@@ -115,6 +115,36 @@
         // Solo admins e inspectores pueden estar aquí
         if (!ADMINS.includes(email) && !INSPECTORES.includes(email)) {
             window.location.href = 'login.html';
+            return;
+        }
+
+        // Si venimos desde inspectlist con una actividad seleccionada, intentar prellenar el equipo
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const actividadId = params.get('actividadId');
+            if (!actividadId) return;
+
+            const { getFirestore, doc, getDoc } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+
+            const db = getFirestore(app);
+            const ref = doc(db, 'actividades', actividadId);
+            const snap = await getDoc(ref);
+            if (!snap.exists()) return;
+
+            const data = snap.data() || {};
+            const equipo = data.equipo || '';
+            if (!equipo) return;
+
+            const inputEquipo = document.getElementById('equipo-input');
+            if (inputEquipo) {
+                inputEquipo.value = equipo;
+                // Disparar cambio para que script.js actualice el detalle y parámetros
+                inputEquipo.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        } catch (e) {
+            console.error('No se pudo prellenar la inspección desde la actividad seleccionada', e);
         }
     });
 
