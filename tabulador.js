@@ -57,7 +57,26 @@
       inputImporte.value = importe || '';
     }
 
+    function formatearInputFechaDdMmAa(input) {
+      if (!input) return;
+      input.addEventListener('input', () => {
+        let v = input.value.replace(/[^0-9]/g, ''); // solo dígitos
+        if (v.length > 6) v = v.slice(0, 6); // ddmmaaa (aa=2 dígitos)
+        // insertar '/'
+        if (v.length > 4) {
+          v = v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
+        } else if (v.length > 2) {
+          v = v.slice(0, 2) + '/' + v.slice(2);
+        }
+        input.value = v;
+      });
+    }
+
     if (inputInicio && inputFin && inputTarifa) {
+      // Formateo automático de fechas mientras se escribe
+      formatearInputFechaDdMmAa(inputInicio);
+      formatearInputFechaDdMmAa(inputFin);
+
       ['input', 'change', 'blur'].forEach((ev) => {
         inputInicio.addEventListener(ev, recalcularPeriodo);
         inputFin.addEventListener(ev, recalcularPeriodo);
@@ -340,6 +359,22 @@
 
           const periodos = await cargarPeriodosActividad(actividadActual.id);
           renderTablaPeriodos(periodos);
+
+          // Preparar el siguiente período manual encadenado:
+          // nuevo inicio = día siguiente al fin recién guardado
+          if (inputInicio && inputFin) {
+            const dFinNext = parseFechaDdMmAa(fin);
+            if (dFinNext) {
+              dFinNext.setDate(dFinNext.getDate() + 1);
+              inputInicio.value = formatearFechaDdMmAa(dFinNext);
+            }
+            // Limpiar fin/días/importe/factura/obs para capturar el siguiente tramo
+            inputFin.value = '';
+            if (inputDias) inputDias.value = '';
+            if (inputImporte) inputImporte.value = '';
+            if (inputFactura) inputFactura.value = '';
+            if (inputObs) inputObs.value = '';
+          }
         } catch (e) {
           console.error('Error al guardar período de actividad', e);
           alert('No se pudo guardar el período. Revisa la consola.');
