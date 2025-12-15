@@ -121,6 +121,8 @@
         if (emailSpan) emailSpan.textContent = email;
 
         window.isAdmin = ADMINS.includes(email);
+        window.isInspector = INSPECTORES.includes(email);
+        window.currentUserEmail = email;
 
         // Solo admins e inspectores pueden ver esta página
         if (!ADMINS.includes(email) && !INSPECTORES.includes(email)) {
@@ -223,7 +225,7 @@
                 const observaciones = insp?.observaciones || '';
                 const asignado = act.inspectorAsignado || '';
 
-                let asignadoHtml = asignado;
+                let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
                 if (window.isAdmin) {
                     const opt = (val, label) => `<option value="${val}" ${asignado === val ? 'selected' : ''}>${label}</option>`;
                     asignadoHtml = `
@@ -232,6 +234,10 @@
                             ${opt('inspector01@pct.com', 'inspector01@pct.com')}
                             ${opt('inspector02@pct.com', 'inspector02@pct.com')}
                         </select>
+                    `;
+                } else if (!asignado && window.isInspector) {
+                    asignadoHtml = `
+                        <button type="button" class="insp-btn-claim" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#e0f2fe; color:#0369a1;">Tomar</button>
                     `;
                 }
 
@@ -275,7 +281,32 @@
                 });
             });
 
-            // 5) Manejar eliminación de inspecciones realizadas (no toca actividades)
+            // 5) Inspectores pueden reclamar inspecciones no asignadas
+            tbody.querySelectorAll('.insp-btn-claim').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const actividadId = btn.getAttribute('data-actividad-id') || '';
+                    if (!actividadId) return;
+
+                    const email = (window.currentUserEmail || '').toLowerCase();
+                    if (!email || !window.isInspector) return;
+
+                    try {
+                        const { getFirestore, doc, updateDoc } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+
+                        const db = getFirestore();
+                        const ref = doc(db, 'actividades', actividadId);
+                        await updateDoc(ref, { inspectorAsignado: email });
+
+                        cargarDatos();
+                    } catch (e) {
+                        console.error('No se pudo reclamar la inspección', e);
+                    }
+                });
+            });
+
+            // 6) Manejar eliminación de inspecciones realizadas (no toca actividades)
             tbody.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const actividadId = btn.getAttribute('data-actividad-id') || '';

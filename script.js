@@ -935,7 +935,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const campoDetalle = document.getElementById('campo-prueba-detalle');
         const sel = document.getElementById('inv-prueba');
         if (!campoDetalle || !sel) return;
-        if (sel.value) {
+
+        const val = (sel.value || '').toUpperCase();
+        if (val === 'VT / PT / MT') {
             campoDetalle.style.display = 'block';
         } else {
             campoDetalle.style.display = 'none';
@@ -965,14 +967,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Inspecciones guardadas (localStorage)
+    // Inspecciones: mostrar en la tarjeta tanto las pendientes (por realizar) como las realizadas
+    // "Pendientes" = actividades en Firestore que aún no tienen una inspección asociada en localStorage
+    // "Realizadas" = inspecciones guardadas en localStorage
     if (spanInspecciones) {
-        try {
-            const lista = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
-            spanInspecciones.textContent = Array.isArray(lista) ? String(lista.length) : '0';
-        } catch {
-            spanInspecciones.textContent = '0';
-        }
+        spanInspecciones.textContent = 'Cargando...';
+
+        (async () => {
+            try {
+                // 1) Leer actividades desde Firestore para conocer el universo de actividades
+                const { getFirestore, collection, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'actividades');
+                const snap = await getDocs(colRef);
+
+                const actividadIds = new Set();
+                snap.forEach(doc => {
+                    actividadIds.add(doc.id);
+                });
+
+                // 2) Leer inspecciones locales
+                let listaInspecciones = [];
+                try {
+                    const crudo = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
+                    if (Array.isArray(crudo)) listaInspecciones = crudo;
+                } catch {
+                    listaInspecciones = [];
+                }
+
+                const realizadas = listaInspecciones.length;
+
+                // 3) Determinar qué actividades ya tienen al menos una inspección
+                const actividadesConInspeccion = new Set();
+                listaInspecciones.forEach(reg => {
+                    const actId = (reg && reg.actividadId) ? String(reg.actividadId) : '';
+                    if (actId) actividadesConInspeccion.add(actId);
+                });
+
+                // 4) Pendientes = actividades sin inspección asociada
+                let pendientes = 0;
+                actividadIds.forEach(id => {
+                    if (!actividadesConInspeccion.has(id)) pendientes += 1;
+                });
+
+                spanInspecciones.innerHTML = `
+                    <div style="font-size:0.85rem; line-height:1.4;">
+                        Por realizar: <strong>${pendientes}</strong><br>
+                        Realizadas: <strong>${realizadas}</strong>
+                    </div>
+                `;
+            } catch (e) {
+                console.error('Error al leer resumen de inspecciones para el dashboard', e);
+                spanInspecciones.textContent = 'Error';
+            }
+        })();
     }
 
     // Actividades registradas: leer desde Firestore y clasificar en totales, concluidas y pendientes
