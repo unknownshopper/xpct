@@ -438,6 +438,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro });
             });
 
+            // Construir un resumen de observaciones con los hallazgos (parámetros en estado MALO o NO LEGIBLE)
+            const hallazgos = parametrosCapturados
+                .filter(p => {
+                    const est = (p.estado || '').toUpperCase();
+                    return est === 'MALO' || est === 'NO LEGIBLE';
+                })
+                .map(p => {
+                    const base = p.nombre || '';
+                    const detalle = (p.detalleOtro || p.tipoDano || '').trim();
+                    return detalle ? `${base}: ${detalle}` : base;
+                });
+            const observacionesResumen = hallazgos.join(' | ');
+
             // Intentar recuperar datos desde la actividad en Firestore
             let fechaEmbarque = '';
             let inicioServicio = '';
@@ -448,32 +461,53 @@ document.addEventListener('DOMContentLoaded', () => {
             let actividadId = '';
 
             try {
-                const { getFirestore, collection, query, where, orderBy, limit, getDocs } = await import(
+                const { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
 
-                // Buscar actividades por equipo, tomando la más reciente
-                const q = query(
-                    colRef,
-                    where('equipo', '==', get(idxEquipo)),
-                    orderBy('fechaRegistro', 'desc'),
-                    limit(1)
-                );
+                // 1) Si venimos con actividadId en la URL (desde inspectlist), usar directamente esa actividad
+                const paramsUrl = new URLSearchParams(window.location.search || '');
+                const actividadIdUrl = paramsUrl.get('actividadId');
 
-                const snap = await getDocs(q);
-                if (!snap.empty) {
-                    const docAct = snap.docs[0];
-                    const data = docAct.data() || {};
-                    fechaEmbarque = data.fechaEmbarque || '';
-                    inicioServicio = data.inicioServicio || '';
-                    terminacionServicio = data.terminacionServicio || '';
-                    cliente = data.cliente || '';
-                    areaCliente = data.areaCliente || '';
-                    ubicacion = data.ubicacion || '';
-                    actividadId = docAct.id || '';
+                if (actividadIdUrl) {
+                    const ref = doc(db, 'actividades', actividadIdUrl);
+                    const snap = await getDoc(ref);
+                    if (snap.exists()) {
+                        const data = snap.data() || {};
+                        fechaEmbarque = data.fechaEmbarque || '';
+                        inicioServicio = data.inicioServicio || '';
+                        terminacionServicio = data.terminacionServicio || '';
+                        cliente = data.cliente || '';
+                        areaCliente = data.areaCliente || '';
+                        ubicacion = data.ubicacion || '';
+                        actividadId = actividadIdUrl;
+                    }
+                }
+
+                // 2) Si no hubo actividadId en URL o no se encontró, buscar por equipo como respaldo
+                if (!actividadId) {
+                    const q = query(
+                        colRef,
+                        where('equipo', '==', get(idxEquipo)),
+                        orderBy('fechaRegistro', 'desc'),
+                        limit(1)
+                    );
+
+                    const snap = await getDocs(q);
+                    if (!snap.empty) {
+                        const docAct = snap.docs[0];
+                        const data = docAct.data() || {};
+                        fechaEmbarque = data.fechaEmbarque || '';
+                        inicioServicio = data.inicioServicio || '';
+                        terminacionServicio = data.terminacionServicio || '';
+                        cliente = data.cliente || '';
+                        areaCliente = data.areaCliente || '';
+                        ubicacion = data.ubicacion || '';
+                        actividadId = docAct.id || '';
+                    }
                 }
             } catch (e) {
                 console.warn('No se pudieron leer fechas de actividad para la inspección', e);
@@ -505,7 +539,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ubicacion,
                 usuarioInspeccion,
                 actividadId,
-                observaciones: '',
+                observaciones: observacionesResumen,
             };
 
             const clave = 'pct_inspecciones';

@@ -225,6 +225,7 @@
                 const fechaTexto = formatearFechaRegistro(insp ? insp.fecha : act.fechaRegistro);
 
                 let evaluacion = 'Pendiente';
+                let estadoTexto = 'Pendiente';
                 if (insp && Array.isArray(insp.parametros) && insp.parametros.length) {
                     let evaluacionCalc = 'Operativo';
                     const hayFallo = insp.parametros.some(p => {
@@ -233,6 +234,7 @@
                     });
                     if (hayFallo) evaluacionCalc = 'No operativo';
                     evaluacion = evaluacionCalc;
+                    estadoTexto = 'Realizada';
                 }
 
                 const cliente = insp?.cliente || act.cliente || '';
@@ -259,18 +261,23 @@
                     `;
                 }
 
+                const accionesHtml = insp ? `
+                        <button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>
+                        <button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
+                    ` : '';
+
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaTexto}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${area}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${evaluacion}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? `${estadoTexto} - ${evaluacion}` : 'Pendiente'}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        ${insp ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar inspección</button>` : ''}
+                        ${accionesHtml}
                     </td>
                 `;
 
@@ -337,7 +344,17 @@
                 });
             });
 
-            // 7) Manejar eliminación de inspecciones realizadas (no toca actividades)
+            // 7) Editar inspecciones realizadas (reabrir formato)
+            tbody.querySelectorAll('.insp-btn-editar').forEach(btn => {
+                btn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const actividadId = btn.getAttribute('data-actividad-id') || '';
+                    if (!actividadId) return;
+                    window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
+                });
+            });
+
+            // 8) Manejar eliminación de inspecciones realizadas (no toca actividades)
             tbody.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const actividadId = btn.getAttribute('data-actividad-id') || '';
