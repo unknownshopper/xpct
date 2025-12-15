@@ -211,6 +211,22 @@
                 return;
             }
 
+            // Ordenar actividades por cliente y área para agrupar visualmente
+            actividades.sort((a, b) => {
+                const ca = (a.cliente || '').toString().toUpperCase();
+                const cb = (b.cliente || '').toString().toUpperCase();
+                if (ca < cb) return -1;
+                if (ca > cb) return 1;
+                const aa = (a.areaCliente || '').toString().toUpperCase();
+                const ab = (b.areaCliente || '').toString().toUpperCase();
+                if (aa < ab) return -1;
+                if (aa > ab) return 1;
+                return 0;
+            });
+
+            let clienteActual = '';
+            let areaActual = '';
+
             // 3) Construir filas a partir de actividades, marcando si hay inspección realizada
             actividades.forEach(act => {
                 const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
@@ -265,6 +281,30 @@
                         <button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>
                         <button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
                     ` : '';
+
+                // Insertar encabezados de agrupación por cliente y área cuando cambien
+                if (cliente && cliente !== clienteActual) {
+                    clienteActual = cliente;
+                    areaActual = '';
+                    const trGrupoCliente = document.createElement('tr');
+                    trGrupoCliente.innerHTML = `
+                        <td colspan="10" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
+                            Cliente: ${clienteActual}
+                        </td>
+                    `;
+                    tbody.appendChild(trGrupoCliente);
+                }
+
+                if (area && area !== areaActual) {
+                    areaActual = area;
+                    const trGrupoArea = document.createElement('tr');
+                    trGrupoArea.innerHTML = `
+                        <td colspan="10" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
+                            Área: ${areaActual}
+                        </td>
+                    `;
+                    tbody.appendChild(trGrupoArea);
+                }
 
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaTexto}</td>

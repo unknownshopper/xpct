@@ -97,7 +97,8 @@
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="adm-tbody-actividad"></tbody>
+                    <tbody id="adm-tbody-actividad">
+                    </tbody>
                 </table>
             </div>
             <p id="adm-msg-vacio" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
@@ -105,6 +106,83 @@
             </p>
         </section>
     </main>
+
+    <!-- Modal simple para tabulador de períodos de facturación -->
+    <div id="adm-modal-tabulador" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:50;">
+        <div style="background:white; max-width:900px; width:95%; max-height:90vh; overflow:auto; border-radius:0.5rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:1rem 1.25rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <div>
+                    <h2 style="margin:0; font-size:1.1rem; font-weight:600; color:#111827;">Tabulador de facturación</h2>
+                    <p id="adm-tabulador-header" style="margin:0.15rem 0 0; font-size:0.85rem; color:#4b5563;"></p>
+                </div>
+                <div>
+                    <button id="adm-tabulador-imprimir" type="button" style="font-size:0.8rem; margin-right:0.5rem;">Imprimir</button>
+                    <button id="adm-tabulador-cerrar" type="button" style="font-size:0.8rem;">Cerrar</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom:0.75rem; padding:0.75rem; background:#f9fafb; border-radius:0.5rem; border:1px solid #e5e7eb;">
+                <h3 style="margin:0 0 0.5rem; font-size:0.95rem; font-weight:500; color:#111827;">Nuevo período</h3>
+                <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                    <div style="flex:1 1 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Inicio período</label>
+                        <input id="adm-per-inicio" type="text" placeholder="dd/mm/aa" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:1 1 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Fin período</label>
+                        <input id="adm-per-fin" type="text" placeholder="dd/mm/aa" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:0 0 110px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Tipo</label>
+                        <select id="adm-per-tipo" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                            <option value="PARCIAL">PARCIAL</option>
+                            <option value="FINAL">FINAL</option>
+                        </select>
+                    </div>
+                    <div style="flex:0 0 110px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Tarifa diaria</label>
+                        <input id="adm-per-tarifa" type="number" min="0" step="1" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:0 0 80px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Días</label>
+                        <input id="adm-per-dias" type="number" min="0" step="1" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;" disabled>
+                    </div>
+                    <div style="flex:0 0 110px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Importe</label>
+                        <input id="adm-per-importe" type="number" min="0" step="1" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;" disabled>
+                    </div>
+                    <div style="flex:1 1 140px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Factura</label>
+                        <input id="adm-per-factura" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:1 1 180px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Observaciones</label>
+                        <input id="adm-per-obs" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:0 0 auto;">
+                        <button id="adm-per-guardar" type="button" style="margin-top:1rem; font-size:0.8rem;">Agregar período</button>
+                    </div>
+                </div>
+            </div>
+
+            <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                <thead>
+                    <tr style="background:#f3f4f6;">
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Inicio</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Fin</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Días</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Tarifa diaria</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Importe</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Tipo</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Factura</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Observaciones</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="adm-tabulador-tbody"></tbody>
+            </table>
+        </div>
+    </div>
 
     <!-- Inicialización de Firebase/Auth/Firestore para esta página -->
     <script type="module">
@@ -313,12 +391,12 @@
 
             if (!tbody) return;
 
-            const lista = Array.isArray(listaActividad) ? listaActividad : [];
+            const listaBase = Array.isArray(listaActividad) ? listaActividad : [];
             let filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
             tbody.innerHTML = '';
 
-            if (!lista.length) {
+            if (!listaBase.length) {
                 msgVacio.style.display = 'block';
                 lblCont.textContent = '0 registros';
                 spanIngresos.textContent = '$0';
@@ -335,9 +413,26 @@
             let cuentaPrecios = 0;
             let visibles = 0;
 
-            lista.forEach((reg) => {
+            // Ordenar por cliente y área para agrupar visualmente
+            const listaOrdenada = [...listaBase].sort((a, b) => {
+                const ca = (a.cliente || '').toString().toUpperCase();
+                const cb = (b.cliente || '').toString().toUpperCase();
+                if (ca < cb) return -1;
+                if (ca > cb) return 1;
+                const aa = (a.areaCliente || '').toString().toUpperCase();
+                const ab = (b.areaCliente || '').toString().toUpperCase();
+                if (aa < ab) return -1;
+                if (aa > ab) return 1;
+                return 0;
+            });
+
+            let clienteActual = '';
+            let areaActual = '';
+
+            listaOrdenada.forEach((reg) => {
                 const id = reg.id;
                 const cliente = reg.cliente || '';
+                const area = reg.areaCliente || '';
                 // Inicio y terminación se guardan como texto dd/mm/aa
                 const inicioTexto = reg.inicioServicio || '';
                 const termTexto = reg.terminacionServicio || '';
@@ -366,7 +461,7 @@
                 const termInput = termTexto || '';
 
                 equiposArr.forEach(equipoNombre => {
-                    const textoBuscar = `${cliente} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                    const textoBuscar = `${cliente} ${area} ${equipoNombre} ${os} ${factura}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
                     }
@@ -380,6 +475,30 @@
                     if (precioPorEquipo > 0) {
                         sumaPrecios += precioPorEquipo;
                         cuentaPrecios += 1;
+                    }
+
+                    // Insertar encabezados de agrupación por cliente y área cuando cambien
+                    if (cliente && cliente !== clienteActual) {
+                        clienteActual = cliente;
+                        areaActual = '';
+                        const trGrupoCliente = document.createElement('tr');
+                        trGrupoCliente.innerHTML = `
+                            <td colspan="10" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
+                                Cliente: ${clienteActual}
+                            </td>
+                        `;
+                        tbody.appendChild(trGrupoCliente);
+                    }
+
+                    if (area && area !== areaActual) {
+                        areaActual = area;
+                        const trGrupoArea = document.createElement('tr');
+                        trGrupoArea.innerHTML = `
+                            <td colspan="10" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
+                                Área: ${areaActual}
+                            </td>
+                        `;
+                        tbody.appendChild(trGrupoArea);
                     }
 
                     const tr = document.createElement('tr');

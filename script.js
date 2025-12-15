@@ -1949,12 +1949,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTabla() {
-        const lista = Array.isArray(listaActividad) ? listaActividad : [];
+        const listaBase = Array.isArray(listaActividad) ? listaActividad : [];
         const filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
         tbody.innerHTML = '';
 
-        if (!lista.length) {
+        if (!listaBase.length) {
             if (msgVacio) msgVacio.style.display = 'block';
             if (lblCont) lblCont.textContent = '0 registros';
             return;
@@ -1964,7 +1964,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let visibles = 0;
 
-        lista.forEach(reg => {
+        // Ordenar por cliente y área para agrupar visualmente
+        const listaOrdenada = [...listaBase].sort((a, b) => {
+            const ca = (a.cliente || '').toString().toUpperCase();
+            const cb = (b.cliente || '').toString().toUpperCase();
+            if (ca < cb) return -1;
+            if (ca > cb) return 1;
+            const aa = (a.areaCliente || '').toString().toUpperCase();
+            const ab = (b.areaCliente || '').toString().toUpperCase();
+            if (aa < ab) return -1;
+            if (aa > ab) return 1;
+            return 0;
+        });
+
+        let clienteActual = '';
+        let areaActual = '';
+
+        listaOrdenada.forEach(reg => {
+            const id = reg.id;
             const cliente = reg.cliente || '';
             const area = reg.areaCliente || '';
             const inicioTexto = reg.inicioServicio || '';
@@ -1995,16 +2012,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 visibles += 1;
 
+                // Insertar encabezados de agrupación por cliente y área cuando cambien
+                if (cliente && cliente !== clienteActual) {
+                    clienteActual = cliente;
+                    areaActual = '';
+                    const trGrupoCliente = document.createElement('tr');
+                    trGrupoCliente.innerHTML = `
+                        <td colspan="10" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
+                            Cliente: ${clienteActual}
+                        </td>
+                    `;
+                    tbody.appendChild(trGrupoCliente);
+                }
+
+                if (area && area !== areaActual) {
+                    areaActual = area;
+                    const trGrupoArea = document.createElement('tr');
+                    trGrupoArea.innerHTML = `
+                        <td colspan="10" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
+                            Área: ${areaActual}
+                        </td>
+                    `;
+                    tbody.appendChild(trGrupoArea);
+                }
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${area}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <input type="text" class="actlist-input-cliente" data-id="${id}" value="${cliente}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                    </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        ${inicioTexto}
+                        <input type="text" class="actlist-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        ${terminacionTexto || 'Pendiente'}
+                        <input type="text" class="actlist-input-term" data-id="${id}" value="${terminacionTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center; width:80px;">
                         ${dias || ''}
@@ -2015,10 +2060,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${precio ? formatearMoneda(precio) : ''}
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        <button type="button" class="actlist-btn-editar" data-id="${reg.id}" style="font-size:0.75rem; margin-right:0.25rem;">
+                        <button type="button" class="actlist-btn-guardar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;" disabled>
+                            Guardar
+                        </button>
+                        <button type="button" class="actlist-btn-editar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
                             Editar
                         </button>
-                        <button type="button" class="actlist-btn-eliminar" data-id="${reg.id}" style="font-size:0.75rem; color:#b91c1c;">
+                        <button type="button" class="actlist-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
                             Eliminar
                         </button>
                     </td>
@@ -2031,13 +2079,82 @@ document.addEventListener('DOMContentLoaded', () => {
             lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
         }
 
-        // Botón Editar: por ahora no cambia de URL, se reservará para edición en línea
+        // Botón Editar: habilita los campos de la fila
         tbody.querySelectorAll('.actlist-btn-editar').forEach(btn => {
             btn.addEventListener('click', () => {
                 const id = btn.getAttribute('data-id');
                 if (!id) return;
-                // Aquí implementaremos la edición en línea de la actividad seleccionada
-                console.log('Editar actividad con id:', id);
+
+                const habilitar = (sel) => {
+                    const el = tbody.querySelector(`${sel}[data-id="${id}"]`);
+                    if (el) el.disabled = false;
+                    return el;
+                };
+
+                habilitar('.actlist-input-cliente');
+                habilitar('.actlist-input-area');
+                habilitar('.actlist-input-inicio');
+                habilitar('.actlist-input-term');
+
+                const btnGuardar = tbody.querySelector(`.actlist-btn-guardar[data-id="${id}"]`);
+                if (btnGuardar) btnGuardar.disabled = false;
+            });
+        });
+
+        // Botón Guardar: persiste cambios de cliente, área e inicio/terminación
+        tbody.querySelectorAll('.actlist-btn-guardar').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.getAttribute('data-id');
+                if (!id) return;
+
+                const getVal = (cls) => {
+                    const el = tbody.querySelector(`${cls}[data-id="${id}"]`);
+                    return el ? el.value.trim() : '';
+                };
+
+                const nuevoCliente = getVal('.actlist-input-cliente');
+                const nuevaArea = getVal('.actlist-input-area');
+                const nuevoInicio = getVal('.actlist-input-inicio');
+                const nuevaTerm = getVal('.actlist-input-term');
+
+                // Validar fechas si están llenas
+                const dIni = nuevoInicio ? parseFechaDdMmAaListado(nuevoInicio) : null;
+                const dTer = nuevaTerm ? parseFechaDdMmAaListado(nuevaTerm) : null;
+                if (nuevoInicio && !dIni) {
+                    alert('Inicio del servicio con formato inválido. Usa dd/mm/aa');
+                    return;
+                }
+                if (nuevaTerm && !dTer) {
+                    alert('Terminación del servicio con formato inválido. Usa dd/mm/aa');
+                    return;
+                }
+
+                const regLocal = listaOrdenada.find(r => r.id === id);
+                if (regLocal) {
+                    regLocal.cliente = nuevoCliente;
+                    regLocal.areaCliente = nuevaArea;
+                    regLocal.inicioServicio = nuevoInicio;
+                    regLocal.terminacionServicio = nuevaTerm;
+                }
+
+                try {
+                    const { getFirestore, doc, updateDoc } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+                    const db = getFirestore();
+                    const ref = doc(db, 'actividades', id);
+                    await updateDoc(ref, {
+                        cliente: nuevoCliente,
+                        areaCliente: nuevaArea,
+                        inicioServicio: nuevoInicio,
+                        terminacionServicio: nuevaTerm,
+                    });
+                } catch (e) {
+                    console.error('Error al actualizar actividad desde listado', e);
+                }
+
+                // Volver a cargar desde Firestore para reflejar cambios y reagrupar
+                await cargarActividadDesdeFirestoreParaListado();
             });
         });
 
