@@ -513,8 +513,9 @@
                         areaActual = area;
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.innerHTML = `
-                            <td colspan="11" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
-                                Área: ${areaActual}
+                            <td colspan="11" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" class="adm-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
+                                <span>Área: ${areaActual}</span>
                             </td>
                         `;
                         tbody.appendChild(trGrupoArea);
@@ -524,7 +525,7 @@
 
                     tr.innerHTML = `
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
-                            <input type="checkbox" class="adm-select-fila" data-id="${id}">
+                            <input type="checkbox" class="adm-select-fila" data-id="${id}" data-cliente="${cliente}" data-area="${area}">
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
@@ -646,7 +647,7 @@
                     }
                 });
             });
-            // Lógica de selección múltiple (checkbox maestro)
+            // Lógica de selección múltiple (checkbox maestro y por área)
             const chkTodos = document.getElementById('adm-select-todos');
             if (chkTodos) {
                 chkTodos.checked = false;
@@ -655,8 +656,34 @@
                     filas.forEach(chk => {
                         chk.checked = chkTodos.checked;
                     });
+
+                    // Sincronizar checkboxes de área
+                    const areas = tbody.querySelectorAll('.adm-select-area');
+                    areas.forEach(chkArea => {
+                        chkArea.checked = chkTodos.checked;
+                    });
                 });
             }
+
+            // Lógica de selección por área
+            tbody.querySelectorAll('.adm-select-area').forEach(chkArea => {
+                chkArea.addEventListener('change', () => {
+                    const area = chkArea.getAttribute('data-area') || '';
+                    const cliente = chkArea.getAttribute('data-cliente') || '';
+
+                    const filasArea = tbody.querySelectorAll(`.adm-select-fila[data-area="${area}"][data-cliente="${cliente}"]`);
+                    filasArea.forEach(chkFila => {
+                        chkFila.checked = chkArea.checked;
+                    });
+
+                    // Actualizar estado del checkbox maestro
+                    const todasFilas = tbody.querySelectorAll('.adm-select-fila');
+                    const todasMarcadas = todasFilas.length > 0 && Array.from(todasFilas).every(chk => chk.checked);
+                    if (chkTodos) {
+                        chkTodos.checked = todasMarcadas;
+                    }
+                });
+            });
 
             // Botones de edición en lote
             const btnFechaLote = document.getElementById('adm-aplicar-fecha-lote');
