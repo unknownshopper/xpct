@@ -104,6 +104,8 @@
                                 <input type="checkbox" id="adm-select-todos" title="Seleccionar / deseleccionar todos">
                             </th>
                             <th style="text-align:left; padding:0.4rem;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem;">Área</th>
+                            <th style="text-align:left; padding:0.4rem;">Ubicación</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
                             <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Terminación del servicio</th>
@@ -452,6 +454,7 @@
                 const id = reg.id;
                 const cliente = reg.cliente || '';
                 const area = reg.areaCliente || '';
+                const ubicacion = reg.ubicacion || '';
                 // Inicio y terminación se guardan como texto dd/mm/aa
                 const inicioTexto = reg.inicioServicio || '';
                 const termTexto = reg.terminacionServicio || '';
@@ -480,7 +483,7 @@
                 const termInput = termTexto || '';
 
                 equiposArr.forEach(equipoNombre => {
-                    const textoBuscar = `${cliente} ${area} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${os} ${factura}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
                     }
@@ -502,7 +505,7 @@
                         areaActual = '';
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.innerHTML = `
-                            <td colspan="11" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
+                            <td colspan="13" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
                                 Cliente: ${clienteActual}
                             </td>
                         `;
@@ -513,7 +516,7 @@
                         areaActual = area;
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.innerHTML = `
-                            <td colspan="11" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="13" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="adm-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -528,6 +531,8 @@
                             <input type="checkbox" class="adm-select-fila" data-id="${id}" data-cliente="${cliente}" data-area="${area}">
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${area}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${ubicacion}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                             ${inicioTexto}

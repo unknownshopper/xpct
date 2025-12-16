@@ -151,6 +151,30 @@
           }
         });
       });
+
+      // Fila informativa de continuidad: inicio = día siguiente al último fin
+      const ultimo = periodos[periodos.length - 1];
+      if (ultimo && ultimo.finPeriodo) {
+        const dFin = parseFechaDdMmAa(ultimo.finPeriodo);
+        if (dFin) {
+          dFin.setDate(dFin.getDate() + 1);
+          const inicioContinuidad = formatearFechaDdMmAa(dFin);
+
+          const trInfo = document.createElement('tr');
+          trInfo.innerHTML = `
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; font-style:italic;">${inicioContinuidad}</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; font-style:italic;">&nbsp;</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right; font-style:italic;">&nbsp;</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right; font-style:italic;">${ultimo.tarifaDiaria || ''}</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right; font-style:italic;">&nbsp;</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; font-style:italic;">CONTINUIDAD</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; font-style:italic;">&nbsp;</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; font-style:italic;">Fecha de continuidad abierta</td>
+            <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">&nbsp;</td>
+          `;
+          modalTbody.appendChild(trInfo);
+        }
+      }
     }
 
     function abrirModal(datos) {

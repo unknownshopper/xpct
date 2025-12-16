@@ -14,6 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let formatosPorCodigo = {};
     let guardandoInspeccion = false; // evita doble guardado
 
+    const claveEstadoOverride = 'pct_invre_estado_override';
+    let mapaEstadoOverride = {};
+    try {
+        const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+        const parsed = JSON.parse(crudo);
+        if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
+    } catch {
+        mapaEstadoOverride = {};
+    }
+
     // Cargar inventario de equipos
     fetch('docs/invre.csv')
         .then(response => {
@@ -33,13 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
 
-            // Poblar datalist (solo equipos que no estén OFF)
+            // Poblar datalist (usar overrides de estado; solo equipos con estado efectivo ON)
             equipos.forEach(cols => {
                 const equipoId = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
                 const descripcion = idxDescripcion >= 0 ? (cols[idxDescripcion] || '') : '';
                 const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
                 if (!equipoId) return;
-                if (edo.trim().toUpperCase() === 'OFF') return;
+                let edoEfectivo = edo.trim().toUpperCase();
+                const override = mapaEstadoOverride[equipoId];
+                if (override) edoEfectivo = String(override).trim().toUpperCase();
+                if (edoEfectivo !== 'ON') return;
 
                 const option = document.createElement('option');
                 option.value = equipoId;
@@ -606,6 +619,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectFiltroReporte = document.getElementById('invre-filtro-reporte');
     if (!tablaInvre || !thead || !tbody || !wrapper) return; // No estamos en invre.html
 
+    // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage
+    const claveEstadoOverride = 'pct_invre_estado_override';
+    let mapaEstadoOverride = {};
+    try {
+        const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+        const parsed = JSON.parse(crudo);
+        if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
+    } catch {
+        mapaEstadoOverride = {};
+    }
+
     fetch('docs/invre.csv')
         .then(response => {
             if (!response.ok) {
@@ -640,6 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxDescripcion = headersLocal.indexOf('DESCRIPCION');
             const idxSerial = headersLocal.indexOf('SERIAL');
             const idxReporte = headersLocal.indexOf('REPORTE P/P');
+            const idxEdo = headersLocal.indexOf('EDO');
 
             // Llenar opciones de filtro de reporte P/P
             if (selectFiltroReporte && idxReporte >= 0) {
@@ -680,12 +705,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tr = document.createElement('tr');
                     cols.forEach((valor, idx) => {
                         const td = document.createElement('td');
-                        td.textContent = valor;
                         td.style.padding = '0.3rem';
                         td.style.borderBottom = '1px solid #e5e7eb';
                         if (idx === 0 || idx === 1 || idx === 4) {
                             td.style.whiteSpace = 'nowrap';
                         }
+
+                        // Columna de estado editable (EDO)
+                        if (idx === idxEdo && equipo) {
+                            let edoBase = (valor || '').toString().trim().toUpperCase();
+                            if (!edoBase) edoBase = 'ON';
+                            const override = mapaEstadoOverride[equipo];
+                            const edoEfectivo = override ? String(override).trim().toUpperCase() : edoBase;
+
+                            const select = document.createElement('select');
+                            select.style.fontSize = '0.8rem';
+                            select.style.padding = '0.15rem 0.3rem';
+                            ['ON', 'OFF', 'WIP'].forEach(op => {
+                                const opt = document.createElement('option');
+                                opt.value = op;
+                                opt.textContent = op;
+                                if (op === edoEfectivo) opt.selected = true;
+                                select.appendChild(opt);
+                            });
+
+                            select.addEventListener('change', () => {
+                                const nuevo = (select.value || '').toUpperCase();
+                                if (nuevo === edoBase) {
+                                    delete mapaEstadoOverride[equipo];
+                                } else {
+                                    mapaEstadoOverride[equipo] = nuevo;
+                                }
+                                try {
+                                    localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
+                                } catch (e) {
+                                    console.error('No se pudo guardar override de estado en localStorage', e);
+                                }
+                            });
+
+                            td.appendChild(select);
+                        } else {
+                            td.textContent = valor;
+                        }
+
                         tr.appendChild(td);
                     });
                     tbody.appendChild(tr);
@@ -807,13 +869,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxDesc = headersInv.indexOf('DESCRIPCION');
             const idxEstado = headersInv.indexOf('ESTADO');
 
+            // Leer overrides de estado desde localStorage (los mismos que en invre.html e inspeccion.html)
+            const claveEstadoOverride = 'pct_invre_estado_override';
+            let mapaEstadoOverride = {};
+            try {
+                const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+                const parsed = JSON.parse(crudo);
+                if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
+            } catch {
+                mapaEstadoOverride = {};
+            }
+
             const vistos = new Set();
             filasInv.forEach(cols => {
                 const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
                 const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
                 const edo = idxEstado >= 0 ? (cols[idxEstado] || '') : '';
                 if (!eq || vistos.has(eq)) return;
-                if (edo.trim().toUpperCase() === 'OFF') return;
+                let edoEfectivo = edo.trim().toUpperCase();
+                const override = mapaEstadoOverride[eq];
+                if (override) edoEfectivo = String(override).trim().toUpperCase();
+                if (edoEfectivo !== 'ON') return;
                 vistos.add(eq);
 
                 const opt = document.createElement('option');
@@ -1019,8 +1095,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Inspecciones: mostrar en la tarjeta tanto las pendientes (por realizar) como las realizadas
-    // "Pendientes" = actividades en Firestore que aún no tienen una inspección asociada en localStorage
-    // "Realizadas" = inspecciones guardadas en localStorage
+    // "Pendientes" = actividades en Firestore que aún no tienen una inspección asociada
+    // "Realizadas" = inspecciones guardadas en Firestore (o en localStorage como respaldo)
     if (spanInspecciones) {
         spanInspecciones.textContent = 'Cargando...';
 
@@ -1040,14 +1116,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     actividadIds.add(doc.id);
                 });
 
-                // 2) Leer inspecciones locales
+                // 2) Leer inspecciones desde Firestore (con fallback a localStorage)
                 let listaInspecciones = [];
                 try {
-                    const crudo = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
-                    if (Array.isArray(crudo)) listaInspecciones = crudo;
+                    const { collection: col, getDocs: getDocsInsp } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+
+                    const colInsp = col(db, 'inspecciones');
+                    const snapInsp = await getDocsInsp(colInsp);
+                    listaInspecciones = snapInsp.docs.map(d => ({ id: d.id, ...d.data() }));
                 } catch {
-                    listaInspecciones = [];
+                    // Si falla Firestore, usar localStorage como respaldo
+                    try {
+                        const crudo = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
+                        if (Array.isArray(crudo)) listaInspecciones = crudo;
+                    } catch {
+                        listaInspecciones = [];
+                    }
                 }
+
+                // Filtrar solo inspecciones con actividadId válido
+                listaInspecciones = listaInspecciones.filter(reg => reg && reg.actividadId && actividadIds.has(String(reg.actividadId)));
 
                 const realizadas = listaInspecciones.length;
 
@@ -1309,16 +1399,42 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function agregarEquipoDesdeInput() {
-        const valor = inputEquipo.value.trim();
-        if (!valor) return;
-        if (equiposSeleccionados.includes(valor)) {
-            inputEquipo.value = '';
-            return;
+    function procesarTextoEquipos(texto) {
+        const valorRaw = texto || '';
+        const partes = valorRaw
+            // Dividir principalmente por saltos de línea, comas y punto y coma.
+            .split(/[\r\n,;]+/)
+            .map(v => v.trim())
+            .filter(v => v.length > 0);
+
+        if (!partes.length) return false;
+
+        let agregado = false;
+        partes.forEach(fragmento => {
+            if (!fragmento) return;
+
+            // Tomar solo la primera "palabra" (antes de cualquier espacio/tab),
+            // asumiendo que el código de equipo no tiene espacios.
+            const eq = fragmento.split(/\s+/)[0];
+            if (!eq) return;
+            if (equiposSeleccionados.includes(eq)) return;
+            equiposSeleccionados.push(eq);
+            agregado = true;
+        });
+
+        if (agregado) {
+            renderEquiposSeleccionados();
         }
-        equiposSeleccionados.push(valor);
-        renderEquiposSeleccionados();
-        inputEquipo.value = '';
+
+        return agregado;
+    }
+
+    function agregarEquipoDesdeInput() {
+        const valorRaw = inputEquipo.value || '';
+        const huboCambios = procesarTextoEquipos(valorRaw);
+        if (huboCambios) {
+            inputEquipo.value = '';
+        }
     }
 
     function autocompletarDatosAutoActividad() {
@@ -1352,7 +1468,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    inputEquipo.addEventListener('change', autocompletarDatosAutoActividad);
+    inputEquipo.addEventListener('change', () => {
+        // Cuando cambia manualmente el texto, intentamos agregarlo al lote
+        agregarEquipoDesdeInput();
+        autocompletarDatosAutoActividad();
+    });
+    inputEquipo.addEventListener('blur', () => {
+        // Al salir del campo, también intentamos agregar lo que haya quedado escrito
+        agregarEquipoDesdeInput();
+    });
+    inputEquipo.addEventListener('paste', (ev) => {
+        // Permitir pegar columnas desde Excel: usamos directamente el texto del portapapeles
+        const texto = ev.clipboardData ? ev.clipboardData.getData('text') : '';
+        if (!texto) return; // dejar comportamiento normal
+
+        ev.preventDefault();
+        const huboCambios = procesarTextoEquipos(texto);
+        if (huboCambios) {
+            inputEquipo.value = '';
+        }
+    });
     inputEquipo.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter') {
             ev.preventDefault();
@@ -1533,25 +1668,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const fechaEmbarque = fechaEmbarqueTexto || '';
             const inicioServicio = inicioServicioTexto || '';
 
-            // OS automática por cliente + área si no se capturó
+            // OS automática: esquema fijo PCT-25-XXX si no se capturó
             let osFinal = os;
             if (!osFinal) {
-                const clienteKey = (cliente || '').trim().toUpperCase();
-                const areaKey = (areaCliente || '').trim().toUpperCase();
+                const prefijo = 'PCT-25-';
 
-                const baseCliente = clienteKey.replace(/\s+/g, '-') || 'CLIENTE';
-                const baseArea = areaKey.replace(/\s+/g, '-');
-                const base = baseArea ? `${baseCliente}-${baseArea}` : baseCliente;
-
+                // Buscar OS existentes con este prefijo para calcular el siguiente consecutivo
                 const existentes = Array.isArray(listaActividad)
-                    ? listaActividad.filter(reg =>
-                        (reg.cliente || '').trim().toUpperCase() === clienteKey &&
-                        (reg.areaCliente || '').trim().toUpperCase() === areaKey
-                    )
+                    ? listaActividad
+                        .map(reg => reg.os || '')
+                        .filter(valor => typeof valor === 'string' && valor.startsWith(prefijo))
                     : [];
 
-                const consecutivo = String(existentes.length + 1).padStart(3, '0');
-                osFinal = `${base}-${consecutivo}`;
+                let maxNum = 0;
+                existentes.forEach(valor => {
+                    const parteNum = valor.substring(prefijo.length).trim();
+                    const n = parseInt(parteNum, 10);
+                    if (!isNaN(n) && n > maxNum) maxNum = n;
+                });
+
+                const siguiente = maxNum + 1;
+                const consecutivo = String(siguiente).padStart(3, '0');
+                osFinal = `${prefijo}${consecutivo}`;
             }
 
             const equipos = [...equiposSeleccionados];
