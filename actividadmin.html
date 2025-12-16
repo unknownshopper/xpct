@@ -69,10 +69,25 @@
             </div>
         </section>
 
-        <!-- Filtro y contador -->
-        <section class="actividad-toolbar" style="margin-bottom: 0.75rem;">
-            <div class="actividad-toolbar-left">
+        <!-- Filtro, edición en lote y contador -->
+        <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
+            <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                 <input type="search" id="adm-buscar" placeholder="Buscar por cliente, equipo, OS, factura..." style="min-width: 260px;">
+
+                <!-- Controles de edición en lote -->
+                <div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:flex-end;">
+                    <div style="display:flex; flex-direction:column;">
+                        <label for="adm-lote-fecha" style="font-size:0.75rem; color:#4b5563;">Fecha term. lote (dd/mm/aa)</label>
+                        <input type="text" id="adm-lote-fecha" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
+                    </div>
+                    <button type="button" id="adm-aplicar-fecha-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar fecha a selección</button>
+
+                    <div style="display:flex; flex-direction:column; margin-left:0.5rem;">
+                        <label for="adm-lote-precio" style="font-size:0.75rem; color:#4b5563;">Precio lote</label>
+                        <input type="number" id="adm-lote-precio" min="0" step="1" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
+                    </div>
+                    <button type="button" id="adm-aplicar-precio-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar precio a selección</button>
+                </div>
             </div>
             <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563;">
                 <span id="adm-contador">0 registros</span>
@@ -85,6 +100,9 @@
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
                     <thead>
                         <tr style="background:#f3f4f6;">
+                            <th style="text-align:center; padding:0.4rem; width:32px;">
+                                <input type="checkbox" id="adm-select-todos" title="Seleccionar / deseleccionar todos">
+                            </th>
                             <th style="text-align:left; padding:0.4rem;">Cliente</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
                             <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
@@ -484,7 +502,7 @@
                         areaActual = '';
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.innerHTML = `
-                            <td colspan="10" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
+                            <td colspan="11" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
                                 Cliente: ${clienteActual}
                             </td>
                         `;
@@ -495,7 +513,7 @@
                         areaActual = area;
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.innerHTML = `
-                            <td colspan="10" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
+                            <td colspan="11" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
                                 Área: ${areaActual}
                             </td>
                         `;
@@ -505,6 +523,9 @@
                     const tr = document.createElement('tr');
 
                     tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                            <input type="checkbox" class="adm-select-fila" data-id="${id}">
+                        </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
@@ -526,12 +547,6 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                            <button type="button" class="adm-btn-guardar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
-                                Guardar
-                            </button>
-                            <button type="button" class="adm-btn-editar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
-                                Editar
-                            </button>
                             <button type="button" class="adm-btn-tabulador" data-id="${id}" data-cliente="${cliente}" data-area="${area}" data-equipo="${equipoNombre}" data-precioequipo="${precioPorEquipo}" data-os="${os}" data-inicio="${inicioTexto}" data-terminacion="${termTexto}" style="font-size:0.75rem; margin-right:0.25rem;">
                                 Tabulador
                             </button>
@@ -550,68 +565,64 @@
             spanRentas.textContent = formatearMoneda(totalRentas);
             spanTicket.textContent = cuentaPrecios ? formatearMoneda(sumaPrecios / cuentaPrecios) : '$0';
 
-            // Autoformato dd/mm/aa en los inputs de terminación
+            // Autoformato dd/mm/aa y guardado automático en los inputs de terminación
             tbody.querySelectorAll('.adm-input-term').forEach(input => {
                 input.addEventListener('input', () => {
                     const formateada = formatearFechaDdMmAaInput(input.value);
                     input.value = formateada;
                 });
-            });
 
-            // Botón GUARDAR: persiste precio y terminación en Firestore
-            tbody.querySelectorAll('.adm-btn-guardar').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const id = btn.getAttribute('data-id');
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
                     if (!id) return;
 
-                    const inputPrecio = tbody.querySelector(`.adm-input-precio[data-id="${id}"]`);
-                    const inputTerm = tbody.querySelector(`.adm-input-term[data-id="${id}"]`);
-
-                    const nuevoPrecio = inputPrecio ? Number(inputPrecio.value || 0) : 0;
-                    const nuevaTerm = inputTerm ? (inputTerm.value || '').trim() : '';
+                    const valor = (input.value || '').trim();
 
                     const regLocal = listaActividad.find(r => r.id === id);
                     if (!regLocal) return;
 
-                    regLocal.precio = nuevoPrecio;
-
-                    let cambios = { precio: nuevoPrecio };
-
-                    if (nuevaTerm) {
-                        // Validar formato dd/mm/aa
-                        const d = parseFechaDdMmAa(nuevaTerm);
-                        if (!d) {
-                            alert('Formato de fecha inválido. Usa dd/mm/aa');
-                            return;
-                        }
-                        regLocal.terminacionServicio = nuevaTerm;
-                        cambios.terminacionServicio = nuevaTerm;
-                    } else {
+                    if (!valor) {
+                        // Quitar terminación
                         delete regLocal.terminacionServicio;
-                        cambios.terminacionServicio = '';
+                        await actualizarActividadEnFirestore(id, { terminacionServicio: '' });
+                        renderTabla();
+                        return;
                     }
 
-                    await actualizarActividadEnFirestore(id, cambios);
+                    const d = parseFechaDdMmAa(valor);
+                    if (!d) {
+                        alert('Formato de fecha inválido. Usa dd/mm/aa');
+                        // restaurar valor previo si lo hubiera
+                        input.value = regLocal.terminacionServicio || '';
+                        return;
+                    }
+
+                    regLocal.terminacionServicio = valor;
+                    await actualizarActividadEnFirestore(id, { terminacionServicio: valor });
                     renderTabla();
                 });
             });
 
-            // Botón EDITAR: solo enfoca los campos editables de la fila
-            tbody.querySelectorAll('.adm-btn-editar').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const id = btn.getAttribute('data-id');
+            // Guardado automático en blur para precio
+            tbody.querySelectorAll('.adm-input-precio').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
                     if (!id) return;
 
-                    const inputTerm = tbody.querySelector(`.adm-input-term[data-id="${id}"]`);
-                    const inputPrecio = tbody.querySelector(`.adm-input-precio[data-id="${id}"]`);
-
-                    if (inputTerm) {
-                        inputTerm.focus();
-                        inputTerm.select();
-                    } else if (inputPrecio) {
-                        inputPrecio.focus();
-                        inputPrecio.select();
+                    const valorNum = Number(input.value || 0);
+                    if (isNaN(valorNum) || valorNum < 0) {
+                        alert('Indica un precio válido.');
+                        const regLocalPrev = listaActividad.find(r => r.id === id);
+                        input.value = regLocalPrev && typeof regLocalPrev.precio === 'number' ? regLocalPrev.precio : '';
+                        return;
                     }
+
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+
+                    regLocal.precio = valorNum;
+                    await actualizarActividadEnFirestore(id, { precio: valorNum });
+                    renderTabla();
                 });
             });
 
@@ -635,6 +646,104 @@
                     }
                 });
             });
+            // Lógica de selección múltiple (checkbox maestro)
+            const chkTodos = document.getElementById('adm-select-todos');
+            if (chkTodos) {
+                chkTodos.checked = false;
+                chkTodos.addEventListener('change', () => {
+                    const filas = tbody.querySelectorAll('.adm-select-fila');
+                    filas.forEach(chk => {
+                        chk.checked = chkTodos.checked;
+                    });
+                });
+            }
+
+            // Botones de edición en lote
+            const btnFechaLote = document.getElementById('adm-aplicar-fecha-lote');
+            const inputFechaLote = document.getElementById('adm-lote-fecha');
+            const btnPrecioLote = document.getElementById('adm-aplicar-precio-lote');
+            const inputPrecioLote = document.getElementById('adm-lote-precio');
+
+            if (inputFechaLote) {
+                inputFechaLote.addEventListener('input', () => {
+                    const f = formatearFechaDdMmAaInput(inputFechaLote.value);
+                    inputFechaLote.value = f;
+                });
+            }
+
+            if (btnFechaLote && inputFechaLote) {
+                btnFechaLote.addEventListener('click', async () => {
+                    const valor = (inputFechaLote.value || '').trim();
+                    if (!valor) {
+                        alert('Indica una fecha en formato dd/mm/aa para aplicar en lote.');
+                        return;
+                    }
+
+                    const d = parseFechaDdMmAa(valor);
+                    if (!d) {
+                        alert('Formato de fecha inválido. Usa dd/mm/aa');
+                        return;
+                    }
+
+                    const seleccionados = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
+                    if (!seleccionados.length) {
+                        alert('Selecciona al menos un registro para aplicar la fecha.');
+                        return;
+                    }
+
+                    for (const chk of seleccionados) {
+                        const id = chk.getAttribute('data-id');
+                        if (!id) continue;
+
+                        const inputTerm = tbody.querySelector(`.adm-input-term[data-id="${id}"]`);
+                        if (inputTerm) {
+                            inputTerm.value = valor;
+                        }
+
+                        const regLocal = listaActividad.find(r => r.id === id);
+                        if (!regLocal) continue;
+
+                        regLocal.terminacionServicio = valor;
+                        await actualizarActividadEnFirestore(id, { terminacionServicio: valor });
+                    }
+
+                    renderTabla();
+                });
+            }
+
+            if (btnPrecioLote && inputPrecioLote) {
+                btnPrecioLote.addEventListener('click', async () => {
+                    const valor = Number(inputPrecioLote.value || 0);
+                    if (!valor || valor < 0) {
+                        alert('Indica un precio válido para aplicar en lote.');
+                        return;
+                    }
+
+                    const seleccionados = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
+                    if (!seleccionados.length) {
+                        alert('Selecciona al menos un registro para aplicar el precio.');
+                        return;
+                    }
+
+                    for (const chk of seleccionados) {
+                        const id = chk.getAttribute('data-id');
+                        if (!id) continue;
+
+                        const inputPrecio = tbody.querySelector(`.adm-input-precio[data-id="${id}"]`);
+                        if (inputPrecio) {
+                            inputPrecio.value = valor;
+                        }
+
+                        const regLocal = listaActividad.find(r => r.id === id);
+                        if (!regLocal) continue;
+
+                        regLocal.precio = valor;
+                        await actualizarActividadEnFirestore(id, { precio: valor });
+                    }
+
+                    renderTabla();
+                });
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
