@@ -17,8 +17,30 @@
         <nav class="nav-main">
             <ul>
                 <li><a href="index.html">Inicio</a></li>
-                <li><a href="pruebas.html">Pruebas</a></li>
-                <li><a href="inspeccion.html">Inspecciones</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
             </ul>
         </nav>
         <div class="user-info">
@@ -60,6 +82,8 @@
         </section>
     </main>
 
+    <script src="nav.js"></script>
+    <script src="utils.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

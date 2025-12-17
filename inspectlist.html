@@ -19,7 +19,7 @@
                 <li><a href="index.html">Inicio</a></li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="actividad.html">Actividad</a>
+                    <a href="#">Actividad</a>
                     <ul class="nav-dropdown">
                         <li><a href="actividad.html">Registrar actividad</a></li>
                         <li><a href="actividadlist.html">Listado de actividades</a></li>
@@ -28,7 +28,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="pruebas.html">Pruebas</a>
+                    <a href="#">Pruebas</a>
                     <ul class="nav-dropdown">
                         <li><a href="pruebas.html">Registrar prueba</a></li>
                         <li><a href="pruebaslist.html">Listado de pruebas</a></li>
@@ -36,7 +36,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="inspeccion.html" class="active">Inspecciones</a>
+                    <a href="#" class="active">Inspecciones</a>
                     <ul class="nav-dropdown">
                         <li><a href="inspeccion.html">Nueva inspección</a></li>
                         <li><a href="inspectlist.html">Listado de inspecciones</a></li>
@@ -52,18 +52,31 @@
     </header>
 
     <main class="inspeccion-page" style="max-width: 100%; margin: 0; padding: 0;">
-        <section class="inspectlist-wrap">
-            <h2>Inspecciones guardadas (local)</h2>
+        <section class="inspectlist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
+            <h2>Inspecciones guardadas</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
-                Estos datos se almacenan solo en este navegador usando <code>localStorage</code>. Más adelante se pueden enviar a Firebase u otro backend.
+                Se muestran inspecciones registradas contra las actividades actuales. Puedes filtrar y seleccionar filas para acciones futuras.
             </p>
+
+            <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
+                <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                    <input type="search" id="insp-buscar" placeholder="Buscar por cliente, área, equipo, lugar..." style="min-width: 260px;">
+                </div>
+                <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563;">
+                    <span id="insp-contador">0 registros</span>
+                </div>
+            </section>
+
             <div class="tabla-inspecciones-wrapper">
                 <table id="tabla-inspecciones" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f3f4f6;">
+                            <th style="text-align:center; padding:0.4rem; width:32px;">
+                                <input type="checkbox" id="insp-select-todos" title="Seleccionar / deseleccionar todos">
+                            </th>
                             <th style="text-align:left; padding:0.4rem;">Fecha (registro)</th>
-                            <th style="text-align:left; padding:0.4rem;">Cliente</th>
-                            <th style="text-align:left; padding:0.4rem;">Área</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Lugar</th>
                             <th style="text-align:left; padding:0.4rem;">Evaluación</th>
@@ -76,7 +89,7 @@
                     <tbody id="tbody-inspecciones"></tbody>
                 </table>
                 <p id="mensaje-sin-inspecciones" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
-                    No hay inspecciones guardadas todavía.
+                    No hay inspecciones registradas todavía.
                 </p>
             </div>
         </section>
@@ -141,10 +154,15 @@
     }
     </script>
 
+    <script src="nav.js"></script>
+
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('tbody-inspecciones');
         const msg = document.getElementById('mensaje-sin-inspecciones');
+        const inputBuscar = document.getElementById('insp-buscar');
+        const lblCont = document.getElementById('insp-contador');
+        const chkTodos = document.getElementById('insp-select-todos');
 
         const claveInspecciones = 'pct_inspecciones';
 
@@ -158,6 +176,10 @@
         async function cargarDatos() {
             tbody.innerHTML = '';
             msg.style.display = 'none';
+            if (lblCont) lblCont.textContent = '0 registros';
+            if (chkTodos) chkTodos.checked = false;
+
+            let filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
             // 1) Leer inspecciones desde Firestore
             let inspecciones = [];
@@ -224,111 +246,168 @@
                 return 0;
             });
 
-            let clienteActual = '';
-            let areaActual = '';
+            let visibles = 0;
 
-            // 3) Construir filas a partir de actividades, marcando si hay inspección realizada
-            actividades.forEach(act => {
-                const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
+            function renderBloque(esRealizadas) {
+                let clienteActual = '';
+                let areaActual = '';
+                let lugarActual = '';
 
-                const tr = document.createElement('tr');
-                tr.setAttribute('data-actividad-id', act.id || '');
-                if (!insp) {
-                    tr.classList.add('insp-fila-pendiente');
-                    tr.style.cursor = 'pointer';
-                }
+                actividades.forEach(act => {
+                    const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
+                    const tieneInsp = !!insp;
+                    if (esRealizadas && !tieneInsp) return;
+                    if (!esRealizadas && tieneInsp) return;
 
-                const fechaTexto = formatearFechaRegistro(insp ? insp.fecha : act.fechaRegistro);
+                    const fechaTexto = formatearFechaRegistro(insp ? insp.fecha : act.fechaRegistro);
 
-                let evaluacion = 'Pendiente';
-                let estadoTexto = 'Pendiente';
-                if (insp && Array.isArray(insp.parametros) && insp.parametros.length) {
-                    let evaluacionCalc = 'Operativo';
-                    const hayFallo = insp.parametros.some(p => {
-                        const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
-                        return est === 'MALO' || est === 'NO LEGIBLE';
-                    });
-                    if (hayFallo) evaluacionCalc = 'No operativo';
-                    evaluacion = evaluacionCalc;
-                    estadoTexto = 'Realizada';
-                }
+                    let evaluacion = 'Pendiente';
+                    let estadoTexto = 'Pendiente';
+                    if (insp && Array.isArray(insp.parametros) && insp.parametros.length) {
+                        let evaluacionCalc = 'Operativo';
+                        const hayFallo = insp.parametros.some(p => {
+                            const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
+                            return est === 'MALO' || est === 'NO LEGIBLE';
+                        });
+                        if (hayFallo) evaluacionCalc = 'No operativo';
+                        evaluacion = evaluacionCalc;
+                        estadoTexto = 'Realizada';
+                    }
 
-                const cliente = insp?.cliente || act.cliente || '';
-                const area = insp?.areaCliente || act.areaCliente || '';
-                const lugar = insp?.ubicacion || act.ubicacion || '';
-                const equipo = insp?.equipo || act.equipo || '';
-                const usuario = insp?.usuarioInspeccion || '';
-                const observaciones = insp?.observaciones || '';
-                const asignado = act.inspectorAsignado || '';
+                    const cliente = insp?.cliente || act.cliente || '';
+                    const area = insp?.areaCliente || act.areaCliente || '';
+                    const lugar = insp?.ubicacion || act.ubicacion || '';
+                    const equipo = insp?.equipo || act.equipo || '';
+                    const usuario = insp?.usuarioInspeccion || '';
+                    const observaciones = insp?.observaciones || '';
+                    const asignado = act.inspectorAsignado || '';
 
-                let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
-                if (window.isAdmin) {
-                    const opt = (val, label) => `<option value="${val}" ${asignado === val ? 'selected' : ''}>${label}</option>`;
-                    asignadoHtml = `
-                        <select class="insp-select-asignado" data-actividad-id="${act.id}" style="font-size:0.8rem; padding:0.15rem 0.35rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
-                            <option value="">(Sin asignar)</option>
-                            ${opt('inspector01@pct.com', 'inspector01@pct.com')}
-                            ${opt('inspector02@pct.com', 'inspector02@pct.com')}
-                        </select>
-                    `;
-                } else if (!asignado && window.isInspector) {
-                    asignadoHtml = `
-                        <button type="button" class="insp-btn-claim" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#e0f2fe; color:#0369a1;">Tomar</button>
-                    `;
-                }
+                    const textoBuscar = `${cliente} ${area} ${equipo} ${lugar} ${usuario} ${observaciones}`.toLowerCase();
+                    if (filtro && !textoBuscar.includes(filtro)) {
+                        return;
+                    }
 
-                const accionesHtml = insp ? `
-                        <button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>
-                        <button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
-                    ` : '';
+                    let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
+                    if (window.isAdmin) {
+                        const opt = (val, label) => `<option value="${val}" ${asignado === val ? 'selected' : ''}>${label}</option>`;
+                        asignadoHtml = `
+                            <select class="insp-select-asignado" data-actividad-id="${act.id}" style="font-size:0.8rem; padding:0.15rem 0.35rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
+                                <option value="">(Sin asignar)</option>
+                                ${opt('inspector01@pct.com', 'inspector01@pct.com')}
+                                ${opt('inspector02@pct.com', 'inspector02@pct.com')}
+                            </select>
+                        `;
+                    } else if (!asignado && window.isInspector) {
+                        asignadoHtml = `
+                            <button type="button" class="insp-btn-claim" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#e0f2fe; color:#0369a1;">Tomar</button>
+                        `;
+                    }
 
-                // Insertar encabezados de agrupación por cliente y área cuando cambien
-                if (cliente && cliente !== clienteActual) {
-                    clienteActual = cliente;
-                    areaActual = '';
-                    const trGrupoCliente = document.createElement('tr');
-                    trGrupoCliente.innerHTML = `
-                        <td colspan="10" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
-                            Cliente: ${clienteActual}
+                    const accionesHtml = insp ? `
+                            <button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>
+                            <button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
+                        ` : '';
+
+                    // Insertar encabezados de agrupación por cliente y área cuando cambien
+                    if (cliente && cliente !== clienteActual) {
+                        clienteActual = cliente;
+                        areaActual = '';
+                        lugarActual = '';
+                        const trGrupoCliente = document.createElement('tr');
+                        trGrupoCliente.className = 'insp-group-cliente';
+                        trGrupoCliente.innerHTML = `
+                            <td colspan="11" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                                Cliente: ${clienteActual}
+                            </td>
+                        `;
+                        tbody.appendChild(trGrupoCliente);
+                    }
+
+                    if (area && area !== areaActual) {
+                        areaActual = area;
+                        lugarActual = '';
+                        const trGrupoArea = document.createElement('tr');
+                        trGrupoArea.className = 'insp-group-area';
+                        trGrupoArea.innerHTML = `
+                            <td colspan="11" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" class="insp-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
+                                <span>Área: ${areaActual}</span>
+                            </td>
+                        `;
+                        tbody.appendChild(trGrupoArea);
+                    }
+
+                    if (lugar && lugar !== lugarActual) {
+                        lugarActual = lugar;
+                        const trGrupoUbic = document.createElement('tr');
+                        trGrupoUbic.className = 'insp-group-ubic';
+                        trGrupoUbic.innerHTML = `
+                            <td colspan="11" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                                Ubicación: ${lugarActual}
+                            </td>
+                        `;
+                        tbody.appendChild(trGrupoUbic);
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.setAttribute('data-actividad-id', act.id || '');
+                    if (!insp) {
+                        tr.classList.add('insp-fila-pendiente');
+                        tr.style.cursor = 'pointer';
+                    }
+
+                    tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                            <input type="checkbox" class="insp-select-fila" data-actividad-id="${act.id}" data-cliente="${cliente}" data-area="${area}">
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaTexto}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? `${estadoTexto} - ${evaluacion}` : 'Pendiente'}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            ${accionesHtml}
                         </td>
                     `;
-                    tbody.appendChild(trGrupoCliente);
-                }
 
-                if (area && area !== areaActual) {
-                    areaActual = area;
-                    const trGrupoArea = document.createElement('tr');
-                    trGrupoArea.innerHTML = `
-                        <td colspan="10" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
-                            Área: ${areaActual}
-                        </td>
-                    `;
-                    tbody.appendChild(trGrupoArea);
-                }
+                    tbody.appendChild(tr);
+                    visibles += 1;
+                });
+            }
 
-                tr.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaTexto}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${area}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? `${estadoTexto} - ${evaluacion}` : 'Pendiente'}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        ${accionesHtml}
+            // Primero bloque de pendientes
+            renderBloque(false);
+
+            // Insertar separador y luego bloque de realizadas (si hay)
+            const hayRealizadas = Array.from(actividades).some(act => inspeccionPorActividad.has(act.id));
+            if (hayRealizadas) {
+                const trSep = document.createElement('tr');
+                trSep.innerHTML = `
+                    <td colspan="11" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
+                        Inspecciones realizadas
                     </td>
                 `;
+                tbody.appendChild(trSep);
 
-                tbody.appendChild(tr);
-            });
+                renderBloque(true);
+            }
+
+            if (!visibles) {
+                msg.style.display = 'block';
+            }
+            if (lblCont) {
+                lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
+            }
 
             // 4) Permitir abrir la inspección desde una fila pendiente
             tbody.querySelectorAll('tr.insp-fila-pendiente').forEach(tr => {
                 tr.addEventListener('click', (ev) => {
-                    // No disparar cuando se hace clic en botones, selects o enlaces dentro de la fila
-                    if (ev.target.closest('button, select, a')) return;
+                    // No disparar cuando se hace clic en botones, selects, enlaces o checkboxes dentro de la fila
+                    if (ev.target.closest('button, select, a, input[type="checkbox"]')) return;
 
                     const actividadId = tr.getAttribute('data-actividad-id') || '';
                     if (!actividadId) return;
@@ -434,6 +513,86 @@
                         cargarDatos();
                     })();
                 });
+            });
+
+            // 9) Lógica de selección múltiple
+            const filasChk = tbody.querySelectorAll('.insp-select-fila');
+            if (chkTodos) {
+                chkTodos.checked = filasChk.length > 0 && Array.from(filasChk).every(chk => chk.checked);
+                chkTodos.onchange = () => {
+                    const marcado = chkTodos.checked;
+                    filasChk.forEach(chk => {
+                        chk.checked = marcado;
+                    });
+                    // sincronizar áreas
+                    tbody.querySelectorAll('.insp-select-area').forEach(chkArea => {
+                        chkArea.checked = marcado;
+                    });
+                };
+            }
+
+            // Selección por área
+            tbody.querySelectorAll('.insp-select-area').forEach(chkArea => {
+                chkArea.addEventListener('change', () => {
+                    const area = chkArea.getAttribute('data-area') || '';
+                    const cliente = chkArea.getAttribute('data-cliente') || '';
+                    const filasArea = tbody.querySelectorAll(`.insp-select-fila[data-area="${area}"][data-cliente="${cliente}"]`);
+                    filasArea.forEach(chkFila => {
+                        chkFila.checked = chkArea.checked;
+                    });
+
+                    const todasFilas = tbody.querySelectorAll('.insp-select-fila');
+                    const todasMarcadas = todasFilas.length > 0 && Array.from(todasFilas).every(chk => chk.checked);
+                    if (chkTodos) chkTodos.checked = todasMarcadas;
+                });
+            });
+
+            // Actualizar maestro cuando se hace clic individualmente
+            filasChk.forEach(chkFila => {
+                chkFila.addEventListener('change', () => {
+                    const todasFilas = tbody.querySelectorAll('.insp-select-fila');
+                    const todasMarcadas = todasFilas.length > 0 && Array.from(todasFilas).every(c => c.checked);
+                    if (chkTodos) chkTodos.checked = todasMarcadas;
+
+                    // Actualizar cada área
+                    tbody.querySelectorAll('.insp-select-area').forEach(chkArea => {
+                        const area = chkArea.getAttribute('data-area') || '';
+                        const cliente = chkArea.getAttribute('data-cliente') || '';
+                        const filasArea = tbody.querySelectorAll(`.insp-select-fila[data-area="${area}"][data-cliente="${cliente}"]`);
+                        const todasAreaMarcadas = filasArea.length > 0 && Array.from(filasArea).every(c => c.checked);
+                        chkArea.checked = todasAreaMarcadas;
+                    });
+                });
+            });
+
+            // 10) Colapsado básico por cliente, área y ubicación
+            const colapsarDesde = (tr, nivel) => {
+                const colapsado = tr.dataset.colapsado === '1';
+                tr.dataset.colapsado = colapsado ? '0' : '1';
+                let fila = tr.nextElementSibling;
+                while (fila) {
+                    if (fila.classList.contains('insp-group-cliente')) break;
+                    if (nivel === 'area' && fila.classList.contains('insp-group-area')) break;
+                    if (nivel === 'ubic' && (fila.classList.contains('insp-group-area') || fila.classList.contains('insp-group-ubic'))) break;
+                    fila.style.display = colapsado ? '' : 'none';
+                    fila = fila.nextElementSibling;
+                }
+            };
+
+            tbody.querySelectorAll('.insp-group-cliente').forEach(tr => {
+                tr.addEventListener('click', () => colapsarDesde(tr, 'cliente'));
+            });
+            tbody.querySelectorAll('.insp-group-area').forEach(tr => {
+                tr.addEventListener('click', () => colapsarDesde(tr, 'area'));
+            });
+            tbody.querySelectorAll('.insp-group-ubic').forEach(tr => {
+                tr.addEventListener('click', () => colapsarDesde(tr, 'ubic'));
+            });
+        }
+
+        if (inputBuscar) {
+            inputBuscar.addEventListener('input', () => {
+                cargarDatos();
             });
         }
 

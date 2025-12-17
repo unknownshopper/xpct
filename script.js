@@ -1,848 +1,3 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const inputEquipo = document.getElementById('equipo-input');
-    const datalistEquipos = document.getElementById('lista-equipos');
-    const detalleContenedor = document.getElementById('detalle-equipo-contenido');
-    const btnGuardar = document.getElementById('btn-guardar-inspeccion');
-
-    if (!inputEquipo || !datalistEquipos || !detalleContenedor) {
-        // No estamos en inspeccion.html
-        return;
-    }
-
-    let equipos = [];
-    let headers = [];
-    let formatosPorCodigo = {};
-    let guardandoInspeccion = false; // evita doble guardado
-
-    const claveEstadoOverride = 'pct_invre_estado_override';
-    let mapaEstadoOverride = {};
-    try {
-        const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
-        const parsed = JSON.parse(crudo);
-        if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
-    } catch {
-        mapaEstadoOverride = {};
-    }
-
-    // Cargar inventario de equipos
-    fetch('docs/invre.csv')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('No se pudo cargar invre.csv');
-            }
-            return response.text();
-        })
-        .then(texto => {
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (lineas.length === 0) return;
-
-            headers = parseCSVLine(lineas[0]);
-            const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
-            const idxDescripcion = headers.indexOf('DESCRIPCION');
-            const idxEdo = headers.indexOf('EDO');
-
-            equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
-
-            // Poblar datalist (usar overrides de estado; solo equipos con estado efectivo ON)
-            equipos.forEach(cols => {
-                const equipoId = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
-                const descripcion = idxDescripcion >= 0 ? (cols[idxDescripcion] || '') : '';
-                const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
-                if (!equipoId) return;
-                let edoEfectivo = edo.trim().toUpperCase();
-                const override = mapaEstadoOverride[equipoId];
-                if (override) edoEfectivo = String(override).trim().toUpperCase();
-                if (edoEfectivo !== 'ON') return;
-
-                const option = document.createElement('option');
-                option.value = equipoId;
-                option.label = `${equipoId} - ${descripcion}`;
-                datalistEquipos.appendChild(option);
-            });
-        })
-        .catch(err => {
-            console.error(err);
-            detalleContenedor.innerHTML = '<p>No se pudo cargar el inventario de equipos.</p>';
-        });
-
-    // Cargar formatos de inspección
-    fetch('docs/forxmat.csv')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('No se pudo cargar forxmat.csv');
-            }
-            return response.text();
-        })
-        .then(texto => {
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            let formatoActual = null;
-
-            lineas.forEach(linea => {
-                const cols = parseCSVLine(linea);
-                const nombre = (cols[0] || '').trim();
-
-                if (!nombre) {
-                    formatoActual = null;
-                    return;
-                }
-
-                if (!formatoActual) {
-                    // Primera línea no vacía de un bloque: nombre del formato
-                    formatoActual = nombre;
-                    if (!formatosPorCodigo[formatoActual]) {
-                        formatosPorCodigo[formatoActual] = [];
-                    }
-                } else {
-                    // Líneas siguientes: parámetros del formato
-                    formatosPorCodigo[formatoActual].push(nombre);
-                }
-            });
-        })
-        .catch(err => {
-            console.error(err);
-        });
-    
-    // Cuando el usuario escribe y elige un equipo en el input/datalist
-    function actualizarDetalleDesdeInput() {
-        const valor = inputEquipo.value.trim();
-        if (!valor) {
-            detalleContenedor.innerHTML = '<p>Seleccione un equipo para ver su información.</p>';
-            if (btnGuardar) btnGuardar.disabled = true;
-            return;
-        }
-
-        const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
-        const idxReporte = headers.indexOf('REPORTE P/P');
-        const fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
-        if (!fila) {
-            detalleContenedor.innerHTML = '<p>No se encontró información para el equipo seleccionado.</p>';
-            if (btnGuardar) btnGuardar.disabled = true;
-            return;
-        }
-
-        // Índices de columnas relevantes
-        const idxProducto = headers.indexOf('PRODUCTO');
-        const idxSerial = headers.indexOf('SERIAL');
-        const idxDescripcion = headers.indexOf('DESCRIPCION');
-        const idxDiam1 = headers.indexOf('DIAMETRO 1');
-        const idxTipo1 = headers.indexOf('TIPO 1');
-        const idxCon1 = headers.indexOf('CONEXIÓN 1');
-        const idxPres1 = headers.indexOf('PRESION 1');
-        const idxX1 = headers.indexOf('X 1');
-        const idxServicio = headers.indexOf('SERVICIO');
-        const idxAL = headers.indexOf('A / L');
-        const idxTemp = headers.indexOf('TEMP');
-        const idxTipoEquipo = headers.indexOf('TIPO EQUIPO');
-        const idxAcero = headers.indexOf('ACERO');
-
-        const get = (idx) => (idx >= 0 && idx < fila.length ? fila[idx] : '');
-
-        const reporte = get(idxReporte);
-        const parametrosBrutos = reporte && formatosPorCodigo[reporte]
-            ? formatosPorCodigo[reporte].filter(p => p && p.length > 0)
-            : [];
-
-        // Parámetros que ya están autocompletados en la ficha del equipo y no deben inspeccionarse
-        const nombresAuto = ['activo', 'serial', 'descripción', 'descripcion', 'diámetro', 'diametro', 'conexión', 'conexion', 'longitud'];
-
-        const parametrosInspeccion = parametrosBrutos.filter(p => {
-            const base = p.toLowerCase();
-            return !nombresAuto.some(auto => base.startsWith(auto));
-        });
-
-        // Catálogos de tipo de daño según el nombre del parámetro
-        function obtenerTiposDano(nombreParametro) {
-            const base = (nombreParametro || '').toLowerCase();
-
-            // Fleje: el estado ya es LEGIBLE / NO LEGIBLE, no se usa catálogo de daño
-            if (base.includes('fleje')) {
-                return [];
-            }
-
-            // Estado del Elastómero
-            if (base.includes('elastómero') || base.includes('elastomero')) {
-                return [
-                    '',
-                    'SIN ELASTOMERO',
-                    'DEFORMADO',
-                    'CORTADO',
-                    'RESECO',
-                    'DEGRADADO',
-                    'HINCHADO',
-                    'OTRO'
-                ];
-            }
-
-            // Recubrimiento
-            if (base.includes('recubrimiento')) {
-                return [
-                    '',
-                    'SIN ELASTOMERO',
-                    'DEFORMADO',
-                    'CORTADO',
-                    'RESECO',
-                    'DEGRADADO',
-                    'OTRO'
-                ];
-            }
-
-            // Cuerpo
-            if (base.includes('cuerpo')) {
-                return [
-                    '',
-                    'GOLPE',
-                    'DEFORMACION',
-                    'ABRASION',
-                    'LAVADURA',
-                    'CORTADO',
-                    'OTRO'
-                ];
-            }
-
-            // Área de sellado, rosca, puerto, espárragos
-            if (
-                base.includes('área de sellado') || base.includes('area de sellado') ||
-                base.includes('rosca') ||
-                base.includes('estado del puerto') ||
-                base.includes('esparragos') || base.includes('espárragos') || base.includes('esparragos')
-            ) {
-                return [
-                    '',
-                    'GOLPE',
-                    'DEFORMACION',
-                    'ABRASION',
-                    'LAVADURA',
-                    'CORTADO',
-                    'OTRO'
-                ];
-            }
-
-            // Anillo retenedor, insertos, mariposa, piñón
-            if (
-                base.includes('anillo retenedor') ||
-                base.includes('insertos') ||
-                base.includes('mariposa') ||
-                base.includes('piñón') || base.includes('piñon') || base.includes('pinon')
-            ) {
-                return [
-                    '',
-                    'GOLPE',
-                    'DEFORMACION',
-                    'ABRASION',
-                    'LAVADURA',
-                    'CORTADO',
-                    'OTRO'
-                ];
-            }
-
-            // Default para otros parámetros de inspección
-            return [
-                '',
-                'GOLPE',
-                'DEFORMACION',
-                'ABRASION',
-                'LAVADURA',
-                'CORTADO',
-                'OTRO'
-            ];
-        }
-
-        const parametrosHtml = parametrosInspeccion.length
-            ? `
-                <div class="parametros-inspeccion">
-                    <h3>Parámetros de inspección (${reporte})</h3>
-                    <div class="parametros-tabla">
-                        <div class="parametros-header">
-                            <div class="col-nombre">Parámetro</div>
-                            <div class="col-estado">Estado</div>
-                            <div class="col-dano">Tipo de daño</div>
-                        </div>
-                        ${parametrosInspeccion.map((p, idx) => {
-                            const baseNombre = (p || '').toLowerCase();
-
-                            // Para Fleje: solo estado LEGIBLE / NO LEGIBLE, sin tipo de daño adicional
-                            if (baseNombre.includes('fleje')) {
-                                return `
-                            <div class="parametros-fila">
-                                <div class="col-nombre">${p}</div>
-                                <div class="col-estado">
-                                    <label><input type="radio" name="param-${idx}-estado" value="LEGIBLE" checked> LEGIBLE</label>
-                                    <label><input type="radio" name="param-${idx}-estado" value="NO LEGIBLE"> NO LEGIBLE</label>
-                                </div>
-                            </div>
-                        `;
-                            }
-
-                            const tiposDano = obtenerTiposDano(p);
-                            return `
-                            <div class="parametros-fila">
-                                <div class="col-nombre">${p}</div>
-                                <div class="col-estado">
-                                    <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
-                                    <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
-                                </div>
-                                <div class="col-dano" data-param-idx="${idx}" style="display:none;">
-                                    <select name="param-${idx}-dano" disabled>
-                                        ${tiposDano.map(op => op ? `<option value="${op}">${op}</option>` : '<option value="">(Sin daño)</option>').join('')}
-                                    </select>
-                                    <input type="text" name="param-${idx}-dano-otro" placeholder="Describa el hallazgo" style="display:none; margin-top:0.25rem; font-size:0.8rem; width:100%;" disabled>
-                                </div>
-                            </div>
-                        `;
-                        }).join('')}
-                    </div>
-                </div>
-            `
-            : '';
-
-        detalleContenedor.innerHTML = `
-            <div class="detalle-grid">
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Equipo / activo</div>
-                    <div class="detalle-item-valor">${get(idxEquipo)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Producto</div>
-                    <div class="detalle-item-valor">${get(idxProducto)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Serial</div>
-                    <div class="detalle-item-valor">${get(idxSerial)}</div>
-                </div>
-                <div class="detalle-item" style="grid-column: 1 / -1;">
-                    <div class="detalle-item-label">Descripción</div>
-                    <div class="detalle-item-valor">${get(idxDescripcion)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Diámetro 1</div>
-                    <div class="detalle-item-valor">${get(idxDiam1)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Tipo 1</div>
-                    <div class="detalle-item-valor">${get(idxTipo1)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Conexión 1</div>
-                    <div class="detalle-item-valor">${get(idxCon1)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Presión 1</div>
-                    <div class="detalle-item-valor">${get(idxPres1)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Longitud (X1)</div>
-                    <div class="detalle-item-valor">${get(idxX1)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Servicio</div>
-                    <div class="detalle-item-valor">${get(idxServicio)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">A / L</div>
-                    <div class="detalle-item-valor">${get(idxAL)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Temperatura</div>
-                    <div class="detalle-item-valor">${get(idxTemp)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Tipo de equipo</div>
-                    <div class="detalle-item-valor">${get(idxTipoEquipo)}</div>
-                </div>
-                <div class="detalle-item">
-                    <div class="detalle-item-label">Acero</div>
-                    <div class="detalle-item-valor">${get(idxAcero)}</div>
-                </div>
-            </div>
-            ${parametrosHtml}
-        `;
-
-        // Mostrar el selector de tipo de daño solo cuando el estado sea MALO
-        detalleContenedor.querySelectorAll('.parametros-fila').forEach((filaHtml, idx) => {
-            const radios = filaHtml.querySelectorAll(`input[name="param-${idx}-estado"]`);
-            const colDano = filaHtml.querySelector('.col-dano');
-            const selectDano = colDano ? colDano.querySelector('select') : null;
-            const inputOtro = colDano ? colDano.querySelector(`input[name="param-${idx}-dano-otro"]`) : null;
-
-            const actualizarVisibilidadOtro = () => {
-                if (!selectDano || !inputOtro) return;
-                const val = (selectDano.value || '').trim().toUpperCase();
-                if (val === 'OTRO') {
-                    inputOtro.style.display = '';
-                    inputOtro.disabled = false;
-                } else {
-                    inputOtro.style.display = 'none';
-                    inputOtro.disabled = true;
-                    inputOtro.value = '';
-                }
-            };
-
-            const actualizarVisibilidadDano = () => {
-                if (!colDano || !selectDano) return;
-                let estado = '';
-                radios.forEach(r => {
-                    if (r.checked) estado = r.value;
-                });
-                if (estado === 'MALO') {
-                    colDano.style.display = '';
-                    if (selectDano) {
-                        selectDano.disabled = false;
-                        actualizarVisibilidadOtro();
-                    }
-                } else {
-                    colDano.style.display = 'none';
-                    if (selectDano) {
-                        selectDano.disabled = true;
-                        selectDano.value = '';
-                    }
-                    if (inputOtro) {
-                        inputOtro.style.display = 'none';
-                        inputOtro.disabled = true;
-                        inputOtro.value = '';
-                    }
-                }
-            };
-
-            radios.forEach(r => {
-                r.addEventListener('change', actualizarVisibilidadDano);
-            });
-
-            if (selectDano) {
-                selectDano.addEventListener('change', actualizarVisibilidadOtro);
-            }
-
-            actualizarVisibilidadDano();
-        });
-
-        if (btnGuardar) btnGuardar.disabled = false;
-    }
-
-    inputEquipo.addEventListener('change', actualizarDetalleDesdeInput);
-    inputEquipo.addEventListener('blur', actualizarDetalleDesdeInput);
-
-    if (btnGuardar) {
-        btnGuardar.addEventListener('click', async () => {
-            if (guardandoInspeccion) return;
-            guardandoInspeccion = true;
-            const valor = inputEquipo.value.trim();
-            if (!valor) return;
-
-            const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
-            const idxReporte = headers.indexOf('REPORTE P/P');
-            const fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
-            if (!fila) return;
-
-            const idxProducto = headers.indexOf('PRODUCTO');
-            const idxSerial = headers.indexOf('SERIAL');
-            const idxDescripcion = headers.indexOf('DESCRIPCION');
-
-            const get = (idx) => (idx >= 0 && idx < fila.length ? fila[idx] : '');
-
-            const parametrosCapturados = [];
-            const filas = document.querySelectorAll('.parametros-fila');
-            filas.forEach((filaHtml, idx) => {
-                const nombre = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
-                const estadoInput = filaHtml.querySelector(`input[name="param-${idx}-estado"]:checked`);
-                const estado = estadoInput ? estadoInput.value : '';
-                const danoSelect = filaHtml.querySelector(`select[name="param-${idx}-dano"]`);
-                const tipoDano = danoSelect ? danoSelect.value : '';
-                const inputOtro = filaHtml.querySelector(`input[name="param-${idx}-dano-otro"]`);
-                const detalleOtro = inputOtro ? (inputOtro.value || '').trim() : '';
-                parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro });
-            });
-
-            // Construir un resumen de observaciones con los hallazgos (parámetros en estado MALO o NO LEGIBLE)
-            const hallazgos = parametrosCapturados
-                .filter(p => {
-                    const est = (p.estado || '').toUpperCase();
-                    return est === 'MALO' || est === 'NO LEGIBLE';
-                })
-                .map(p => {
-                    const base = p.nombre || '';
-                    const detalle = (p.detalleOtro || p.tipoDano || '').trim();
-                    return detalle ? `${base}: ${detalle}` : base;
-                });
-            const observacionesResumen = hallazgos.join(' | ');
-
-            // Intentar recuperar datos desde la actividad en Firestore
-            let fechaEmbarque = '';
-            let inicioServicio = '';
-            let terminacionServicio = '';
-            let cliente = '';
-            let areaCliente = '';
-            let ubicacion = '';
-            let actividadId = '';
-
-            try {
-                const { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
-
-                const db = getFirestore();
-                const colRef = collection(db, 'actividades');
-
-                // 1) Si venimos con actividadId en la URL (desde inspectlist), usar directamente esa actividad
-                const paramsUrl = new URLSearchParams(window.location.search || '');
-                const actividadIdUrl = paramsUrl.get('actividadId');
-
-                if (actividadIdUrl) {
-                    const ref = doc(db, 'actividades', actividadIdUrl);
-                    const snap = await getDoc(ref);
-                    if (snap.exists()) {
-                        const data = snap.data() || {};
-                        fechaEmbarque = data.fechaEmbarque || '';
-                        inicioServicio = data.inicioServicio || '';
-                        terminacionServicio = data.terminacionServicio || '';
-                        cliente = data.cliente || '';
-                        areaCliente = data.areaCliente || '';
-                        ubicacion = data.ubicacion || '';
-                        actividadId = actividadIdUrl;
-                    }
-                }
-
-                // 2) Si no hubo actividadId en URL o no se encontró, buscar por equipo como respaldo
-                if (!actividadId) {
-                    const q = query(
-                        colRef,
-                        where('equipo', '==', get(idxEquipo)),
-                        orderBy('fechaRegistro', 'desc'),
-                        limit(1)
-                    );
-
-                    const snap = await getDocs(q);
-                    if (!snap.empty) {
-                        const docAct = snap.docs[0];
-                        const data = docAct.data() || {};
-                        fechaEmbarque = data.fechaEmbarque || '';
-                        inicioServicio = data.inicioServicio || '';
-                        terminacionServicio = data.terminacionServicio || '';
-                        cliente = data.cliente || '';
-                        areaCliente = data.areaCliente || '';
-                        ubicacion = data.ubicacion || '';
-                        actividadId = docAct.id || '';
-                    }
-                }
-            } catch (e) {
-                console.warn('No se pudieron leer fechas de actividad para la inspección', e);
-            }
-
-            // Usuario actual (correo) para registrar quién hizo la inspección
-            let usuarioInspeccion = '';
-            try {
-                if (window.auth && window.auth.currentUser && window.auth.currentUser.email) {
-                    usuarioInspeccion = String(window.auth.currentUser.email).toLowerCase();
-                }
-            } catch (e) {
-                console.warn('No se pudo leer el usuario actual para la inspección', e);
-            }
-
-            const registro = {
-                fecha: new Date().toISOString(),
-                equipo: get(idxEquipo),
-                producto: get(idxProducto),
-                serial: get(idxSerial),
-                descripcion: get(idxDescripcion),
-                reporte: get(idxReporte),
-                parametros: parametrosCapturados,
-                fechaEmbarque,
-                inicioServicio,
-                terminacionServicio,
-                cliente,
-                areaCliente,
-                ubicacion,
-                usuarioInspeccion,
-                actividadId,
-                observaciones: observacionesResumen,
-            };
-
-            const clave = 'pct_inspecciones';
-            let lista = [];
-            try {
-                lista = JSON.parse(localStorage.getItem(clave) || '[]');
-                if (!Array.isArray(lista)) lista = [];
-            } catch (e) {
-                lista = [];
-            }
-
-            lista.push(registro);
-            localStorage.setItem(clave, JSON.stringify(lista));
-
-            // También guardar en Firestore para que las inspecciones sean visibles en cualquier dispositivo
-            try {
-                const { getFirestore, collection, addDoc, serverTimestamp } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
-
-                const db = getFirestore();
-                const colRef = collection(db, 'inspecciones');
-                const payload = {
-                    ...registro,
-                    creadoEn: serverTimestamp(),
-                };
-                await addDoc(colRef, payload);
-            } catch (e) {
-                console.warn('No se pudo guardar la inspección en Firestore, solo local:', e);
-            }
-
-            // Mensaje visible de confirmación en el panel de detalle
-            const panelDetalle = document.getElementById('detalle-equipo');
-            if (panelDetalle && panelDetalle.scrollIntoView) {
-                panelDetalle.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-
-            inputEquipo.value = '';
-            detalleContenedor.innerHTML = `
-                <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #22c55e; background:#ecfdf5; text-align:center; font-size:1rem; font-weight:600; color:#166534; margin-bottom:0.5rem;">
-                    Inspección guardada
-                </div>
-                <p style="font-size:0.85rem; color:#4b5563; text-align:center;">
-                    Seleccione otro equipo para realizar una nueva inspección.
-                </p>
-            `;
-
-            // Deshabilitar botón hasta que se seleccione otro equipo
-            btnGuardar.textContent = 'Guardar inspección';
-            btnGuardar.disabled = true;
-
-            guardandoInspeccion = false;
-        });
-    }
-});
-
-// Listado completo del inventario en invre.html
-document.addEventListener('DOMContentLoaded', () => {
-    const tablaInvre = document.getElementById('tabla-invre');
-    const thead = document.getElementById('thead-invre');
-    const tbody = document.getElementById('tbody-invre');
-    const wrapper = document.querySelector('.tabla-invre-wrapper');
-    const inputFiltroTexto = document.getElementById('invre-filtro-texto');
-    const selectFiltroReporte = document.getElementById('invre-filtro-reporte');
-    if (!tablaInvre || !thead || !tbody || !wrapper) return; // No estamos en invre.html
-
-    // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage
-    const claveEstadoOverride = 'pct_invre_estado_override';
-    let mapaEstadoOverride = {};
-    try {
-        const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
-        const parsed = JSON.parse(crudo);
-        if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
-    } catch {
-        mapaEstadoOverride = {};
-    }
-
-    fetch('docs/invre.csv')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('No se pudo cargar invre.csv');
-            }
-            return response.text();
-        })
-        .then(texto => {
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (!lineas.length) return;
-
-            const headersLocal = parseCSVLine(lineas[0]);
-
-            // Construir cabecera con todos los campos
-            const trHead = document.createElement('tr');
-            trHead.style.background = '#f3f4f6';
-            headersLocal.forEach(h => {
-                const th = document.createElement('th');
-                th.textContent = h;
-                th.style.textAlign = 'left';
-                th.style.padding = '0.3rem';
-                trHead.appendChild(th);
-            });
-            thead.appendChild(trHead);
-
-            // Guardar filas en memoria para poder filtrarlas
-            const filasDatos = lineas.slice(1)
-                .map(linea => parseCSVLine(linea))
-                .filter(cols => cols.length);
-
-            const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
-            const idxDescripcion = headersLocal.indexOf('DESCRIPCION');
-            const idxSerial = headersLocal.indexOf('SERIAL');
-            const idxReporte = headersLocal.indexOf('REPORTE P/P');
-            const idxEdo = headersLocal.indexOf('EDO');
-
-            // Llenar opciones de filtro de reporte P/P
-            if (selectFiltroReporte && idxReporte >= 0) {
-                const unicos = new Set();
-                filasDatos.forEach(cols => {
-                    const val = cols[idxReporte] || '';
-                    if (val) unicos.add(val);
-                });
-                Array.from(unicos).sort().forEach(val => {
-                    const opt = document.createElement('option');
-                    opt.value = val;
-                    opt.textContent = val;
-                    selectFiltroReporte.appendChild(opt);
-                });
-            }
-
-            function aplicaFiltrosYRender() {
-                const texto = (inputFiltroTexto?.value || '').toLowerCase().trim();
-                const repSel = selectFiltroReporte ? selectFiltroReporte.value : '';
-
-                tbody.innerHTML = '';
-
-                filasDatos.forEach(cols => {
-                    if (!cols.length) return;
-
-                    const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
-                    const desc = idxDescripcion >= 0 ? (cols[idxDescripcion] || '') : '';
-                    const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
-                    const rep = idxReporte >= 0 ? (cols[idxReporte] || '') : '';
-
-                    if (texto) {
-                        const conjunto = `${equipo} ${desc} ${serial}`.toLowerCase();
-                        if (!conjunto.includes(texto)) return;
-                    }
-
-                    if (repSel && rep !== repSel) return;
-
-                    const tr = document.createElement('tr');
-                    cols.forEach((valor, idx) => {
-                        const td = document.createElement('td');
-                        td.style.padding = '0.3rem';
-                        td.style.borderBottom = '1px solid #e5e7eb';
-                        if (idx === 0 || idx === 1 || idx === 4) {
-                            td.style.whiteSpace = 'nowrap';
-                        }
-
-                        // Columna de estado editable (EDO)
-                        if (idx === idxEdo && equipo) {
-                            let edoBase = (valor || '').toString().trim().toUpperCase();
-                            if (!edoBase) edoBase = 'ON';
-                            const override = mapaEstadoOverride[equipo];
-                            const edoEfectivo = override ? String(override).trim().toUpperCase() : edoBase;
-
-                            const select = document.createElement('select');
-                            select.style.fontSize = '0.8rem';
-                            select.style.padding = '0.15rem 0.3rem';
-                            ['ON', 'OFF', 'WIP'].forEach(op => {
-                                const opt = document.createElement('option');
-                                opt.value = op;
-                                opt.textContent = op;
-                                if (op === edoEfectivo) opt.selected = true;
-                                select.appendChild(opt);
-                            });
-
-                            select.addEventListener('change', () => {
-                                const nuevo = (select.value || '').toUpperCase();
-                                if (nuevo === edoBase) {
-                                    delete mapaEstadoOverride[equipo];
-                                } else {
-                                    mapaEstadoOverride[equipo] = nuevo;
-                                }
-                                try {
-                                    localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
-                                } catch (e) {
-                                    console.error('No se pudo guardar override de estado en localStorage', e);
-                                }
-                            });
-
-                            td.appendChild(select);
-                        } else {
-                            td.textContent = valor;
-                        }
-
-                        tr.appendChild(td);
-                    });
-                    tbody.appendChild(tr);
-                });
-            }
-
-            // Render inicial
-            aplicaFiltrosYRender();
-
-            // Listeners de filtros
-            if (inputFiltroTexto) {
-                inputFiltroTexto.addEventListener('input', () => {
-                    aplicaFiltrosYRender();
-                });
-            }
-            if (selectFiltroReporte) {
-                selectFiltroReporte.addEventListener('change', () => {
-                    aplicaFiltrosYRender();
-                });
-            }
-
-            // Permitir arrastrar con el mouse para hacer scroll
-            let isDown = false;
-            let startX = 0;
-            let startY = 0;
-            let scrollLeft = 0;
-            let scrollTop = 0;
-
-            wrapper.addEventListener('mousedown', (e) => {
-                isDown = true;
-                wrapper.classList.add('dragging');
-                startX = e.pageX - wrapper.offsetLeft;
-                startY = e.pageY - wrapper.offsetTop;
-                scrollLeft = wrapper.scrollLeft;
-                scrollTop = wrapper.scrollTop;
-            });
-
-            wrapper.addEventListener('mouseleave', () => {
-                isDown = false;
-                wrapper.classList.remove('dragging');
-            });
-
-            wrapper.addEventListener('mouseup', () => {
-                isDown = false;
-                wrapper.classList.remove('dragging');
-            });
-
-            wrapper.addEventListener('mousemove', (e) => {
-                if (!isDown) return;
-                e.preventDefault();
-                const x = e.pageX - wrapper.offsetLeft;
-                const y = e.pageY - wrapper.offsetTop;
-                const walkX = x - startX;
-                const walkY = y - startY;
-                wrapper.scrollLeft = scrollLeft - walkX;
-                wrapper.scrollTop = scrollTop - walkY;
-            });
-        })
-        .catch(err => {
-            console.error(err);
-        });
-});
-
-// Dropdowns del navbar: abrir/cerrar al hacer click en el enlace padre
-document.addEventListener('DOMContentLoaded', () => {
-    const navMain = document.querySelector('.nav-main');
-    if (!navMain) return;
-
-    // Asegurar que todos los dropdowns inicien colapsados
-    navMain.querySelectorAll('.nav-item-has-dropdown').forEach(el => {
-        el.classList.remove('is-open');
-    });
-
-    navMain.addEventListener('click', (event) => {
-        const trigger = event.target.closest('.nav-item-has-dropdown > a');
-        if (!trigger) return;
-
-        event.preventDefault();
-
-        const item = trigger.parentElement;
-
-        const yaAbierto = item.classList.contains('is-open');
-
-        // Cerrar todos
-        navMain.querySelectorAll('.nav-item-has-dropdown.is-open').forEach(el => {
-            el.classList.remove('is-open');
-        });
-
-        // Si no estaba abierto, abrir solo este
-        if (!yaAbierto) {
-            item.classList.add('is-open');
-        }
-    });
-});
-
 // Autocompletar información de inventario en pruebas.html desde invre2.csv
 document.addEventListener('DOMContentLoaded', () => {
     const inputEquipo = document.getElementById('inv-equipo');
@@ -869,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxDesc = headersInv.indexOf('DESCRIPCION');
             const idxEstado = headersInv.indexOf('ESTADO');
 
-            // Leer overrides de estado desde localStorage (los mismos que en invre.html e inspeccion.html)
+            // Leer overrides de estado desde localStorage (los mismos que en invre.html e inspeccion.html).
+            // Se asume que ya fueron sincronizados desde Firestore en alguna vista de inventario/actividad.
             const claveEstadoOverride = 'pct_invre_estado_override';
             let mapaEstadoOverride = {};
             try {
@@ -879,6 +35,16 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {
                 mapaEstadoOverride = {};
             }
+
+    const chkTodos = document.getElementById('actlist-select-todos');
+    if (chkTodos) {
+        chkTodos.addEventListener('change', () => {
+            const filas = tbody.querySelectorAll('.actlist-select-fila');
+            filas.forEach(chk => {
+                chk.checked = chkTodos.checked;
+            });
+        });
+    }
 
             const vistos = new Set();
             filasInv.forEach(cols => {
@@ -1074,145 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Dashboard index.html: tarjetas de conteo
-document.addEventListener('DOMContentLoaded', () => {
-    const spanPruebas = document.getElementById('dash-pruebas');
-    const spanInspecciones = document.getElementById('dash-inspecciones');
-    const spanInvre = document.getElementById('dash-equipos-invre');
-    const spanInvre2 = document.getElementById('dash-registros-invre2');
-    const spanActividades = document.getElementById('dash-actividades');
-
-    if (!spanPruebas && !spanInspecciones && !spanInvre && !spanInvre2 && !spanActividades) return; // No estamos en index.html
-
-    // Pruebas guardadas (localStorage)
-    if (spanPruebas) {
-        try {
-            const lista = JSON.parse(localStorage.getItem('pct_pruebas') || '[]');
-            spanPruebas.textContent = Array.isArray(lista) ? String(lista.length) : '0';
-        } catch {
-            spanPruebas.textContent = '0';
-        }
-    }
-
-    // Inspecciones: mostrar en la tarjeta tanto las pendientes (por realizar) como las realizadas
-    // "Pendientes" = actividades en Firestore que aún no tienen una inspección asociada
-    // "Realizadas" = inspecciones guardadas en Firestore (o en localStorage como respaldo)
-    if (spanInspecciones) {
-        spanInspecciones.textContent = 'Cargando...';
-
-        (async () => {
-            try {
-                // 1) Leer actividades desde Firestore para conocer el universo de actividades
-                const { getFirestore, collection, getDocs } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
-
-                const db = getFirestore();
-                const colRef = collection(db, 'actividades');
-                const snap = await getDocs(colRef);
-
-                const actividadIds = new Set();
-                snap.forEach(doc => {
-                    actividadIds.add(doc.id);
-                });
-
-                // 2) Leer inspecciones desde Firestore (con fallback a localStorage)
-                let listaInspecciones = [];
-                try {
-                    const { collection: col, getDocs: getDocsInsp } = await import(
-                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                    );
-
-                    const colInsp = col(db, 'inspecciones');
-                    const snapInsp = await getDocsInsp(colInsp);
-                    listaInspecciones = snapInsp.docs.map(d => ({ id: d.id, ...d.data() }));
-                } catch {
-                    // Si falla Firestore, usar localStorage como respaldo
-                    try {
-                        const crudo = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
-                        if (Array.isArray(crudo)) listaInspecciones = crudo;
-                    } catch {
-                        listaInspecciones = [];
-                    }
-                }
-
-                // Filtrar solo inspecciones con actividadId válido
-                listaInspecciones = listaInspecciones.filter(reg => reg && reg.actividadId && actividadIds.has(String(reg.actividadId)));
-
-                const realizadas = listaInspecciones.length;
-
-                // 3) Determinar qué actividades ya tienen al menos una inspección
-                const actividadesConInspeccion = new Set();
-                listaInspecciones.forEach(reg => {
-                    const actId = (reg && reg.actividadId) ? String(reg.actividadId) : '';
-                    if (actId) actividadesConInspeccion.add(actId);
-                });
-
-                // 4) Pendientes = actividades sin inspección asociada
-                let pendientes = 0;
-                actividadIds.forEach(id => {
-                    if (!actividadesConInspeccion.has(id)) pendientes += 1;
-                });
-
-                spanInspecciones.innerHTML = `
-                    <div style="font-size:0.85rem; line-height:1.4;">
-                        Por realizar: <strong>${pendientes}</strong><br>
-                        Realizadas: <strong>${realizadas}</strong>
-                    </div>
-                `;
-            } catch (e) {
-                console.error('Error al leer resumen de inspecciones para el dashboard', e);
-                spanInspecciones.textContent = 'Error';
-            }
-        })();
-    }
-
-    // Actividades registradas: leer desde Firestore y clasificar en totales, concluidas y pendientes
-    if (spanActividades) {
-        spanActividades.textContent = 'Cargando...';
-
-        (async () => {
-            try {
-                const { getFirestore, collection, getDocs } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
-
-                const db = getFirestore();
-                const colRef = collection(db, 'actividades');
-                const snap = await getDocs(colRef);
-
-                let total = 0;
-                let concluidas = 0;
-                let pendientes = 0;
-
-                snap.forEach(doc => {
-                    total += 1;
-                    const data = doc.data() || {};
-                    const term = (data.terminacionServicio || '').trim();
-                    if (term) {
-                        concluidas += 1;
-                    } else {
-                        pendientes += 1;
-                    }
-                });
-
-                spanActividades.innerHTML = `
-                    <div style="font-size:0.85rem; line-height:1.4;">
-                        Registradas: <strong>${total}</strong><br>
-                        Concluidas: <strong>${concluidas}</strong><br>
-                        Pendientes: <strong>${pendientes}</strong>
-                    </div>
-                `;
-            } catch (e) {
-                console.error('Error al leer resumen de actividades para el dashboard', e);
-                spanActividades.textContent = 'Error';
-            }
-        })();
-    }
-
-    // Para invre e invre2 dejamos -- por ahora o podemos calcular desde CSV más adelante
-});
-
 // Registro de actividad en actividad.html
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('actividad-form');
@@ -1235,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const infoPorEquipoAct = {}; // { serial, estado, propiedad, descripcion }
     let equiposSeleccionados = [];
 
-    // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage, igual que en invre.html
+    // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage y sincronizados con Firestore
     const claveEstadoOverrideAct = 'pct_invre_estado_override';
     let mapaEstadoOverrideAct = {};
     try {
@@ -1245,6 +272,33 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch {
         mapaEstadoOverrideAct = {};
     }
+
+    (async () => {
+        try {
+            if (window.db) {
+                const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const colRef = collection(db, 'inventarioEstados');
+                const snap = await getDocs(colRef);
+                snap.forEach(docSnap => {
+                    const data = docSnap.data() || {};
+                    const equipoId = docSnap.id || data.equipoId || '';
+                    let edo = (data.edo || '').toString().trim().toUpperCase();
+                    if (!edo) edo = 'ON';
+                    if (equipoId) {
+                        mapaEstadoOverrideAct[equipoId] = edo;
+                    }
+                });
+                try {
+                    localStorage.setItem(claveEstadoOverrideAct, JSON.stringify(mapaEstadoOverrideAct));
+                } catch (e) {
+                    console.warn('No se pudo cachear overrides de estado desde Firestore (actividad)', e);
+                }
+            }
+        } catch (e) {
+            console.warn('No se pudieron cargar estados de inventario desde Firestore (actividad)', e);
+        }
+    })();
 
     // Cargar inventario (invre.csv) para datalist y datos automáticos
     fetch('docs/invre.csv')
@@ -1374,6 +428,209 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar resumen inicial desde Firestore
     cargarActividadDesdeFirestore();
 
+    // Máscara de fecha en actividad.html (campos dd/mm/aa, 6 dígitos)
+    const inputFechaEmbarque = document.getElementById('act-fecha-embarque');
+    const inputInicioServicio = document.getElementById('act-inicio-servicio');
+
+    [inputFechaEmbarque, inputInicioServicio].forEach(input => {
+        if (!input) return;
+        input.addEventListener('input', () => {
+            const formateado = formatearFechaDdMmAaInput(input.value);
+            input.value = formateado;
+        });
+    });
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            await guardarActividadEnFirestore();
+        });
+    }
+
+    if (btnLimpiar) {
+        btnLimpiar.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            limpiarFormularioActividad();
+        });
+    }
+
+    // Autoformato para fechas en formato dd/mm/aa (6 dígitos) mientras el usuario escribe.
+    function formatearFechaDdMmAaInput(valor) {
+        const soloDigitos = (valor || '').replace(/\D/g, '').slice(0, 6);
+        let res = soloDigitos;
+        if (soloDigitos.length >= 3 && soloDigitos.length <= 4) {
+            res = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2);
+        } else if (soloDigitos.length >= 5) {
+            res =
+                soloDigitos.slice(0, 2) +
+                '/' +
+                soloDigitos.slice(2, 4) +
+                '/' +
+                soloDigitos.slice(4);
+        }
+        return res;
+    }
+
+    // Helpers para leer datos del formulario de actividad
+    function obtenerDatosBaseActividad() {
+        const tipo = (document.getElementById('act-tipo') || {}).value || '';
+        const cliente = (document.getElementById('act-cliente') || {}).value || '';
+        const areaCliente = (document.getElementById('act-area-cliente') || {}).value || '';
+        const ubicacion = (document.getElementById('act-ubicacion') || {}).value || '';
+        const os = (document.getElementById('act-os') || {}).value || '';
+        const ordenSuministro = (document.getElementById('act-orden-suministro') || {}).value || '';
+        const factura = (document.getElementById('act-factura') || {}).value || '';
+        const estCot = (document.getElementById('act-est-cot') || {}).value || '';
+        const precioTexto = (document.getElementById('act-precio') || {}).value || '';
+        const fechaEmbarque = (document.getElementById('act-fecha-embarque') || {}).value || '';
+        const inicioServicio = (document.getElementById('act-inicio-servicio') || {}).value || '';
+        const diasServicio = Number((document.getElementById('act-dias-servicio') || {}).value || 0) || 0;
+
+        const precio = Number(precioTexto.toString().replace(/[^0-9.-]/g, '')) || 0;
+
+        return {
+            tipo,
+            cliente,
+            areaCliente,
+            ubicacion,
+            os,
+            ordenSuministro,
+            factura,
+            estCot,
+            precio,
+            fechaEmbarque,
+            inicioServicio,
+            diasServicio,
+        };
+    }
+
+    function limpiarFormularioActividad() {
+        const idsTexto = [
+            'act-cliente',
+            'act-area-cliente',
+            'act-ubicacion',
+            'act-os',
+            'act-orden-suministro',
+            'act-factura',
+            'act-est-cot',
+            'act-precio',
+            'act-fecha-embarque',
+            'act-inicio-servicio',
+            'act-dias-servicio',
+            'act-equipo',
+        ];
+
+        idsTexto.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+
+        equiposSeleccionados = [];
+        renderEquiposSeleccionados();
+    }
+
+    function generarOsAutomatico(equipo, inicioServicioTexto) {
+        // Formato de OS: PCT-YY-XXX
+        //  - PCT: prefijo fijo
+        //  - YY: últimos 2 dígitos del año del inicio de servicio
+        //  - XXX: consecutivo de 3 dígitos dentro de ese año
+        // El consecutivo se lleva por combinación (cliente, ubicacion, año).
+
+        const partes = (inicioServicioTexto || '').split('/');
+        if (partes.length !== 3) return '';
+        const aaStr = partes[2];
+        const aa = parseInt(aaStr, 10);
+        if (isNaN(aa)) return '';
+        const yy = String(aa).padStart(2, '0');
+
+        // Cliente y ubicación actuales del formulario
+        const clienteSel = (document.getElementById('act-cliente') || {}).value || '';
+        const ubicSel = (document.getElementById('act-ubicacion') || {}).value || '';
+
+        // Buscar OS existentes para misma combinación cliente+ubicacion+año
+        const prefijo = `PCT-${yy}-`;
+        const existentes = listaActividad
+            .filter(reg => {
+                const cli = (reg.cliente || '').toString();
+                const ubi = (reg.ubicacion || '').toString();
+                const ini = (reg.inicioServicio || '').toString();
+                if (cli !== clienteSel || ubi !== ubicSel) return false;
+                return ini.endsWith(`/${yy}`);
+            })
+            .map(reg => (reg.os || '').toString().trim())
+            .filter(os => os.startsWith(prefijo));
+
+        // Obtener el mayor consecutivo usado hasta ahora para ese año
+        let maxConsec = 0;
+        existentes.forEach(os => {
+            const partesOs = os.split('-');
+            const ult = partesOs[2] || '';
+            const num = parseInt(ult, 10);
+            if (!isNaN(num) && num > maxConsec) maxConsec = num;
+        });
+
+        const siguiente = maxConsec + 1;
+        const consecutivo = String(siguiente).padStart(3, '0');
+        return `PCT-${yy}-${consecutivo}`;
+    }
+
+    async function guardarActividadEnFirestore() {
+        if (!window.db) {
+            console.warn('Firestore (window.db) no está disponible para guardar actividad');
+            return;
+        }
+
+        if (!equiposSeleccionados.length) {
+            alert('Selecciona al menos un equipo / activo para la actividad.');
+            return;
+        }
+
+        const base = obtenerDatosBaseActividad();
+        if (!base.cliente) {
+            alert('Indica el cliente.');
+            return;
+        }
+        if (!base.inicioServicio) {
+            alert('Indica la fecha de inicio del servicio.');
+            return;
+        }
+
+        try {
+            const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+
+            const db = getFirestore();
+            const colRef = collection(db, 'actividades');
+
+            const ahora = serverTimestamp();
+
+            for (const eq of equiposSeleccionados) {
+                let osFinal = base.os;
+                if (!osFinal) {
+                    osFinal = generarOsAutomatico(eq, base.inicioServicio) || '';
+                }
+
+                const registro = {
+                    ...base,
+                    os: osFinal,
+                    equipo: eq,
+                    fechaRegistro: ahora,
+                };
+                await addDoc(colRef, registro);
+            }
+
+            // Recargar listaActividad y resumen locales
+            await cargarActividadDesdeFirestore();
+
+            alert('Actividad guardada.');
+            limpiarFormularioActividad();
+        } catch (e) {
+            console.error('Error al guardar actividad en Firestore', e);
+            alert('No se pudo guardar la actividad. Revisa la consola para más detalles.');
+        }
+    }
+
     function renderEquiposSeleccionados() {
         if (!contEquiposSel) return;
         contEquiposSel.innerHTML = '';
@@ -1483,8 +740,9 @@ function renderEquiposSeleccionados() {
 function procesarTextoEquipos(texto) {
     const valorRaw = texto || '';
     const partes = valorRaw
-        // Dividir principalmente por saltos de línea, comas y punto y coma.
-        .split(/[\r\n,;]+/)
+        // Dividir por espacios en blanco (uno o más), saltos de línea, comas y punto y coma.
+        // Los códigos de equipo no llevan espacios, así que es seguro usarlos como separador.
+        .split(/[\s,;]+/)
         .map(v => v.trim())
         .filter(v => v.length > 0);
 
@@ -1561,6 +819,22 @@ inputEquipo.addEventListener('change', () => {
     // Cuando cambia manualmente el texto, intentamos agregarlo al lote
     agregarEquipoDesdeInput();
     autocompletarDatosAutoActividad();
+});
+
+// Permitir capturar varios equipos escribiendo y separando por espacio o Enter.
+// Al presionar espacio o Enter, se toma el valor actual, se intenta agregar a equiposSeleccionados
+// y se limpia el input para continuar con el siguiente código.
+inputEquipo.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+        const valorActual = (inputEquipo.value || '').trim();
+        if (!valorActual) return;
+
+        e.preventDefault();
+        const huboCambios = procesarTextoEquipos(inputEquipo.value);
+        if (huboCambios) {
+            inputEquipo.value = '';
+        }
+    }
 });
 
 // Cerrar correctamente el bloque document.addEventListener('DOMContentLoaded', ...) de la sección de actividad.html añadiendo un '});' antes del siguiente bloque de pruebas.html.
@@ -1797,91 +1071,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Dashboard en index.html
-document.addEventListener('DOMContentLoaded', () => {
-    const elEquiposInvre = document.getElementById('dash-equipos-invre');
-    if (!elEquiposInvre) return; // No estamos en index
-
-    // 1) Determinar equipos "fuera de servicio" a partir de inspecciones locales
-    //    Regla: si un equipo tiene al menos una inspección con algún parámetro en estado MALO,
-    //    se considera fuera de servicio (independiente de OFF/WIP en inventario; se cruza con ON).
-    const equiposFueraServicio = new Set();
-    try {
-        const listaInsp = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
-        if (Array.isArray(listaInsp)) {
-            listaInsp.forEach(reg => {
-                const equipo = (reg && reg.equipo) ? String(reg.equipo).trim() : '';
-                const parametros = (reg && Array.isArray(reg.parametros)) ? reg.parametros : [];
-                if (!equipo || !parametros.length) return;
-
-                const tieneMalo = parametros.some(p => {
-                    const est = (p && p.estado) ? String(p.estado).trim().toUpperCase() : '';
-                    return est === 'MALO';
-                });
-                if (tieneMalo) {
-                    equiposFueraServicio.add(equipo);
-                }
-            });
-        }
-    } catch (e) {
-        console.warn('No se pudo interpretar pct_inspecciones para fuera de servicio', e);
-    }
-
-    // 2) Contar equipos por estado (ON / OFF / WIP) en invre.csv y cruzar ON con "fuera de servicio"
-    fetch('docs/invre.csv')
-        .then(r => (r.ok ? r.text() : ''))
-        .then(t => {
-            if (!t) return;
-
-            const lineas = t.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (!lineas.length) return;
-
-            const headersLocal = parseCSVLine(lineas[0]);
-            // En invre.csv la columna de estado se llama "EDO"
-            const idxEstado = headersLocal.indexOf('EDO');
-            const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
-
-            let onCount = 0;
-            let offCount = 0;
-            let wipCount = 0;
-            let fueraServicioCount = 0;
-
-            lineas.slice(1).forEach(linea => {
-                const cols = parseCSVLine(linea);
-                if (!cols.length || idxEstado < 0) return;
-
-                const valor = (cols[idxEstado] || '').trim().toUpperCase();
-                if (!valor) return;
-
-                const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '').trim() : '';
-
-                if (valor === 'ON') {
-                    onCount += 1;
-                    // Equipo ON que tiene alguna inspección con parámetro MALO
-                    if (equipo && equiposFueraServicio.has(equipo)) {
-                        fueraServicioCount += 1;
-                    }
-                } else if (valor === 'OFF') {
-                    offCount += 1;
-                } else if (valor === 'WIP') {
-                    wipCount += 1;
-                }
-            });
-
-            elEquiposInvre.innerHTML = `
-                <div style="font-size:0.85rem; line-height:1.4;">
-                    ON: <strong>${onCount}</strong><br>
-                    OFF: <strong>${offCount}</strong><br>
-                    WIP: <strong>${wipCount}</strong><br>
-                    Fuera de servicio: <strong>${fueraServicioCount}</strong>
-                </div>
-            `;
-        })
-        .catch(() => {
-            elEquiposInvre.textContent = '--';
-        });
-});
-
 // Listado de actividades en actividadlist.html
 document.addEventListener('DOMContentLoaded', () => {
     const tbody = document.getElementById('actlist-tbody');
@@ -1933,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let visibles = 0;
 
-        // Ordenar por cliente y área para agrupar visualmente
+        // Ordenar por cliente, área y ubicación para agrupar visualmente
         const listaOrdenada = [...listaBase].sort((a, b) => {
             const ca = (a.cliente || '').toString().toUpperCase();
             const cb = (b.cliente || '').toString().toUpperCase();
@@ -1943,11 +1132,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const ab = (b.areaCliente || '').toString().toUpperCase();
             if (aa < ab) return -1;
             if (aa > ab) return 1;
+            const ua = (a.ubicacion || '').toString().toUpperCase();
+            const ub = (b.ubicacion || '').toString().toUpperCase();
+            if (ua < ub) return -1;
+            if (ua > ub) return 1;
             return 0;
         });
 
         let clienteActual = '';
         let areaActual = '';
+        let ubicacionActual = '';
 
         listaOrdenada.forEach(reg => {
             const id = reg.id;
@@ -1955,6 +1149,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const area = reg.areaCliente || '';
             const inicioTexto = reg.inicioServicio || '';
             const terminacionTexto = reg.terminacionServicio || '';
+            const ubicacion = reg.ubicacion || '';
 
             // Calcular días en servicio:
             // - Si hay terminación, días entre inicio y terminación (servicio cerrado).
@@ -1969,26 +1164,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const os = reg.os || '';
             const factura = reg.factura || '';
-            const precio = Number(reg.precio || 0);
+            const ordenCompra = reg.ordenSuministro || '';
 
             const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
                 ? reg.equipos
                 : (reg.equipo ? [reg.equipo] : []);
 
             equiposArr.forEach(equipoNombre => {
-                const textoBuscar = `${cliente} ${area} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${os} ${factura}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 visibles += 1;
 
-                // Insertar encabezados de agrupación por cliente y área cuando cambien
+                // Insertar encabezados de agrupación por cliente, área y ubicación cuando cambien
                 if (cliente && cliente !== clienteActual) {
                     clienteActual = cliente;
                     areaActual = '';
+                    ubicacionActual = '';
                     const trGrupoCliente = document.createElement('tr');
+                    trGrupoCliente.className = 'actlist-group-cliente';
                     trGrupoCliente.innerHTML = `
-                        <td colspan="10" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
-                            Cliente: ${clienteActual}
+                        <td colspan="12" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em; cursor:pointer;">
+                            CLIENTE: ${clienteActual}
                         </td>
                     `;
                     tbody.appendChild(trGrupoCliente);
@@ -1996,38 +1193,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (area && area !== areaActual) {
                     areaActual = area;
+                    ubicacionActual = '';
                     const trGrupoArea = document.createElement('tr');
+                    trGrupoArea.className = 'actlist-group-area';
                     trGrupoArea.innerHTML = `
-                        <td colspan="10" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb;">
+                        <td colspan="12" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                             Área: ${areaActual}
                         </td>
                     `;
                     tbody.appendChild(trGrupoArea);
                 }
 
+                if (ubicacion && ubicacion !== ubicacionActual) {
+                    ubicacionActual = ubicacion;
+                    const trGrupoUbic = document.createElement('tr');
+                    trGrupoUbic.className = 'actlist-group-ubic';
+                    trGrupoUbic.innerHTML = `
+                        <td colspan="12" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                            Ubicación: ${ubicacionActual}
+                        </td>
+                    `;
+                    tbody.appendChild(trGrupoUbic);
+                }
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                        <input type="checkbox" class="actlist-select-fila" data-id="${id}">
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">
                         <input type="text" class="actlist-input-cliente" data-id="${id}" value="${cliente}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">
                         <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        <input type="text" class="actlist-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                        <input type="text" class="actlist-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        <input type="text" class="actlist-input-term" data-id="${id}" value="${terminacionTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                        <input type="text" class="actlist-input-term" data-id="${id}" value="${terminacionTexto}" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center; width:80px;">
                         ${dias || ''}
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${ordenCompra}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        ${precio ? formatearMoneda(precio) : ''}
-                    </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                         <button type="button" class="actlist-btn-guardar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;" disabled>
                             Guardar
@@ -2047,6 +1260,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lblCont) {
             lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
         }
+
+        // Listeners de colapsado por cliente, área y ubicación
+        const colapsarDesde = (tr, nivel) => {
+            const colapsado = tr.dataset.colapsado === '1';
+            tr.dataset.colapsado = colapsado ? '0' : '1';
+            let fila = tr.nextElementSibling;
+            while (fila) {
+                if (fila.classList.contains('actlist-group-cliente')) break;
+                if (nivel === 'area' && fila.classList.contains('actlist-group-area')) break;
+                if (nivel === 'ubic' && (fila.classList.contains('actlist-group-area') || fila.classList.contains('actlist-group-ubic'))) break;
+                fila.style.display = colapsado ? '' : 'none';
+                fila = fila.nextElementSibling;
+            }
+        };
+
+        tbody.querySelectorAll('.actlist-group-cliente').forEach(tr => {
+            tr.addEventListener('click', () => colapsarDesde(tr, 'cliente'));
+        });
+        tbody.querySelectorAll('.actlist-group-area').forEach(tr => {
+            tr.addEventListener('click', () => colapsarDesde(tr, 'area'));
+        });
+        tbody.querySelectorAll('.actlist-group-ubic').forEach(tr => {
+            tr.addEventListener('click', () => colapsarDesde(tr, 'ubic'));
+        });
 
         // Botón Editar: habilita los campos de la fila
         tbody.querySelectorAll('.actlist-btn-editar').forEach(btn => {
@@ -2441,33 +1678,3 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(err);
         });
 });
-
-// Parser simple de una línea CSV que respeta comillas
-function parseCSVLine(linea) {
-    const resultado = [];
-    let actual = '';
-    let enComillas = false;
-
-    for (let i = 0; i < linea.length; i++) {
-        const c = linea[i];
-
-        if (c === '"') {
-            enComillas = !enComillas;
-            continue;
-        }
-
-        if (c === ',' && !enComillas) {
-            resultado.push(actual.trim());
-            actual = '';
-        } else {
-            actual += c;
-        }
-    }
-
-    if (actual.length > 0) {
-        resultado.push(actual.trim());
-        actual = '';
-    }
-
-    return resultado;
-}

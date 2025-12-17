@@ -19,7 +19,7 @@
                 <li><a href="index.html">Inicio</a></li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="actividad.html" class="active">Actividad</a>
+                    <a href="#" class="active">Actividad</a>
                     <ul class="nav-dropdown">
                         <li><a href="actividad.html">Registrar actividad</a></li>
                         <li><a href="actividadlist.html">Listado de actividades</a></li>
@@ -28,7 +28,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="pruebas.html">Pruebas</a>
+                    <a href="#">Pruebas</a>
                     <ul class="nav-dropdown">
                         <li><a href="pruebas.html">Registrar prueba</a></li>
                         <li><a href="pruebaslist.html">Listado de pruebas</a></li>
@@ -36,7 +36,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="inspeccion.html">Inspecciones</a>
+                    <a href="#">Inspecciones</a>
                     <ul class="nav-dropdown">
                         <li><a href="inspeccion.html">Nueva inspección</a></li>
                         <li><a href="inspectlist.html">Listado de inspecciones</a></li>
@@ -78,7 +78,7 @@
                 <div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:flex-end;">
                     <div style="display:flex; flex-direction:column;">
                         <label for="adm-lote-fecha" style="font-size:0.75rem; color:#4b5563;">Fecha term. lote (dd/mm/aa)</label>
-                        <input type="text" id="adm-lote-fecha" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
+                        <input type="text" id="adm-lote-fecha" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
                     </div>
                     <button type="button" id="adm-aplicar-fecha-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar fecha a selección</button>
 
@@ -103,18 +103,40 @@
                             <th style="text-align:center; padding:0.4rem; width:32px;">
                                 <input type="checkbox" id="adm-select-todos" title="Seleccionar / deseleccionar todos">
                             </th>
-                            <th style="text-align:left; padding:0.4rem;">Cliente</th>
-                            <th style="text-align:left; padding:0.4rem;">Área</th>
-                            <th style="text-align:left; padding:0.4rem;">Ubicación</th>
-                            <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
-                            <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
-                            <th style="text-align:left; padding:0.4rem;">Terminación del servicio</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Ubicación</th>
+                            <th id="adm-th-equipo" style="text-align:left; padding:0.4rem; cursor:pointer;">Equipo / Activo</th>
+                            <th id="adm-th-inicio" style="text-align:left; padding:0.4rem; cursor:pointer;">Inicio del servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">Parcial / Final</th>
                             <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Precio</th>
                             <th style="text-align:left; padding:0.4rem;">Ingreso acumulado</th>
-                            <th style="text-align:left; padding:0.4rem;">Orden de servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">OS</th>
+                            <th style="text-align:left; padding:0.4rem;">OC</th>
                             <th style="text-align:left; padding:0.4rem;">Factura</th>
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th></th>
+                            <th style="display:none;"></th>
+                            <th style="display:none;"></th>
+                            <th style="display:none;"></th>
+                            <th style="padding:0.2rem 0.4rem;">
+                                <input type="text" id="adm-filtro-equipo" placeholder="Filtrar equipo" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
+                            </th>
+                            <th style="padding:0.2rem 0.4rem;">
+                                <input type="text" id="adm-filtro-inicio" placeholder="Filtrar inicio (dd/mm/aa)" maxlength="8" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
+                            </th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody id="adm-tbody-actividad">
@@ -146,11 +168,11 @@
                 <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                     <div style="flex:1 1 120px;">
                         <label style="font-size:0.75rem; color:#4b5563;">Inicio período</label>
-                        <input id="adm-per-inicio" type="text" placeholder="dd/mm/aa" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                        <input id="adm-per-inicio" type="text" placeholder="__/__/__" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
                     </div>
                     <div style="flex:1 1 120px;">
                         <label style="font-size:0.75rem; color:#4b5563;">Fin período</label>
-                        <input id="adm-per-fin" type="text" placeholder="dd/mm/aa" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                        <input id="adm-per-fin" type="text" placeholder="__/__/__" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
                     </div>
                     <div style="flex:0 0 110px;">
                         <label style="font-size:0.75rem; color:#4b5563;">Tipo</label>
@@ -180,7 +202,6 @@
                         <input id="adm-per-obs" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
                     </div>
                     <div style="flex:0 0 auto;">
-                        <button id="adm-per-generar" type="button" style="margin-top:1rem; margin-right:0.5rem; font-size:0.8rem;">Generar períodos</button>
                         <button id="adm-per-guardar" type="button" style="margin-top:1rem; font-size:0.8rem;">Agregar período</button>
                     </div>
                 </div>
@@ -258,6 +279,164 @@
                 window.location.href = 'login.html';
             }
         }
+
+        // Migración de OS existentes al nuevo formato PCT-YY-XXX
+        // Regla:
+        //  - Para cada actividad con inicioServicio válido (dd/mm/aa), se toma YY del año.
+        //  - Dentro de cada año, se asignan consecutivos 001, 002, 003... en orden de inicioServicio.
+        //  - OS resultante: PCT-YY-XXX
+        // Uso: abrir consola en actividadmin.html y ejecutar:
+        //   migrarOsFormatoNuevo()
+        async function migrarOsFormatoNuevo() {
+            if (!window.db) {
+                console.warn('Firestore (window.db) no está disponible para migrar OS');
+                return;
+            }
+
+            try {
+                const { getFirestore, collection, getDocs, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+
+                // Parser local de fecha dd/mm/aa a Date (año base 2000+aa)
+                function parseFechaDdMmAaLocal(fechaTexto) {
+                    if (!fechaTexto) return null;
+                    const partes = fechaTexto.split('/');
+                    if (partes.length !== 3) return null;
+                    const dd = parseInt(partes[0], 10);
+                    const mm = parseInt(partes[1], 10);
+                    const aa = parseInt(partes[2], 10);
+                    if (!dd || !mm || isNaN(aa)) return null;
+                    const yyyy = 2000 + aa;
+                    const d = new Date(yyyy, mm - 1, dd);
+                    if (isNaN(d.getTime())) return null;
+                    return d;
+                }
+
+                const colAct = collection(db, 'actividades');
+                const snapAct = await getDocs(colAct);
+
+                const actividades = snapAct.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+                if (!actividades.length) {
+                    console.log('No hay actividades para migrar OS.');
+                    return;
+                }
+
+                // Agrupar por combinación cliente+ubicacion+año (YY) tomada de inicioServicio (dd/mm/aa)
+                const porClave = new Map(); // clave = cliente|ubicacion|YY -> array de actividades
+                actividades.forEach(act => {
+                    const ini = (act.inicioServicio || '').toString();
+                    const partes = ini.split('/');
+                    if (partes.length !== 3) return;
+                    const aaStr = partes[2];
+                    const aa = parseInt(aaStr, 10);
+                    if (isNaN(aa)) return;
+                    const yy = String(aa).padStart(2, '0');
+
+                    const cli = (act.cliente || '').toString();
+                    const ubi = (act.ubicacion || '').toString();
+                    const clave = `${cli}||${ubi}||${yy}`;
+
+                    if (!porClave.has(clave)) porClave.set(clave, []);
+                    porClave.get(clave).push(act);
+                });
+
+                let totalActualizadas = 0;
+
+                for (const [clave, lista] of porClave.entries()) {
+                    const partesClave = clave.split('||');
+                    const yy = partesClave[2] || '';
+
+                    // Ordenar por fecha de inicio dentro de la combinación para asignar consecutivos estables
+                    lista.sort((a, b) => {
+                        const da = parseFechaDdMmAaLocal(a.inicioServicio || '') || new Date(2000, 0, 1);
+                        const dbDate = parseFechaDdMmAaLocal(b.inicioServicio || '') || new Date(2000, 0, 1);
+                        return da.getTime() - dbDate.getTime();
+                    });
+
+                    let consec = 0;
+                    for (const act of lista) {
+                        consec += 1;
+                        const consecutivo = String(consec).padStart(3, '0');
+                        const nuevaOs = `PCT-${yy}-${consecutivo}`;
+
+                        // Solo actualizar si cambia, para minimizar escrituras
+                        if ((act.os || '').toString().trim() === nuevaOs) continue;
+
+                        await updateDoc(doc(db, 'actividades', act.id), { os: nuevaOs });
+                        totalActualizadas += 1;
+                    }
+                }
+
+                console.log(`Migración de OS completada. Actividades actualizadas: ${totalActualizadas}`);
+            } catch (e) {
+                console.error('Error al migrar OS a formato nuevo', e);
+            }
+        }
+
+        // Marcado automático de terminaciones definitivas históricas.
+        // Uso sugerido: abrir consola en actividadmin.html y ejecutar
+        //   marcarTerminacionesFinalesDesdePeriodos()
+        // para sincronizar terminacionEsFinal en actividades antiguas.
+        async function marcarTerminacionesFinalesDesdePeriodos() {
+            if (!window.db) {
+                console.warn('Firestore (window.db) no está disponible para migrar terminaciones finales');
+                return;
+            }
+
+            try {
+                const { getFirestore, collection, getDocs, query, where, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+
+                const colAct = collection(db, 'actividades');
+                const snapAct = await getDocs(colAct);
+
+                const candidatos = snapAct.docs
+                    .map(d => ({ id: d.id, ...(d.data() || {}) }))
+                    .filter(a => {
+                        const tieneFin = (a.terminacionServicio || '').toString().trim() !== '';
+                        const flagFinal = a.terminacionEsFinal === true;
+                        return tieneFin && !flagFinal;
+                    });
+
+                if (!candidatos.length) {
+                    console.log('No se encontraron actividades candidatas a marcar como FINAL.');
+                    return;
+                }
+
+                const colPer = collection(db, 'actividadPeriodos');
+                let actualizados = 0;
+
+                for (const act of candidatos) {
+                    const finServ = (act.terminacionServicio || '').toString().trim();
+                    if (!finServ) continue;
+
+                    const qPer = query(colPer, where('actividadId', '==', act.id));
+                    const snapPer = await getDocs(qPer);
+                    if (snapPer.empty) continue;
+
+                    const tieneFinalCoincidente = snapPer.docs.some(d => {
+                        const p = d.data() || {};
+                        const tipo = (p.tipoPeriodo || '').toString().toUpperCase();
+                        const finPer = (p.finPeriodo || '').toString().trim();
+                        return tipo === 'FINAL' && finPer === finServ;
+                    });
+
+                    if (!tieneFinalCoincidente) continue;
+
+                    await updateDoc(doc(db, 'actividades', act.id), { terminacionEsFinal: true });
+                    actualizados++;
+                }
+
+                console.log(`Marcado de terminaciones definitivas completado. Actividades actualizadas: ${actualizados}`);
+            } catch (e) {
+                console.error('Error al marcar terminaciones finales desde períodos', e);
+            }
+        }
+
+        // Exponer funciones de migración en window para uso puntual desde consola
+        window.migrarActividadesMultiEquipo = migrarActividadesMultiEquipo;
+        window.marcarTerminacionesFinalesDesdePeriodos = marcarTerminacionesFinalesDesdePeriodos;
+        window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
     });
 
     if (btnLogout) {
@@ -271,10 +450,19 @@
     }
     </script>
 
+    <script src="nav.js"></script>
+    <script src="utils.js"></script>
+
     <!-- Lógica de administración de actividades usando Firestore -->
     <script>
     (function() {
         let listaActividad = [];
+        let filtroInicioServicio = '';
+        let filtroEquipo = '';
+        // null = sin orden especial, 'asc' = más antiguo primero, 'desc' = más reciente primero
+        let ordenInicioDir = null;
+        // Orden por equipo / activo: null = sin orden, 'asc' / 'desc'
+        let ordenEquipoDir = null;
 
         function formatearMoneda(valor) {
             const n = Number(valor) || 0;
@@ -434,8 +622,49 @@
             let cuentaPrecios = 0;
             let visibles = 0;
 
-            // Ordenar por cliente y área para agrupar visualmente
-            const listaOrdenada = [...listaBase].sort((a, b) => {
+            // Aplicar filtros por inicio de servicio y por equipo
+            const listaFiltrada = listaBase.filter(reg => {
+                if (filtroInicioServicio) {
+                    const ini = (reg.inicioServicio || '').toString();
+                    if (!ini.startsWith(filtroInicioServicio)) return false;
+                }
+
+                if (filtroEquipo) {
+                    const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
+                        ? reg.equipos
+                        : (reg.equipo ? [reg.equipo] : []);
+                    const matchEquipo = equiposArr.some(eq =>
+                        (eq || '').toString().toLowerCase().includes(filtroEquipo)
+                    );
+                    if (!matchEquipo) return false;
+                }
+
+                return true;
+            });
+
+            // Ordenar para agrupar visualmente, con opción de priorizar inicio de servicio o equipo
+            const listaOrdenada = [...listaFiltrada].sort((a, b) => {
+                const iniA = parseFechaDdMmAa(a.inicioServicio || '');
+                const iniB = parseFechaDdMmAa(b.inicioServicio || '');
+                const ta = iniA ? iniA.getTime() : 0;
+                const tb = iniB ? iniB.getTime() : 0;
+
+                if (ordenInicioDir === 'asc' && ta !== tb) {
+                    return ta - tb;
+                }
+                if (ordenInicioDir === 'desc' && ta !== tb) {
+                    return tb - ta;
+                }
+
+                if (ordenEquipoDir) {
+                    const eqA = (a.equipo || (Array.isArray(a.equipos) && a.equipos.length ? a.equipos[0] : '') || '').toString().toUpperCase();
+                    const eqB = (b.equipo || (Array.isArray(b.equipos) && b.equipos.length ? b.equipos[0] : '') || '').toString().toUpperCase();
+                    if (eqA !== eqB) {
+                        if (ordenEquipoDir === 'asc') return eqA < eqB ? -1 : 1;
+                        return eqA > eqB ? -1 : 1;
+                    }
+                }
+
                 const ca = (a.cliente || '').toString().toUpperCase();
                 const cb = (b.cliente || '').toString().toUpperCase();
                 if (ca < cb) return -1;
@@ -444,11 +673,16 @@
                 const ab = (b.areaCliente || '').toString().toUpperCase();
                 if (aa < ab) return -1;
                 if (aa > ab) return 1;
+                const ua = (a.ubicacion || '').toString().toUpperCase();
+                const ub = (b.ubicacion || '').toString().toUpperCase();
+                if (ua < ub) return -1;
+                if (ua > ub) return 1;
                 return 0;
             });
 
             let clienteActual = '';
             let areaActual = '';
+            let ubicacionActual = '';
 
             listaOrdenada.forEach((reg) => {
                 const id = reg.id;
@@ -459,6 +693,7 @@
                 const inicioTexto = reg.inicioServicio || '';
                 const termTexto = reg.terminacionServicio || '';
                 const os = reg.os || '';
+                const oc = reg.ordenSuministro || '';
                 const factura = reg.factura || '';
                 const precio = Number(reg.precio || 0);
 
@@ -499,14 +734,14 @@
                         cuentaPrecios += 1;
                     }
 
-                    // Insertar encabezados de agrupación por cliente y área cuando cambien
+                    // Insertar encabezados de agrupación por cliente, área y ubicación cuando cambien
                     if (cliente && cliente !== clienteActual) {
                         clienteActual = cliente;
                         areaActual = '';
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.innerHTML = `
-                            <td colspan="13" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db;">
-                                Cliente: ${clienteActual}
+                            <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em;">
+                                CLIENTE: ${clienteActual}
                             </td>
                         `;
                         tbody.appendChild(trGrupoCliente);
@@ -514,9 +749,10 @@
 
                     if (area && area !== areaActual) {
                         areaActual = area;
+                        ubicacionActual = '';
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.innerHTML = `
-                            <td colspan="13" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="13" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">
                                 <input type="checkbox" class="adm-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -524,21 +760,34 @@
                         tbody.appendChild(trGrupoArea);
                     }
 
+                    if (ubicacion && ubicacion !== ubicacionActual) {
+                        ubicacionActual = ubicacion;
+                        const trGrupoUbic = document.createElement('tr');
+                        trGrupoUbic.innerHTML = `
+                            <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" class="adm-select-ubic" data-cliente="${cliente}" data-area="${areaActual}" data-ubicacion="${ubicacionActual}" title="Seleccionar ubicación completa">
+                                <span>Ubicación: ${ubicacionActual}</span>
+                            </td>
+                        `;
+                        tbody.appendChild(trGrupoUbic);
+                    }
+
                     const tr = document.createElement('tr');
 
                     tr.innerHTML = `
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
-                            <input type="checkbox" class="adm-select-fila" data-id="${id}" data-cliente="${cliente}" data-area="${area}">
+                            <input type="checkbox" class="adm-select-fila" data-id="${id}" data-cliente="${cliente}" data-area="${area}" data-ubicacion="${ubicacion}">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${cliente}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${area}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${ubicacion}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                            ${inicioTexto}
+                            <input type="text" class="adm-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px;">
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                             <input type="text" class="adm-input-term" data-id="${id}" value="${termInput}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px;">
+                            ${termTexto ? `<span style=\"margin-left:0.35rem; font-size:0.7rem; font-weight:600; color:${reg.terminacionEsFinal ? '#b91c1c' : '#0369a1'};\">${reg.terminacionEsFinal ? 'FINAL' : 'PARCIAL'}</span>` : ''}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">
                             ${dias || ''}
@@ -551,16 +800,24 @@
                             ${ingresoEquipo ? formatearMoneda(ingresoEquipo) : ''}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${oc}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                            <button type="button" class="adm-btn-tabulador" data-id="${id}" data-cliente="${cliente}" data-area="${area}" data-equipo="${equipoNombre}" data-precioequipo="${precioPorEquipo}" data-os="${os}" data-inicio="${inicioTexto}" data-terminacion="${termTexto}" style="font-size:0.75rem; margin-right:0.25rem;">
-                                Tabulador
-                            </button>
                             <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
                                 Eliminar
                             </button>
                         </td>
                     `;
+
+                    // Guardar datos necesarios para el tabulador en el <tr>, para abrirlo al hacer clic en la fila
+                    tr.setAttribute('data-id', id);
+                    tr.setAttribute('data-cliente', cliente);
+                    tr.setAttribute('data-area', area);
+                    tr.setAttribute('data-equipo', equipoNombre);
+                    tr.setAttribute('data-precioequipo', String(precioPorEquipo));
+                    tr.setAttribute('data-os', os);
+                    tr.setAttribute('data-inicio', inicioTexto);
+                    tr.setAttribute('data-terminacion', termTexto);
 
                     tbody.appendChild(tr);
                 });
@@ -571,7 +828,44 @@
             spanRentas.textContent = formatearMoneda(totalRentas);
             spanTicket.textContent = cuentaPrecios ? formatearMoneda(sumaPrecios / cuentaPrecios) : '$0';
 
-            // Autoformato dd/mm/aa y guardado automático en los inputs de terminación
+            // Autoformato dd/mm/aa y guardado automático en los inputs de inicio y terminación
+
+            // INICIO DEL SERVICIO
+            tbody.querySelectorAll('.adm-input-inicio').forEach(input => {
+                input.addEventListener('input', () => {
+                    const formateada = formatearFechaDdMmAaInput(input.value);
+                    input.value = formateada;
+                });
+
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+
+                    const valor = (input.value || '').trim();
+
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+
+                    if (!valor) {
+                        // No permitimos dejar inicio en blanco; restaurar valor previo
+                        input.value = regLocal.inicioServicio || '';
+                        return;
+                    }
+
+                    const d = parseFechaDdMmAa(valor);
+                    if (!d) {
+                        alert('Formato de fecha de inicio inválido. Usa dd/mm/aa');
+                        input.value = regLocal.inicioServicio || '';
+                        return;
+                    }
+
+                    regLocal.inicioServicio = valor;
+                    await actualizarActividadEnFirestore(id, { inicioServicio: valor });
+                    renderTabla();
+                });
+            });
+
+            // TERMINACIÓN DEL SERVICIO
             tbody.querySelectorAll('.adm-input-term').forEach(input => {
                 input.addEventListener('input', () => {
                     const formateada = formatearFechaDdMmAaInput(input.value);
@@ -590,7 +884,8 @@
                     if (!valor) {
                         // Quitar terminación
                         delete regLocal.terminacionServicio;
-                        await actualizarActividadEnFirestore(id, { terminacionServicio: '' });
+                        delete regLocal.terminacionEsFinal;
+                        await actualizarActividadEnFirestore(id, { terminacionServicio: '', terminacionEsFinal: false });
                         renderTabla();
                         return;
                     }
@@ -604,7 +899,9 @@
                     }
 
                     regLocal.terminacionServicio = valor;
-                    await actualizarActividadEnFirestore(id, { terminacionServicio: valor });
+                    // Editar desde esta vista se considera, por defecto, un fin PARCIAL (no definitivo)
+                    regLocal.terminacionEsFinal = false;
+                    await actualizarActividadEnFirestore(id, { terminacionServicio: valor, terminacionEsFinal: false });
                     renderTabla();
                 });
             });
@@ -684,6 +981,45 @@
                     // Actualizar estado del checkbox maestro
                     const todasFilas = tbody.querySelectorAll('.adm-select-fila');
                     const todasMarcadas = todasFilas.length > 0 && Array.from(todasFilas).every(chk => chk.checked);
+                    if (chkTodos) {
+                        chkTodos.checked = todasMarcadas;
+                    }
+                });
+            });
+
+            // Lógica de selección por ubicación
+            tbody.querySelectorAll('.adm-select-ubic').forEach(chkUbic => {
+                chkUbic.addEventListener('change', () => {
+                    const ubic = chkUbic.getAttribute('data-ubicacion') || '';
+                    const area = chkUbic.getAttribute('data-area') || '';
+                    const cliente = chkUbic.getAttribute('data-cliente') || '';
+
+                    // Marcar / desmarcar todas las filas de esa ubicación dentro del cliente/área
+                    const filasUbic = tbody.querySelectorAll(
+                        `.adm-select-fila[data-cliente="${cliente}"][data-area="${area}"][data-ubicacion="${ubic}"]`
+                    );
+                    filasUbic.forEach(chkFila => {
+                        chkFila.checked = chkUbic.checked;
+                    });
+
+                    // Sincronizar checkbox de área: marcada si todas las filas del área están marcadas
+                    const filasArea = tbody.querySelectorAll(
+                        `.adm-select-fila[data-cliente="${cliente}"][data-area="${area}"]`
+                    );
+                    const todasAreaMarcadas =
+                        filasArea.length > 0 && Array.from(filasArea).every(chk => chk.checked);
+
+                    const chkArea = tbody.querySelector(
+                        `.adm-select-area[data-cliente="${cliente}"][data-area="${area}"]`
+                    );
+                    if (chkArea) {
+                        chkArea.checked = todasAreaMarcadas;
+                    }
+
+                    // Actualizar estado del checkbox maestro
+                    const todasFilas = tbody.querySelectorAll('.adm-select-fila');
+                    const todasMarcadas =
+                        todasFilas.length > 0 && Array.from(todasFilas).every(chk => chk.checked);
                     if (chkTodos) {
                         chkTodos.checked = todasMarcadas;
                     }
@@ -773,6 +1109,67 @@
                         await actualizarActividadEnFirestore(id, { precio: valor });
                     }
 
+                    renderTabla();
+                });
+            }
+
+            const inputFiltroInicio = document.getElementById('adm-filtro-inicio');
+            if (inputFiltroInicio) {
+                inputFiltroInicio.addEventListener('input', () => {
+                    const soloDigitos = (inputFiltroInicio.value || '').replace(/\D/g, '').slice(0, 6);
+                    let formateado = soloDigitos;
+                    if (soloDigitos.length >= 3 && soloDigitos.length <= 4) {
+                        formateado = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2);
+                    } else if (soloDigitos.length >= 5) {
+                        formateado =
+                            soloDigitos.slice(0, 2) +
+                            '/' +
+                            soloDigitos.slice(2, 4) +
+                            '/' +
+                            soloDigitos.slice(4);
+                    }
+                    inputFiltroInicio.value = formateado;
+                    filtroInicioServicio = formateado.trim();
+                    renderTabla();
+                });
+            }
+
+            const inputFiltroEquipo = document.getElementById('adm-filtro-equipo');
+            if (inputFiltroEquipo) {
+                inputFiltroEquipo.addEventListener('input', () => {
+                    filtroEquipo = (inputFiltroEquipo.value || '').toLowerCase().trim();
+                    renderTabla();
+                });
+            }
+
+            const thInicio = document.getElementById('adm-th-inicio');
+            if (thInicio) {
+                thInicio.addEventListener('click', () => {
+                    // Al ordenar por inicio, limpiar orden por equipo
+                    ordenEquipoDir = null;
+                    if (ordenInicioDir === 'asc') {
+                        ordenInicioDir = 'desc';
+                    } else if (ordenInicioDir === 'desc') {
+                        ordenInicioDir = null; // sin orden especial, volver a agrupación base
+                    } else {
+                        ordenInicioDir = 'asc';
+                    }
+                    renderTabla();
+                });
+            }
+
+            const thEquipo = document.getElementById('adm-th-equipo');
+            if (thEquipo) {
+                thEquipo.addEventListener('click', () => {
+                    // Al ordenar por equipo, limpiar orden por inicio
+                    ordenInicioDir = null;
+                    if (ordenEquipoDir === 'asc') {
+                        ordenEquipoDir = 'desc';
+                    } else if (ordenEquipoDir === 'desc') {
+                        ordenEquipoDir = null;
+                    } else {
+                        ordenEquipoDir = 'asc';
+                    }
                     renderTabla();
                 });
             }

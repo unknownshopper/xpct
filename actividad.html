@@ -18,7 +18,7 @@
             <ul>
                 <li><a href="index.html">Inicio</a></li>
                 <li class="nav-item-has-dropdown">
-                    <a href="actividad.html" class="active">Actividad</a>
+                    <a href="#" class="active">Actividad</a>
                     <ul class="nav-dropdown">
                         <li><a href="actividad.html">Registrar actividad</a></li>
                         <li><a href="actividadlist.html">Listado de actividades</a></li>
@@ -27,7 +27,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="pruebas.html">Pruebas</a>
+                    <a href="#">Pruebas</a>
                     <ul class="nav-dropdown">
                         <li><a href="pruebas.html">Registrar prueba</a></li>
                         <li><a href="pruebaslist.html">Listado de pruebas</a></li>
@@ -35,7 +35,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="inspeccion.html">Inspecciones</a>
+                    <a href="#">Inspecciones</a>
                     <ul class="nav-dropdown">
                         <li><a href="inspeccion.html">Nueva inspección</a></li>
                         <li><a href="inspectlist.html">Listado de inspecciones</a></li>
@@ -126,8 +126,8 @@
                     </div>
 
                     <div class="campo">
-                        <label for="act-orden-suministro">Orden de suministro</label>
-                        <input type="text" id="act-orden-suministro" placeholder="Orden de suministro">
+                        <label for="act-orden-suministro">Orden de compra (OC)</label>
+                        <input type="text" id="act-orden-suministro" placeholder="Orden de compra (OC)">
                     </div>
 
                     <div class="campo">
@@ -150,12 +150,12 @@
                 <div class="actividad-form-grid">
                     <div class="campo">
                         <label for="act-fecha-embarque">Fecha Embarque</label>
-                        <input type="text" id="act-fecha-embarque" placeholder="dd/mm/aa">
+                        <input type="text" id="act-fecha-embarque" placeholder="__/__/__">
                     </div>
 
                     <div class="campo">
                         <label for="act-inicio-servicio">Inicio del servicio</label>
-                        <input type="text" id="act-inicio-servicio" placeholder="dd/mm/aa">
+                        <input type="text" id="act-inicio-servicio" placeholder="__/__/__">
                     </div>
 
                     <div class="campo">
@@ -277,6 +277,8 @@
     }
     </script>
 
+    <script src="nav.js"></script>
+    <script src="utils.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

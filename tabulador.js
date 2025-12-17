@@ -16,7 +16,6 @@
     const inputFactura = document.getElementById('adm-per-factura');
     const inputObs = document.getElementById('adm-per-obs');
     const btnGuardar = document.getElementById('adm-per-guardar');
-    const btnGenerar = document.getElementById('adm-per-generar');
     const btnCerrar = document.getElementById('adm-tabulador-cerrar');
     const btnImprimir = document.getElementById('adm-tabulador-imprimir');
 
@@ -84,9 +83,7 @@
       });
     }
 
-    if (btnGenerar) {
-      btnGenerar.addEventListener('click', generarPeriodosAutomaticos);
-    }
+    // Se desactiva la generación automática de períodos; todos deben capturarse manualmente.
 
     async function cargarPeriodosActividad(actividadId) {
       try {
@@ -99,11 +96,19 @@
         const snap = await getDocs(q);
         const res = [];
         snap.forEach((d) => res.push({ id: d.id, ...d.data() }));
-        // Ordenar en memoria por inicioPeriodoOrdenable si existe
+        // Ordenar en memoria siempre de más antiguo a más reciente:
+        // 1) inicioPeriodoOrdenable
+        // 2) si empatan, por fecha de finPeriodo
         res.sort((a, b) => {
           const ai = a.inicioPeriodoOrdenable || 0;
           const bi = b.inicioPeriodoOrdenable || 0;
-          return ai - bi;
+          if (ai !== bi) return ai - bi;
+
+          const fa = a.finPeriodo ? parseFechaDdMmAa(a.finPeriodo) : null;
+          const fb = b.finPeriodo ? parseFechaDdMmAa(b.finPeriodo) : null;
+          const ta = fa ? fa.getTime() : 0;
+          const tb = fb ? fb.getTime() : 0;
+          return ta - tb;
         });
         return res;
       } catch (e) {
@@ -152,9 +157,9 @@
         });
       });
 
-      // Fila informativa de continuidad: inicio = día siguiente al último fin
+      // Fila informativa de continuidad: solo si el último período es PARCIAL
       const ultimo = periodos[periodos.length - 1];
-      if (ultimo && ultimo.finPeriodo) {
+      if (ultimo && ultimo.finPeriodo && ultimo.tipoPeriodo !== 'FINAL') {
         const dFin = parseFechaDdMmAa(ultimo.finPeriodo);
         if (dFin) {
           dFin.setDate(dFin.getDate() + 1);
@@ -177,6 +182,61 @@
       }
     }
 
+    async function inicializarPeriodosSiNecesario(datos) {
+      const periodosExistentes = await cargarPeriodosActividad(datos.id);
+      if (periodosExistentes && periodosExistentes.length) {
+        renderTablaPeriodos(periodosExistentes);
+        return;
+      }
+
+      const inicio = datos.inicioServicio || '';
+      const fin = datos.terminacionServicio || '';
+      if (!inicio || !fin) {
+        renderTablaPeriodos([]);
+        return;
+      }
+
+      const dIni = parseFechaDdMmAa(inicio);
+      const dFin = parseFechaDdMmAa(fin);
+      if (!dIni || !dFin || dFin < dIni) {
+        renderTablaPeriodos([]);
+        return;
+      }
+
+      const diffMs = dFin.getTime() - dIni.getTime();
+      const dias = diffMs >= 0 ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1 : 0;
+      const tarifa = Number(datos.precioDiario || 0);
+      const importe = dias && tarifa ? dias * tarifa : 0;
+
+      try {
+        const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+          'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+        );
+        const db = getFirestore();
+        const col = collection(db, 'actividadPeriodos');
+        const inicioOrdenable = dIni.getTime();
+        await addDoc(col, {
+          actividadId: datos.id,
+          inicioPeriodo: inicio,
+          finPeriodo: fin,
+          inicioPeriodoOrdenable: inicioOrdenable,
+          diasFacturados: dias,
+          tarifaDiaria: tarifa,
+          importe,
+          tipoPeriodo: 'PARCIAL',
+          factura: '',
+          observaciones: '',
+          creadoEn: serverTimestamp(),
+        });
+
+        const periodos = await cargarPeriodosActividad(datos.id);
+        renderTablaPeriodos(periodos);
+      } catch (e) {
+        console.error('Error al crear período inicial desde servicio', e);
+        renderTablaPeriodos([]);
+      }
+    }
+
     function abrirModal(datos) {
       actividadActual = datos;
       const lineaCliente = `${datos.cliente || ''} / ${datos.area || ''} / ${datos.equipo || ''}`;
@@ -196,9 +256,7 @@
 
       modal.style.display = 'flex';
 
-      cargarPeriodosActividad(datos.id).then((periodos) => {
-        renderTablaPeriodos(periodos);
-      });
+      inicializarPeriodosSiNecesario(datos);
     }
 
     function formatearFechaDdMmAa(date) {
@@ -208,131 +266,33 @@
       return `${d}/${m}/${a}`;
     }
 
-    async function generarPeriodosAutomaticos() {
-      if (!actividadActual) return;
-      const inicioTexto = actividadActual.inicioServicio;
-      if (!inicioTexto) {
-        alert('La actividad no tiene Inicio del servicio definido.');
-        return;
-      }
 
-      const dInicioServicio = parseFechaDdMmAa(inicioTexto);
-      if (!dInicioServicio) {
-        alert('Inicio del servicio con formato inválido.');
-        return;
-      }
-
-      const finTexto = actividadActual.terminacionServicio;
-      const hoy = new Date();
-      let dFinServicio = finTexto ? parseFechaDdMmAa(finTexto) : hoy;
-      if (!dFinServicio) dFinServicio = hoy;
-
-      if (dFinServicio < dInicioServicio) {
-        alert('La terminación del servicio es anterior al inicio.');
-        return;
-      }
-
-      if (!confirm('Se generarán períodos automáticos desde el inicio hasta la terminación del servicio, eliminando los períodos existentes de esta actividad. ¿Continuar?')) {
-        return;
-      }
-
-      try {
-        const { getFirestore, collection, query, where, getDocs, doc, deleteDoc, addDoc, serverTimestamp } = await import(
-          'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-        );
-        const db = getFirestore();
-        const col = collection(db, 'actividadPeriodos');
-
-        // 1) Eliminar períodos existentes
-        const q = query(col, where('actividadId', '==', actividadActual.id));
-        const snap = await getDocs(q);
-        for (const d of snap.docs) {
-          await deleteDoc(doc(db, 'actividadPeriodos', d.id));
-        }
-
-        // 2) Generar nuevos períodos 26–25
-        let inicioPeriodoDate = new Date(dInicioServicio.getTime());
-
-        while (inicioPeriodoDate <= dFinServicio) {
-          // Calcular fin teórico del período: día 25
-          let year = inicioPeriodoDate.getFullYear();
-          let month = inicioPeriodoDate.getMonth(); // 0-11
-          let day = inicioPeriodoDate.getDate();
-
-          let finTeorico;
-          if (day <= 25) {
-            // Cierra el 25 del mismo mes
-            finTeorico = new Date(year, month, 25);
-          } else {
-            // Cierra el 25 del siguiente mes
-            if (month === 11) {
-              year += 1;
-              month = 0;
-            } else {
-              month += 1;
-            }
-            finTeorico = new Date(year, month, 25);
-          }
-
-          let finPeriodoDate = finTeorico;
-          let tipoPeriodo = 'PARCIAL';
-          if (finPeriodoDate > dFinServicio) {
-            finPeriodoDate = new Date(dFinServicio.getTime());
-            tipoPeriodo = 'FINAL';
-          }
-
-          const inicioStr = formatearFechaDdMmAa(inicioPeriodoDate);
-          const finStr = formatearFechaDdMmAa(finPeriodoDate);
-
-          // Calcular días inclusivos
-          const diffMs = finPeriodoDate.getTime() - inicioPeriodoDate.getTime();
-          const dias = diffMs >= 0 ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1 : 0;
-
-          await addDoc(col, {
-            actividadId: actividadActual.id,
-            inicioPeriodo: inicioStr,
-            finPeriodo: finStr,
-            inicioPeriodoOrdenable: inicioPeriodoDate.getTime(),
-            diasFacturados: dias,
-            tarifaDiaria: Number(actividadActual.precioDiario || 0),
-            importe: dias * Number(actividadActual.precioDiario || 0),
-            tipoPeriodo,
-            factura: '',
-            observaciones: '',
-            creadoEn: serverTimestamp(),
-          });
-
-          if (finPeriodoDate >= dFinServicio) {
-            break; // último período
-          }
-
-          // Siguiente período inicia al día siguiente del fin actual
-          inicioPeriodoDate = new Date(finPeriodoDate.getTime());
-          inicioPeriodoDate.setDate(inicioPeriodoDate.getDate() + 1);
-        }
-
-        const periodos = await cargarPeriodosActividad(actividadActual.id);
-        renderTablaPeriodos(periodos);
-      } catch (e) {
-        console.error('Error al generar períodos automáticos', e);
-        alert('No se pudieron generar los períodos automáticos. Revisa la consola.');
-      }
-    }
-
-    // Botones Tabulador en la tabla de actividades (delegación de eventos)
+    // Abrir Tabulador al hacer clic en la fila de actividad (excepto en checkboxes, inputs y botón Eliminar)
     tbodyActividad.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('.adm-btn-tabulador');
-      if (!btn || !tbodyActividad.contains(btn)) return;
+      const target = ev.target;
 
-      const id = btn.getAttribute('data-id');
+      // Ignorar clics en checkboxes, inputs y botón Eliminar (dejar que su propia lógica actúe)
+      if (
+        target.closest('.adm-btn-eliminar') ||
+        target.closest('input') ||
+        target.tagName === 'BUTTON'
+      ) {
+        return;
+      }
+
+      const tr = target.closest('tr');
+      if (!tr || !tbodyActividad.contains(tr)) return;
+
+      const id = tr.getAttribute('data-id');
       if (!id) return;
-      const cliente = btn.getAttribute('data-cliente') || '';
-      const area = btn.getAttribute('data-area') || '';
-      const equipo = btn.getAttribute('data-equipo') || '';
-      const precioDiario = Number(btn.getAttribute('data-precioequipo') || 0);
-      const os = btn.getAttribute('data-os') || '';
-      const inicioServicio = btn.getAttribute('data-inicio') || '';
-      const terminacionServicio = btn.getAttribute('data-terminacion') || '';
+
+      const cliente = tr.getAttribute('data-cliente') || '';
+      const area = tr.getAttribute('data-area') || '';
+      const equipo = tr.getAttribute('data-equipo') || '';
+      const precioDiario = Number(tr.getAttribute('data-precioequipo') || 0);
+      const os = tr.getAttribute('data-os') || '';
+      const inicioServicio = tr.getAttribute('data-inicio') || '';
+      const terminacionServicio = tr.getAttribute('data-terminacion') || '';
 
       abrirModal({ id, cliente, area, equipo, precioDiario, os, inicioServicio, terminacionServicio });
     });
@@ -361,7 +321,7 @@
         }
 
         try {
-          const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+          const { getFirestore, collection, addDoc, serverTimestamp, doc, updateDoc } = await import(
             'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
           );
           const db = getFirestore();
@@ -381,12 +341,23 @@
             creadoEn: serverTimestamp(),
           });
 
+          // Si este período es FINAL, actualizar la actividad con la terminación de servicio definitiva
+          if (tipo === 'FINAL' && actividadActual && actividadActual.id) {
+            try {
+              const refAct = doc(db, 'actividades', actividadActual.id);
+              await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: true });
+              actividadActual.terminacionServicio = fin;
+              actividadActual.terminacionEsFinal = true;
+            } catch (e) {
+              console.error('No se pudo actualizar terminacionServicio de la actividad', e);
+            }
+          }
+
           const periodos = await cargarPeriodosActividad(actividadActual.id);
           renderTablaPeriodos(periodos);
 
-          // Preparar el siguiente período manual encadenado:
-          // nuevo inicio = día siguiente al fin recién guardado
-          if (inputInicio && inputFin) {
+          // Preparar el siguiente período solo si este fue PARCIAL
+          if (tipo === 'PARCIAL' && inputInicio && inputFin) {
             const dFinNext = parseFechaDdMmAa(fin);
             if (dFinNext) {
               dFinNext.setDate(dFinNext.getDate() + 1);

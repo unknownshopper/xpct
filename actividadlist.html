@@ -20,7 +20,7 @@
                 <li><a href="index.html">Inicio</a></li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="actividad.html" class="active">Actividad</a>
+                    <a href="#" class="active">Actividad</a>
                     <ul class="nav-dropdown">
                         <li><a href="actividad.html">Registrar actividad</a></li>
                         <li><a href="actividadlist.html">Listado de actividades</a></li>
@@ -29,7 +29,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="pruebas.html">Pruebas</a>
+                    <a href="#">Pruebas</a>
                     <ul class="nav-dropdown">
                         <li><a href="pruebas.html">Registrar prueba</a></li>
                         <li><a href="pruebaslist.html">Listado de pruebas</a></li>
@@ -37,7 +37,7 @@
                 </li>
 
                 <li class="nav-item-has-dropdown">
-                    <a href="inspeccion.html">Inspecciones</a>
+                    <a href="#">Inspecciones</a>
                     <ul class="nav-dropdown">
                         <li><a href="inspeccion.html">Nueva inspección</a></li>
                         <li><a href="inspectlist.html">Listado de inspecciones</a></li>
@@ -70,15 +70,19 @@
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
                     <thead>
                         <tr style="background:#f3f4f6;">
-                            <th style="text-align:left; padding:0.4rem;">Cliente</th>
-                            <th style="text-align:left; padding:0.4rem;">Área</th>
+                            <th style="text-align:center; padding:0.4rem; width:32px;">
+                                <input type="checkbox" id="actlist-select-todos" title="Seleccionar / deseleccionar todos">
+                            </th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Ubicación</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
                             <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Terminación del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
-                            <th style="text-align:left; padding:0.4rem;">Orden de servicio</th>
+                            <th style="text-align:left; padding:0.4rem;">OS</th>
+                            <th style="text-align:left; padding:0.4rem;">OC</th>
                             <th style="text-align:left; padding:0.4rem;">Factura</th>
-                            <th style="text-align:left; padding:0.4rem;">Precio</th>
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
                         </tr>
                     </thead>
@@ -156,6 +160,8 @@
     }
     </script>
 
+    <script src="nav.js"></script>
+    <script src="utils.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

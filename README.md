@@ -10,7 +10,7 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
 
 - **Inventario (`invre.html`)**:
   - Carga `docs/invre.csv` y muestra todos los equipos.
-  - Columna `EDO` editable (ON / OFF / WIP); los cambios se guardan en `localStorage` como overrides y se usan en otras vistas.
+  - Columna `EDO` editable (ON / OFF / WIP); los cambios se guardan en Firestore (`inventarioEstados`) por equipo y se cachean en `localStorage` como overrides para usarse en otras vistas.
 
 - **Inspecciones (`inspeccion.html`, `inspectlist.html`)**:
   - Selección de equipos solo si el estado efectivo está en `ON`.
@@ -48,7 +48,7 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Asegurar que la selección múltiple (pegar varios equipos) respete la lógica anterior y sea consistente entre equipos nuevos vs. ocupados.
 
 - **Consistencia de estados**
-  - Revisar que todas las vistas que usan inventario (`inspeccion`, `pruebas`, `actividad`) lean de forma consistente el override de `EDO` almacenado en `localStorage`.
+  - Revisar que todas las vistas que usan inventario (`inspeccion`, `pruebas`, `actividad`) lean de forma consistente el override de `EDO` persistido en Firestore (`inventarioEstados`) y cacheado en `localStorage`.
   - Documentar mejor la diferencia entre estado de inventario (ON/OFF/WIP) y estado operativo (actividad abierta/cerrada).
 
 - **UI/UX**
