@@ -1235,6 +1235,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const infoPorEquipoAct = {}; // { serial, estado, propiedad, descripcion }
     let equiposSeleccionados = [];
 
+    // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage, igual que en invre.html
+    const claveEstadoOverrideAct = 'pct_invre_estado_override';
+    let mapaEstadoOverrideAct = {};
+    try {
+        const crudoAct = localStorage.getItem(claveEstadoOverrideAct) || '{}';
+        const parsedAct = JSON.parse(crudoAct);
+        if (parsedAct && typeof parsedAct === 'object') mapaEstadoOverrideAct = parsedAct;
+    } catch {
+        mapaEstadoOverrideAct = {};
+    }
+
     // Cargar inventario (invre.csv) para datalist y datos automáticos
     fetch('docs/invre.csv')
         .then(r => {
@@ -1261,10 +1272,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 vistos.add(eq);
 
                 const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
-                const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
+                let edoBase = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
+                edoBase = edoBase.toString().trim().toUpperCase();
+                if (!edoBase) edoBase = 'ON';
 
-                // Solo equipos que no estén OFF se ofrecen en el datalist
-                if (edo.trim().toUpperCase() !== 'OFF') {
+                const override = mapaEstadoOverrideAct[eq];
+                const edoEfectivo = override ? String(override).trim().toUpperCase() : edoBase;
+
+                // Solo equipos que efectivamente no estén OFF se ofrecen en el datalist
+                if (edoEfectivo !== 'OFF') {
                     const opt = document.createElement('option');
                     opt.value = eq;
                     opt.label = desc ? `${eq} - ${desc}` : eq;
@@ -1275,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
                 infoPorEquipoAct[eq] = {
                     serial,
-                    estado: edo,
+                    estado: edoEfectivo,
                     propiedad: prop,
                     descripcion: desc
                 };
@@ -1285,6 +1301,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Actividad ahora se almacena en Firestore (colección "actividades") en lugar de localStorage
     let listaActividad = [];
+
+    // Un equipo está "en servicio" si tiene al menos una actividad sin fecha de terminación
+    function equipoTieneActividadAbierta(eq) {
+        const codigo = (eq || '').toString().trim();
+        if (!codigo) return false;
+        return listaActividad.some(reg => {
+            const equipoReg = (reg.equipo || '').toString().trim();
+            if (equipoReg !== codigo) return false;
+            const term = (reg.terminacionServicio || '').toString().trim();
+            return !term; // sin fecha de terminación => sigue en servicio
+        });
+    }
 
     async function cargarActividadDesdeFirestore() {
         if (!window.db) {
@@ -1399,341 +1427,144 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function procesarTextoEquipos(texto) {
-        const valorRaw = texto || '';
-        const partes = valorRaw
-            // Dividir principalmente por saltos de línea, comas y punto y coma.
-            .split(/[\r\n,;]+/)
-            .map(v => v.trim())
-            .filter(v => v.length > 0);
+function renderEquiposSeleccionados() {
+    if (!contEquiposSel) return;
+    contEquiposSel.innerHTML = '';
 
-        if (!partes.length) return false;
+    const clienteActual = (document.getElementById('act-cliente') || {}).value || '';
 
-        let agregado = false;
-        partes.forEach(fragmento => {
-            if (!fragmento) return;
+    equiposSeleccionados.forEach(eq => {
+        const info = infoPorEquipoAct[eq] || {};
 
-            // Tomar solo la primera "palabra" (antes de cualquier espacio/tab),
-            // asumiendo que el código de equipo no tiene espacios.
-            const eq = fragmento.split(/\s+/)[0];
-            if (!eq) return;
-            if (equiposSeleccionados.includes(eq)) return;
-            equiposSeleccionados.push(eq);
-            agregado = true;
-        });
+        const row = document.createElement('div');
+        row.className = 'actividad-equipos-row';
 
-        if (agregado) {
+        const colEquipo = document.createElement('span');
+        colEquipo.textContent = eq;
+
+        const colCliente = document.createElement('span');
+        colCliente.textContent = clienteActual || '';
+
+        const colSerial = document.createElement('span');
+        colSerial.textContent = info.serial || '';
+
+        const colEstado = document.createElement('span');
+        colEstado.textContent = info.estado || '';
+
+        const colProp = document.createElement('span');
+        colProp.textContent = info.propiedad || '';
+
+        const colDesc = document.createElement('span');
+        colDesc.textContent = info.descripcion || '';
+
+        const colAccion = document.createElement('span');
+        const btnX = document.createElement('button');
+        btnX.type = 'button';
+        btnX.className = 'actividad-equipos-row-remove';
+        btnX.textContent = 'Quitar';
+        btnX.addEventListener('click', () => {
+            equiposSeleccionados = equiposSeleccionados.filter(e => e !== eq);
             renderEquiposSeleccionados();
-        }
+        });
+        colAccion.appendChild(btnX);
 
-        return agregado;
-    }
+        row.appendChild(colEquipo);
+        row.appendChild(colCliente);
+        row.appendChild(colSerial);
+        row.appendChild(colEstado);
+        row.appendChild(colProp);
+        row.appendChild(colDesc);
+        row.appendChild(colAccion);
 
-    function agregarEquipoDesdeInput() {
-        const valorRaw = inputEquipo.value || '';
-        const huboCambios = procesarTextoEquipos(valorRaw);
-        if (huboCambios) {
-            inputEquipo.value = '';
-        }
-    }
+        contEquiposSel.appendChild(row);
+    });
+}
 
-    function autocompletarDatosAutoActividad() {
-        const valor = inputEquipo.value.trim();
-        if (!valor) {
-            if (inputSerialAuto) inputSerialAuto.value = '';
-            if (inputEstadoAuto) inputEstadoAuto.value = '';
-            if (inputPropAuto) inputPropAuto.value = '';
-            if (inputDescAuto) inputDescAuto.value = '';
+function procesarTextoEquipos(texto) {
+    const valorRaw = texto || '';
+    const partes = valorRaw
+        // Dividir principalmente por saltos de línea, comas y punto y coma.
+        .split(/[\r\n,;]+/)
+        .map(v => v.trim())
+        .filter(v => v.length > 0);
+
+    if (!partes.length) return false;
+
+    let agregado = false;
+    partes.forEach(fragmento => {
+        if (!fragmento) return;
+
+        // Tomar solo la primera "palabra" (antes de cualquier espacio/tab),
+        // asumiendo que el código de equipo no tiene espacios.
+        const eq = fragmento.split(/\s+/)[0];
+        if (!eq) return;
+
+        // No permitir agregar equipos que ya tienen actividad abierta
+        if (equipoTieneActividadAbierta(eq)) {
+            alert(`El equipo ${eq} ya tiene una actividad en servicio (sin fecha de terminación). Termina esa actividad antes de crear una nueva.`);
             return;
         }
 
-        const info = infoPorEquipoAct[valor] || {};
-        if (inputSerialAuto) inputSerialAuto.value = info.serial || '';
-        if (inputEstadoAuto) inputEstadoAuto.value = info.estado || '';
-        if (inputPropAuto) inputPropAuto.value = info.propiedad || '';
-        if (inputDescAuto) inputDescAuto.value = info.descripcion || '';
-
-        // Último número de reporte usado en pruebas para este equipo (si existe)
-        try {
-            const listaPruebas = JSON.parse(localStorage.getItem('pct_pruebas') || '[]');
-            if (Array.isArray(listaPruebas)) {
-                const filtradas = listaPruebas.filter(r => r.equipo === valor && r.noReporte);
-                if (filtradas.length && inputNoRepAuto) {
-                    const ultima = filtradas[filtradas.length - 1];
-                    inputNoRepAuto.value = ultima.noReporte || '';
-                }
-            }
-        } catch (e) {
-            // ignorar errores de parseo
-        }
-    }
-
-    inputEquipo.addEventListener('change', () => {
-        // Cuando cambia manualmente el texto, intentamos agregarlo al lote
-        agregarEquipoDesdeInput();
-        autocompletarDatosAutoActividad();
-    });
-    inputEquipo.addEventListener('blur', () => {
-        // Al salir del campo, también intentamos agregar lo que haya quedado escrito
-        agregarEquipoDesdeInput();
-    });
-    inputEquipo.addEventListener('paste', (ev) => {
-        // Permitir pegar columnas desde Excel: usamos directamente el texto del portapapeles
-        const texto = ev.clipboardData ? ev.clipboardData.getData('text') : '';
-        if (!texto) return; // dejar comportamiento normal
-
-        ev.preventDefault();
-        const huboCambios = procesarTextoEquipos(texto);
-        if (huboCambios) {
-            inputEquipo.value = '';
-        }
-    });
-    inputEquipo.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
-            ev.preventDefault();
-            autocompletarDatosAutoActividad();
-            agregarEquipoDesdeInput();
-        }
+        if (equiposSeleccionados.includes(eq)) return;
+        equiposSeleccionados.push(eq);
+        agregado = true;
     });
 
-    inputEquipo.addEventListener('blur', () => {
-        // Al salir con Tab/Click: autocompletar y agregar si hay valor
-        autocompletarDatosAutoActividad();
-        agregarEquipoDesdeInput();
-    });
-
-    function formatearFechaCorta(valor) {
-        const soloDigitos = valor.replace(/\D/g, '').slice(0, 6);
-        let res = soloDigitos;
-        if (soloDigitos.length >= 3 && soloDigitos.length <= 4) {
-            res = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2);
-        } else if (soloDigitos.length >= 5) {
-            res =
-                soloDigitos.slice(0, 2) +
-                '/' +
-                soloDigitos.slice(2, 4) +
-                '/' +
-                soloDigitos.slice(4);
-        }
-        return res;
-    }
-
-    function fechaCortaAISO(valor) {
-        const v = (valor || '').trim();
-        if (v.length !== 8) return '';
-        const partes = v.split('/');
-        if (partes.length !== 3) return '';
-        const [ddStr, mmStr, aaStr] = partes;
-        const dd = parseInt(ddStr, 10);
-        const mm = parseInt(mmStr, 10);
-        const aa = parseInt(aaStr, 10);
-        if (!dd || !mm || isNaN(aa)) return '';
-        const year = 2000 + aa;
-        const fecha = new Date(year, mm - 1, dd);
-        if (isNaN(fecha.getTime())) return '';
-        return fecha.toISOString();
-    }
-
-    const inputFechaEmb = document.getElementById('act-fecha-embarque');
-    const inputInicioServ = document.getElementById('act-inicio-servicio');
-
-    if (inputFechaEmb) {
-        inputFechaEmb.addEventListener('input', () => {
-            inputFechaEmb.value = formatearFechaCorta(inputFechaEmb.value);
-        });
-        inputFechaEmb.addEventListener('blur', () => {
-            inputFechaEmb.value = formatearFechaCorta(inputFechaEmb.value);
-        });
-    }
-
-    if (inputInicioServ) {
-        inputInicioServ.addEventListener('input', () => {
-            inputInicioServ.value = formatearFechaCorta(inputInicioServ.value);
-        });
-        inputInicioServ.addEventListener('blur', () => {
-            inputInicioServ.value = formatearFechaCorta(inputInicioServ.value);
-        });
-    }
-
-    function limpiarFormularioActividad() {
-        const idsTexto = [
-            'act-cliente',
-            'act-area-cliente',
-            'act-ubicacion',
-            'act-equipo',
-            'act-os',
-            'act-orden-suministro',
-            'act-factura',
-            'act-est-cot',
-            'act-precio'
-        ];
-
-        idsTexto.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.value = '';
-        });
-
-        const inputFechaEmb = document.getElementById('act-fecha-embarque');
-        const inputInicio = document.getElementById('act-inicio-servicio');
-        const inputDias = document.getElementById('act-dias-servicio');
-        if (inputFechaEmb) inputFechaEmb.value = '';
-        if (inputInicio) inputInicio.value = '';
-        if (inputDias) inputDias.value = '';
-
-        const selTipo = document.getElementById('act-tipo');
-        if (selTipo) selTipo.value = 'PROPIO';
-
-        if (inputSerialAuto) inputSerialAuto.value = '';
-        if (inputEstadoAuto) inputEstadoAuto.value = '';
-        if (inputPropAuto) inputPropAuto.value = '';
-        if (inputNoRepAuto) inputNoRepAuto.value = '';
-        if (inputDescAuto) inputDescAuto.value = '';
-
-        equiposSeleccionados = [];
+    if (agregado) {
         renderEquiposSeleccionados();
     }
 
-    if (btnLimpiar) {
-        btnLimpiar.addEventListener('click', (e) => {
-            e.preventDefault();
-            limpiarFormularioActividad();
-        });
+    return agregado;
+}
+
+function agregarEquipoDesdeInput() {
+    const valorRaw = inputEquipo.value || '';
+    const huboCambios = procesarTextoEquipos(valorRaw);
+    if (huboCambios) {
+        inputEquipo.value = '';
+    }
+}
+
+function autocompletarDatosAutoActividad() {
+    const valor = inputEquipo.value.trim();
+    if (!valor) {
+        if (inputSerialAuto) inputSerialAuto.value = '';
+        if (inputEstadoAuto) inputEstadoAuto.value = '';
+        if (inputPropAuto) inputPropAuto.value = '';
+        if (inputDescAuto) inputDescAuto.value = '';
+        return;
     }
 
-    async function guardarActividadEnFirestore(registro) {
-        if (!window.db) {
-            console.warn('Firestore no está inicializado (window.db)');
-            return;
+    const info = infoPorEquipoAct[valor] || {};
+
+    if (inputSerialAuto) inputSerialAuto.value = info.serial || '';
+    if (inputEstadoAuto) inputEstadoAuto.value = info.estado || '';
+    if (inputPropAuto) inputPropAuto.value = info.propiedad || '';
+    if (inputDescAuto) inputDescAuto.value = info.descripcion || '';
+
+    // Último número de reporte usado en pruebas para este equipo (si existe)
+    try {
+        const listaPruebas = JSON.parse(localStorage.getItem('pct_pruebas') || '[]');
+        if (Array.isArray(listaPruebas)) {
+            const filtradas = listaPruebas.filter(r => r.equipo === valor && r.noReporte);
+            if (filtradas.length && inputNoRepAuto) {
+                const ultima = filtradas[filtradas.length - 1];
+                inputNoRepAuto.value = ultima.noReporte || '';
+            }
         }
-
-        try {
-            const { addDoc, collection, serverTimestamp } = await import(
-                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-            );
-
-            const datos = {
-                ...registro,
-                creadoEn: serverTimestamp()
-            };
-
-            const docRef = await addDoc(collection(window.db, 'actividades'), datos);
-
-            // Actualizar lista local y resumen para que el dashboard refleje el nuevo registro
-            listaActividad.push({ id: docRef.id, ...datos });
-            actualizarResumenActividad();
-
-            console.log('Actividad guardada en Firestore');
-        } catch (e) {
-            console.error('Error al guardar actividad en Firestore', e);
-        }
+    } catch (e) {
+        // ignorar errores de parseo
     }
+}
 
-    if (btnGuardar) {
-        btnGuardar.addEventListener('click', async (e) => {
-            e.preventDefault();
-
-            const tipo = (document.getElementById('act-tipo') || {}).value || '';
-            const cliente = (document.getElementById('act-cliente') || {}).value || '';
-            const areaCliente = (document.getElementById('act-area-cliente') || {}).value || '';
-            const ubicacion = (document.getElementById('act-ubicacion') || {}).value || '';
-            const equiposRaw = (document.getElementById('act-equipo') || {}).value || '';
-            const os = (document.getElementById('act-os') || {}).value || '';
-            const ordenSuministro = (document.getElementById('act-orden-suministro') || {}).value || '';
-            const factura = (document.getElementById('act-factura') || {}).value || '';
-            const estCot = (document.getElementById('act-est-cot') || {}).value || '';
-            const fechaEmbarqueTexto = (document.getElementById('act-fecha-embarque') || {}).value || '';
-            const inicioServicioTexto = (document.getElementById('act-inicio-servicio') || {}).value || '';
-            const diasServicioStr = (document.getElementById('act-dias-servicio') || {}).value || '';
-            const precio = (document.getElementById('act-precio') || {}).value || '';
-
-            if (!cliente) {
-                alert('Captura al menos Cliente');
-                return;
-            }
-
-            // Si el usuario escribió un equipo pero no lo ha agregado aún, agrégalo
-            if (equiposRaw && !equiposSeleccionados.length) {
-                autocompletarDatosAutoActividad();
-                agregarEquipoDesdeInput();
-            }
-
-            if (!equiposSeleccionados.length) {
-                alert('Agrega al menos un Equipo / Activo al registro');
-                return;
-            }
-
-            const diasServicio = diasServicioStr ? Number(diasServicioStr) : 0;
-
-            // Normalizar fechas de embarque e inicio de servicio (por ahora se guardan tal cual texto)
-            const fechaEmbarque = fechaEmbarqueTexto || '';
-            const inicioServicio = inicioServicioTexto || '';
-
-            // OS automática: esquema fijo PCT-25-XXX si no se capturó
-            let osFinal = os;
-            if (!osFinal) {
-                const prefijo = 'PCT-25-';
-
-                // Buscar OS existentes con este prefijo para calcular el siguiente consecutivo
-                const existentes = Array.isArray(listaActividad)
-                    ? listaActividad
-                        .map(reg => reg.os || '')
-                        .filter(valor => typeof valor === 'string' && valor.startsWith(prefijo))
-                    : [];
-
-                let maxNum = 0;
-                existentes.forEach(valor => {
-                    const parteNum = valor.substring(prefijo.length).trim();
-                    const n = parseInt(parteNum, 10);
-                    if (!isNaN(n) && n > maxNum) maxNum = n;
-                });
-
-                const siguiente = maxNum + 1;
-                const consecutivo = String(siguiente).padStart(3, '0');
-                osFinal = `${prefijo}${consecutivo}`;
-            }
-
-            const equipos = [...equiposSeleccionados];
-
-            // Base común para todos los equipos del lote
-            const registroBase = {
-                fechaRegistro: new Date().toISOString(),
-                tipo,
-                cliente,
-                areaCliente,
-                ubicacion,
-                os: osFinal,
-                ordenSuministro,
-                factura,
-                estCot,
-                fechaEmbarque,
-                inicioServicio,
-                diasServicio,
-                precio, // se inicia igual para todos; luego se puede ajustar por equipo en actividadmin
-                noReporte: inputNoRepAuto ? inputNoRepAuto.value || '' : '',
-            };
-
-            // Crear un documento por equipo
-            for (const equipoNombre of equipos) {
-                const info = equipoNombre ? (infoPorEquipoAct[equipoNombre] || {}) : {};
-
-                const registroPorEquipo = {
-                    ...registroBase,
-                    equipo: equipoNombre,
-                    serial: inputSerialAuto ? inputSerialAuto.value || info.serial || '' : info.serial || '',
-                    estado: inputEstadoAuto ? inputEstadoAuto.value || info.estado || '' : info.estado || '',
-                    propiedad: inputPropAuto ? inputPropAuto.value || info.propiedad || '' : info.propiedad || '',
-                    descripcion: inputDescAuto ? inputDescAuto.value || info.descripcion || '' : info.descripcion || '',
-                };
-
-                await guardarActividadEnFirestore(registroPorEquipo);
-            }
-
-            alert('Actividad guardada');
-            limpiarFormularioActividad();
-        });
-    }
+inputEquipo.addEventListener('change', () => {
+    // Cuando cambia manualmente el texto, intentamos agregarlo al lote
+    agregarEquipoDesdeInput();
+    autocompletarDatosAutoActividad();
 });
 
+// Cerrar correctamente el bloque document.addEventListener('DOMContentLoaded', ...) de la sección de actividad.html añadiendo un '});' antes del siguiente bloque de pruebas.html.
+});
 // Guardado de pruebas en pruebas.html
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btn-guardar-prueba');
@@ -2621,7 +2452,6 @@ function parseCSVLine(linea) {
         const c = linea[i];
 
         if (c === '"') {
-            // Alternar estado de comillas
             enComillas = !enComillas;
             continue;
         }
@@ -2636,8 +2466,8 @@ function parseCSVLine(linea) {
 
     if (actual.length > 0) {
         resultado.push(actual.trim());
+        actual = '';
     }
 
     return resultado;
 }
-
