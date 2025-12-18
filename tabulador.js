@@ -22,7 +22,7 @@
     const tbodyActividad = document.getElementById('adm-tbody-actividad');
     if (!modal || !modalHeader || !modalTbody || !tbodyActividad) return;
 
-    let actividadActual = null; // { id, cliente, area, equipo, precioDiario, os, inicioServicio, terminacionServicio }
+    let actividadActual = null; // { id, cliente, area, ubicacion, equipo, precioDiario, os, inicioServicio, terminacionServicio }
 
     function parseFechaDdMmAa(fechaTexto) {
       if (!fechaTexto) return null;
@@ -239,7 +239,7 @@
 
     function abrirModal(datos) {
       actividadActual = datos;
-      const lineaCliente = `${datos.cliente || ''} / ${datos.area || ''} / ${datos.equipo || ''}`;
+      const lineaCliente = `${datos.cliente || ''} / ${datos.area || ''} / ${datos.ubicacion || ''} / ${datos.equipo || ''}`;
       const lineaServicio = `OS: ${datos.os || ''}  |  Servicio: ${datos.inicioServicio || ''} ${datos.terminacionServicio ? '→ ' + datos.terminacionServicio : ''}`;
       modalHeader.textContent = `${lineaCliente}  —  ${lineaServicio}`;
 
@@ -288,13 +288,14 @@
 
       const cliente = tr.getAttribute('data-cliente') || '';
       const area = tr.getAttribute('data-area') || '';
+      const ubicacion = tr.getAttribute('data-ubicacion') || '';
       const equipo = tr.getAttribute('data-equipo') || '';
       const precioDiario = Number(tr.getAttribute('data-precioequipo') || 0);
       const os = tr.getAttribute('data-os') || '';
       const inicioServicio = tr.getAttribute('data-inicio') || '';
       const terminacionServicio = tr.getAttribute('data-terminacion') || '';
 
-      abrirModal({ id, cliente, area, equipo, precioDiario, os, inicioServicio, terminacionServicio });
+      abrirModal({ id, cliente, area, ubicacion, equipo, precioDiario, os, inicioServicio, terminacionServicio });
     });
 
     if (btnGuardar) {
