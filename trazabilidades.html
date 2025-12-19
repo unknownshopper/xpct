@@ -248,6 +248,7 @@
         let osSeleccionada = null;
         let periodosPorActividad = new Map(); // actividadId -> [periodos]
         let osPorActividad = new Map(); // actividadId -> OS calculada
+        let ocPorPeriodo = new Map(); // periodoId -> OC calculada
         let sortDirInicio = 'asc'; // 'asc' o 'desc'
         let modoListado = 'equipo'; // 'equipo' o 'os'
 
@@ -275,6 +276,9 @@
                     }
                     periodosPorActividad.get(actId).push(p);
                 });
+                // Calcular OCs automáticas por PERÍODO (cliente+equipo+año de inicioPeriodo)
+                generarOcPorPeriodo();
+
                 // Calcular OS globales por actividad, agrupando por cliente+anio(inicioServicio)
                 osPorActividad = new Map();
                 const grupos = new Map(); // clave = cliente||YY -> [actividad]
@@ -365,6 +369,55 @@
                 .sort((a, b) =>
                     a.nombre.toUpperCase() < b.nombre.toUpperCase() ? -1 : 1
                 );
+        }
+
+        // Genera una OC numérica por período: cliente+equipo+año(inicioPeriodo)
+        // Formato: 4301YYNNNN, donde YY = año, NNNN = consecutivo dentro del grupo.
+        function generarOcPorPeriodo() {
+            ocPorPeriodo = new Map();
+
+            if (!listaActividades.length || !periodosPorActividad.size) return;
+
+            const actividadesPorId = new Map();
+            listaActividades.forEach(a => actividadesPorId.set(a.id, a));
+
+            const grupos = new Map(); // clave = cliente||equipo||YY -> [ { periodo, fecha } ]
+
+            periodosPorActividad.forEach((arrPeriodos, actId) => {
+                const act = actividadesPorId.get(actId);
+                if (!act) return;
+
+                const cliente = (act.cliente || '').toString();
+                const equipo  = (act.equipo || '').toString();
+                if (!cliente || !equipo) return;
+
+                arrPeriodos.forEach(p => {
+                    const inicioTxt = (p.inicioPeriodo || act.inicioServicio || '').toString();
+                    const dIni = parseFechaDdMmAa(inicioTxt);
+                    if (!dIni || isNaN(dIni.getTime())) return;
+
+                    const yy = String(dIni.getFullYear()).slice(-2);
+                    const clave = `${cliente}||${equipo}||${yy}`;
+                    if (!grupos.has(clave)) grupos.set(clave, []);
+                    grupos.get(clave).push({ periodo: p, fecha: dIni });
+                });
+            });
+
+            grupos.forEach(arr => {
+                arr.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+                if (!arr.length) return;
+
+                const yy = String(arr[0].fecha.getFullYear()).slice(-2);
+                let seq = 0;
+                arr.forEach(item => {
+                    seq += 1;
+                    const consecutivo = String(seq).padStart(4, '0');
+                    const oc = `4301${yy}${consecutivo}`;
+                    if (item.periodo && item.periodo.id) {
+                        ocPorPeriodo.set(item.periodo.id, oc);
+                    }
+                });
+            });
         }
 
         function formatearFechaCorta(d) {
@@ -679,6 +732,8 @@
                         const iniTxt = (p.inicioPeriodo || act.inicioServicio || '').toString();
                         const finTxt = (p.finPeriodo || act.terminacionServicio || '').toString();
 
+                        const ocCalc = ocPorPeriodo.get(p.id) || (p.oc || act.ordenSuministro || act.oc || '').toString();
+
                         filas.push({
                             cliente: (act.cliente || '').toString(),
                             area: (act.areaCliente || '').toString(),
@@ -688,7 +743,7 @@
                             fin: finTxt,
                             dias: calcularDiasEntre(iniTxt, finTxt),
                             os: osPorActividad.get(act.id) || (act.os || '').toString(),
-                            oc: (act.oc || '').toString(),
+                            oc: ocCalc,
                             factura: (p.factura || act.factura || '').toString(),
                         });
                     });
@@ -705,7 +760,7 @@
                         fin: finTxt,
                         dias: calcularDiasEntre(iniTxt, finTxt),
                         os: osPorActividad.get(act.id) || (act.os || '').toString(),
-                        oc: (act.oc || '').toString(),
+                        oc: (act.ordenSuministro || act.oc || '').toString(),
                         factura: (act.factura || '').toString(),
                     });
                 }

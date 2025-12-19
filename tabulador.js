@@ -14,6 +14,7 @@
     const inputDias = document.getElementById('adm-per-dias');
     const inputImporte = document.getElementById('adm-per-importe');
     const inputFactura = document.getElementById('adm-per-factura');
+    const inputOc = document.getElementById('adm-per-oc');
     const inputObs = document.getElementById('adm-per-obs');
     const btnGuardar = document.getElementById('adm-per-guardar');
     const btnCerrar = document.getElementById('adm-tabulador-cerrar');
@@ -129,6 +130,7 @@
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${p.tarifaDiaria || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${p.importe || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.tipoPeriodo || ''}</td>
+          <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.oc || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.factura || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.observaciones || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
@@ -225,6 +227,7 @@
           importe,
           tipoPeriodo: 'PARCIAL',
           factura: '',
+          oc: '',
           observaciones: '',
           creadoEn: serverTimestamp(),
         });
@@ -250,6 +253,7 @@
       if (inputDias) inputDias.value = '';
       if (inputImporte) inputImporte.value = '';
       if (inputFactura) inputFactura.value = '';
+      if (inputOc) inputOc.value = '';
       if (inputObs) inputObs.value = '';
 
       recalcularPeriodo();
@@ -308,6 +312,7 @@
         const dias = Number(inputDias ? inputDias.value || 0 : 0);
         const importe = Number(inputImporte ? inputImporte.value || 0 : 0);
         const factura = inputFactura ? inputFactura.value.trim() : '';
+        const oc = inputOc ? inputOc.value.trim() : '';
         const obs = inputObs ? inputObs.value.trim() : '';
 
         const dIni = inicio ? parseFechaDdMmAa(inicio) : null;
@@ -338,6 +343,7 @@
             importe,
             tipoPeriodo: tipo,
             factura,
+            oc,
             observaciones: obs,
             creadoEn: serverTimestamp(),
           });
@@ -369,6 +375,7 @@
             if (inputDias) inputDias.value = '';
             if (inputImporte) inputImporte.value = '';
             if (inputFactura) inputFactura.value = '';
+            if (inputOc) inputOc.value = '';
             if (inputObs) inputObs.value = '';
           }
         } catch (e) {

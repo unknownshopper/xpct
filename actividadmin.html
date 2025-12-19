@@ -197,7 +197,11 @@
                         <label style="font-size:0.75rem; color:#4b5563;">Factura</label>
                         <input id="adm-per-factura" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
                     </div>
-                    <div style="flex:1 1 180px;">
+                    <div style="flex:1 1 140px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">OC</label>
+                        <input id="adm-per-oc" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:2 1 220px;">
                         <label style="font-size:0.75rem; color:#4b5563;">Observaciones</label>
                         <input id="adm-per-obs" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
                     </div>
@@ -216,6 +220,7 @@
                         <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Tarifa diaria</th>
                         <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Importe</th>
                         <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Tipo</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">OC</th>
                         <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Factura</th>
                         <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Observaciones</th>
                         <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Acciones</th>
@@ -800,7 +805,9 @@
                             ${ingresoEquipo ? formatearMoneda(ingresoEquipo) : ''}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${oc}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            <input type="text" class="adm-input-oc" data-id="${id}" value="${oc || ''}" style="font-size:0.8rem; width:110px;">
+                        </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                             <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
@@ -927,6 +934,22 @@
                     regLocal.precio = valorNum;
                     await actualizarActividadEnFirestore(id, { precio: valorNum });
                     renderTabla();
+                });
+            });
+
+            // Guardado automático en blur para OC (orden de compra / suministro) a nivel de actividad
+            tbody.querySelectorAll('.adm-input-oc').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+
+                    const valor = (input.value || '').trim();
+
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+
+                    regLocal.ordenSuministro = valor;
+                    await actualizarActividadEnFirestore(id, { ordenSuministro: valor });
                 });
             });
 
