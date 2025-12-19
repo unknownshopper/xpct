@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trazabilidades de equipos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#" class="active">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="actividad-page" style="max-width: 1200px; margin: 1rem auto;">
+        <!-- Filtros de búsqueda para equipos -->
+        <section style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                <input type="search" id="trz-buscar-equipo" placeholder="Buscar equipo / activo" style="min-width: 260px;">
+                <input type="search" id="trz-buscar-cliente" placeholder="Buscar cliente" style="min-width: 220px;">
+            </div>
+            <div style="font-size: 0.85rem; color:#4b5563;">
+                <span id="trz-contador-equipos">0 equipos</span>
+            </div>
+        </section>
+
+        <!-- Layout: lista de equipos a la izquierda, trazabilidad a la derecha -->
+        <section style="display:grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap:1rem; align-items:flex-start;">
+
+            <!-- Lista de equipos con historial / historial OS -->
+            <div style="border:1px solid #e5e7eb; border-radius:0.5rem; overflow:hidden; background:white;">
+                <div style="padding:0.5rem 0.75rem; background:#f9fafb; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    <div>
+                        <h2 id="trz-lista-titulo" style="margin:0; font-size:0.95rem; font-weight:600; color:#111827;">Equipos con historial</h2>
+                        <p id="trz-lista-subtitulo" style="margin:0.15rem 0 0; font-size:0.8rem; color:#6b7280;">
+                            Selecciona un equipo para ver su trazabilidad.
+                        </p>
+                    </div>
+                    <div style="display:flex; gap:0.25rem; font-size:0.75rem;">
+                        <button id="trz-modo-equipo" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #3b82f6; background:#3b82f6; color:white;">Por equipo</button>
+                        <button id="trz-modo-os" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por OS</button>
+                    </div>
+                </div>
+                <div style="max-height:65vh; overflow:auto;" id="trz-lista-equipos-wrapper">
+                    <ul id="trz-lista-equipos" style="list-style:none; margin:0; padding:0; font-size:0.9rem;"></ul>
+                    <p id="trz-msg-sin-equipos" style="display:none; padding:0.75rem; font-size:0.85rem; color:#6b7280;">
+                        No se encontraron equipos con historial.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Detalle de trazabilidad -->
+            <div style="border:1px solid #e5e7eb; border-radius:0.5rem; overflow:hidden; background:white; min-height:220px;">
+                <div style="padding:0.5rem 0.75rem; background:#f9fafb; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    <div>
+                        <h2 id="trz-titulo-detalle" style="margin:0; font-size:0.95rem; font-weight:600; color:#111827;">Trazabilidad del equipo</h2>
+                        <p id="trz-header-equipo" style="margin:0.15rem 0 0; font-size:0.8rem; color:#6b7280;">
+                            Selecciona un equipo de la lista.
+                        </p>
+                    </div>
+                    <div style="text-align:right; font-size:0.8rem; color:#4b5563;">
+                        <div><span id="trz-resumen-ubicaciones">0 ubicaciones</span></div>
+                        <div><span id="trz-resumen-periodo">Sin rango de fechas</span></div>
+                    </div>
+                </div>
+
+                <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem; min-width:820px;">
+                        <thead>
+                            <tr style="background:#f3f4f6;">
+                                <th style="padding:0.35rem; text-align:left;">Cliente</th>
+                                <th style="padding:0.35rem; text-align:left;">Área</th>
+                                <th style="padding:0.35rem; text-align:left;">Ubicación</th>
+                                <th style="padding:0.35rem; text-align:left;">Equipo</th>
+                                <th id="trz-th-inicio" style="padding:0.35rem; text-align:left; cursor:pointer;">Inicio servicio</th>
+                                <th style="padding:0.35rem; text-align:left;">Fin servicio</th>
+                                <th style="padding:0.35rem; text-align:right;">Días</th>
+                                <th style="padding:0.35rem; text-align:left;">OS</th>
+                                <th style="padding:0.35rem; text-align:left;">OC</th>
+                                <th style="padding:0.35rem; text-align:left;">Factura</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trz-tbody"></tbody>
+                    </table>
+                </div>
+
+                <p id="trz-msg-sin-traza" style="display:none; padding:0.75rem; font-size:0.85rem; color:#6b7280;">
+                    No hay registros de trazabilidad para este equipo.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Firebase + lógica de trazabilidad (por períodos) -->
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+        authDomain: "xpct-tab.firebaseapp.com",
+        projectId: "xpct-tab",
+        storageBucket: "xpct-tab.firebasestorage.app",
+        messagingSenderId: "614589989974",
+        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    window.db = db;
+
+    const auth = getAuth(app);
+    window.auth = auth;
+
+    const ADMINS = [
+        "the@unknownshoppers.com",
+        "jalcz@pct.com"
+    ];
+    const INSPECTORES = [
+        "inspector01@pct.com",
+        "inspector02@pct.com"
+    ];
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        const esAdmin = ADMINS.includes(email);
+        if (!esAdmin) {
+            if (INSPECTORES.includes(email)) {
+                window.location.href = 'inspeccion.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+            return;
+        }
+
+        inicializarTrazabilidades();
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'login.html';
+            }
+        });
+    }
+
+    function parseFechaDdMmAa(fechaTexto) {
+        if (!fechaTexto) return null;
+        const partes = fechaTexto.split('/');
+        if (partes.length !== 3) return null;
+        const [ddStr, mmStr, aaStr] = partes;
+        const dd = parseInt(ddStr, 10);
+        const mm = parseInt(mmStr, 10);
+        const aa = parseInt(aaStr, 10);
+        if (!dd || !mm || isNaN(aa)) return null;
+        const yyyy = 2000 + aa;
+        const d = new Date(yyyy, mm - 1, dd);
+        if (isNaN(d.getTime())) return null;
+        return d;
+    }
+
+    function calcularDiasEntre(inicioStr, finStr) {
+        const di = parseFechaDdMmAa(inicioStr);
+        const df = parseFechaDdMmAa(finStr);
+        if (!di || !df) return '';
+        const ms = df.getTime() - di.getTime();
+        if (!isFinite(ms) || ms < 0) return '';
+        return Math.round(ms / (1000 * 60 * 60 * 24));
+    }
+
+    async function inicializarTrazabilidades() {
+        const inputBuscarEquipo   = document.getElementById('trz-buscar-equipo');
+        const inputBuscarCliente  = document.getElementById('trz-buscar-cliente');
+        const ulEquipos           = document.getElementById('trz-lista-equipos');
+        const msgSinEquipos       = document.getElementById('trz-msg-sin-equipos');
+        const lblContadorEquipos  = document.getElementById('trz-contador-equipos');
+        const thInicio            = document.getElementById('trz-th-inicio');
+        const btnModoEquipo       = document.getElementById('trz-modo-equipo');
+        const btnModoOs           = document.getElementById('trz-modo-os');
+        const tituloLista         = document.getElementById('trz-lista-titulo');
+        const subtituloLista      = document.getElementById('trz-lista-subtitulo');
+
+        // Separar errores: Firestore vs DOM
+        if (!window.db) {
+            console.warn('Firestore (window.db) no está disponible en trazabilidades');
+            return;
+        }
+        if (!ulEquipos) {
+            console.warn('Elementos de UI de trazabilidades no encontrados en el DOM');
+            return;
+        }
+
+        let listaActividades = [];
+        let equiposAgrupados = [];
+        let osAgrupadas = [];
+        let equipoSeleccionado = null;
+        let osSeleccionada = null;
+        let periodosPorActividad = new Map(); // actividadId -> [periodos]
+        let osPorActividad = new Map(); // actividadId -> OS calculada
+        let sortDirInicio = 'asc'; // 'asc' o 'desc'
+        let modoListado = 'equipo'; // 'equipo' o 'os'
+
+        async function cargarActividades() {
+            try {
+                const { getFirestore, collection, getDocs } =
+                    await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+                const dbLocal = getFirestore();
+
+                // Actividades
+                const colAct = collection(dbLocal, 'actividades');
+                const snapAct = await getDocs(colAct);
+                listaActividades = snapAct.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+
+                // Períodos de facturación / servicio
+                const colPer = collection(dbLocal, 'actividadPeriodos');
+                const snapPer = await getDocs(colPer);
+                periodosPorActividad = new Map();
+                snapPer.docs.forEach(d => {
+                    const p = { id: d.id, ...(d.data() || {}) };
+                    const actId = p.actividadId;
+                    if (!actId) return;
+                    if (!periodosPorActividad.has(actId)) {
+                        periodosPorActividad.set(actId, []);
+                    }
+                    periodosPorActividad.get(actId).push(p);
+                });
+                // Calcular OS globales por actividad, agrupando por cliente+anio(inicioServicio)
+                osPorActividad = new Map();
+                const grupos = new Map(); // clave = cliente||YY -> [actividad]
+
+                listaActividades.forEach(act => {
+                    const cli = (act.cliente || '').toString();
+                    const dIni = parseFechaDdMmAa((act.inicioServicio || '').toString());
+                    if (!cli || !dIni || isNaN(dIni.getTime())) return;
+                    const yy = String(dIni.getFullYear()).slice(-2);
+                    const clave = `${cli}||${yy}`;
+                    if (!grupos.has(clave)) grupos.set(clave, []);
+                    grupos.get(clave).push({ act, fecha: dIni });
+                });
+
+                grupos.forEach((arr, clave) => {
+                    arr.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+                    const partes = clave.split('||');
+                    const yy = partes[1] || '00';
+                    let seq = 0;
+                    arr.forEach(item => {
+                        seq += 1;
+                        const consecutivo = String(seq).padStart(3, '0');
+                        const os = `PCT-${yy}-${consecutivo}`;
+                        osPorActividad.set(item.act.id, os);
+                    });
+                });
+
+            } catch (e) {
+                console.error('Error al cargar actividades/periodos para trazabilidades', e);
+                listaActividades = [];
+                periodosPorActividad = new Map();
+                osPorActividad = new Map();
+            }
+
+            agruparEquipos();
+            agruparOs();
+            renderListaPrincipal();
+        }
+
+        function agruparEquipos() {
+            const mapa = new Map();
+
+            listaActividades.forEach(act => {
+                const equiposArr = Array.isArray(act.equipos) && act.equipos.length
+                    ? act.equipos
+                    : (act.equipo ? [act.equipo] : []);
+
+                equiposArr.forEach(eq => {
+                    const nombreEq = (eq || '').toString().trim();
+                    if (!nombreEq) return;
+
+                    const key = nombreEq.toUpperCase();
+                    if (!mapa.has(key)) {
+                        mapa.set(key, {
+                            nombre: nombreEq,
+                            actividades: [],
+                        });
+                    }
+                    mapa.get(key).actividades.push(act);
+                });
+            });
+
+            equiposAgrupados = Array.from(mapa.values())
+                .filter(grp => grp.actividades && grp.actividades.length)
+                .map(grp => {
+                    const clientes = new Set();
+                    grp.actividades.forEach(a => {
+                        if (a.cliente) clientes.add((a.cliente || '').toString());
+                    });
+
+                    let minFecha = null;
+                    let maxFecha = null;
+
+                    grp.actividades.forEach(a => {
+                        const di = parseFechaDdMmAa(a.inicioServicio || '');
+                        if (di && (!minFecha || di < minFecha)) minFecha = di;
+                        const df = parseFechaDdMmAa(a.terminacionServicio || '');
+                        if (df && (!maxFecha || df > maxFecha)) maxFecha = df;
+                    });
+
+                    return {
+                        ...grp,
+                        clientes: Array.from(clientes),
+                        fechaInicioMin: minFecha,
+                        fechaFinMax: maxFecha,
+                    };
+                })
+                .sort((a, b) =>
+                    a.nombre.toUpperCase() < b.nombre.toUpperCase() ? -1 : 1
+                );
+        }
+
+        function formatearFechaCorta(d) {
+            if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const aa = String(d.getFullYear()).slice(-2);
+            return `${dd}/${mm}/${aa}`;
+        }
+
+        function renderListaPrincipal() {
+            const filtroEq  = (inputBuscarEquipo?.value || '').toLowerCase().trim();
+            const filtroCli = (inputBuscarCliente?.value || '').toLowerCase().trim();
+
+            ulEquipos.innerHTML = '';
+
+            if (modoListado === 'equipo') {
+                // Texto y estilos de título
+                if (tituloLista) tituloLista.textContent = 'Equipos con historial';
+                if (subtituloLista) subtituloLista.textContent = 'Selecciona un equipo para ver su trazabilidad.';
+                if (btnModoEquipo) {
+                    btnModoEquipo.style.background = '#3b82f6';
+                    btnModoEquipo.style.color = '#ffffff';
+                    btnModoEquipo.style.borderColor = '#3b82f6';
+                }
+                if (btnModoOs) {
+                    btnModoOs.style.background = '#ffffff';
+                    btnModoOs.style.color = '#374151';
+                    btnModoOs.style.borderColor = '#d1d5db';
+                }
+
+                let lista = equiposAgrupados.filter(grp => {
+                    if (filtroEq && !grp.nombre.toLowerCase().includes(filtroEq)) return false;
+                    if (filtroCli) {
+                        const clientesTxt = (grp.clientes || []).join(' ').toLowerCase();
+                        if (!clientesTxt.includes(filtroCli)) return false;
+                    }
+                    return true;
+                });
+
+                if (!lista.length) {
+                    msgSinEquipos.style.display = 'block';
+                    if (lblContadorEquipos) lblContadorEquipos.textContent = '0 equipos';
+                    return;
+                }
+
+                msgSinEquipos.style.display = 'none';
+                if (lblContadorEquipos)
+                    lblContadorEquipos.textContent =
+                        `${lista.length} equipo${lista.length === 1 ? '' : 's'}`;
+
+                lista.forEach(grp => {
+                    const li = document.createElement('li');
+                    li.style.borderBottom = '1px solid #e5e7eb';
+                    li.style.cursor = 'pointer';
+                    li.style.padding = '0.45rem 0.75rem';
+                    li.dataset.equipo = grp.nombre;
+
+                    li.addEventListener('click', () => {
+                        equipoSeleccionado = grp.nombre;
+                        osSeleccionada = null;
+                        Array.from(ulEquipos.children).forEach(el => {
+                            el.style.background = '';
+                        });
+                        li.style.background = '#eff6ff';
+                        renderTrazabilidad();
+                    });
+
+                    const titulo = document.createElement('div');
+                    titulo.textContent = grp.nombre;
+                    titulo.style.fontWeight = '600';
+                    titulo.style.color = '#111827';
+                    titulo.style.fontSize = '0.9rem';
+
+                    const sub = document.createElement('div');
+                    sub.style.marginTop = '0.1rem';
+                    sub.style.fontSize = '0.78rem';
+                    sub.style.color = '#6b7280';
+
+                    const clientesTxt = (grp.clientes || []).join(' · ');
+                    const fechaIni = formatearFechaCorta(grp.fechaInicioMin);
+                    const fechaFin = formatearFechaCorta(grp.fechaFinMax);
+
+                    sub.textContent =
+                        `${grp.actividades.length} registro${grp.actividades.length === 1 ? '' : 's'}`
+                        + (clientesTxt ? ` | ${clientesTxt}` : '')
+                        + ((fechaIni || fechaFin) ? ` | ${fechaIni || '??'} - ${fechaFin || '??'}` : '');
+
+                    li.appendChild(titulo);
+                    li.appendChild(sub);
+
+                    ulEquipos.appendChild(li);
+                });
+            } else {
+                // Modo OS
+                if (tituloLista) tituloLista.textContent = 'Historial de OS';
+                if (subtituloLista) subtituloLista.textContent = 'Selecciona una OS para ver su trazabilidad.';
+                if (btnModoOs) {
+                    btnModoOs.style.background = '#3b82f6';
+                    btnModoOs.style.color = '#ffffff';
+                    btnModoOs.style.borderColor = '#3b82f6';
+                }
+                if (btnModoEquipo) {
+                    btnModoEquipo.style.background = '#ffffff';
+                    btnModoEquipo.style.color = '#374151';
+                    btnModoEquipo.style.borderColor = '#d1d5db';
+                }
+
+                let lista = osAgrupadas.filter(grp => {
+                    if (filtroEq && !grp.os.toLowerCase().includes(filtroEq)) return false;
+                    if (filtroCli) {
+                        const clientesTxt = (grp.clientes || []).join(' ').toLowerCase();
+                        if (!clientesTxt.includes(filtroCli)) return false;
+                    }
+                    return true;
+                });
+
+                if (!lista.length) {
+                    msgSinEquipos.style.display = 'block';
+                    if (lblContadorEquipos) lblContadorEquipos.textContent = '0 OS';
+                    return;
+                }
+
+                msgSinEquipos.style.display = 'none';
+                if (lblContadorEquipos)
+                    lblContadorEquipos.textContent = `${lista.length} OS`;
+
+                lista.forEach(grp => {
+                    const li = document.createElement('li');
+                    li.style.borderBottom = '1px solid #e5e7eb';
+                    li.style.cursor = 'pointer';
+                    li.style.padding = '0.45rem 0.75rem';
+                    li.dataset.os = grp.os;
+
+                    li.addEventListener('click', () => {
+                        osSeleccionada = grp.os;
+                        equipoSeleccionado = null;
+                        Array.from(ulEquipos.children).forEach(el => {
+                            el.style.background = '';
+                        });
+                        li.style.background = '#eff6ff';
+                        renderTrazabilidad();
+                    });
+
+                    const titulo = document.createElement('div');
+                    titulo.textContent = grp.os;
+                    titulo.style.fontWeight = '600';
+                    titulo.style.color = '#111827';
+                    titulo.style.fontSize = '0.9rem';
+
+                    const sub = document.createElement('div');
+                    sub.style.marginTop = '0.1rem';
+                    sub.style.fontSize = '0.78rem';
+                    sub.style.color = '#6b7280';
+
+                    const clientesTxt = (grp.clientes || []).join(' · ');
+                    const equiposTxt = (grp.equipos || []).join(' · ');
+                    const fechaIni = formatearFechaCorta(grp.fechaInicioMin);
+                    const fechaFin = formatearFechaCorta(grp.fechaFinMax);
+
+                    sub.textContent =
+                        `${grp.actividades.length} registro${grp.actividades.length === 1 ? '' : 's'}`
+                        + (clientesTxt ? ` | ${clientesTxt}` : '')
+                        + (equiposTxt ? ` | ${equiposTxt}` : '')
+                        + ((fechaIni || fechaFin) ? ` | ${fechaIni || '??'} - ${fechaFin || '??'}` : '');
+
+                    li.appendChild(titulo);
+                    li.appendChild(sub);
+
+                    ulEquipos.appendChild(li);
+                });
+            }
+        }
+
+        function agruparOs() {
+            const mapa = new Map(); // clave = OS -> grupo
+
+            listaActividades.forEach(act => {
+                const os = osPorActividad.get(act.id) || (act.os || '').toString();
+                if (!os) return;
+
+                const cli = (act.cliente || '').toString();
+                const equipo = (act.equipo || '').toString();
+
+                if (!mapa.has(os)) {
+                    mapa.set(os, {
+                        os,
+                        actividades: [],
+                        clientes: new Set(),
+                        equipos: new Set(),
+                        fechaInicioMin: null,
+                        fechaFinMax: null,
+                    });
+                }
+                const g = mapa.get(os);
+                g.actividades.push(act);
+                if (cli) g.clientes.add(cli);
+                if (equipo) g.equipos.add(equipo);
+
+                const di = parseFechaDdMmAa((act.inicioServicio || '').toString());
+                const df = parseFechaDdMmAa((act.terminacionServicio || '').toString());
+                if (di && (!g.fechaInicioMin || di < g.fechaInicioMin)) g.fechaInicioMin = di;
+                if (df && (!g.fechaFinMax || df > g.fechaFinMax)) g.fechaFinMax = df;
+            });
+
+            osAgrupadas = Array.from(mapa.values())
+                .map(g => ({
+                    os: g.os,
+                    actividades: g.actividades,
+                    clientes: Array.from(g.clientes),
+                    equipos: Array.from(g.equipos),
+                    fechaInicioMin: g.fechaInicioMin,
+                    fechaFinMax: g.fechaFinMax,
+                }))
+                .sort((a, b) => a.os < b.os ? -1 : (a.os > b.os ? 1 : 0));
+        }
+
+        function renderTrazabilidad() {
+            const tbody          = document.getElementById('trz-tbody');
+            const msgSinTraza    = document.getElementById('trz-msg-sin-traza');
+            const headerEquipo   = document.getElementById('trz-header-equipo');
+            const tituloDetalle  = document.getElementById('trz-titulo-detalle');
+            const lblUbicaciones = document.getElementById('trz-resumen-ubicaciones');
+            const lblPeriodo     = document.getElementById('trz-resumen-periodo');
+
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            msgSinTraza.style.display = 'none';
+
+            // Determinar fuente de actividades según modo
+            let actividadesFuente = [];
+            if (modoListado === 'equipo') {
+                if (tituloDetalle) tituloDetalle.textContent = 'Trazabilidad del equipo';
+
+                if (!equipoSeleccionado) {
+                    if (headerEquipo) headerEquipo.textContent = 'Selecciona un equipo de la lista.';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                actividadesFuente = listaActividades.filter(act => {
+                    const equiposArr = Array.isArray(act.equipos) && act.equipos.length
+                        ? act.equipos
+                        : (act.equipo ? [act.equipo] : []);
+                    return equiposArr.some(eq =>
+                        (eq || '').toString().trim().toUpperCase() ===
+                        equipoSeleccionado.trim().toUpperCase()
+                    );
+                });
+
+                if (!actividadesFuente.length) {
+                    if (headerEquipo)
+                        headerEquipo.textContent = `Sin registros para el equipo: ${equipoSeleccionado}`;
+                    msgSinTraza.style.display = 'block';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                if (headerEquipo)
+                    headerEquipo.textContent = `Equipo: ${equipoSeleccionado}`;
+            } else {
+                if (tituloDetalle) tituloDetalle.textContent = 'Trazabilidad por OS';
+
+                if (!osSeleccionada) {
+                    if (headerEquipo) headerEquipo.textContent = 'Selecciona una OS de la lista.';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                actividadesFuente = listaActividades.filter(act => {
+                    const osCalc = osPorActividad.get(act.id) || (act.os || '').toString();
+                    return osCalc === osSeleccionada;
+                });
+
+                if (!actividadesFuente.length) {
+                    if (headerEquipo)
+                        headerEquipo.textContent = `Sin registros para la OS: ${osSeleccionada}`;
+                    msgSinTraza.style.display = 'block';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                if (headerEquipo)
+                    headerEquipo.textContent = `OS: ${osSeleccionada}`;
+            }
+
+            const ordenadas = [...actividadesFuente].sort((a, b) => {
+                const di = parseFechaDdMmAa(a.inicioServicio || '');
+                const dj = parseFechaDdMmAa(b.inicioServicio || '');
+                const ta = di ? di.getTime() : 0;
+                const tb = dj ? dj.getTime() : 0;
+                return ta - tb;
+            });
+
+            const ubicacionesSet = new Set();
+            let minFecha = null;
+            let maxFecha = null;
+
+            // Construir filas por PERÍODO (si existen), o por actividad en su defecto
+            const filas = [];
+
+            ordenadas.forEach(act => {
+                const actPeriodos = periodosPorActividad.get(act.id) || [];
+
+                if (actPeriodos.length) {
+                    actPeriodos.forEach(p => {
+                        const iniTxt = (p.inicioPeriodo || act.inicioServicio || '').toString();
+                        const finTxt = (p.finPeriodo || act.terminacionServicio || '').toString();
+
+                        filas.push({
+                            cliente: (act.cliente || '').toString(),
+                            area: (act.areaCliente || '').toString(),
+                            ubicacion: (act.ubicacion || '').toString(),
+                            equipo: (act.equipo || '').toString(),
+                            inicio: iniTxt,
+                            fin: finTxt,
+                            dias: calcularDiasEntre(iniTxt, finTxt),
+                            os: osPorActividad.get(act.id) || (act.os || '').toString(),
+                            oc: (act.oc || '').toString(),
+                            factura: (p.factura || act.factura || '').toString(),
+                        });
+                    });
+                } else {
+                    const iniTxt = (act.inicioServicio || '').toString();
+                    const finTxt = (act.terminacionServicio || '').toString();
+
+                    filas.push({
+                        cliente: (act.cliente || '').toString(),
+                        area: (act.areaCliente || '').toString(),
+                        ubicacion: (act.ubicacion || '').toString(),
+                        equipo: (act.equipo || '').toString(),
+                        inicio: iniTxt,
+                        fin: finTxt,
+                        dias: calcularDiasEntre(iniTxt, finTxt),
+                        os: osPorActividad.get(act.id) || (act.os || '').toString(),
+                        oc: (act.oc || '').toString(),
+                        factura: (act.factura || '').toString(),
+                    });
+                }
+            });
+
+            // Ordenar filas por fecha de inicio según sortDirInicio
+            filas.sort((a, b) => {
+                const da = parseFechaDdMmAa(a.inicio || '');
+                const db = parseFechaDdMmAa(b.inicio || '');
+                const ta = da && !isNaN(da.getTime()) ? da.getTime() : 0;
+                const tb = db && !isNaN(db.getTime()) ? db.getTime() : 0;
+                return sortDirInicio === 'asc' ? ta - tb : tb - ta;
+            });
+
+            if (!filas.length) {
+                msgSinTraza.style.display = 'block';
+                if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                return;
+            }
+
+            filas.forEach(f => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #e5e7eb';
+
+                const cCliente = document.createElement('td');
+                cCliente.style.padding = '0.3rem 0.4rem';
+                cCliente.textContent = f.cliente;
+
+                const cArea = document.createElement('td');
+                cArea.style.padding = '0.3rem 0.4rem';
+                cArea.textContent = f.area;
+
+                const cUbic = document.createElement('td');
+                cUbic.style.padding = '0.3rem 0.4rem';
+                cUbic.textContent = f.ubicacion;
+                if (f.ubicacion) ubicacionesSet.add(f.ubicacion);
+
+                const cEq = document.createElement('td');
+                cEq.style.padding = '0.3rem 0.4rem';
+                cEq.textContent = f.equipo || '';
+
+                const cIni = document.createElement('td');
+                cIni.style.padding = '0.3rem 0.4rem';
+                cIni.textContent = f.inicio;
+
+                const cFin = document.createElement('td');
+                cFin.style.padding = '0.3rem 0.4rem';
+                cFin.textContent = f.fin || '';
+
+                const cDias = document.createElement('td');
+                cDias.style.padding = '0.3rem 0.4rem';
+                cDias.style.textAlign = 'right';
+                cDias.textContent = f.dias === '' ? '' : f.dias;
+
+                const cOs = document.createElement('td');
+                cOs.style.padding = '0.3rem 0.4rem';
+                cOs.textContent = f.os;
+
+                const cOc = document.createElement('td');
+                cOc.style.padding = '0.3rem 0.4rem';
+                cOc.textContent = f.oc;
+
+                const cFac = document.createElement('td');
+                cFac.style.padding = '0.3rem 0.4rem';
+                cFac.textContent = f.factura;
+
+                tr.appendChild(cCliente);
+                tr.appendChild(cArea);
+                tr.appendChild(cUbic);
+                tr.appendChild(cEq);
+                tr.appendChild(cIni);
+                tr.appendChild(cFin);
+                tr.appendChild(cDias);
+                tr.appendChild(cOs);
+                tr.appendChild(cOc);
+                tr.appendChild(cFac);
+
+                tbody.appendChild(tr);
+
+                const di = parseFechaDdMmAa(f.inicio);
+                const df = parseFechaDdMmAa(f.fin);
+                if (di && (!minFecha || di < minFecha)) minFecha = di;
+                if (df && (!maxFecha || df > maxFecha)) maxFecha = df;
+            });
+
+            if (lblUbicaciones) {
+                const numUbi = ubicacionesSet.size;
+                lblUbicaciones.textContent =
+                    `${numUbi} ubicacion${numUbi === 1 ? '' : 'es'}`;
+            }
+
+            if (lblPeriodo) {
+                const ini = formatearFechaCorta(minFecha);
+                const fin = formatearFechaCorta(maxFecha);
+                if (ini || fin) {
+                    lblPeriodo.textContent = `${ini || '??'} - ${fin || '??'}`;
+                } else {
+                    lblPeriodo.textContent = 'Sin rango de fechas';
+                }
+            }
+
+            msgSinTraza.style.display = filas.length ? 'none' : 'block';
+        }
+
+        inputBuscarEquipo?.addEventListener('input', () => {
+            renderListaPrincipal();
+        });
+
+        inputBuscarCliente?.addEventListener('input', () => {
+            renderListaPrincipal();
+        });
+
+        // Cambiar modo de listado por equipo / por OS
+        btnModoEquipo?.addEventListener('click', () => {
+            if (modoListado === 'equipo') return;
+            modoListado = 'equipo';
+            equipoSeleccionado = null;
+            osSeleccionada = null;
+            renderListaPrincipal();
+            renderTrazabilidad();
+        });
+
+        btnModoOs?.addEventListener('click', () => {
+            if (modoListado === 'os') return;
+            modoListado = 'os';
+            equipoSeleccionado = null;
+            osSeleccionada = null;
+            renderListaPrincipal();
+            renderTrazabilidad();
+        });
+
+        // Ordenar por inicio de servicio al hacer clic en el encabezado
+        thInicio?.addEventListener('click', () => {
+            sortDirInicio = sortDirInicio === 'asc' ? 'desc' : 'asc';
+            renderTrazabilidad();
+        });
+
+        cargarActividades();
+    }
+    </script>
+
+    <script src="nav.js"></script>
+    <script src="utils.js"></script>
+</body>
+</html>
