@@ -348,13 +348,21 @@
             creadoEn: serverTimestamp(),
           });
 
-          // Si este período es FINAL, actualizar la actividad con la terminación de servicio definitiva
-          if (tipo === 'FINAL' && actividadActual && actividadActual.id) {
+          // Actualizar el estado de la actividad según el tipo de período registrado
+          if (actividadActual && actividadActual.id) {
             try {
               const refAct = doc(db, 'actividades', actividadActual.id);
-              await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: true });
-              actividadActual.terminacionServicio = fin;
-              actividadActual.terminacionEsFinal = true;
+              if (tipo === 'FINAL') {
+                // FINAL: terminación definitiva
+                await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: true });
+                actividadActual.terminacionServicio = fin;
+                actividadActual.terminacionEsFinal = true;
+              } else if (tipo === 'PARCIAL') {
+                // PARCIAL: marcar terminación parcial (no definitiva)
+                await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: false });
+                actividadActual.terminacionServicio = fin;
+                actividadActual.terminacionEsFinal = false;
+              }
             } catch (e) {
               console.error('No se pudo actualizar terminacionServicio de la actividad', e);
             }

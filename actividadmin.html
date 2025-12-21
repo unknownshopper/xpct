@@ -133,6 +133,7 @@
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Ubicación</th>
                             <th id="adm-th-equipo" style="text-align:left; padding:0.4rem; cursor:pointer;">Equipo / Activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Descripción</th>
                             <th id="adm-th-inicio" style="text-align:left; padding:0.4rem; cursor:pointer;">Inicio del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Parcial / Final</th>
                             <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
@@ -152,6 +153,9 @@
                             <th style="display:none;"></th>
                             <th style="padding:0.2rem 0.4rem;">
                                 <input type="text" id="adm-filtro-equipo" placeholder="Filtrar equipo" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
+                            </th>
+                            <th style="padding:0.2rem 0.4rem;">
+                                <input type="text" id="adm-filtro-descripcion" placeholder="Filtrar descripción" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
                             </th>
                             <th style="padding:0.2rem 0.4rem;">
                                 <input type="text" id="adm-filtro-inicio" placeholder="Filtrar inicio (dd/mm/aa)" maxlength="8" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
@@ -291,10 +295,131 @@
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
+    // Mapa de descripcion por equipo desde invre.csv
+    window.mapaDescripcionPorEquipoAdm = window.mapaDescripcionPorEquipoAdm || {};
+    const mapaDescripcionPorEquipoAdm = window.mapaDescripcionPorEquipoAdm;
+
+    (async () => {
+        try {
+            const resp = await fetch('docs/invre.csv');
+            if (!resp.ok) return;
+            const texto = await resp.text();
+            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lineas.length) return;
+
+            const parse = (window && window.parseCSVLine) ? window.parseCSVLine : null;
+            if (!parse) return;
+
+            const headers = parse(lineas[0]);
+            const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+            const idxDesc = headers.indexOf('DESCRIPCION');
+            if (idxEquipo < 0 || idxDesc < 0) return;
+
+            lineas.slice(1).forEach(l => {
+                const cols = parse(l);
+                const eq = (cols[idxEquipo] || '').toString().trim();
+                const desc = (cols[idxDesc] || '').toString().trim();
+                if (!eq || !desc) return;
+                if (!mapaDescripcionPorEquipoAdm[eq]) {
+                    mapaDescripcionPorEquipoAdm[eq] = desc;
+                }
+            });
+        } catch (e) {
+            console.warn('No se pudo cargar invre.csv para descripciones (admin)', e);
+        }
+    })();
+
     onAuthStateChanged(auth, (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
+        }
+
+        // Migración opcional: marcar terminaciones PARCIALES a partir de los períodos de facturación.
+        // Uso sugerido: abrir consola en actividadmin.html y ejecutar
+        //   marcarTerminacionesParcialesDesdePeriodos()
+        // para sincronizar terminacionServicio en actividades que ya tienen períodos PARCIALES
+        // pero siguen marcadas como ABIERTAS.
+        async function marcarTerminacionesParcialesDesdePeriodos() {
+            if (!window.db) {
+                console.warn('Firestore (window.db) no está disponible para migrar terminaciones parciales');
+                return;
+            }
+
+            try {
+                const { getFirestore, collection, getDocs, query, where, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+
+                // Parser local dd/mm/aa -> Date
+                function parseFechaDdMmAaLocal(fechaTexto) {
+                    if (!fechaTexto) return null;
+                    const partes = fechaTexto.split('/');
+                    if (partes.length !== 3) return null;
+                    const dd = parseInt(partes[0], 10);
+                    const mm = parseInt(partes[1], 10);
+                    const aa = parseInt(partes[2], 10);
+                    if (!dd || !mm || isNaN(aa)) return null;
+                    const yyyy = 2000 + aa;
+                    const d = new Date(yyyy, mm - 1, dd);
+                    if (isNaN(d.getTime())) return null;
+                    return d;
+                }
+
+                const colAct = collection(db, 'actividades');
+                const snapAct = await getDocs(colAct);
+
+                const candidatos = snapAct.docs
+                    .map(d => ({ id: d.id, ...(d.data() || {}) }))
+                    .filter(a => {
+                        const tieneFin = (a.terminacionServicio || '').toString().trim() !== '';
+                        const flagFinal = a.terminacionEsFinal === true;
+                        // Solo actividades sin terminación o con terminación vacía y no marcadas como FINAL
+                        return !tieneFin && !flagFinal;
+                    });
+
+                if (!candidatos.length) {
+                    console.log('No se encontraron actividades candidatas a marcar como PARCIAL.');
+                    return;
+                }
+
+                const colPer = collection(db, 'actividadPeriodos');
+                let actualizados = 0;
+
+                for (const act of candidatos) {
+                    const qPer = query(colPer, where('actividadId', '==', act.id));
+                    const snapPer = await getDocs(qPer);
+                    if (snapPer.empty) continue;
+
+                    // Tomar el último período por fecha de finPeriodo
+                    const periodos = snapPer.docs
+                        .map(d => d.data() || {})
+                        .filter(p => (p.finPeriodo || '').toString().trim() !== '');
+                    if (!periodos.length) continue;
+
+                    periodos.sort((p1, p2) => {
+                        const f1 = (p1.finPeriodo || '').toString();
+                        const f2 = (p2.finPeriodo || '').toString();
+                        const d1 = parseFechaDdMmAaLocal(f1) || new Date(2000, 0, 1);
+                        const d2 = parseFechaDdMmAaLocal(f2) || new Date(2000, 0, 1);
+                        return d1.getTime() - d2.getTime();
+                    });
+
+                    const ultimo = periodos[periodos.length - 1];
+                    if (!ultimo || !(ultimo.finPeriodo || '').toString().trim()) continue;
+
+                    const finUltimo = (ultimo.finPeriodo || '').toString().trim();
+
+                    await updateDoc(doc(db, 'actividades', act.id), {
+                        terminacionServicio: finUltimo,
+                        terminacionEsFinal: false,
+                    });
+                    actualizados++;
+                }
+
+                console.log(`Marcado de terminaciones parciales completado. Actividades actualizadas: ${actualizados}`);
+            } catch (e) {
+                console.error('Error al marcar terminaciones parciales desde períodos', e);
+            }
         }
 
         const email = (user.email || '').toLowerCase();
@@ -356,15 +481,14 @@
                 const porClave = new Map(); // clave = cliente|ubicacion|YY -> array de actividades
                 actividades.forEach(act => {
                     const ini = (act.inicioServicio || '').toString();
-                    const partes = ini.split('/');
-                    if (partes.length !== 3) return;
-                    const aaStr = partes[2];
-                    const aa = parseInt(aaStr, 10);
-                    if (isNaN(aa)) return;
-                    const yy = String(aa).padStart(2, '0');
+                    const dIni = parseFechaDdMmAaLocal(ini);
+                    if (!dIni) return;
 
+                    const yy = String(dIni.getFullYear()).slice(-2);
                     const cli = (act.cliente || '').toString();
                     const ubi = (act.ubicacion || '').toString();
+                    if (!cli || !ubi) return;
+
                     const clave = `${cli}||${ubi}||${yy}`;
 
                     if (!porClave.has(clave)) porClave.set(clave, []);
@@ -509,6 +633,7 @@
                     if (!cli || !eq) return;
 
                     const clave = `${cli}||${eq}||${yy}`;
+
                     if (!porClave.has(clave)) porClave.set(clave, []);
                     porClave.get(clave).push(act);
                 });
@@ -558,6 +683,7 @@
         // Exponer funciones de migración en window para uso puntual desde consola
         window.migrarActividadesMultiEquipo = migrarActividadesMultiEquipo;
         window.marcarTerminacionesFinalesDesdePeriodos = marcarTerminacionesFinalesDesdePeriodos;
+        window.marcarTerminacionesParcialesDesdePeriodos = marcarTerminacionesParcialesDesdePeriodos;
         window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
         window.migrarOcActividades = migrarOcActividades;
     });
@@ -582,6 +708,7 @@
         let listaActividad = [];
         let filtroInicioServicio = '';
         let filtroEquipo = '';
+        let filtroDescripcion = '';
         let filtroEstado = 'TODOS';
         // null = sin orden especial, 'asc' = más antiguo primero, 'desc' = más reciente primero
         let ordenInicioDir = null;
@@ -747,7 +874,7 @@
             let cuentaPrecios = 0;
             let visibles = 0;
 
-            // Aplicar filtros por inicio de servicio, equipo y estado
+            // Aplicar filtros por inicio de servicio, equipo, descripción y estado
             const listaFiltrada = listaBase.filter(reg => {
                 // Filtro por estado
                 if (filtroEstado && filtroEstado !== 'TODOS') {
@@ -772,6 +899,27 @@
                         (eq || '').toString().toLowerCase().includes(filtroEquipo)
                     );
                     if (!matchEquipo) return false;
+                }
+
+                if (filtroDescripcion) {
+                    const descBase = (reg.descripcion || '').toString().toLowerCase();
+                    const mapaDesc = (window.mapaDescripcionPorEquipoAdm || {});
+
+                    let matchDesc = false;
+
+                    if (descBase && descBase.includes(filtroDescripcion)) {
+                        matchDesc = true;
+                    } else {
+                        const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
+                            ? reg.equipos
+                            : (reg.equipo ? [reg.equipo] : []);
+                        matchDesc = equiposArr.some(eq => {
+                            const descInv = (mapaDesc[eq] || '').toString().toLowerCase();
+                            return descInv.includes(filtroDescripcion);
+                        });
+                    }
+
+                    if (!matchDesc) return false;
                 }
 
                 return true;
@@ -841,6 +989,7 @@
                 const oc = reg.ordenSuministro || '';
                 const factura = reg.factura || '';
                 const precio = Number(reg.precio || 0);
+                const descripcionBase = reg.descripcion || '';
 
                 const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
                     ? reg.equipos
@@ -863,7 +1012,9 @@
                 const termInput = termTexto || '';
 
                 equiposArr.forEach(equipoNombre => {
-                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                    const mapaDesc = (window.mapaDescripcionPorEquipoAdm || {});
+                    const descEfectiva = descripcionBase || mapaDesc[equipoNombre] || '';
+                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${factura}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
                     }
@@ -885,7 +1036,7 @@
                         areaActual = '';
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.innerHTML = `
-                            <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em;">
+                            <td colspan="14" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em;">
                                 CLIENTE: ${clienteActual}
                             </td>
                         `;
@@ -897,7 +1048,7 @@
                         ubicacionActual = '';
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.innerHTML = `
-                            <td colspan="13" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">
+                            <td colspan="14" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">
                                 <input type="checkbox" class="adm-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -909,7 +1060,7 @@
                         ubicacionActual = ubicacion;
                         const trGrupoUbic = document.createElement('tr');
                         trGrupoUbic.innerHTML = `
-                            <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="14" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="adm-select-ubic" data-cliente="${cliente}" data-area="${areaActual}" data-ubicacion="${ubicacionActual}" title="Seleccionar ubicación completa">
                                 <span>Ubicación: ${ubicacionActual}</span>
                             </td>
@@ -928,6 +1079,9 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
                             ${equipoNombre}
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${descEfectiva}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <input type="text" class="adm-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px;">
@@ -1315,6 +1469,14 @@
             if (inputFiltroEquipo) {
                 inputFiltroEquipo.addEventListener('input', () => {
                     filtroEquipo = (inputFiltroEquipo.value || '').toLowerCase().trim();
+                    renderTabla();
+                });
+            }
+
+            const inputFiltroDescripcion = document.getElementById('adm-filtro-descripcion');
+            if (inputFiltroDescripcion) {
+                inputFiltroDescripcion.addEventListener('input', () => {
+                    filtroDescripcion = (inputFiltroDescripcion.value || '').toLowerCase().trim();
                     renderTabla();
                 });
             }

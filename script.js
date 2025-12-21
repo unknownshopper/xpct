@@ -667,11 +667,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     ocFinal = ocGeneradaGlobal;
                 }
 
+                const infoEq = infoPorEquipoAct[eq] || {};
+                const descripcion = infoEq.descripcion || '';
+
                 const registro = {
                     ...base,
                     os: osFinal,
                     ordenSuministro: ocFinal,
                     equipo: eq,
+                    descripcion,
                     fechaRegistro: ahora,
                 };
                 await addDoc(colRef, registro);
@@ -1139,6 +1143,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let listaActividad = [];
 
+    // Mapa descripcion por equipo desde invre.csv para vista operación
+    const mapaDescripcionPorEquipoList = {};
+
+    (async () => {
+        try {
+            const resp = await fetch('docs/invre.csv');
+            if (!resp.ok) return;
+            const texto = await resp.text();
+            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lineas.length) return;
+
+            const parse = (window && window.parseCSVLine) ? window.parseCSVLine : null;
+            if (!parse) return;
+
+            const headers = parse(lineas[0]);
+            const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+            const idxDesc = headers.indexOf('DESCRIPCION');
+            if (idxEquipo < 0 || idxDesc < 0) return;
+
+            lineas.slice(1).forEach(l => {
+                const cols = parse(l);
+                const eq = (cols[idxEquipo] || '').toString().trim();
+                const desc = (cols[idxDesc] || '').toString().trim();
+                if (!eq || !desc) return;
+                if (!mapaDescripcionPorEquipoList[eq]) {
+                    mapaDescripcionPorEquipoList[eq] = desc;
+                }
+            });
+        } catch (e) {
+            console.warn('No se pudo cargar invre.csv para descripciones (listado)', e);
+        }
+    })();
+
     // Convierte fecha dd/mm/aa a objeto Date (año base 2000+aa)
     function parseFechaDdMmAaListado(fechaTexto) {
         if (!fechaTexto) return null;
@@ -1222,13 +1259,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const os = reg.os || '';
             const factura = reg.factura || '';
             const ordenCompra = reg.ordenSuministro || '';
+            const descripcionBase = reg.descripcion || '';
 
             const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
                 ? reg.equipos
                 : (reg.equipo ? [reg.equipo] : []);
 
             equiposArr.forEach(equipoNombre => {
-                const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${os} ${factura}`.toLowerCase();
+                const descEfectiva = descripcionBase || mapaDescripcionPorEquipoList[equipoNombre] || '';
+                const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${factura}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 visibles += 1;
@@ -1241,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoCliente = document.createElement('tr');
                     trGrupoCliente.className = 'actlist-group-cliente';
                     trGrupoCliente.innerHTML = `
-                        <td colspan="12" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em; cursor:pointer;">
+                        <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em; cursor:pointer;">
                             CLIENTE: ${clienteActual}
                         </td>
                     `;
@@ -1254,7 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoArea = document.createElement('tr');
                     trGrupoArea.className = 'actlist-group-area';
                     trGrupoArea.innerHTML = `
-                        <td colspan="12" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                        <td colspan="13" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                             Área: ${areaActual}
                         </td>
                     `;
@@ -1266,7 +1305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoUbic = document.createElement('tr');
                     trGrupoUbic.className = 'actlist-group-ubic';
                     trGrupoUbic.innerHTML = `
-                        <td colspan="12" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                        <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
                             Ubicación: ${ubicacionActual}
                         </td>
                     `;
@@ -1285,6 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                         <input type="text" class="actlist-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
