@@ -29,6 +29,28 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Actividades se guardan exclusivamente en Firestore (`actividades`).
   - El dashboard y otras pantallas leen siempre desde Firestore para conteos y listados.
 
+### Reglas de OC / OS (Actividad)
+
+- **OC (orden de compra / suministro)**
+  - Formato estándar: `4301YYNNNN`.
+    - `4301`: prefijo fijo.
+    - `YY`: últimos 2 dígitos del año (tomado de `inicioServicio`, formato `dd/mm/aa`).
+    - `NNNN`: consecutivo de 4 dígitos dentro de ese año.
+  - Alcance del consecutivo: se calcula por combinación **cliente + equipo + año**.
+  - En `actividad.html` (alta de actividad):
+    - Si el usuario captura una OC en el formulario, ese valor se respeta y se asigna tal cual a todos los equipos seleccionados en esa alta.
+    - Si deja el campo OC vacío, el sistema puede generar automáticamente una nueva OC siguiendo el esquema anterior.
+
+- **OS (orden de servicio)**
+  - Formato estándar actual: `PCT-YY-XXX`.
+    - `PCT`: prefijo fijo.
+    - `YY`: últimos 2 dígitos del año (tomado de `inicioServicio`).
+    - `XXX`: consecutivo de 3 dígitos dentro de ese año.
+  - Alcance del consecutivo: se calcula por combinación **cliente + año**.
+  - En `actividad.html` (alta de actividad):
+    - Si el usuario deja el campo OS vacío, el sistema genera la OS automáticamente con el siguiente consecutivo disponible.
+    - La OS se almacena por equipo/actividad y puede ser ajustada posteriormente solo desde vistas de administración.
+
 - **Dashboard (`index.html`)**:
   - Resumen de: número de pruebas, inspecciones, equipos en inventario, actividades (totales / concluidas / pendientes).
   - Cuenta equipos "fuera de servicio" cruzando inventario con inspecciones con hallazgos MALO.

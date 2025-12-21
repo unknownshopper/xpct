@@ -534,7 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
         //  - PCT: prefijo fijo
         //  - YY: últimos 2 dígitos del año del inicio de servicio
         //  - XXX: consecutivo de 3 dígitos dentro de ese año
-        // El consecutivo se lleva por combinación (cliente, ubicacion, año).
+        // El consecutivo se lleva por combinación (cliente, año),
+        // alineado con la lógica usada en trazabilidades.html.
 
         const partes = (inicioServicioTexto || '').split('/');
         if (partes.length !== 3) return '';
@@ -543,18 +544,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNaN(aa)) return '';
         const yy = String(aa).padStart(2, '0');
 
-        // Cliente y ubicación actuales del formulario
+        // Cliente actual del formulario
         const clienteSel = (document.getElementById('act-cliente') || {}).value || '';
-        const ubicSel = (document.getElementById('act-ubicacion') || {}).value || '';
 
-        // Buscar OS existentes para misma combinación cliente+ubicacion+año
+        // Buscar OS existentes para misma combinación cliente+año
         const prefijo = `PCT-${yy}-`;
         const existentes = listaActividad
             .filter(reg => {
                 const cli = (reg.cliente || '').toString();
-                const ubi = (reg.ubicacion || '').toString();
                 const ini = (reg.inicioServicio || '').toString();
-                if (cli !== clienteSel || ubi !== ubicSel) return false;
+                if (cli !== clienteSel) return false;
                 return ini.endsWith(`/${yy}`);
             })
             .map(reg => (reg.os || '').toString().trim())
@@ -572,6 +571,51 @@ document.addEventListener('DOMContentLoaded', () => {
         const siguiente = maxConsec + 1;
         const consecutivo = String(siguiente).padStart(3, '0');
         return `PCT-${yy}-${consecutivo}`;
+    }
+
+    function generarOcAutomatica(equipo, inicioServicioTexto) {
+        // Formato de OC: 4301YYNNNN
+        //  - 4301: prefijo fijo
+        //  - YY: últimos 2 dígitos del año del inicio de servicio
+        //  - NNNN: consecutivo de 4 dígitos dentro de ese año
+        // El consecutivo se lleva por combinación (cliente, equipo, año),
+        // alineado con la lógica usada en trazabilidades.html para ocPorPeriodo.
+
+        const partes = (inicioServicioTexto || '').split('/');
+        if (partes.length !== 3) return '';
+        const aaStr = partes[2];
+        const aa = parseInt(aaStr, 10);
+        if (isNaN(aa)) return '';
+        const yy = String(aa).padStart(2, '0');
+
+        const clienteSel = (document.getElementById('act-cliente') || {}).value || '';
+        const equipoSel = (equipo || '').toString();
+        if (!clienteSel || !equipoSel) return '';
+
+        const prefijo = `4301${yy}`;
+
+        // Buscar OCs existentes en actividades para misma combinación cliente+equipo+año
+        const existentes = listaActividad
+            .filter(reg => {
+                const cli = (reg.cliente || '').toString();
+                const eq = (reg.equipo || '').toString();
+                const ini = (reg.inicioServicio || '').toString();
+                if (cli !== clienteSel || eq !== equipoSel) return false;
+                return ini.endsWith(`/${yy}`);
+            })
+            .map(reg => (reg.ordenSuministro || reg.oc || '').toString().trim())
+            .filter(oc => oc.startsWith(prefijo));
+
+        let maxConsec = 0;
+        existentes.forEach(oc => {
+            const sufijo = oc.slice(prefijo.length);
+            const num = parseInt(sufijo, 10);
+            if (!isNaN(num) && num > maxConsec) maxConsec = num;
+        });
+
+        const siguiente = maxConsec + 1;
+        const consecutivo = String(siguiente).padStart(4, '0');
+        return `${prefijo}${consecutivo}`;
     }
 
     async function guardarActividadEnFirestore() {
@@ -605,15 +649,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const ahora = serverTimestamp();
 
+            // Si no se capturó OC en el formulario, generar una sola OC automática
+            // y reutilizarla para todos los equipos de esta alta.
+            let ocGeneradaGlobal = '';
+
             for (const eq of equiposSeleccionados) {
                 let osFinal = base.os;
                 if (!osFinal) {
                     osFinal = generarOsAutomatico(eq, base.inicioServicio) || '';
                 }
 
+                let ocFinal = base.ordenSuministro;
+                if (!ocFinal) {
+                    if (!ocGeneradaGlobal) {
+                        ocGeneradaGlobal = generarOcAutomatica(eq, base.inicioServicio) || '';
+                    }
+                    ocFinal = ocGeneradaGlobal;
+                }
+
                 const registro = {
                     ...base,
                     os: osFinal,
+                    ordenSuministro: ocFinal,
                     equipo: eq,
                     fechaRegistro: ahora,
                 };

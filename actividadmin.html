@@ -52,7 +52,7 @@
         </div>
     </header>
 
-    <main class="actividad-page" style="max-width: 1200px; margin: 1rem auto;">
+    <main class="actividad-page actividadlist-wrap">
         <!-- Tarjetas resumen -->
         <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
             <div class="dash-card">
@@ -438,10 +438,102 @@
             }
         }
 
+        async function migrarOcActividades() {
+            if (!window.db) {
+                console.warn('Firestore (window.db) no está disponible para migrar OC');
+                return;
+            }
+
+            try {
+                const { getFirestore, collection, getDocs, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+
+                function parseFechaDdMmAaLocal(fechaTexto) {
+                    if (!fechaTexto) return null;
+                    const partes = fechaTexto.split('/');
+                    if (partes.length !== 3) return null;
+                    const dd = parseInt(partes[0], 10);
+                    const mm = parseInt(partes[1], 10);
+                    const aa = parseInt(partes[2], 10);
+                    if (!dd || !mm || isNaN(aa)) return null;
+                    const yyyy = 2000 + aa;
+                    const d = new Date(yyyy, mm - 1, dd);
+                    if (isNaN(d.getTime())) return null;
+                    return d;
+                }
+
+                const colAct = collection(db, 'actividades');
+                const snapAct = await getDocs(colAct);
+
+                const actividades = snapAct.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+                if (!actividades.length) {
+                    console.log('No hay actividades para migrar OC.');
+                    return;
+                }
+
+                const porClave = new Map(); // clave = cliente||equipo||YY -> array de actividades
+                actividades.forEach(act => {
+                    const ini = (act.inicioServicio || '').toString();
+                    const dIni = parseFechaDdMmAaLocal(ini);
+                    if (!dIni) return;
+
+                    const yy = String(dIni.getFullYear()).slice(-2);
+                    const cli = (act.cliente || '').toString();
+                    const eq = (act.equipo || '').toString();
+                    if (!cli || !eq) return;
+
+                    const clave = `${cli}||${eq}||${yy}`;
+                    if (!porClave.has(clave)) porClave.set(clave, []);
+                    porClave.get(clave).push(act);
+                });
+
+                let totalActualizadas = 0;
+
+                for (const [clave, lista] of porClave.entries()) {
+                    lista.sort((a, b) => {
+                        const da = parseFechaDdMmAaLocal(a.inicioServicio || '') || new Date(2000, 0, 1);
+                        const dbDate = parseFechaDdMmAaLocal(b.inicioServicio || '') || new Date(2000, 0, 1);
+                        return da.getTime() - dbDate.getTime();
+                    });
+
+                    const partesClave = clave.split('||');
+                    const yy = partesClave[2] || '';
+                    const prefijo = `4301${yy}`;
+
+                    let maxConsec = 0;
+                    lista.forEach(act => {
+                        const ocActual = (act.ordenSuministro || act.oc || '').toString().trim();
+                        if (!ocActual.startsWith(prefijo)) return;
+                        const sufijo = ocActual.slice(prefijo.length);
+                        const num = parseInt(sufijo, 10);
+                        if (!isNaN(num) && num > maxConsec) maxConsec = num;
+                    });
+
+                    let consec = maxConsec;
+                    for (const act of lista) {
+                        const ocActual = (act.ordenSuministro || act.oc || '').toString().trim();
+                        if (ocActual) continue; // respetar OCs ya existentes, solo rellenar vacíos
+
+                        consec += 1;
+                        const consecutivo = String(consec).padStart(4, '0');
+                        const nuevaOc = `${prefijo}${consecutivo}`;
+
+                        await updateDoc(doc(db, 'actividades', act.id), { ordenSuministro: nuevaOc });
+                        totalActualizadas += 1;
+                    }
+                }
+
+                console.log(`Migración de OC completada. Actividades actualizadas: ${totalActualizadas}`);
+            } catch (e) {
+                console.error('Error al migrar OC en actividades', e);
+            }
+        }
+
         // Exponer funciones de migración en window para uso puntual desde consola
         window.migrarActividadesMultiEquipo = migrarActividadesMultiEquipo;
         window.marcarTerminacionesFinalesDesdePeriodos = marcarTerminacionesFinalesDesdePeriodos;
         window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
+        window.migrarOcActividades = migrarOcActividades;
     });
 
     if (btnLogout) {
