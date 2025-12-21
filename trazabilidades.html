@@ -75,9 +75,12 @@
                             Selecciona un equipo para ver su trazabilidad.
                         </p>
                     </div>
-                    <div style="display:flex; gap:0.25rem; font-size:0.75rem;">
+                    <div style="display:flex; gap:0.25rem; font-size:0.75rem; flex-wrap:wrap;">
                         <button id="trz-modo-equipo" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #3b82f6; background:#3b82f6; color:white;">Por equipo</button>
                         <button id="trz-modo-os" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por OS</button>
+                        <button id="trz-modo-cliente" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por cliente</button>
+                        <button id="trz-modo-ubicacion" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por ubicación</button>
+                        <button id="trz-modo-oc" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por OC</button>
                     </div>
                 </div>
                 <div style="max-height:65vh; overflow:auto;" id="trz-lista-equipos-wrapper">
@@ -229,6 +232,9 @@
         const thInicio            = document.getElementById('trz-th-inicio');
         const btnModoEquipo       = document.getElementById('trz-modo-equipo');
         const btnModoOs           = document.getElementById('trz-modo-os');
+        const btnModoCliente      = document.getElementById('trz-modo-cliente');
+        const btnModoUbicacion    = document.getElementById('trz-modo-ubicacion');
+        const btnModoOc           = document.getElementById('trz-modo-oc');
         const tituloLista         = document.getElementById('trz-lista-titulo');
         const subtituloLista      = document.getElementById('trz-lista-subtitulo');
 
@@ -245,13 +251,19 @@
         let listaActividades = [];
         let equiposAgrupados = [];
         let osAgrupadas = [];
+        let clientesAgrupados = [];
+        let ubicacionesAgrupadas = [];
+        let ocAgrupadas = [];
         let equipoSeleccionado = null;
         let osSeleccionada = null;
+        let clienteSeleccionado = null;
+        let ubicacionSeleccionada = null;
+        let ocSeleccionada = null;
         let periodosPorActividad = new Map(); // actividadId -> [periodos]
         let osPorActividad = new Map(); // actividadId -> OS calculada
         let ocPorPeriodo = new Map(); // periodoId -> OC calculada
         let sortDirInicio = 'asc'; // 'asc' o 'desc'
-        let modoListado = 'equipo'; // 'equipo' o 'os'
+        let modoListado = 'equipo'; // 'equipo' | 'os' | 'cliente' | 'ubicacion' | 'oc'
 
         async function cargarActividades() {
             try {
@@ -316,6 +328,9 @@
 
             agruparEquipos();
             agruparOs();
+            agruparClientes();
+            agruparUbicaciones();
+            agruparOc();
             renderListaPrincipal();
         }
 
@@ -370,6 +385,175 @@
                 .sort((a, b) =>
                     a.nombre.toUpperCase() < b.nombre.toUpperCase() ? -1 : 1
                 );
+        }
+
+        function agruparClientes() {
+            const mapa = new Map(); // cliente -> grupo
+
+            listaActividades.forEach(act => {
+                const cli = (act.cliente || '').toString().trim();
+                if (!cli) return;
+
+                if (!mapa.has(cli)) {
+                    mapa.set(cli, {
+                        cliente: cli,
+                        actividades: [],
+                    });
+                }
+                mapa.get(cli).actividades.push(act);
+            });
+
+            clientesAgrupados = Array.from(mapa.values()).map(grp => {
+                const equipos = new Set();
+                let minFecha = null;
+                let maxFecha = null;
+
+                grp.actividades.forEach(a => {
+                    const eq = (a.equipo || '').toString();
+                    if (eq) equipos.add(eq);
+
+                    const di = parseFechaDdMmAa(a.inicioServicio || '');
+                    if (di && (!minFecha || di < minFecha)) minFecha = di;
+                    const df = parseFechaDdMmAa(a.terminacionServicio || '');
+                    if (df && (!maxFecha || df > maxFecha)) maxFecha = df;
+                });
+
+                return {
+                    ...grp,
+                    equipos: Array.from(equipos),
+                    fechaInicioMin: minFecha,
+                    fechaFinMax: maxFecha,
+                };
+            }).sort((a, b) => a.cliente.toUpperCase() < b.cliente.toUpperCase() ? -1 : 1);
+        }
+
+        function agruparUbicaciones() {
+            const mapa = new Map(); // clave = cliente||ubicacion
+
+            listaActividades.forEach(act => {
+                const cli = (act.cliente || '').toString().trim();
+                const ubi = (act.ubicacion || '').toString().trim();
+                if (!cli || !ubi) return;
+
+                const clave = `${cli}||${ubi}`;
+                if (!mapa.has(clave)) {
+                    mapa.set(clave, {
+                        cliente: cli,
+                        ubicacion: ubi,
+                        actividades: [],
+                    });
+                }
+                mapa.get(clave).actividades.push(act);
+            });
+
+            ubicacionesAgrupadas = Array.from(mapa.values()).map(grp => {
+                const equipos = new Set();
+                let minFecha = null;
+                let maxFecha = null;
+
+                grp.actividades.forEach(a => {
+                    const eq = (a.equipo || '').toString();
+                    if (eq) equipos.add(eq);
+
+                    const di = parseFechaDdMmAa(a.inicioServicio || '');
+                    if (di && (!minFecha || di < minFecha)) minFecha = di;
+                    const df = parseFechaDdMmAa(a.terminacionServicio || '');
+                    if (df && (!maxFecha || df > maxFecha)) maxFecha = df;
+                });
+
+                return {
+                    ...grp,
+                    equipos: Array.from(equipos),
+                    fechaInicioMin: minFecha,
+                    fechaFinMax: maxFecha,
+                };
+            }).sort((a, b) => {
+                const ca = a.cliente.toUpperCase();
+                const cb = b.cliente.toUpperCase();
+                if (ca < cb) return -1;
+                if (ca > cb) return 1;
+                const ua = a.ubicacion.toUpperCase();
+                const ub = b.ubicacion.toUpperCase();
+                if (ua < ub) return -1;
+                if (ua > ub) return 1;
+                return 0;
+            });
+        }
+
+        function agruparOc() {
+            const mapa = new Map(); // clave = OC -> grupo
+
+            // Tomar OCs desde periodos si existen, si no desde ordenSuministro en actividad
+            periodosPorActividad.forEach((arrPeriodos, actId) => {
+                const act = listaActividades.find(a => a.id === actId);
+                if (!act) return;
+
+                arrPeriodos.forEach(p => {
+                    const oc = (ocPorPeriodo.get(p.id) || p.oc || '').toString().trim();
+                    if (!oc) return;
+
+                    if (!mapa.has(oc)) {
+                        mapa.set(oc, {
+                            oc,
+                            actividades: [],
+                            clientes: new Set(),
+                            equipos: new Set(),
+                            fechaInicioMin: null,
+                            fechaFinMax: null,
+                        });
+                    }
+                    const g = mapa.get(oc);
+                    g.actividades.push(act);
+                    const cli = (act.cliente || '').toString();
+                    const eq = (act.equipo || '').toString();
+                    if (cli) g.clientes.add(cli);
+                    if (eq) g.equipos.add(eq);
+
+                    const di = parseFechaDdMmAa((act.inicioServicio || '').toString());
+                    const df = parseFechaDdMmAa((act.terminacionServicio || '').toString());
+                    if (di && (!g.fechaInicioMin || di < g.fechaInicioMin)) g.fechaInicioMin = di;
+                    if (df && (!g.fechaFinMax || df > g.fechaFinMax)) g.fechaFinMax = df;
+                });
+            });
+
+            // También considerar OCs directamente en actividades sin periodos
+            listaActividades.forEach(act => {
+                const tienePeriodos = periodosPorActividad.get(act.id)?.length;
+                if (tienePeriodos) return;
+                const oc = (act.ordenSuministro || act.oc || '').toString().trim();
+                if (!oc) return;
+
+                if (!mapa.has(oc)) {
+                    mapa.set(oc, {
+                        oc,
+                        actividades: [],
+                        clientes: new Set(),
+                        equipos: new Set(),
+                        fechaInicioMin: null,
+                        fechaFinMax: null,
+                    });
+                }
+                const g = mapa.get(oc);
+                g.actividades.push(act);
+                const cli = (act.cliente || '').toString();
+                const eq = (act.equipo || '').toString();
+                if (cli) g.clientes.add(cli);
+                if (eq) g.equipos.add(eq);
+
+                const di = parseFechaDdMmAa((act.inicioServicio || '').toString());
+                const df = parseFechaDdMmAa((act.terminacionServicio || '').toString());
+                if (di && (!g.fechaInicioMin || di < g.fechaInicioMin)) g.fechaInicioMin = di;
+                if (df && (!g.fechaFinMax || df > g.fechaFinMax)) g.fechaFinMax = df;
+            });
+
+            ocAgrupadas = Array.from(mapa.values()).map(g => ({
+                oc: g.oc,
+                actividades: g.actividades,
+                clientes: Array.from(g.clientes),
+                equipos: Array.from(g.equipos),
+                fechaInicioMin: g.fechaInicioMin,
+                fechaFinMax: g.fechaFinMax,
+            })).sort((a, b) => a.oc < b.oc ? -1 : (a.oc > b.oc ? 1 : 0));
         }
 
         // Genera una OC numérica por período: cliente+equipo+año(inicioPeriodo)
@@ -435,20 +619,32 @@
 
             ulEquipos.innerHTML = '';
 
+            // Helper para resetear estilos de botones
+            const activarBoton = (activo, botones) => {
+                const activeStyle = {
+                    background: '#3b82f6',
+                    color: '#ffffff',
+                    borderColor: '#3b82f6',
+                };
+                const inactiveStyle = {
+                    background: '#ffffff',
+                    color: '#374151',
+                    borderColor: '#d1d5db',
+                };
+                botones.forEach(btn => {
+                    if (!btn) return;
+                    const isActive = btn === activo;
+                    btn.style.background = isActive ? activeStyle.background : inactiveStyle.background;
+                    btn.style.color = isActive ? activeStyle.color : inactiveStyle.color;
+                    btn.style.borderColor = isActive ? activeStyle.borderColor : inactiveStyle.borderColor;
+                });
+            };
+
             if (modoListado === 'equipo') {
                 // Texto y estilos de título
                 if (tituloLista) tituloLista.textContent = 'Equipos con historial';
                 if (subtituloLista) subtituloLista.textContent = 'Selecciona un equipo para ver su trazabilidad.';
-                if (btnModoEquipo) {
-                    btnModoEquipo.style.background = '#3b82f6';
-                    btnModoEquipo.style.color = '#ffffff';
-                    btnModoEquipo.style.borderColor = '#3b82f6';
-                }
-                if (btnModoOs) {
-                    btnModoOs.style.background = '#ffffff';
-                    btnModoOs.style.color = '#374151';
-                    btnModoOs.style.borderColor = '#d1d5db';
-                }
+                activarBoton(btnModoEquipo, [btnModoEquipo, btnModoOs, btnModoCliente, btnModoUbicacion, btnModoOc]);
 
                 let lista = equiposAgrupados.filter(grp => {
                     if (filtroEq && !grp.nombre.toLowerCase().includes(filtroEq)) return false;
@@ -512,20 +708,11 @@
 
                     ulEquipos.appendChild(li);
                 });
-            } else {
+            } else if (modoListado === 'os') {
                 // Modo OS
                 if (tituloLista) tituloLista.textContent = 'Historial de OS';
                 if (subtituloLista) subtituloLista.textContent = 'Selecciona una OS para ver su trazabilidad.';
-                if (btnModoOs) {
-                    btnModoOs.style.background = '#3b82f6';
-                    btnModoOs.style.color = '#ffffff';
-                    btnModoOs.style.borderColor = '#3b82f6';
-                }
-                if (btnModoEquipo) {
-                    btnModoEquipo.style.background = '#ffffff';
-                    btnModoEquipo.style.color = '#374151';
-                    btnModoEquipo.style.borderColor = '#d1d5db';
-                }
+                activarBoton(btnModoOs, [btnModoEquipo, btnModoOs, btnModoCliente, btnModoUbicacion, btnModoOc]);
 
                 let lista = osAgrupadas.filter(grp => {
                     if (filtroEq && !grp.os.toLowerCase().includes(filtroEq)) return false;
@@ -588,6 +775,200 @@
                     li.appendChild(titulo);
                     li.appendChild(sub);
 
+                    ulEquipos.appendChild(li);
+                });
+            } else if (modoListado === 'cliente') {
+                if (tituloLista) tituloLista.textContent = 'Clientes con historial';
+                if (subtituloLista) subtituloLista.textContent = 'Selecciona un cliente para ver su trazabilidad.';
+                activarBoton(btnModoCliente, [btnModoEquipo, btnModoOs, btnModoCliente, btnModoUbicacion, btnModoOc]);
+
+                let lista = clientesAgrupados.filter(grp => {
+                    if (filtroEq && !grp.cliente.toLowerCase().includes(filtroEq)) return false;
+                    if (filtroCli && !grp.cliente.toLowerCase().includes(filtroCli)) return false;
+                    return true;
+                });
+
+                if (!lista.length) {
+                    msgSinEquipos.style.display = 'block';
+                    if (lblContadorEquipos) lblContadorEquipos.textContent = '0 clientes';
+                    return;
+                }
+
+                msgSinEquipos.style.display = 'none';
+                if (lblContadorEquipos)
+                    lblContadorEquipos.textContent = `${lista.length} cliente${lista.length === 1 ? '' : 's'}`;
+
+                lista.forEach(grp => {
+                    const li = document.createElement('li');
+                    li.style.borderBottom = '1px solid #e5e7eb';
+                    li.style.cursor = 'pointer';
+                    li.style.padding = '0.45rem 0.75rem';
+                    li.dataset.cliente = grp.cliente;
+
+                    li.addEventListener('click', () => {
+                        clienteSeleccionado = grp.cliente;
+                        equipoSeleccionado = null;
+                        osSeleccionada = null;
+                        ubicacionSeleccionada = null;
+                        ocSeleccionada = null;
+                        Array.from(ulEquipos.children).forEach(el => { el.style.background = ''; });
+                        li.style.background = '#eff6ff';
+                        renderTrazabilidad();
+                    });
+
+                    const titulo = document.createElement('div');
+                    titulo.textContent = grp.cliente;
+                    titulo.style.fontWeight = '600';
+                    titulo.style.color = '#111827';
+                    titulo.style.fontSize = '0.9rem';
+
+                    const sub = document.createElement('div');
+                    sub.style.marginTop = '0.1rem';
+                    sub.style.fontSize = '0.78rem';
+                    sub.style.color = '#6b7280';
+
+                    const equiposTxt = (grp.equipos || []).join(' · ');
+                    const fechaIni = formatearFechaCorta(grp.fechaInicioMin);
+                    const fechaFin = formatearFechaCorta(grp.fechaFinMax);
+
+                    sub.textContent =
+                        `${grp.actividades.length} registro${grp.actividades.length === 1 ? '' : 's'}`
+                        + (equiposTxt ? ` | ${equiposTxt}` : '')
+                        + ((fechaIni || fechaFin) ? ` | ${fechaIni || '??'} - ${fechaFin || '??'}` : '');
+
+                    li.appendChild(titulo);
+                    li.appendChild(sub);
+                    ulEquipos.appendChild(li);
+                });
+            } else if (modoListado === 'ubicacion') {
+                if (tituloLista) tituloLista.textContent = 'Ubicaciones con historial';
+                if (subtituloLista) subtituloLista.textContent = 'Selecciona una ubicación para ver su trazabilidad.';
+                activarBoton(btnModoUbicacion, [btnModoEquipo, btnModoOs, btnModoCliente, btnModoUbicacion, btnModoOc]);
+
+                let lista = ubicacionesAgrupadas.filter(grp => {
+                    const clave = `${grp.cliente} ${grp.ubicacion}`.toLowerCase();
+                    if (filtroEq && !clave.includes(filtroEq)) return false;
+                    if (filtroCli && !clave.includes(filtroCli)) return false;
+                    return true;
+                });
+
+                if (!lista.length) {
+                    msgSinEquipos.style.display = 'block';
+                    if (lblContadorEquipos) lblContadorEquipos.textContent = '0 ubicaciones';
+                    return;
+                }
+
+                msgSinEquipos.style.display = 'none';
+                if (lblContadorEquipos)
+                    lblContadorEquipos.textContent = `${lista.length} ubicación${lista.length === 1 ? '' : 'es'}`;
+
+                lista.forEach(grp => {
+                    const li = document.createElement('li');
+                    li.style.borderBottom = '1px solid #e5e7eb';
+                    li.style.cursor = 'pointer';
+                    li.style.padding = '0.45rem 0.75rem';
+                    li.dataset.cliente = grp.cliente;
+                    li.dataset.ubicacion = grp.ubicacion;
+
+                    li.addEventListener('click', () => {
+                        clienteSeleccionado = grp.cliente;
+                        ubicacionSeleccionada = grp.ubicacion;
+                        equipoSeleccionado = null;
+                        osSeleccionada = null;
+                        ocSeleccionada = null;
+                        Array.from(ulEquipos.children).forEach(el => { el.style.background = ''; });
+                        li.style.background = '#eff6ff';
+                        renderTrazabilidad();
+                    });
+
+                    const titulo = document.createElement('div');
+                    titulo.textContent = `${grp.cliente} / ${grp.ubicacion}`;
+                    titulo.style.fontWeight = '600';
+                    titulo.style.color = '#111827';
+                    titulo.style.fontSize = '0.9rem';
+
+                    const sub = document.createElement('div');
+                    sub.style.marginTop = '0.1rem';
+                    sub.style.fontSize = '0.78rem';
+                    sub.style.color = '#6b7280';
+
+                    const equiposTxt = (grp.equipos || []).join(' · ');
+                    const fechaIni = formatearFechaCorta(grp.fechaInicioMin);
+                    const fechaFin = formatearFechaCorta(grp.fechaFinMax);
+
+                    sub.textContent =
+                        `${grp.actividades.length} registro${grp.actividades.length === 1 ? '' : 's'}`
+                        + (equiposTxt ? ` | ${equiposTxt}` : '')
+                        + ((fechaIni || fechaFin) ? ` | ${fechaIni || '??'} - ${fechaFin || '??'}` : '');
+
+                    li.appendChild(titulo);
+                    li.appendChild(sub);
+                    ulEquipos.appendChild(li);
+                });
+            } else if (modoListado === 'oc') {
+                if (tituloLista) tituloLista.textContent = 'Historial de OC';
+                if (subtituloLista) subtituloLista.textContent = 'Selecciona una OC para ver su trazabilidad.';
+                activarBoton(btnModoOc, [btnModoEquipo, btnModoOs, btnModoCliente, btnModoUbicacion, btnModoOc]);
+
+                let lista = ocAgrupadas.filter(grp => {
+                    const clave = `${grp.oc} ${(grp.clientes || []).join(' ')} ${(grp.equipos || []).join(' ')}`.toLowerCase();
+                    if (filtroEq && !clave.includes(filtroEq)) return false;
+                    if (filtroCli && !clave.includes(filtroCli)) return false;
+                    return true;
+                });
+
+                if (!lista.length) {
+                    msgSinEquipos.style.display = 'block';
+                    if (lblContadorEquipos) lblContadorEquipos.textContent = '0 OC';
+                    return;
+                }
+
+                msgSinEquipos.style.display = 'none';
+                if (lblContadorEquipos)
+                    lblContadorEquipos.textContent = `${lista.length} OC`;
+
+                lista.forEach(grp => {
+                    const li = document.createElement('li');
+                    li.style.borderBottom = '1px solid #e5e7eb';
+                    li.style.cursor = 'pointer';
+                    li.style.padding = '0.45rem 0.75rem';
+                    li.dataset.oc = grp.oc;
+
+                    li.addEventListener('click', () => {
+                        ocSeleccionada = grp.oc;
+                        equipoSeleccionado = null;
+                        osSeleccionada = null;
+                        clienteSeleccionado = null;
+                        ubicacionSeleccionada = null;
+                        Array.from(ulEquipos.children).forEach(el => { el.style.background = ''; });
+                        li.style.background = '#eff6ff';
+                        renderTrazabilidad();
+                    });
+
+                    const titulo = document.createElement('div');
+                    titulo.textContent = grp.oc;
+                    titulo.style.fontWeight = '600';
+                    titulo.style.color = '#111827';
+                    titulo.style.fontSize = '0.9rem';
+
+                    const sub = document.createElement('div');
+                    sub.style.marginTop = '0.1rem';
+                    sub.style.fontSize = '0.78rem';
+                    sub.style.color = '#6b7280';
+
+                    const clientesTxt = (grp.clientes || []).join(' · ');
+                    const equiposTxt = (grp.equipos || []).join(' · ');
+                    const fechaIni = formatearFechaCorta(grp.fechaInicioMin);
+                    const fechaFin = formatearFechaCorta(grp.fechaFinMax);
+
+                    sub.textContent =
+                        `${grp.actividades.length} registro${grp.actividades.length === 1 ? '' : 's'}`
+                        + (clientesTxt ? ` | ${clientesTxt}` : '')
+                        + (equiposTxt ? ` | ${equiposTxt}` : '')
+                        + ((fechaIni || fechaFin) ? ` | ${fechaIni || '??'} - ${fechaFin || '??'}` : '');
+
+                    li.appendChild(titulo);
+                    li.appendChild(sub);
                     ulEquipos.appendChild(li);
                 });
             }
@@ -682,7 +1063,7 @@
 
                 if (headerEquipo)
                     headerEquipo.textContent = `Equipo: ${equipoSeleccionado}`;
-            } else {
+            } else if (modoListado === 'os') {
                 if (tituloDetalle) tituloDetalle.textContent = 'Trazabilidad por OS';
 
                 if (!osSeleccionada) {
@@ -708,6 +1089,91 @@
 
                 if (headerEquipo)
                     headerEquipo.textContent = `OS: ${osSeleccionada}`;
+            } else if (modoListado === 'cliente') {
+                if (tituloDetalle) tituloDetalle.textContent = 'Trazabilidad del cliente';
+
+                if (!clienteSeleccionado) {
+                    if (headerEquipo) headerEquipo.textContent = 'Selecciona un cliente de la lista.';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                actividadesFuente = listaActividades.filter(act =>
+                    (act.cliente || '').toString().trim().toUpperCase() ===
+                    clienteSeleccionado.trim().toUpperCase()
+                );
+
+                if (!actividadesFuente.length) {
+                    if (headerEquipo)
+                        headerEquipo.textContent = `Sin registros para el cliente: ${clienteSeleccionado}`;
+                    msgSinTraza.style.display = 'block';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                if (headerEquipo)
+                    headerEquipo.textContent = `Cliente: ${clienteSeleccionado}`;
+            } else if (modoListado === 'ubicacion') {
+                if (tituloDetalle) tituloDetalle.textContent = 'Trazabilidad por ubicación';
+
+                if (!clienteSeleccionado || !ubicacionSeleccionada) {
+                    if (headerEquipo) headerEquipo.textContent = 'Selecciona una ubicación de la lista.';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                actividadesFuente = listaActividades.filter(act =>
+                    (act.cliente || '').toString().trim().toUpperCase() === clienteSeleccionado.trim().toUpperCase() &&
+                    (act.ubicacion || '').toString().trim().toUpperCase() === ubicacionSeleccionada.trim().toUpperCase()
+                );
+
+                if (!actividadesFuente.length) {
+                    if (headerEquipo)
+                        headerEquipo.textContent = `Sin registros para ${clienteSeleccionado} / ${ubicacionSeleccionada}`;
+                    msgSinTraza.style.display = 'block';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                if (headerEquipo)
+                    headerEquipo.textContent = `Cliente: ${clienteSeleccionado} / Ubicación: ${ubicacionSeleccionada}`;
+            } else if (modoListado === 'oc') {
+                if (tituloDetalle) tituloDetalle.textContent = 'Trazabilidad por OC';
+
+                if (!ocSeleccionada) {
+                    if (headerEquipo) headerEquipo.textContent = 'Selecciona una OC de la lista.';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                // Reutilizar actividades cuyo periodo o actividad tenga esa OC
+                actividadesFuente = listaActividades.filter(act => {
+                    const arrPeriodos = periodosPorActividad.get(act.id) || [];
+                    const tieneOcPeriodo = arrPeriodos.some(p => {
+                        const ocCalc = (ocPorPeriodo.get(p.id) || p.oc || '').toString().trim();
+                        return ocCalc === ocSeleccionada;
+                    });
+                    if (tieneOcPeriodo) return true;
+                    const ocAct = (act.ordenSuministro || act.oc || '').toString().trim();
+                    return ocAct === ocSeleccionada;
+                });
+
+                if (!actividadesFuente.length) {
+                    if (headerEquipo)
+                        headerEquipo.textContent = `Sin registros para la OC: ${ocSeleccionada}`;
+                    msgSinTraza.style.display = 'block';
+                    if (lblUbicaciones) lblUbicaciones.textContent = '0 ubicaciones';
+                    if (lblPeriodo) lblPeriodo.textContent = 'Sin rango de fechas';
+                    return;
+                }
+
+                if (headerEquipo)
+                    headerEquipo.textContent = `OC: ${ocSeleccionada}`;
             }
 
             const ordenadas = [...actividadesFuente].sort((a, b) => {
@@ -875,12 +1341,15 @@
             renderListaPrincipal();
         });
 
-        // Cambiar modo de listado por equipo / por OS
+        // Cambiar modo de listado por equipo / por OS / cliente / ubicacion / OC
         btnModoEquipo?.addEventListener('click', () => {
             if (modoListado === 'equipo') return;
             modoListado = 'equipo';
             equipoSeleccionado = null;
             osSeleccionada = null;
+            clienteSeleccionado = null;
+            ubicacionSeleccionada = null;
+            ocSeleccionada = null;
             renderListaPrincipal();
             renderTrazabilidad();
         });
@@ -890,6 +1359,45 @@
             modoListado = 'os';
             equipoSeleccionado = null;
             osSeleccionada = null;
+            clienteSeleccionado = null;
+            ubicacionSeleccionada = null;
+            ocSeleccionada = null;
+            renderListaPrincipal();
+            renderTrazabilidad();
+        });
+
+        btnModoCliente?.addEventListener('click', () => {
+            if (modoListado === 'cliente') return;
+            modoListado = 'cliente';
+            equipoSeleccionado = null;
+            osSeleccionada = null;
+            clienteSeleccionado = null;
+            ubicacionSeleccionada = null;
+            ocSeleccionada = null;
+            renderListaPrincipal();
+            renderTrazabilidad();
+        });
+
+        btnModoUbicacion?.addEventListener('click', () => {
+            if (modoListado === 'ubicacion') return;
+            modoListado = 'ubicacion';
+            equipoSeleccionado = null;
+            osSeleccionada = null;
+            clienteSeleccionado = null;
+            ubicacionSeleccionada = null;
+            ocSeleccionada = null;
+            renderListaPrincipal();
+            renderTrazabilidad();
+        });
+
+        btnModoOc?.addEventListener('click', () => {
+            if (modoListado === 'oc') return;
+            modoListado = 'oc';
+            equipoSeleccionado = null;
+            osSeleccionada = null;
+            clienteSeleccionado = null;
+            ubicacionSeleccionada = null;
+            ocSeleccionada = null;
             renderListaPrincipal();
             renderTrazabilidad();
         });

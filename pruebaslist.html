@@ -52,10 +52,83 @@
     </header>
 
     <main style="max-width: 100%; margin: 0 auto; padding: 1.5rem;">
+        <section class="pruebas-panel" style="margin-bottom: 1.5rem;">
+            <h2>Pruebas y calibraciones</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Se muestran las pruebas registradas en Firestore y su estado de vigencia según la fecha de próxima prueba.
+            </p>
+
+            <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
+                <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                    <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
+                </div>
+                <div style="font-size: 0.85rem; color:#4b5563;">
+                    <span id="pruebas-contador-pendientes">0 por realizar</span>
+                    <span style="margin:0 0.5rem;">·</span>
+                    <span id="pruebas-contador-vencidas">0 vencidas</span>
+                    <span style="margin:0 0.5rem;">·</span>
+                    <span id="pruebas-contador-historico">0 en histórico</span>
+                </div>
+            </section>
+
+            <section style="margin-bottom:1rem;">
+                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Pruebas por realizar</h3>
+                <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
+                    Incluye pruebas con fecha de próxima prueba vigente o vencida. Las vencidas se muestran resaltadas.
+                </p>
+                <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                    <table id="tabla-pruebas-pendientes" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
+                        <thead>
+                            <tr style="background:#f3f4f6;">
+                                <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
+                                <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
+                                <th style="text-align:left; padding:0.4rem;">Resultado</th>
+                                <th style="text-align:left; padding:0.4rem;">Técnico</th>
+                                <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
+                                <th style="text-align:left; padding:0.4rem;">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-pruebas-pendientes"></tbody>
+                    </table>
+                    <p id="mensaje-sin-pruebas-pendientes" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                        No hay pruebas pendientes registradas.
+                    </p>
+                </div>
+            </section>
+
+            <section style="margin-bottom:1rem;">
+                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Histórico de pruebas realizadas</h3>
+                <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
+                    Registro histórico de todas las pruebas guardadas.
+                </p>
+                <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                    <table id="tabla-pruebas-historico" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
+                        <thead>
+                            <tr style="background:#f3f4f6;">
+                                <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
+                                <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th style="text-align:left; padding:0.4rem;">Descripción</th>
+                                <th style="text-align:left; padding:0.4rem;">Producto</th>
+                                <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
+                                <th style="text-align:left; padding:0.4rem;">Técnico</th>
+                                <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
+                                <th style="text-align:left; padding:0.4rem;">Resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-pruebas-historico"></tbody>
+                    </table>
+                    <p id="mensaje-sin-pruebas-historico" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                        No hay pruebas registradas todavía.
+                    </p>
+                </div>
+            </section>
+        </section>
+
         <section class="detalle-equipo">
             <h2>Pruebas guardadas (local)</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
-                Estas pruebas se almacenan solo en este navegador usando <code>localStorage</code>. Más adelante se pueden enviar a un backend.
+                Estas pruebas se almacenan solo en este navegador usando <code>localStorage</code>. Se mantiene como respaldo.
             </p>
             <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
                 <table id="tabla-pruebas" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
@@ -81,6 +154,245 @@
     </main>
 
     <script src="nav.js"></script>
+
+    <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+        authDomain: "xpct-tab.firebaseapp.com",
+        projectId: "xpct-tab",
+        storageBucket: "xpct-tab.firebasestorage.app",
+        messagingSenderId: "614589989974",
+        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+    };
+
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    window.auth = auth;
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        await cargarPruebasDesdeFirestore();
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'login.html';
+            }
+        });
+    }
+
+    async function cargarPruebasDesdeFirestore() {
+        const tbodyPend = document.getElementById('tbody-pruebas-pendientes');
+        const tbodyHist = document.getElementById('tbody-pruebas-historico');
+        const msgPend = document.getElementById('mensaje-sin-pruebas-pendientes');
+        const msgHist = document.getElementById('mensaje-sin-pruebas-historico');
+        const inputBuscar = document.getElementById('pruebas-buscar');
+        const lblPend = document.getElementById('pruebas-contador-pendientes');
+        const lblVenc = document.getElementById('pruebas-contador-vencidas');
+        const lblHist = document.getElementById('pruebas-contador-historico');
+
+        if (!tbodyPend || !tbodyHist) return;
+
+        let pruebas = [];
+        const claveLocal = 'pct_pruebas';
+
+        async function leerFirestore() {
+            try {
+                const { getFirestore, collection, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore(app);
+                const colRef = collection(db, 'pruebas');
+                const snap = await getDocs(colRef);
+                return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (e) {
+                console.error('Error al leer pruebas desde Firestore, se usará localStorage como respaldo', e);
+                return null;
+            }
+        }
+
+        const desdeFs = await leerFirestore();
+        if (desdeFs && Array.isArray(desdeFs)) {
+            pruebas = desdeFs;
+        } else {
+            try {
+                const crudo = JSON.parse(localStorage.getItem(claveLocal) || '[]');
+                if (Array.isArray(crudo)) pruebas = crudo;
+            } catch {
+                pruebas = [];
+            }
+        }
+
+        function parseFechaRealizacion(str) {
+            if (!str) return null;
+            const partes = String(str).split('/');
+            if (partes.length !== 3) return null;
+            const [ddStr, mmStr, aaStr] = partes;
+            const dd = parseInt(ddStr, 10);
+            const mm = parseInt(mmStr, 10);
+            const aa = parseInt(aaStr, 10);
+            if (!dd || !mm || isNaN(aa)) return null;
+            const year = aa < 100 ? 2000 + aa : aa;
+            const d = new Date(year, mm - 1, dd);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function hoySinHora() {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function parseProxima(str) {
+            if (!str) return null;
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function clasificarPrueba(reg) {
+            const proxima = parseProxima(reg.proxima || '');
+            if (!proxima) return { estado: 'SIN_FECHA', proxima: null };
+            const hoy = hoySinHora();
+            if (proxima < hoy) return { estado: 'VENCIDA', proxima };
+            return { estado: 'VIGENTE', proxima };
+        }
+
+        function render() {
+            const filtro = (inputBuscar?.value || '').toLowerCase().trim();
+
+            tbodyPend.innerHTML = '';
+            tbodyHist.innerHTML = '';
+            if (msgPend) msgPend.style.display = 'none';
+            if (msgHist) msgHist.style.display = 'none';
+
+            if (!pruebas.length) {
+                if (msgPend) msgPend.style.display = 'block';
+                if (msgHist) msgHist.style.display = 'block';
+                if (lblPend) lblPend.textContent = '0 por realizar';
+                if (lblVenc) lblVenc.textContent = '0 vencidas';
+                if (lblHist) lblHist.textContent = '0 en histórico';
+                return;
+            }
+
+            const hoy = hoySinHora();
+
+            const enriquecidas = pruebas.map(reg => {
+                const clasif = clasificarPrueba(reg);
+                const fechaReal = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
+                return { ...reg, _clasif: clasif, _fechaRealDate: fechaReal };
+            });
+
+            const porRealizar = [];
+            const historico = [...enriquecidas];
+
+            enriquecidas.forEach(reg => {
+                if (reg._clasif.estado === 'VIGENTE' || reg._clasif.estado === 'VENCIDA') {
+                    porRealizar.push(reg);
+                }
+            });
+
+            // Ordenar: pendientes por fecha de próxima prueba ascendente (primero las más urgentes)
+            porRealizar.sort((a, b) => {
+                const pa = a._clasif.proxima ? a._clasif.proxima.getTime() : Infinity;
+                const pb = b._clasif.proxima ? b._clasif.proxima.getTime() : Infinity;
+                return pa - pb;
+            });
+
+            // Histórico por fecha de realización descendente
+            historico.sort((a, b) => b._fechaRealDate.getTime() - a._fechaRealDate.getTime());
+
+            let cntPend = 0;
+            let cntVenc = 0;
+            let cntHist = 0;
+
+            porRealizar.forEach(reg => {
+                const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
+                if (filtro && !textoBuscar.includes(filtro)) return;
+
+                const estado = reg._clasif.estado;
+                const proximaStr = reg.proxima || '';
+                const fila = document.createElement('tr');
+
+                if (estado === 'VENCIDA') {
+                    fila.style.background = '#fef2f2';
+                    fila.style.color = '#b91c1c';
+                }
+
+                fila.innerHTML = `
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.resultado || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.noReporte || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        ${estado === 'VIGENTE' ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>' :
+                          estado === 'VENCIDA' ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>' :
+                          '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin fecha</span>'}
+                    </td>
+                `;
+
+                tbodyPend.appendChild(fila);
+                cntPend += 1;
+                if (estado === 'VENCIDA') cntVenc += 1;
+            });
+
+            historico.forEach(reg => {
+                const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
+                if (filtro && !textoBuscar.includes(filtro)) return;
+
+                const fila = document.createElement('tr');
+                fila.innerHTML = `
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.descripcion || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.prueba || reg.pruebaTipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.noReporte || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.resultado || ''}</td>
+                `;
+
+                tbodyHist.appendChild(fila);
+                cntHist += 1;
+            });
+
+            if (!cntPend && msgPend) msgPend.style.display = 'block';
+            if (!cntHist && msgHist) msgHist.style.display = 'block';
+            if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
+            if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
+            if (lblHist) lblHist.textContent = `${cntHist} en histórico`;
+        }
+
+        if (inputBuscar) {
+            inputBuscar.addEventListener('input', () => {
+                render();
+            });
+        }
+
+        render();
+    }
+    </script>
+
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         const clave = 'pct_pruebas';

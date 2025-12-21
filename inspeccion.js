@@ -54,6 +54,182 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
 
+    async function obtenerEstadoPruebasPorEquipo(equipoId) {
+        if (!equipoId) return null;
+
+        const claveLocal = 'pct_pruebas';
+        let pruebas = [];
+
+        function hoySinHora() {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function parseProxima(str) {
+            if (!str) return null;
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function parseFechaRealizacion(str) {
+            if (!str) return null;
+            const partes = String(str).split('/');
+            if (partes.length !== 3) return null;
+            const [ddStr, mmStr, aaStr] = partes;
+            const dd = parseInt(ddStr, 10);
+            const mm = parseInt(mmStr, 10);
+            const aa = parseInt(aaStr, 10);
+            if (!dd || !mm || isNaN(aa)) return null;
+            const year = aa < 100 ? 2000 + aa : aa;
+            const d = new Date(year, mm - 1, dd);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function clasificar(reg) {
+            const proxima = parseProxima(reg.proxima || '');
+            if (!proxima) return { estado: 'SIN_FECHA', proxima: null };
+            const hoy = hoySinHora();
+            if (proxima < hoy) return { estado: 'VENCIDA', proxima };
+            return { estado: 'VIGENTE', proxima };
+        }
+
+        async function leerDesdeFirestore() {
+            try {
+                if (!window.db) return null;
+                const { getFirestore, collection, query, where, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'pruebas');
+                const q = query(colRef, where('equipo', '==', equipoId));
+                const snap = await getDocs(q);
+                return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (e) {
+                console.warn('No se pudieron leer pruebas desde Firestore (inspeccion)', e);
+                return null;
+            }
+        }
+
+        const desdeFs = await leerDesdeFirestore();
+        if (desdeFs && Array.isArray(desdeFs)) {
+            pruebas = desdeFs;
+        } else {
+            try {
+                const crudo = JSON.parse(localStorage.getItem(claveLocal) || '[]');
+                if (Array.isArray(crudo)) {
+                    pruebas = crudo.filter(r => (r.equipo || '') === equipoId);
+                }
+            } catch {
+                pruebas = [];
+            }
+        }
+
+        if (!pruebas.length) return null;
+
+        const enriquecidas = pruebas.map(reg => {
+            const c = clasificar(reg);
+            const fReal = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
+            return { ...reg, _clasif: c, _fechaReal: fReal };
+        });
+
+        // Última prueba por fecha de realización
+        enriquecidas.sort((a, b) => b._fechaReal.getTime() - a._fechaReal.getTime());
+        const ultima = enriquecidas[0];
+
+        const total = enriquecidas.length;
+        const vigentes = enriquecidas.filter(r => r._clasif.estado === 'VIGENTE').length;
+        const vencidas = enriquecidas.filter(r => r._clasif.estado === 'VENCIDA').length;
+
+        return {
+            total,
+            vigentes,
+            vencidas,
+            ultima,
+        };
+    }
+
+    async function mostrarEstadoPruebasEnDetalle(equipoId) {
+        const panelDetalle = document.getElementById('detalle-equipo');
+        if (!panelDetalle) return;
+
+        let panelEstado = document.getElementById('panel-estado-pruebas');
+        if (!panelEstado) {
+            panelEstado = document.createElement('div');
+            panelEstado.id = 'panel-estado-pruebas';
+            panelEstado.style.marginTop = '0.75rem';
+            panelEstado.style.padding = '0.6rem 0.75rem';
+            panelEstado.style.borderRadius = '0.75rem';
+            panelEstado.style.border = '1px solid #e5e7eb';
+            panelEstado.style.fontSize = '0.85rem';
+            panelEstado.style.display = 'none';
+            panelDetalle.appendChild(panelEstado);
+        }
+
+        if (!equipoId) {
+            panelEstado.style.display = 'none';
+            return;
+        }
+
+        panelEstado.style.display = 'block';
+        panelEstado.style.background = '#f9fafb';
+        panelEstado.style.borderColor = '#e5e7eb';
+        panelEstado.style.color = '#374151';
+        panelEstado.textContent = 'Consultando estado de pruebas...';
+
+        const info = await obtenerEstadoPruebasPorEquipo(equipoId);
+        if (!info) {
+            panelEstado.style.display = 'block';
+            panelEstado.style.background = '#fef2f2';
+            panelEstado.style.borderColor = '#fecaca';
+            panelEstado.style.color = '#b91c1c';
+            panelEstado.textContent = 'Sin pruebas registradas para este equipo.';
+            return;
+        }
+
+        const { total, vigentes, vencidas, ultima } = info;
+        const estado = ultima._clasif.estado;
+
+        if (estado === 'VIGENTE') {
+            panelEstado.style.background = '#ecfdf5';
+            panelEstado.style.borderColor = '#22c55e';
+            panelEstado.style.color = '#166534';
+        } else if (estado === 'VENCIDA') {
+            panelEstado.style.background = '#fef2f2';
+            panelEstado.style.borderColor = '#fecaca';
+            panelEstado.style.color = '#b91c1c';
+        } else {
+            panelEstado.style.background = '#f9fafb';
+            panelEstado.style.borderColor = '#e5e7eb';
+            panelEstado.style.color = '#374151';
+        }
+
+        const proximaTxt = ultima.proxima || '';
+        const resTxt = ultima.resultado || '';
+        const noRep = ultima.noReporte || '';
+
+        panelEstado.innerHTML = `
+            <div style="font-weight:600; margin-bottom:0.15rem;">Estado de pruebas para el equipo ${equipoId}</div>
+            <div style="margin-bottom:0.1rem;">
+                Última prueba: <strong>${ultima.fechaRealizacion || ultima.fechaPrueba || ''}</strong>
+                ${resTxt ? ` · Resultado: <strong>${resTxt}</strong>` : ''}
+            </div>
+            <div style="margin-bottom:0.1rem;">
+                Próxima prueba: <strong>${proximaTxt || 'Sin fecha'}</strong>
+                ${estado === 'VIGENTE' ? ' (vigente)' : estado === 'VENCIDA' ? ' (vencida)' : ''}
+            </div>
+            <div style="margin-bottom:0.1rem;">
+                Total registradas: <strong>${total}</strong>
+                · Vigentes: <strong>${vigentes}</strong>
+                · Vencidas: <strong>${vencidas}</strong>
+            </div>
+            ${noRep ? `<div>No. reporte / cert.: <strong>${noRep}</strong></div>` : ''}
+        `;
+    }
+
     async function inicializarDesdeActividadUrl() {
         // Solo intentamos cuando inventario y formatos estén listos
         if (!inventarioCargado || !formatosCargados) return;
@@ -175,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!valor) {
             detalleContenedor.innerHTML = '<p>Seleccione un equipo para ver su información.</p>';
             if (btnGuardar) btnGuardar.disabled = true;
+            mostrarEstadoPruebasEnDetalle('');
             return;
         }
 
@@ -184,6 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!fila) {
             detalleContenedor.innerHTML = '<p>No se encontró información para el equipo seleccionado.</p>';
             if (btnGuardar) btnGuardar.disabled = true;
+            mostrarEstadoPruebasEnDetalle(valor);
             return;
         }
 
@@ -488,6 +666,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (btnGuardar) btnGuardar.disabled = false;
+
+        // Mostrar estado de pruebas/calibraciones para este equipo
+        mostrarEstadoPruebasEnDetalle(valor);
     }
 
     inputEquipo.addEventListener('change', actualizarDetalleDesdeInput);
