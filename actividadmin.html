@@ -69,10 +69,20 @@
             </div>
         </section>
 
-        <!-- Filtro, edición en lote y contador -->
+        <!-- Filtro, edición en lote, filtros de estado, contador y ayuda -->
         <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
             <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                 <input type="search" id="adm-buscar" placeholder="Buscar por cliente, equipo, OS, factura..." style="min-width: 260px;">
+
+                <div style="display:flex; flex-direction:column; font-size:0.75rem; color:#4b5563;">
+                    <label for="adm-filtro-estado">Estado</label>
+                    <select id="adm-filtro-estado" style="font-size:0.8rem; padding:0.2rem 0.35rem; min-width:130px;">
+                        <option value="TODOS">Todos</option>
+                        <option value="ABIERTO">Solo abiertos</option>
+                        <option value="PARCIAL">Solo parciales</option>
+                        <option value="FINAL">Solo finales</option>
+                    </select>
+                </div>
 
                 <!-- Controles de edición en lote -->
                 <div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:flex-end;">
@@ -89,9 +99,25 @@
                     <button type="button" id="adm-aplicar-precio-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar precio a selección</button>
                 </div>
             </div>
-            <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563;">
+            <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563; display:flex; gap:0.5rem; align-items:center;">
+                <button id="adm-btn-ayuda" type="button" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
+                    Ver ayuda
+                </button>
                 <span id="adm-contador">0 registros</span>
             </div>
+        </section>
+
+        <!-- Panel de ayuda / tutorial, visible solo cuando el usuario lo activa -->
+        <section id="adm-ayuda-panel" style="display:none; margin:0 0.75rem 0.75rem; padding:0.75rem 1rem; background:#ecfeff; border:1px solid #bae6fd; border-radius:0.5rem; font-size:0.85rem; color:#0f172a; max-width:1000px;">
+            <h2 style="margin:0 0 0.4rem; font-size:0.95rem; font-weight:600;">Cómo usar esta vista de administración</h2>
+            <ol style="margin:0 0 0.5rem 1.25rem; padding:0; list-style:decimal;">
+                <li style="margin-bottom:0.25rem;">Arriba se muestran los totales de ingresos y ticket promedio de los registros visibles.</li>
+                <li style="margin-bottom:0.25rem;">Usa el buscador y los filtros de equipo / inicio para acotar los registros.</li>
+                <li style="margin-bottom:0.25rem;">Selecciona filas, áreas o ubicaciones completas con los checkboxes de la izquierda.</li>
+                <li style="margin-bottom:0.25rem;">Aplica fecha de terminación o precio en lote usando los controles de la barra superior.</li>
+                <li style="margin-bottom:0.25rem;">Edita OC y terminación directamente en la tabla; los cambios se guardan al salir del campo.</li>
+            </ol>
+            <p style="margin:0; font-size:0.8rem; color:#475569;">Tip: las actividades abiertas se muestran primero en la tabla para que puedas enfocarte en lo que sigue en servicio.</p>
         </section>
 
         <!-- Tabla editable -->
@@ -556,10 +582,12 @@
         let listaActividad = [];
         let filtroInicioServicio = '';
         let filtroEquipo = '';
+        let filtroEstado = 'TODOS';
         // null = sin orden especial, 'asc' = más antiguo primero, 'desc' = más reciente primero
         let ordenInicioDir = null;
         // Orden por equipo / activo: null = sin orden, 'asc' / 'desc'
         let ordenEquipoDir = null;
+        let ayudaActiva = false;
 
         function formatearMoneda(valor) {
             const n = Number(valor) || 0;
@@ -719,8 +747,18 @@
             let cuentaPrecios = 0;
             let visibles = 0;
 
-            // Aplicar filtros por inicio de servicio y por equipo
+            // Aplicar filtros por inicio de servicio, equipo y estado
             const listaFiltrada = listaBase.filter(reg => {
+                // Filtro por estado
+                if (filtroEstado && filtroEstado !== 'TODOS') {
+                    const finTxt = (reg.terminacionServicio || '').toString().trim();
+                    let estado = 'ABIERTO';
+                    if (finTxt) {
+                        estado = reg.terminacionEsFinal ? 'FINAL' : 'PARCIAL';
+                    }
+                    if (estado !== filtroEstado) return false;
+                }
+
                 if (filtroInicioServicio) {
                     const ini = (reg.inicioServicio || '').toString();
                     if (!ini.startsWith(filtroInicioServicio)) return false;
@@ -739,8 +777,18 @@
                 return true;
             });
 
-            // Ordenar para agrupar visualmente, con opción de priorizar inicio de servicio o equipo
+            // Ordenar para agrupar visualmente, dando prioridad a actividades abiertas (sin terminación)
             const listaOrdenada = [...listaFiltrada].sort((a, b) => {
+                const estadoPeso = (reg) => {
+                    const fin = (reg.terminacionServicio || '').toString().trim();
+                    if (!fin) return 0; // abierta
+                    return reg.terminacionEsFinal ? 2 : 1; // parcial (1) / final (2)
+                };
+
+                const ea = estadoPeso(a);
+                const eb = estadoPeso(b);
+                if (ea !== eb) return ea - eb;
+
                 const iniA = parseFechaDdMmAa(a.inicioServicio || '');
                 const iniB = parseFechaDdMmAa(b.inicioServicio || '');
                 const ta = iniA ? iniA.getTime() : 0;
@@ -878,30 +926,43 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
+                            ${equipoNombre}
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <input type="text" class="adm-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px;">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <input type="text" class="adm-input-term" data-id="${id}" value="${termInput}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px;">
-                            ${termTexto ? `<span style=\"margin-left:0.35rem; font-size:0.7rem; font-weight:600; color:${reg.terminacionEsFinal ? '#b91c1c' : '#0369a1'};\">${reg.terminacionEsFinal ? 'FINAL' : 'PARCIAL'}</span>` : ''}
+                            ${(() => {
+                                const finTxt = termTexto.trim();
+                                if (!finTxt) {
+                                    // ABIERTO: sin fecha de terminación, color naranja (alerta)
+                                    return '<span style="margin-left:0.35rem; font-size:0.7rem; font-weight:600; color:#ea580c;">ABIERTO</span>';
+                                }
+                                const esFinal = reg.terminacionEsFinal;
+                                // FINAL en rojo, PARCIAL en verde
+                                const color = esFinal ? '#b91c1c' : '#16a34a';
+                                const label = esFinal ? 'FINAL' : 'PARCIAL';
+                                return `<span style="margin-left:0.35rem; font-size:0.7rem; font-weight:600; color:${color};">${label}</span>`;
+                            })()}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
                             ${dias || ''}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <input type="number" min="0" step="1" class="adm-input-precio" data-id="${id}"
                                    value="${precio || ''}" style="width:80px; font-size:0.8rem;">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:right;">
                             ${ingresoEquipo ? formatearMoneda(ingresoEquipo) : ''}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">${os}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <input type="text" class="adm-input-oc" data-id="${id}" value="${oc || ''}" style="font-size:0.8rem; width:110px;">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">${factura}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
                                 Eliminar
                             </button>
@@ -1296,6 +1357,16 @@
             if (inputBuscar) {
                 inputBuscar.addEventListener('input', () => {
                     renderTabla();
+                });
+            }
+
+            const btnAyuda = document.getElementById('adm-btn-ayuda');
+            const panelAyuda = document.getElementById('adm-ayuda-panel');
+            if (btnAyuda && panelAyuda) {
+                btnAyuda.addEventListener('click', () => {
+                    ayudaActiva = !ayudaActiva;
+                    panelAyuda.style.display = ayudaActiva ? 'block' : 'none';
+                    btnAyuda.textContent = ayudaActiva ? 'Ocultar ayuda' : 'Ver ayuda';
                 });
             }
 
