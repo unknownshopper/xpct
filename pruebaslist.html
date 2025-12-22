@@ -52,6 +52,50 @@
     </header>
 
     <main style="max-width: 100%; margin: 0 auto; padding: 1.5rem;">
+        <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
+            <h2 style="margin-bottom:0.75rem;">Resumen de estado por equipo</h2>
+            <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
+                <div class="dash-card">
+                    <div class="dash-card-label">Equipos con pruebas vigentes</div>
+                    <div class="dash-card-value" id="pruebas-resumen-vigentes">0</div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-label">Equipos con prueba vencida</div>
+                    <div class="dash-card-value" id="pruebas-resumen-vencidas">0</div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-label">Equipos sin prueba registrada</div>
+                    <div class="dash-card-value" id="pruebas-resumen-sin">0</div>
+                </div>
+            </section>
+
+            <section style="margin-bottom:1rem;">
+                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Estado por equipo (última prueba)</h3>
+                <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
+                    Para cada equipo se muestra la última prueba registrada y su estado de vigencia. Este resumen no se ve afectado por el filtro de búsqueda.
+                </p>
+                <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                    <table id="tabla-pruebas-resumen" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
+                        <thead>
+                            <tr style="background:#f3f4f6;">
+                                <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th style="text-align:left; padding:0.4rem;">Descripción</th>
+                                <th style="text-align:left; padding:0.4rem;">Última prueba</th>
+                                <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
+                                <th style="text-align:left; padding:0.4rem;">Técnico</th>
+                                <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
+                                <th style="text-align:left; padding:0.4rem;">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-pruebas-resumen"></tbody>
+                    </table>
+                    <p id="mensaje-sin-pruebas-resumen" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                        No hay información de pruebas para resumir por equipo.
+                    </p>
+                </div>
+            </section>
+        </section>
+
         <section class="pruebas-panel" style="margin-bottom: 1.5rem;">
             <h2>Pruebas y calibraciones</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
@@ -207,6 +251,12 @@
         const lblVenc = document.getElementById('pruebas-contador-vencidas');
         const lblHist = document.getElementById('pruebas-contador-historico');
 
+        const tbodyResumen = document.getElementById('tbody-pruebas-resumen');
+        const msgResumen = document.getElementById('mensaje-sin-pruebas-resumen');
+        const lblResVig = document.getElementById('pruebas-resumen-vigentes');
+        const lblResVenc = document.getElementById('pruebas-resumen-vencidas');
+        const lblResSin = document.getElementById('pruebas-resumen-sin');
+
         if (!tbodyPend || !tbodyHist) return;
 
         let pruebas = [];
@@ -283,13 +333,19 @@
             tbodyHist.innerHTML = '';
             if (msgPend) msgPend.style.display = 'none';
             if (msgHist) msgHist.style.display = 'none';
+            if (tbodyResumen) tbodyResumen.innerHTML = '';
+            if (msgResumen) msgResumen.style.display = 'none';
 
             if (!pruebas.length) {
                 if (msgPend) msgPend.style.display = 'block';
                 if (msgHist) msgHist.style.display = 'block';
+                if (msgResumen) msgResumen.style.display = 'block';
                 if (lblPend) lblPend.textContent = '0 por realizar';
                 if (lblVenc) lblVenc.textContent = '0 vencidas';
                 if (lblHist) lblHist.textContent = '0 en histórico';
+                if (lblResVig) lblResVig.textContent = '0';
+                if (lblResVenc) lblResVenc.textContent = '0';
+                if (lblResSin) lblResSin.textContent = '0';
                 return;
             }
 
@@ -309,6 +365,62 @@
                     porRealizar.push(reg);
                 }
             });
+
+            // Resumen por equipo (última prueba)
+            if (tbodyResumen && lblResVig && lblResVenc && lblResSin) {
+                const porEquipo = new Map();
+                enriquecidas.forEach(reg => {
+                    const eq = (reg.equipo || '').toString();
+                    if (!eq) return;
+                    const actual = porEquipo.get(eq);
+                    if (!actual || reg._fechaRealDate.getTime() > actual._fechaRealDate.getTime()) {
+                        porEquipo.set(eq, reg);
+                    }
+                });
+
+                let cntEquiposVig = 0;
+                let cntEquiposVenc = 0;
+                let cntEquiposSin = 0;
+
+                if (porEquipo.size === 0 && msgResumen) {
+                    msgResumen.style.display = 'block';
+                }
+
+                Array.from(porEquipo.values()).sort((a, b) => {
+                    const ea = (a.equipo || '').toString();
+                    const eb = (b.equipo || '').toString();
+                    return ea.localeCompare(eb);
+                }).forEach(reg => {
+                    const estado = reg._clasif.estado;
+                    if (estado === 'VIGENTE') cntEquiposVig += 1;
+                    else if (estado === 'VENCIDA') cntEquiposVenc += 1;
+                    else cntEquiposSin += 1;
+
+                    const fila = document.createElement('tr');
+                    const proximaStr = reg.proxima || '';
+                    const badge =
+                        estado === 'VIGENTE'
+                            ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>'
+                            : estado === 'VENCIDA'
+                                ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>'
+                                : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin fecha</span>';
+
+                    fila.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.descripcion || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.noReporte || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badge}</td>
+                    `;
+                    tbodyResumen.appendChild(fila);
+                });
+
+                lblResVig.textContent = String(cntEquiposVig);
+                lblResVenc.textContent = String(cntEquiposVenc);
+                lblResSin.textContent = String(cntEquiposSin);
+            }
 
             // Ordenar: pendientes por fecha de próxima prueba ascendente (primero las más urgentes)
             porRealizar.sort((a, b) => {

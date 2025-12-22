@@ -368,6 +368,113 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Obtener estado de pruebas/calibraciones para un equipo específico (uso en actividad)
+    async function obtenerEstadoPruebasPorEquipoActividad(equipoId) {
+        if (!equipoId) return null;
+
+        const claveLocal = 'pct_pruebas';
+        let pruebas = [];
+
+        function hoySinHora() {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function parseProxima(str) {
+            if (!str) return null;
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function parseFechaRealizacion(str) {
+            if (!str) return null;
+            const partes = String(str).split('/');
+            if (partes.length !== 3) return null;
+            const [ddStr, mmStr, aaStr] = partes;
+            const dd = parseInt(ddStr, 10);
+            const mm = parseInt(mmStr, 10);
+            const aa = parseInt(aaStr, 10);
+            if (!dd || !mm || isNaN(aa)) return null;
+            const year = aa < 100 ? 2000 + aa : aa;
+            const d = new Date(year, mm - 1, dd);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function clasificar(reg) {
+            const proxima = parseProxima(reg.proxima || '');
+            if (!proxima) return { estado: 'SIN_FECHA', proxima: null };
+            const hoy = hoySinHora();
+            if (proxima < hoy) return { estado: 'VENCIDA', proxima };
+            return { estado: 'VIGENTE', proxima };
+        }
+
+        async function leerDesdeFirestore() {
+            try {
+                if (!window.db) return null;
+                const { getFirestore, collection, query, where, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'pruebas');
+                const q = query(colRef, where('equipo', '==', equipoId));
+                const snap = await getDocs(q);
+                return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (e) {
+                console.warn('No se pudieron leer pruebas desde Firestore (actividad)', e);
+                return null;
+            }
+        }
+
+        const desdeFs = await leerDesdeFirestore();
+        if (desdeFs && Array.isArray(desdeFs)) {
+            pruebas = desdeFs;
+        } else {
+            try {
+                const crudo = JSON.parse(localStorage.getItem(claveLocal) || '[]');
+                if (Array.isArray(crudo)) {
+                    pruebas = crudo.filter(r => (r.equipo || '') === equipoId);
+                }
+            } catch {
+                pruebas = [];
+            }
+        }
+
+        if (!pruebas.length) {
+            return {
+                total: 0,
+                vigentes: 0,
+                vencidas: 0,
+                ultima: null,
+                estadoUltima: 'SIN_PRUEBA',
+            };
+        }
+
+        const enriquecidas = pruebas.map(reg => {
+            const c = clasificar(reg);
+            const fReal = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
+            return { ...reg, _clasif: c, _fechaReal: fReal };
+        });
+
+        enriquecidas.sort((a, b) => b._fechaReal.getTime() - a._fechaReal.getTime());
+        const ultima = enriquecidas[0];
+
+        const total = enriquecidas.length;
+        const vigentes = enriquecidas.filter(r => r._clasif.estado === 'VIGENTE').length;
+        const vencidas = enriquecidas.filter(r => r._clasif.estado === 'VENCIDA').length;
+
+        return {
+            total,
+            vigentes,
+            vencidas,
+            ultima,
+            estadoUltima: ultima._clasif.estado,
+        };
+    }
+
     async function cargarActividadDesdeFirestore() {
         if (!window.db) {
             console.warn('Firestore (window.db) no está disponible');
@@ -637,6 +744,44 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!base.inicioServicio) {
             alert('Indica la fecha de inicio del servicio.');
             return;
+        }
+
+        // Validación de pruebas/calibraciones vigentes para los equipos seleccionados
+        try {
+            const resumenPruebasPorEquipo = {};
+            for (const eq of equiposSeleccionados) {
+                resumenPruebasPorEquipo[eq] = await obtenerEstadoPruebasPorEquipoActividad(eq);
+            }
+
+            const sinPrueba = [];
+            const vencidas = [];
+
+            Object.entries(resumenPruebasPorEquipo).forEach(([eq, info]) => {
+                if (!info) return;
+                if (info.estadoUltima === 'SIN_PRUEBA' || info.estadoUltima === 'SIN_FECHA') {
+                    sinPrueba.push(eq);
+                } else if (info.estadoUltima === 'VENCIDA') {
+                    vencidas.push(eq);
+                }
+            });
+
+            if (sinPrueba.length || vencidas.length) {
+                let mensaje = 'Advertencia:\n\n';
+                if (sinPrueba.length) {
+                    mensaje += '- Equipos SIN PRUEBAS REGISTRADAS:\n  ' + sinPrueba.join(', ') + '\n\n';
+                }
+                if (vencidas.length) {
+                    mensaje += '- Equipos con PRUEBA VENCIDA:\n  ' + vencidas.join(', ') + '\n\n';
+                }
+                mensaje += '¿Deseas continuar y registrar la actividad de todos modos?';
+
+                const continuar = window.confirm(mensaje);
+                if (!continuar) {
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('No se pudo validar el estado de pruebas al guardar la actividad', e);
         }
 
         try {

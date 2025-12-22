@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funcionamiento del sistema</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li><a href="funcionamiento.html" class="active">Funcionamiento</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main style="max-width: 980px; margin: 0 auto; padding: 1.5rem 1.25rem 2.5rem;">
+        <section style="margin-bottom: 1.75rem;">
+            <h1 style="margin-bottom: 0.75rem;">Funcionamiento general del sistema</h1>
+            <p style="font-size:0.95rem; color:#4b5563; margin-bottom:0.5rem;">
+                Este documento describe, de forma resumida, el flujo operativo del sistema y cómo se relacionan
+                las distintas pantallas. Se puede usar como mapa operacional y como referencia rápida para el
+                personal de operación, inspección y administración.
+            </p>
+            <p style="font-size:0.9rem; color:#6b7280;">
+                La lógica principal se organiza en tres momentos:
+            </p>
+            <ol style="font-size:0.9rem; color:#374151; padding-left:1.2rem; margin-top:0.4rem;">
+                <li><strong>Pre‑trabajo:</strong> pruebas y calibraciones de equipos.</li>
+                <li><strong>Trabajo / servicio:</strong> registro de actividades con cliente, OS/OC y equipos asignados.</li>
+                <li><strong>Post‑trabajo:</strong> inspecciones de los equipos al regresar del servicio.</li>
+            </ol>
+        </section>
+
+        <section style="margin-bottom: 1.75rem;">
+            <h2 style="margin-bottom:0.5rem;">1. Inventario y datos base</h2>
+            <p style="font-size:0.9rem; color:#4b5563; margin-bottom:0.4rem;">
+                El inventario de equipos se alimenta a partir de archivos CSV y de información en Firestore:
+            </p>
+            <ul style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li><strong>invre.csv</strong>: datos generales del equipo (código, descripción, serial, tipo de equipo, acero, etc.).</li>
+                <li><strong>invre2.csv</strong>: áreas a inspeccionar y tipos de prueba/calibración sugeridos por equipo.</li>
+                <li><strong>inventarioEstados</strong> (Firestore): overrides de estado por equipo (<code>ON</code>, <code>OFF</code>, etc.).</li>
+            </ul>
+            <p style="font-size:0.9rem; color:#6b7280; margin-top:0.4rem;">
+                Estos datos se usan en las pantallas de <strong>Pruebas</strong>, <strong>Actividad</strong> e
+                <strong>Inspección</strong> para autocompletar información y controlar qué equipos están disponibles.
+            </p>
+        </section>
+
+        <section style="margin-bottom: 1.75rem;">
+            <h3 style="margin-bottom:0.4rem; font-size:1rem;">1.1 Ingreso de equipo nuevo</h3>
+            <p style="font-size:0.9rem; color:#4b5563; margin-bottom:0.35rem;">
+                Cuando se incorpora un equipo nuevo al sistema, es importante registrar su información en las fuentes
+                de datos base para que pueda utilizarse correctamente en pruebas, actividades e inspecciones.
+            </p>
+            <ol style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li><strong>Agregar el equipo en <code>invre.csv</code>:</strong>
+                    <ul style="margin-top:0.15rem; padding-left:1.2rem; list-style:disc;">
+                        <li>Definir el código de equipo / activo (columna <code>EQUIPO / ACTIVO</code>).</li>
+                        <li>Llenar descripción, serial, producto, tipo de equipo, acero y demás columnas técnicas.</li>
+                        <li>Verificar el campo de estado (<code>EDO</code>) si aplica.</li>
+                    </ul>
+                </li>
+                <li><strong>Definir pruebas y áreas en <code>invre2.csv</code> (opcional pero recomendado):</strong>
+                    <ul style="margin-top:0.15rem; padding-left:1.2rem; list-style:disc;">
+                        <li>Registrar el mismo código de equipo / activo.</li>
+                        <li>Indicar el tipo de prueba o calibración (<code>PRUEBA / CALIBRACION</code>).</li>
+                        <li>Registrar el área a inspeccionar (<code>ÁREA A INSPECIONAR</code>) y otros datos necesarios.</li>
+                        <li>Estas filas permiten que en <code>pruebas.html</code> se autocompleten tipo de prueba y área.</li>
+                    </ul>
+                </li>
+                <li><strong>Revisar el estado en Firestore (colección <code>inventarioEstados</code>):</strong>
+                    <ul style="margin-top:0.15rem; padding-left:1.2rem; list-style:disc;">
+                        <li>Si se gestiona el estado de los equipos desde Firestore, crear o actualizar el documento
+                            correspondiente al nuevo código de equipo.</li>
+                        <li>Asegurarse de que el estado efectivo sea <code>ON</code> para que el equipo aparezca en los
+                            listados y datalist de selección.</li>
+                    </ul>
+                </li>
+                <li><strong>Verificar la aparición del equipo en las pantallas:</strong>
+                    <ul style="margin-top:0.15rem; padding-left:1.2rem; list-style:disc;">
+                        <li>En <code>pruebas.html</code>, el equipo debe aparecer en el campo de selección de equipo.</li>
+                        <li>En <code>actividad.html</code>, el equipo debe poder seleccionarse para asociarlo a una actividad.</li>
+                        <li>En <code>inspeccion.html</code>, el equipo debe estar disponible en el selector de inventario.</li>
+                    </ul>
+                </li>
+            </ol>
+            <p style="font-size:0.9rem; color:#6b7280; margin-top:0.35rem;">
+                Una vez realizado este ingreso, el equipo nuevo podrá seguir el ciclo normal: recibir pruebas
+                (pre‑trabajo), ser asignado a actividades y registrar inspecciones al finalizar cada servicio.
+            </p>
+        </section>
+
+        <section style="margin-bottom: 1.75rem;">
+            <h2 style="margin-bottom:0.5rem;">2. Pruebas (pre‑trabajo)</h2>
+
+            <h3 style="margin:0.5rem 0 0.25rem; font-size:1rem;">2.1 Objetivo</h3>
+            <p style="font-size:0.9rem; color:#4b5563;">
+                Registrar pruebas y calibraciones realizadas a los equipos <strong>antes</strong> de que sean utilizados
+                en actividades de servicio. Las pruebas permiten conocer si un equipo se encuentra vigente, vencido
+                o sin fecha de próxima prueba.
+            </p>
+
+            <h3 style="margin:0.75rem 0 0.25rem; font-size:1rem;">2.2 Pantalla: Registrar prueba (<code>pruebas.html</code>)</h3>
+            <p style="font-size:0.9rem; color:#4b5563; margin-bottom:0.35rem;">Flujo resumido de uso:</p>
+            <ol style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li>Seleccionar el equipo desde la lista de inventario (<code>invre2.csv</code> y <code>invre.csv</code>).</li>
+                <li>El sistema autocompleta estado, producto, descripción, tipo de equipo, serial, propiedad y material.</li>
+                <li>Seleccionar el tipo de prueba/calibración y, cuando aplique, el área a inspeccionar.</li>
+                <li>Capturar la fecha de realización (formato <code>dd/mm/aa</code>); el sistema calcula la próxima prueba (+1 año).</li>
+                <li>Registrar resultado, técnico, número de reporte/certificado y observaciones.</li>
+                <li>Guardar la prueba. Se almacena en <strong>Firestore</strong> (colección <code>pruebas</code>) y en <code>localStorage</code> como respaldo.</li>
+            </ol>
+
+            <h3 style="margin:0.75rem 0 0.25rem; font-size:1rem;">2.3 Pantalla: Listado de pruebas (<code>pruebaslist.html</code>)</h3>
+            <p style="font-size:0.9rem; color:#4b5563; margin-bottom:0.35rem;">Elementos principales:</p>
+            <ul style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li><strong>Pruebas por realizar:</strong> pruebas cuyo campo de próxima prueba está vigente o vencido.</li>
+                <li><strong>Histórico:</strong> todas las pruebas registradas, ordenadas por fecha de realización.</li>
+                <li><strong>Contadores:</strong> número de pruebas por realizar, vencidas y en histórico.</li>
+                <li><strong>Búsqueda:</strong> filtro por equipo, producto, técnico o número de reporte.</li>
+                <li><strong>Respaldo local:</strong> tabla adicional con las pruebas guardadas en <code>localStorage</code>.
+                    Permite editar el número de reporte o eliminar registros locales.</li>
+            </ul>
+            <p style="font-size:0.9rem; color:#6b7280; margin-top:0.4rem;">
+                Esta vista funciona como agenda de calibraciones y ayuda a planear las pruebas necesarias para mantener
+                los equipos aptos antes de asignarlos a nuevas actividades.
+            </p>
+        </section>
+
+        <section style="margin-bottom: 1.75rem;">
+            <h2 style="margin-bottom:0.5rem;">3. Actividades (trabajo / servicio)</h2>
+
+            <h3 style="margin:0.5rem 0 0.25rem; font-size:1rem;">3.1 Objetivo</h3>
+            <p style="font-size:0.9rem; color:#4b5563;">
+                Registrar las actividades de servicio realizadas para los clientes, asociando uno o varios equipos,
+                así como OS, OC, ubicación y fechas de inicio/terminación de servicio.
+            </p>
+
+            <h3 style="margin:0.75rem 0 0.25rem; font-size:1rem;">3.2 Pantalla: Registrar actividad (<code>actividad.html</code>)</h3>
+            <p style="font-size:0.9rem; color:#4b5563; margin-bottom:0.35rem;">Flujo resumido de uso:</p>
+            <ol style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li>Seleccionar cliente, área del cliente y ubicación del servicio.</li>
+                <li>Capturar fechas de embarque e inicio del servicio (formato <code>dd/mm/aa</code>).</li>
+                <li>Seleccionar uno o varios equipos desde el inventario. El sistema autocompleta serial, estado,
+                    propiedad y descripción.</li>
+                <li>Definir OS y OC manualmente o permitir que el sistema genere claves automáticas según cliente,
+                    año y equipo.</li>
+                <li>Guardar la actividad. Se almacena en <strong>Firestore</strong> (colección <code>actividades</code>)
+                    una entrada por cada equipo asociado.</li>
+            </ol>
+
+            <h3 style="margin:0.75rem 0 0.25rem; font-size:1rem;">3.3 Pantallas: Listado y administración de actividad</h3>
+            <ul style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li><strong>Listado de actividades (<code>actividadlist.html</code>):</strong> muestra las actividades
+                    registradas y permite filtrarlas por cliente, equipo, OS u otros criterios.</li>
+                <li><strong>Administración / Trazabilidades (<code>actividadmin.html</code>, <code>trazabilidades.html</code>):</strong>
+                    vistas para análisis administrativo, revisión de consecutivos de OS/OC y trazabilidad por periodo.</li>
+            </ul>
+        </section>
+
+        <section style="margin-bottom: 1.75rem;">
+            <h2 style="margin-bottom:0.5rem;">4. Inspecciones (post‑trabajo)</h2>
+
+            <h3 style="margin:0.5rem 0 0.25rem; font-size:1rem;">4.1 Objetivo</h3>
+            <p style="font-size:0.9rem; color:#4b5563;">
+                Registrar el estado de los equipos al final de una actividad de servicio. Las inspecciones se ligan
+                a una actividad específica y documentan hallazgos, daños y observaciones relevantes.
+            </p>
+
+            <h3 style="margin:0.75rem 0 0.25rem; font-size:1rem;">4.2 Pantalla: Nueva inspección (<code>inspeccion.html</code>)</h3>
+            <p style="font-size:0.9rem; color:#4b5563; margin-bottom:0.35rem;">Flujo resumido de uso:</p>
+            <ol style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li>Seleccionar el equipo desde el inventario. El sistema muestra la ficha técnica con datos clave.</li>
+                <li>Cargar el formato de inspección correspondiente al reporte P/P y construir la lista de
+                    parámetros a inspeccionar.</li>
+                <li>Evaluar cada parámetro (BUENO / MALO, LEGIBLE / NO LEGIBLE) y, cuando aplique, registrar el tipo
+                    de daño y una descripción del hallazgo.</li>
+                <li>El sistema resume los hallazgos en un campo de observaciones.</li>
+                <li>Si la inspección se inició desde el listado de actividades, se utiliza el <code>actividadId</code>
+                    de la actividad seleccionada. En caso contrario, se recupera la actividad más reciente para ese
+                    equipo.</li>
+                <li>Guardar la inspección. Se almacena en <strong>Firestore</strong> (colección <code>inspecciones</code>)
+                    y en <code>localStorage</code> como respaldo.</li>
+            </ol>
+            <p style="font-size:0.9rem; color:#6b7280; margin-top:0.4rem;">
+                Durante la inspección se consulta también el estado de pruebas/calibraciones del equipo para mostrar
+                la última prueba realizada, la próxima fecha comprometida y si el equipo se encontraba vigente o vencido.
+            </p>
+
+            <h3 style="margin:0.75rem 0 0.25rem; font-size:1rem;">4.3 Pantalla: Listado de inspecciones (<code>inspectlist.html</code>)</h3>
+            <ul style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li>Lee inspecciones desde Firestore y, en caso de error, desde <code>localStorage</code>.</li>
+                <li>Cruza cada inspección con la actividad correspondiente (<code>actividadId</code>) para mostrar
+                    información de cliente, equipo y servicio.</li>
+                <li>Permite a administradores asignar <em>inspectorAsignado</em> a las actividades.</li>
+                <li>Permite a los inspectores reclamar inspecciones no asignadas.</li>
+                <li>Ofrece acciones para editar (reabrir formato de inspección) o eliminar inspecciones existentes.</li>
+            </ul>
+        </section>
+
+        <section style="margin-bottom: 1.75rem;">
+            <h2 style="margin-bottom:0.5rem;">5. Resumen operativo (pre / trabajo / post)</h2>
+            <p style="font-size:0.9rem; color:#4b5563; margin-bottom:0.35rem;">Secuencia típica de trabajo:</p>
+            <ol style="font-size:0.9rem; color:#374151; padding-left:1.2rem;">
+                <li><strong>Actualizar inventario:</strong> agregar o modificar equipos en <code>invre.csv</code> y
+                    <code>invre2.csv</code>; actualizar estados en Firestore si aplica.</li>
+                <li><strong>Realizar pruebas (pre‑trabajo):</strong> registrar o actualizar pruebas y calibraciones
+                    en <code>pruebas.html</code>; revisar el estado general en <code>pruebaslist.html</code>.</li>
+                <li><strong>Crear actividad de servicio:</strong> en <code>actividad.html</code> seleccionar cliente,
+                    ubicación y equipos; revisar, cuando aplique, que las pruebas del equipo estén vigentes.</li>
+                <li><strong>Ejecutar el servicio:</strong> seguimiento operativo de la actividad usando
+                    <code>actividadlist.html</code> y vistas administrativas.</li>
+                <li><strong>Realizar inspección (post‑trabajo):</strong> desde <code>inspectlist.html</code> o
+                    directamente en <code>inspeccion.html</code>, registrar el estado del equipo al término del
+                    servicio.</li>
+                <li><strong>Consultar histórico:</strong> analizar históricos de pruebas, actividades e inspecciones
+                    para trazabilidad, decisiones de mantenimiento y control de calidad.</li>
+            </ol>
+        </section>
+    </main>
+
+    <script src="nav.js"></script>
+</body>
+</html>
