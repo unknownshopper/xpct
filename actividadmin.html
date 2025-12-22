@@ -76,12 +76,22 @@
                 <input type="search" id="adm-buscar" placeholder="Buscar por cliente, equipo, OS, factura..." style="min-width: 260px;">
 
                 <div style="display:flex; flex-direction:column; font-size:0.75rem; color:#4b5563;">
-                    <label for="adm-filtro-estado">Estado</label>
+                    <label for="adm-filtro-estado">Estado actividad</label>
                     <select id="adm-filtro-estado" style="font-size:0.8rem; padding:0.2rem 0.35rem; min-width:130px;">
                         <option value="TODOS">Todos</option>
                         <option value="ABIERTO">Solo abiertos</option>
                         <option value="PARCIAL">Solo parciales</option>
                         <option value="FINAL">Solo finales</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; flex-direction:column; font-size:0.75rem; color:#4b5563;">
+                    <label for="adm-filtro-pruebas">Pruebas</label>
+                    <select id="adm-filtro-pruebas" style="font-size:0.8rem; padding:0.2rem 0.35rem; min-width:140px;">
+                        <option value="TODOS">Todas</option>
+                        <option value="VIGENTE">Solo vigente</option>
+                        <option value="VENCIDA">Solo vencida</option>
+                        <option value="SIN_PRUEBA">Solo sin prueba</option>
                     </select>
                 </div>
 
@@ -134,6 +144,7 @@
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Ubicación</th>
                             <th id="adm-th-equipo" style="text-align:left; padding:0.4rem; cursor:pointer;">Equipo / Activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Pruebas</th>
                             <th style="text-align:left; padding:0.4rem;">Descripción</th>
                             <th id="adm-th-inicio" style="text-align:left; padding:0.4rem; cursor:pointer;">Inicio del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Parcial / Final</th>
@@ -168,6 +179,16 @@
                             <th></th>
                             <th></th>
                             <th></th>
+                            <th></th>
+                            <th></th>
+                            <th style="padding:0.2rem 0.4rem;">
+                                <select id="adm-filtro-pruebas-estado" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
+                                    <option value="TODOS">Todos</option>
+                                    <option value="VIGENTE">Vigente</option>
+                                    <option value="VENCIDA">Vencida</option>
+                                    <option value="SIN_PRUEBA">Sin prueba</option>
+                                </select>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="adm-tbody-actividad">
@@ -185,7 +206,7 @@
         <div style="background:white; max-width:900px; width:95%; max-height:90vh; overflow:auto; border-radius:0.5rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:1rem 1.25rem;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
                 <div>
-                    <h2 style="margin:0; font-size:1.1rem; font-weight:600; color:#111827;">Tabulador de facturación</h2>
+                    <h2 style="margin:0; font-size:1.1rem; font-weight:600;">Tabulador de facturación</h2>
                     <p id="adm-tabulador-header" style="margin:0.15rem 0 0; font-size:0.85rem; color:#4b5563;"></p>
                 </div>
                 <div>
@@ -195,7 +216,7 @@
             </div>
 
             <div style="margin-bottom:0.75rem; padding:0.75rem; background:#f9fafb; border-radius:0.5rem; border:1px solid #e5e7eb;">
-                <h3 style="margin:0 0 0.5rem; font-size:0.95rem; font-weight:500; color:#111827;">Nuevo período</h3>
+                <h3 style="margin:0 0 0.5rem; font-size:0.95rem; font-weight:500;">Nuevo período</h3>
                 <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                     <div style="flex:1 1 120px;">
                         <label style="font-size:0.75rem; color:#4b5563;">Inicio período</label>
@@ -589,104 +610,11 @@
             }
         }
 
-        async function migrarOcActividades() {
-            if (!window.db) {
-                console.warn('Firestore (window.db) no está disponible para migrar OC');
-                return;
-            }
-
-            try {
-                const { getFirestore, collection, getDocs, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-                const db = getFirestore();
-
-                function parseFechaDdMmAaLocal(fechaTexto) {
-                    if (!fechaTexto) return null;
-                    const partes = fechaTexto.split('/');
-                    if (partes.length !== 3) return null;
-                    const dd = parseInt(partes[0], 10);
-                    const mm = parseInt(partes[1], 10);
-                    const aa = parseInt(partes[2], 10);
-                    if (!dd || !mm || isNaN(aa)) return null;
-                    const yyyy = 2000 + aa;
-                    const d = new Date(yyyy, mm - 1, dd);
-                    if (isNaN(d.getTime())) return null;
-                    return d;
-                }
-
-                const colAct = collection(db, 'actividades');
-                const snapAct = await getDocs(colAct);
-
-                const actividades = snapAct.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
-                if (!actividades.length) {
-                    console.log('No hay actividades para migrar OC.');
-                    return;
-                }
-
-                const porClave = new Map(); // clave = cliente||equipo||YY -> array de actividades
-                actividades.forEach(act => {
-                    const ini = (act.inicioServicio || '').toString();
-                    const dIni = parseFechaDdMmAaLocal(ini);
-                    if (!dIni) return;
-
-                    const yy = String(dIni.getFullYear()).slice(-2);
-                    const cli = (act.cliente || '').toString();
-                    const eq = (act.equipo || '').toString();
-                    if (!cli || !eq) return;
-
-                    const clave = `${cli}||${eq}||${yy}`;
-
-                    if (!porClave.has(clave)) porClave.set(clave, []);
-                    porClave.get(clave).push(act);
-                });
-
-                let totalActualizadas = 0;
-
-                for (const [clave, lista] of porClave.entries()) {
-                    lista.sort((a, b) => {
-                        const da = parseFechaDdMmAaLocal(a.inicioServicio || '') || new Date(2000, 0, 1);
-                        const dbDate = parseFechaDdMmAaLocal(b.inicioServicio || '') || new Date(2000, 0, 1);
-                        return da.getTime() - dbDate.getTime();
-                    });
-
-                    const partesClave = clave.split('||');
-                    const yy = partesClave[2] || '';
-                    const prefijo = `4301${yy}`;
-
-                    let maxConsec = 0;
-                    lista.forEach(act => {
-                        const ocActual = (act.ordenSuministro || act.oc || '').toString().trim();
-                        if (!ocActual.startsWith(prefijo)) return;
-                        const sufijo = ocActual.slice(prefijo.length);
-                        const num = parseInt(sufijo, 10);
-                        if (!isNaN(num) && num > maxConsec) maxConsec = num;
-                    });
-
-                    let consec = maxConsec;
-                    for (const act of lista) {
-                        const ocActual = (act.ordenSuministro || act.oc || '').toString().trim();
-                        if (ocActual) continue; // respetar OCs ya existentes, solo rellenar vacíos
-
-                        consec += 1;
-                        const consecutivo = String(consec).padStart(4, '0');
-                        const nuevaOc = `${prefijo}${consecutivo}`;
-
-                        await updateDoc(doc(db, 'actividades', act.id), { ordenSuministro: nuevaOc });
-                        totalActualizadas += 1;
-                    }
-                }
-
-                console.log(`Migración de OC completada. Actividades actualizadas: ${totalActualizadas}`);
-            } catch (e) {
-                console.error('Error al migrar OC en actividades', e);
-            }
-        }
-
         // Exponer funciones de migración en window para uso puntual desde consola
         window.migrarActividadesMultiEquipo = migrarActividadesMultiEquipo;
         window.marcarTerminacionesFinalesDesdePeriodos = marcarTerminacionesFinalesDesdePeriodos;
         window.marcarTerminacionesParcialesDesdePeriodos = marcarTerminacionesParcialesDesdePeriodos;
         window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
-        window.migrarOcActividades = migrarOcActividades;
     });
 
     if (btnLogout) {
@@ -711,11 +639,16 @@
         let filtroEquipo = '';
         let filtroDescripcion = '';
         let filtroEstado = 'TODOS';
+        let filtroPruebas = 'TODOS'; // VIGENTE / VENCIDA / SIN_PRUEBA / TODOS
         // null = sin orden especial, 'asc' = más antiguo primero, 'desc' = más reciente primero
         let ordenInicioDir = null;
         // Orden por equipo / activo: null = sin orden, 'asc' / 'desc'
         let ordenEquipoDir = null;
         let ayudaActiva = false;
+
+        // Mapa precargado de estado de pruebas por equipo, para no recalcular en cada render.
+        // Estructura: { [equipo]: { estadoUltima: 'VIGENTE' | 'VENCIDA' | 'SIN_FECHA' | 'SIN_PRUEBA', ultima?: {...} } }
+        let mapaPruebasPorEquipo = {};
 
         function formatearMoneda(valor) {
             const n = Number(valor) || 0;
@@ -753,6 +686,104 @@
                     soloDigitos.slice(4);
             }
             return res;
+        }
+
+        async function cargarPruebasResumenPorEquipo() {
+            const claveLocal = 'pct_pruebas';
+            let pruebas = [];
+
+            function hoySinHora() {
+                const d = new Date();
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+
+            function parseProxima(str) {
+                if (!str) return null;
+                const d = new Date(str);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+
+            function parseFechaRealizacion(str) {
+                if (!str) return null;
+                const partes = String(str).split('/');
+                if (partes.length !== 3) return null;
+                const [ddStr, mmStr, aaStr] = partes;
+                const dd = parseInt(ddStr, 10);
+                const mm = parseInt(mmStr, 10);
+                const aa = parseInt(aaStr, 10);
+                if (!dd || !mm || isNaN(aa)) return null;
+                const year = aa < 100 ? 2000 + aa : aa;
+                const d = new Date(year, mm - 1, dd);
+                return isNaN(d.getTime()) ? null : d;
+            }
+
+            function clasificar(reg) {
+                const proxima = parseProxima(reg.proxima || '');
+                if (!proxima) return { estado: 'SIN_FECHA', proxima: null };
+                const hoy = hoySinHora();
+                if (proxima < hoy) return { estado: 'VENCIDA', proxima };
+                return { estado: 'VIGENTE', proxima };
+            }
+
+            async function leerDesdeFirestore() {
+                try {
+                    if (!window.db) return null;
+                    const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const db = getFirestore();
+                    const colRef = collection(db, 'pruebas');
+                    const snap = await getDocs(colRef);
+                    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                } catch (e) {
+                    console.warn('No se pudieron leer pruebas desde Firestore (actividadmin)', e);
+                    return null;
+                }
+            }
+
+            const desdeFs = await leerDesdeFirestore();
+            if (desdeFs && Array.isArray(desdeFs)) {
+                pruebas = desdeFs;
+            } else {
+                try {
+                    const crudo = JSON.parse(localStorage.getItem(claveLocal) || '[]');
+                    if (Array.isArray(crudo)) pruebas = crudo;
+                } catch {
+                    pruebas = [];
+                }
+            }
+
+            if (!pruebas.length) {
+                mapaPruebasPorEquipo = {};
+                return;
+            }
+
+            const enriquecidas = pruebas.map(reg => {
+                const c = clasificar(reg);
+                const fReal = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
+                return { ...reg, _clasif: c, _fechaReal: fReal };
+            });
+
+            const porEquipo = new Map();
+            enriquecidas.forEach(reg => {
+                const eq = (reg.equipo || '').toString();
+                if (!eq) return;
+                const actual = porEquipo.get(eq);
+                if (!actual || reg._fechaReal.getTime() > actual._fechaReal.getTime()) {
+                    porEquipo.set(eq, reg);
+                }
+            });
+
+            const mapa = {};
+            porEquipo.forEach((reg, eq) => {
+                mapa[eq] = {
+                    estadoUltima: reg._clasif.estado,
+                    ultima: reg,
+                };
+            });
+
+            mapaPruebasPorEquipo = mapa;
         }
 
         async function cargarActividadDesdeFirestore() {
@@ -875,7 +906,7 @@
             let cuentaPrecios = 0;
             let visibles = 0;
 
-            // Aplicar filtros por inicio de servicio, equipo, descripción y estado
+            // Aplicar filtros por inicio de servicio, equipo, descripción, estado de actividad y estado de pruebas
             const listaFiltrada = listaBase.filter(reg => {
                 // Filtro por estado
                 if (filtroEstado && filtroEstado !== 'TODOS') {
@@ -921,6 +952,21 @@
                     }
 
                     if (!matchDesc) return false;
+                }
+
+                // Filtro por estado de pruebas (utiliza el estado de CADA equipo asociado a la actividad)
+                if (filtroPruebas && filtroPruebas !== 'TODOS') {
+                    const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
+                        ? reg.equipos
+                        : (reg.equipo ? [reg.equipo] : []);
+
+                    const matchPruebas = equiposArr.some(eq => {
+                        const info = mapaPruebasPorEquipo[eq] || { estadoUltima: 'SIN_PRUEBA' };
+                        const estadoEq = info.estadoUltima || 'SIN_PRUEBA';
+                        return estadoEq === filtroPruebas;
+                    });
+
+                    if (!matchPruebas) return false;
                 }
 
                 return true;
@@ -1037,7 +1083,7 @@
                         areaActual = '';
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.innerHTML = `
-                            <td colspan="14" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em;">
+                            <td colspan="15" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em;">
                                 CLIENTE: ${clienteActual}
                             </td>
                         `;
@@ -1049,7 +1095,7 @@
                         ubicacionActual = '';
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.innerHTML = `
-                            <td colspan="14" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">
+                            <td colspan="15" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">
                                 <input type="checkbox" class="adm-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -1061,7 +1107,7 @@
                         ubicacionActual = ubicacion;
                         const trGrupoUbic = document.createElement('tr');
                         trGrupoUbic.innerHTML = `
-                            <td colspan="14" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="15" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="adm-select-ubic" data-cliente="${cliente}" data-area="${areaActual}" data-ubicacion="${ubicacionActual}" title="Seleccionar ubicación completa">
                                 <span>Ubicación: ${ubicacionActual}</span>
                             </td>
@@ -1070,6 +1116,15 @@
                     }
 
                     const tr = document.createElement('tr');
+
+                    const infoPruebas = mapaPruebasPorEquipo[equipoNombre] || { estadoUltima: 'SIN_PRUEBA' };
+                    const estadoPruebas = infoPruebas.estadoUltima || 'SIN_PRUEBA';
+                    const badgePruebas =
+                        estadoPruebas === 'VIGENTE'
+                            ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.7rem; font-weight:600;">Vigente</span>'
+                            : estadoPruebas === 'VENCIDA'
+                                ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.7rem; font-weight:600;">Vencida</span>'
+                                : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#4b5563; font-size:0.7rem; font-weight:600;">Sin prueba</span>';
 
                     tr.innerHTML = `
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
@@ -1080,6 +1135,9 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
                             ${equipoNombre}
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; white-space:nowrap;">
+                            ${badgePruebas}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                             ${descEfectiva}
@@ -1357,93 +1415,6 @@
                     }
                 });
             });
-
-            // Botones de edición en lote
-            const btnFechaLote = document.getElementById('adm-aplicar-fecha-lote');
-            const inputFechaLote = document.getElementById('adm-lote-fecha');
-            const btnPrecioLote = document.getElementById('adm-aplicar-precio-lote');
-            const inputPrecioLote = document.getElementById('adm-lote-precio');
-
-            if (inputFechaLote) {
-                inputFechaLote.addEventListener('input', () => {
-                    const f = formatearFechaDdMmAaInput(inputFechaLote.value);
-                    inputFechaLote.value = f;
-                });
-            }
-
-            if (btnFechaLote && inputFechaLote) {
-                btnFechaLote.addEventListener('click', async () => {
-                    const valor = (inputFechaLote.value || '').trim();
-                    if (!valor) {
-                        alert('Indica una fecha en formato dd/mm/aa para aplicar en lote.');
-                        return;
-                    }
-
-                    const d = parseFechaDdMmAa(valor);
-                    if (!d) {
-                        alert('Formato de fecha inválido. Usa dd/mm/aa');
-                        return;
-                    }
-
-                    const seleccionados = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
-                    if (!seleccionados.length) {
-                        alert('Selecciona al menos un registro para aplicar la fecha.');
-                        return;
-                    }
-
-                    for (const chk of seleccionados) {
-                        const id = chk.getAttribute('data-id');
-                        if (!id) continue;
-
-                        const inputTerm = tbody.querySelector(`.adm-input-term[data-id="${id}"]`);
-                        if (inputTerm) {
-                            inputTerm.value = valor;
-                        }
-
-                        const regLocal = listaActividad.find(r => r.id === id);
-                        if (!regLocal) continue;
-
-                        regLocal.terminacionServicio = valor;
-                        await actualizarActividadEnFirestore(id, { terminacionServicio: valor });
-                    }
-
-                    renderTabla();
-                });
-            }
-
-            if (btnPrecioLote && inputPrecioLote) {
-                btnPrecioLote.addEventListener('click', async () => {
-                    const valor = Number(inputPrecioLote.value || 0);
-                    if (!valor || valor < 0) {
-                        alert('Indica un precio válido para aplicar en lote.');
-                        return;
-                    }
-
-                    const seleccionados = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
-                    if (!seleccionados.length) {
-                        alert('Selecciona al menos un registro para aplicar el precio.');
-                        return;
-                    }
-
-                    for (const chk of seleccionados) {
-                        const id = chk.getAttribute('data-id');
-                        if (!id) continue;
-
-                        const inputPrecio = tbody.querySelector(`.adm-input-precio[data-id="${id}"]`);
-                        if (inputPrecio) {
-                            inputPrecio.value = valor;
-                        }
-
-                        const regLocal = listaActividad.find(r => r.id === id);
-                        if (!regLocal) continue;
-
-                        regLocal.precio = valor;
-                        await actualizarActividadEnFirestore(id, { precio: valor });
-                    }
-
-                    renderTabla();
-                });
-            }
 
             const inputFiltroInicio = document.getElementById('adm-filtro-inicio');
             if (inputFiltroInicio) {
