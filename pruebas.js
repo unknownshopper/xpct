@@ -47,7 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let edoEfectivo = edo.trim().toUpperCase();
                 const override = mapaEstadoOverride[eq];
                 if (override) edoEfectivo = String(override).trim().toUpperCase();
-                if (edoEfectivo !== 'ON') return;
+                // Aceptar equipos marcados como ON o ACTIVO en el inventario
+                if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') return;
                 vistos.add(eq);
 
                 const opt = document.createElement('option');
