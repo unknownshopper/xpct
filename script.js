@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     String(cols[idxArea] || '').toUpperCase().includes('ROSCA')
                 );
                 if (filaRosca) filaArea = filaRosca;
-            } else if (detalleUpper.includes('RETENEDORA')) {
+            } else if (detalleUpper.includes('RETENEDOR')) {
                 const filaRet = filasCoincidentes.find(cols => {
                     const areaUpper = String(cols[idxArea] || '').toUpperCase();
                     return areaUpper.includes('RET') || areaUpper.includes('A. RET');
@@ -1779,9 +1779,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const headersLocal = parseCSVLine(lineas[0]);
 
+            const filasDatos = lineas.slice(1)
+                .map(linea => parseCSVLine(linea))
+                .filter(cols => cols.length);
+
+            // Asegurar que headersLocal tenga tantas columnas como la fila más larga
+            const maxCols = filasDatos.reduce((max, cols) => Math.max(max, cols.length), headersLocal.length);
+            while (headersLocal.length < maxCols) {
+                headersLocal.push('');
+            }
+
+            // Mapear columnas de forma flexible según la cabecera actual de invre2.csv
+            const idxEstado = headersLocal.indexOf('ESTADO') >= 0
+                ? headersLocal.indexOf('ESTADO')
+                : headersLocal.indexOf('EDO');
+            const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
+            const idxProd = headersLocal.indexOf('PRODUCTO');
+            const idxDesc = headersLocal.indexOf('DESCRIPCION');
+
+            // Detectar si hay una segunda columna duplicada de "TIPO EQUIPO" (la posterior a ACERO)
+            const idxTipoEqPrim = headersLocal.indexOf('TIPO EQUIPO');
+            let idxTipoEqDup = -1;
+            if (idxTipoEqPrim >= 0) {
+                for (let i = idxTipoEqPrim + 1; i < headersLocal.length; i++) {
+                    if ((headersLocal[i] || '').trim() === 'TIPO EQUIPO') {
+                        idxTipoEqDup = i;
+                        break;
+                    }
+                }
+            }
+
+            // Las tres ÚLTIMAS columnas del CSV representan siempre:
+            // [PRUEBA / CALIBRACION, TIPO INSPECCION, ÁREA A INSPECIONAR]
+            const nCols = headersLocal.length;
+            let idxPrueba = nCols - 3;
+            let idxTipoInsp = nCols - 2;
+            let idxArea = nCols - 1;
+
+            // Si en el CSV las columnas de prueba / tipo de inspección / área no tienen texto en la cabecera,
+            // asignar nombres legibles para mostrarlos en la tabla.
+            if (idxPrueba >= 0 && (!headersLocal[idxPrueba] || !headersLocal[idxPrueba].trim())) {
+                headersLocal[idxPrueba] = 'PRUEBA / CALIBRACION';
+            }
+            if (idxTipoInsp >= 0 && (!headersLocal[idxTipoInsp] || !headersLocal[idxTipoInsp].trim())) {
+                headersLocal[idxTipoInsp] = 'TIPO INSPECCION';
+            }
+            if (idxArea >= 0 && (!headersLocal[idxArea] || !headersLocal[idxArea].trim())) {
+                headersLocal[idxArea] = 'ÁREA A INSPECIONAR';
+            }
+
             const trHead = document.createElement('tr');
             trHead.style.background = '#f3f4f6';
-            headersLocal.forEach(h => {
+            headersLocal.forEach((h, idx) => {
+                // Omitir la segunda columna duplicada de TIPO EQUIPO en la visualización
+                if (idx === idxTipoEqDup) return;
                 const th = document.createElement('th');
                 th.textContent = h;
                 th.style.textAlign = 'left';
@@ -1789,17 +1840,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 trHead.appendChild(th);
             });
             thead.appendChild(trHead);
-
-            const filasDatos = lineas.slice(1)
-                .map(linea => parseCSVLine(linea))
-                .filter(cols => cols.length);
-
-            const idxEstado = headersLocal.indexOf('ESTADO');
-            const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
-            const idxProd = headersLocal.indexOf('PRODUCTO');
-            const idxDesc = headersLocal.indexOf('DESCRIPCION');
-            const idxPrueba = headersLocal.indexOf('PRUEBA / CALIBRACION');
-            const idxArea = headersLocal.indexOf('ÁREA A INSPECIONAR');
 
             // Poblar combos de Estado y Prueba / Calibración
             if (selectEstado && idxEstado >= 0) {
@@ -1857,6 +1897,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const tr = document.createElement('tr');
                     cols.forEach((valor, idx) => {
+                        // Omitir la segunda columna duplicada de TIPO EQUIPO también en las filas
+                        if (idx === idxTipoEqDup) return;
                         const td = document.createElement('td');
                         td.textContent = valor;
                         td.style.padding = '0.3rem';

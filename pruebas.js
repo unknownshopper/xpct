@@ -10,6 +10,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let filasInv = [];
     let headersInv = [];
+    let idxInvEquipo = -1;
+    let idxInvDesc = -1;
+    let idxInvEstado = -1;
+    let idxInvPrueba = -1;
+    let idxInvArea = -1;
     const infoPorEquipo = {}; // { serial, propiedad, material }
     const infoPorSerial = {};
 
@@ -25,9 +30,54 @@ document.addEventListener('DOMContentLoaded', () => {
             headersInv = parseCSVLine(lineas[0]);
             filasInv = lineas.slice(1).map(l => parseCSVLine(l));
 
-            const idxEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
-            const idxDesc = headersInv.indexOf('DESCRIPCION');
-            const idxEstado = headersInv.indexOf('ESTADO');
+            // Mapear columnas de forma flexible según la cabecera actual de invre2.csv
+            // Esperado por el cliente: #, EDO, PRODUCTO, SERIAL, EQUIPO / ACTIVO, DESCRIPCION, REPORTE P/P,
+            // TIPO EQUIPO, ACERO y luego columnas de PRUEBA / CALIBRACION, TIPO_INSPECCION, AREA
+            idxInvEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
+            idxInvDesc = headersInv.indexOf('DESCRIPCION');
+            // Estado puede venir como ESTADO (versión anterior) o EDO (versión actual)
+            idxInvEstado = headersInv.indexOf('ESTADO');
+            if (idxInvEstado < 0) idxInvEstado = headersInv.indexOf('EDO');
+
+            // Intentar primero por nombre de cabecera
+            idxInvPrueba = headersInv.indexOf('PRUEBA / CALIBRACION');
+            idxInvArea = headersInv.indexOf('ÁREA A INSPECIONAR');
+
+            // Si no hay cabeceras claras (caso actual: columnas finales sin nombre),
+            // detectar posiciones de forma robusta explorando los valores.
+            if (idxInvPrueba < 0 || idxInvArea < 0) {
+                const tiposValidos = ['LT', 'VT / PT / MT', 'UTT'];
+                let idxPruebaDetectado = -1;
+                let idxAreaDetectado = -1;
+
+                filasInv.forEach(cols => {
+                    // Buscar la columna donde aparece alguno de los tipos válidos
+                    for (let j = 0; j < cols.length; j++) {
+                        const val = (cols[j] || '').toString().trim().toUpperCase();
+                        if (tiposValidos.includes(val)) {
+                            if (idxPruebaDetectado === -1) {
+                                idxPruebaDetectado = j;
+                            }
+                            // Tomar como área la última columna no vacía de esa fila
+                            for (let k = cols.length - 1; k >= 0; k--) {
+                                const areaVal = (cols[k] || '').toString().trim();
+                                if (areaVal) {
+                                    idxAreaDetectado = k;
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                });
+
+                if (idxInvPrueba < 0 && idxPruebaDetectado >= 0) {
+                    idxInvPrueba = idxPruebaDetectado;
+                }
+                if (idxInvArea < 0 && idxAreaDetectado >= 0) {
+                    idxInvArea = idxAreaDetectado;
+                }
+            }
 
             // Leer overrides de estado desde localStorage (los mismos que en invre.html e inspeccion.html).
             // Se asume que ya fueron sincronizados desde Firestore en alguna vista de inventario/actividad.
@@ -43,9 +93,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const vistos = new Set();
             filasInv.forEach(cols => {
-                const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
-                const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
-                const edo = idxEstado >= 0 ? (cols[idxEstado] || '') : '';
+                const eq = idxInvEquipo >= 0 ? (cols[idxInvEquipo] || '') : '';
+                const desc = idxInvDesc >= 0 ? (cols[idxInvDesc] || '') : '';
+                const edo = idxInvEstado >= 0 ? (cols[idxInvEstado] || '') : '';
                 if (!eq || vistos.has(eq)) return;
                 let edoEfectivo = edo.trim().toUpperCase();
                 const override = mapaEstadoOverride[eq];
@@ -63,6 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => console.error(err));
 
     // Mapa de info (serial, propiedad, material) por EQUIPO desde invre.csv
+    const certPorSerial = {};
+    const certPorEquipo = {};
+
     fetch('docs/invre.csv')
         .then(r => {
             if (!r.ok) throw new Error('No se pudo cargar invre.csv');
@@ -118,6 +171,69 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => console.error(err));
 
+    // Cargar certificados existentes desde certif.csv (no genera nuevos).
+    // Estos datos se usarán para consultas/listados históricos, no para autocompletar el campo de reporte nuevo.
+    fetch('docs/certif.csv')
+        .then(r => {
+            if (!r.ok) throw new Error('No se pudo cargar certif.csv');
+            return r.text();
+        })
+        .then(texto => {
+            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lineas.length) return;
+
+            // Buscar la primera línea que tenga al menos una columna no vacía como cabecera real
+            let idxLineaHeader = 0;
+            while (idxLineaHeader < lineas.length) {
+                const colsTest = parseCSVLine(lineas[idxLineaHeader]);
+                const tieneContenido = colsTest.some(c => (c || '').toString().trim() !== '');
+                if (tieneContenido) break;
+                idxLineaHeader++;
+            }
+            if (idxLineaHeader >= lineas.length) return;
+
+            const headersCert = parseCSVLine(lineas[idxLineaHeader]);
+            const idxSerie = headersCert.indexOf('SERIE');
+            const idxSerieDash = headersCert.indexOf('SERIE-');
+            const idxRep2 = headersCert.indexOf('N° DE REPORTE2');
+            const idxRep1 = headersCert.indexOf('N° DE REPORTE');
+            const idxRepAlt = headersCert.indexOf('REPORTES');
+
+            const filasCert = lineas.slice(idxLineaHeader + 1).map(l => parseCSVLine(l));
+
+            filasCert.forEach(cols => {
+                const serie = idxSerie >= 0 ? (cols[idxSerie] || '') : '';
+                const serieDash = idxSerieDash >= 0 ? (cols[idxSerieDash] || '') : '';
+                const rep2 = idxRep2 >= 0 ? (cols[idxRep2] || '') : '';
+                const rep1 = idxRep1 >= 0 ? (cols[idxRep1] || '') : '';
+                const repAlt = idxRepAlt >= 0 ? (cols[idxRepAlt] || '') : '';
+
+                const reporte = (rep2 || rep1 || repAlt || '').toString().trim();
+                if (!reporte) return; // sin reporte, nada que autocompletar
+
+                const baseSerie = serie.toString().trim().toUpperCase();
+                const baseSerieDash = serieDash.toString().trim().toUpperCase();
+
+                // Clave principal: SERIAL completo como en invre.csv (ej. PCT-24-21502-3-010)
+                if (baseSerie && baseSerieDash) {
+                    const serialFull = `${baseSerie}-${baseSerieDash}`;
+                    const keySerial = serialFull.toUpperCase();
+                    if (!certPorSerial[keySerial]) {
+                        certPorSerial[keySerial] = { reporte };
+                    }
+                }
+
+                // Clave alternativa: si SERIE- ya es un código de equipo, guardarlo también
+                if (baseSerieDash) {
+                    const keyEq = baseSerieDash.toUpperCase();
+                    if (!certPorEquipo[keyEq]) {
+                        certPorEquipo[keyEq] = { reporte };
+                    }
+                }
+            });
+        })
+        .catch(err => console.error(err));
+
     function autocompletarDesdeSerial() {
         if (!inputSerial) return;
         const valor = inputSerial.value.trim();
@@ -159,6 +275,9 @@ document.addEventListener('DOMContentLoaded', () => {
         autocompletarDesdeInventario();
     }
 
+    // Ya no autocompletamos ningún campo de reporte en el formulario de pruebas.
+    // Los certificados de certif.csv se usarán solo para listados/históricos.
+
     function actualizarAreaSegunEquipoYPrueba() {
         if (!headersInv.length || !filasInv.length) return;
 
@@ -167,14 +286,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const areaInput = document.getElementById('inv-area');
         const selDetalle = document.getElementById('inv-prueba-detalle');
         if (!equipoSel || !selPrueba || !areaInput) return;
-
-        const idxEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
-        const idxPruebaCal = headersInv.indexOf('PRUEBA / CALIBRACION');
-        const idxArea = headersInv.indexOf('ÁREA A INSPECIONAR');
-        if (idxEquipo < 0 || idxPruebaCal < 0 || idxArea < 0) return;
+        if (idxInvEquipo < 0 || idxInvPrueba < 0 || idxInvArea < 0) return;
 
         const filasCoincidentes = filasInv.filter(cols =>
-            cols[idxEquipo] === equipoSel && cols[idxPruebaCal] === selPrueba.value
+            cols[idxInvEquipo] === equipoSel && cols[idxInvPrueba] === selPrueba.value
         );
         if (!filasCoincidentes.length) return;
 
@@ -184,33 +299,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selPrueba.value === 'VT / PT / MT' && selDetalle && selDetalle.value && filasCoincidentes.length > 1) {
             const detalleUpper = selDetalle.value.toUpperCase();
 
-            if (detalleUpper.includes('ROSCA')) {
-                const filaRosca = filasCoincidentes.find(cols =>
-                    String(cols[idxArea] || '').toUpperCase().includes('ROSCA')
-                );
-                if (filaRosca) filaArea = filaRosca;
-            } else if (detalleUpper.includes('RETENEDORA')) {
-                const filaRet = filasCoincidentes.find(cols => {
-                    const areaUpper = String(cols[idxArea] || '').toUpperCase();
-                    return areaUpper.includes('RET') || areaUpper.includes('A. RET');
-                });
-                if (filaRet) filaArea = filaRet;
-            }
+            // Ahora el valor del detalle ES el texto de área. Buscar la fila cuya área coincida.
+            const filaDet = filasCoincidentes.find(cols =>
+                String(cols[idxInvArea] || '').toUpperCase() === detalleUpper
+            );
+            if (filaDet) filaArea = filaDet;
         }
 
-        areaInput.value = filaArea[idxArea] || '';
+        areaInput.value = filaArea[idxInvArea] || '';
     }
 
     function autocompletarDesdeInventario() {
         const valor = inputEquipo.value.trim();
         if (!valor || !headersInv.length || !filasInv.length) return;
-
-        const idxEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
-        const fila = filasInv.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
+        const fila = filasInv.find(cols => idxInvEquipo >= 0 && cols[idxInvEquipo] === valor);
         if (!fila) return;
 
         const get = (nombreCol) => {
-            const idx = headersInv.indexOf(nombreCol);
+            let idx = headersInv.indexOf(nombreCol);
+            if (idx < 0 && nombreCol === 'ESTADO') {
+                idx = headersInv.indexOf('EDO');
+            }
+            if (idx < 0 && nombreCol === 'PRUEBA / CALIBRACION') {
+                idx = idxInvPrueba;
+            }
             return idx >= 0 && idx < fila.length ? fila[idx] : '';
         };
 
@@ -218,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'inv-edo': get('ESTADO'),
             'inv-producto': get('PRODUCTO'),
             'inv-descripcion': get('DESCRIPCION'),
-            'inv-tipo-equipo': get('TIPO EQUIPO'),
         };
 
         Object.entries(campos).forEach(([id, valorCampo]) => {
@@ -242,26 +353,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const selPrueba = document.getElementById('inv-prueba');
-        const prueba = get('PRUEBA / CALIBRACION');
-        if (selPrueba) {
-            // Asegurar catálogo básico de tipos de prueba
-            if (selPrueba.options.length <= 1) {
-                ['LT', 'VT / PT / MT', 'UTT'].forEach(val => {
-                    const opt = document.createElement('option');
-                    opt.value = val;
-                    opt.textContent = val;
-                    selPrueba.appendChild(opt);
-                });
-            }
+        const pruebaRaw = get('PRUEBA / CALIBRACION');
+        const tiposValidos = ['LT', 'VT / PT / MT', 'UTT'];
+        const prueba = (pruebaRaw || '').toString().trim().toUpperCase();
 
-            // Si el valor de CSV no está en la lista, agregarlo también
-            if (prueba && !Array.from(selPrueba.options).some(o => o.value === prueba)) {
+        if (selPrueba) {
+            // Reconstruir las opciones de tipo de prueba en función de lo que realmente
+            // existe en invre2.csv para este equipo.
+            selPrueba.innerHTML = '';
+
+            const optVacio = document.createElement('option');
+            optVacio.value = '';
+            optVacio.textContent = 'Selecciona...';
+            selPrueba.appendChild(optVacio);
+
+            const pruebasDisponibles = new Set();
+            filasInv.forEach(cols => {
+                if (idxInvEquipo >= 0 && cols[idxInvEquipo] === valor && idxInvPrueba >= 0) {
+                    const p = (cols[idxInvPrueba] || '').toString().trim().toUpperCase();
+                    if (tiposValidos.includes(p)) pruebasDisponibles.add(p);
+                }
+            });
+
+            pruebasDisponibles.forEach(p => {
                 const opt = document.createElement('option');
-                opt.value = prueba;
-                opt.textContent = prueba;
+                opt.value = p;
+                opt.textContent = p;
                 selPrueba.appendChild(opt);
+            });
+
+            if (pruebasDisponibles.has(prueba)) {
+                selPrueba.value = prueba;
             }
-            if (prueba) selPrueba.value = prueba;
+        }
+
+        // Ajustar opciones de detalle (inv-prueba-detalle) según áreas definidas
+        // para VT / PT / MT en este equipo.
+        const selDetalle = document.getElementById('inv-prueba-detalle');
+        const campoDetalle = document.getElementById('campo-prueba-detalle');
+        if (selDetalle) {
+            selDetalle.innerHTML = '';
+            const optDetVacio = document.createElement('option');
+            optDetVacio.value = '';
+            optDetVacio.textContent = 'Selecciona...';
+            selDetalle.appendChild(optDetVacio);
+
+            let hayDetalle = false;
+
+            // Filas VT / PT / MT del equipo
+            const filasVT = filasInv.filter(cols =>
+                idxInvEquipo >= 0 && cols[idxInvEquipo] === valor &&
+                idxInvPrueba >= 0 && (cols[idxInvPrueba] || '').toString().trim().toUpperCase() === 'VT / PT / MT'
+            );
+
+            // Conjunto de áreas únicas para VT / PT / MT (por ejemplo: CAVIDAD, CARA / P. MOJ, SOLDADURA)
+            const areasUnicas = new Set();
+            filasVT.forEach(cols => {
+                const a = (cols[idxInvArea] || '').toString().trim();
+                if (a) areasUnicas.add(a);
+            });
+
+            areasUnicas.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a;
+                opt.textContent = a;
+                selDetalle.appendChild(opt);
+                hayDetalle = true;
+            });
+
+            if (campoDetalle) {
+                // Solo mostrar el campo de detalle cuando haya opciones válidas
+                campoDetalle.style.display = hayDetalle ? 'block' : 'none';
+                if (!hayDetalle) selDetalle.value = '';
+            }
         }
 
         actualizarVisibilidadDetallePrueba();
@@ -294,10 +458,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function actualizarVisibilidadDetallePrueba() {
         const campoDetalle = document.getElementById('campo-prueba-detalle');
         const sel = document.getElementById('inv-prueba');
+        const selDetalle = document.getElementById('inv-prueba-detalle');
         if (!campoDetalle || !sel) return;
 
         const val = (sel.value || '').toUpperCase();
-        if (val === 'VT / PT / MT') {
+        // Mostrar detalle solo para VT / PT / MT y si realmente hay opciones de detalle
+        const tieneOpcionesDetalle =
+            selDetalle && Array.from(selDetalle.options || []).some(o => o.value && o.value !== '');
+
+        if (val === 'VT / PT / MT' && tieneOpcionesDetalle) {
             campoDetalle.style.display = 'block';
         } else {
             campoDetalle.style.display = 'none';
@@ -324,6 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const inputFechaReal = document.getElementById('inv-fecha-realizacion');
     const inputProxima = document.getElementById('inv-proxima');
+    const inputContador = document.getElementById('inv-contador');
 
     function formatearFechaRealizacion(valor) {
         const soloDigitos = valor.replace(/\D/g, '').slice(0, 6);
@@ -365,6 +535,47 @@ document.addEventListener('DOMContentLoaded', () => {
         // Mostrar próxima prueba en formato dd/mm/aa (2 dígitos de año)
         const aaNext = String(yyyyNext).slice(-2);
         inputProxima.value = `${ddNext}/${mmNext}/${aaNext}`;
+        actualizarContadorProxima();
+    }
+
+    function actualizarContadorProxima() {
+        if (!inputProxima || !inputContador) return;
+        const valor = (inputProxima.value || '').trim();
+        if (!valor || valor.length !== 8) {
+            inputContador.value = '';
+            return;
+        }
+
+        const partes = valor.split('/');
+        if (partes.length !== 3) {
+            inputContador.value = '';
+            return;
+        }
+
+        const [ddStr, mmStr, aaStr] = partes;
+        const dd = parseInt(ddStr, 10);
+        const mm = parseInt(mmStr, 10);
+        const aa = parseInt(aaStr, 10);
+        if (!dd || !mm || isNaN(aa)) {
+            inputContador.value = '';
+            return;
+        }
+
+        const year = 2000 + aa; // 2 dígitos de año
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaProx = new Date(year, mm - 1, dd);
+        if (isNaN(fechaProx.getTime())) {
+            inputContador.value = '';
+            return;
+        }
+
+        const diffMs = fechaProx.getTime() - hoy.getTime();
+        let dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        if (dias < 0) dias = 0;
+
+        const sufijo = dias === 1 ? 'día' : 'días';
+        inputContador.value = `${dias} ${sufijo}`;
     }
 
     if (inputFechaReal) {
@@ -377,6 +588,16 @@ document.addEventListener('DOMContentLoaded', () => {
             inputFechaReal.value = formatearFechaRealizacion(inputFechaReal.value);
             actualizarProximaDesdeFechaRealizacion();
         });
+    }
+
+    // Si ya hay una próxima prueba capturada (por ejemplo al editar un registro), inicializar contador
+    if (inputProxima && inputProxima.value) {
+        actualizarContadorProxima();
+    }
+
+    // Refrescar el contador una vez por hora mientras la página esté abierta
+    if (inputProxima && inputContador) {
+        setInterval(actualizarContadorProxima, 60 * 60 * 1000);
     }
 
     async function guardarPruebaEnFirestore(registro) {
@@ -399,55 +620,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Prueba guardada en Firestore');
         } catch (e) {
             console.error('Error al guardar prueba en Firestore', e);
-        }
-    }
-
-    function limpiarFormularioPruebas() {
-        const camposTexto = [
-            'inv-equipo',
-            'inv-serial',
-            'inv-edo',
-            'inv-propiedad',
-            'inv-producto',
-            'inv-descripcion',
-            'inv-tipo-equipo',
-            'inv-material',
-            'inv-area',
-            'inv-fecha-realizacion',
-            'inv-no-reporte',
-            'inv-emisor',
-            'inv-tecnico',
-            'inv-contador',
-            'prueba-observaciones'
-        ];
-
-        camposTexto.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.value = '';
-        });
-
-        const selResultado = document.getElementById('prueba-resultado');
-        if (selResultado) selResultado.value = '';
-
-        const selPrueba = document.getElementById('inv-prueba');
-        if (selPrueba) selPrueba.value = '';
-
-        const selDetalle = document.getElementById('inv-prueba-detalle');
-        if (selDetalle) selDetalle.value = '';
-
-        const selEjecucion = document.getElementById('inv-ejecucion');
-        if (selEjecucion) selEjecucion.value = 'INTERNO';
-
-        const inputProx = document.getElementById('inv-proxima');
-        if (inputProx) inputProx.value = '';
-
-        const inputFecha = document.getElementById('prueba-fecha');
-        if (inputFecha) {
-            const hoy = new Date();
-            const yyyy = hoy.getFullYear();
-            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
-            const dd = String(hoy.getDate()).padStart(2, '0');
-            inputFecha.value = `${yyyy}-${mm}-${dd}`;
         }
     }
 
@@ -474,7 +646,6 @@ document.addEventListener('DOMContentLoaded', () => {
             propiedad: document.getElementById('inv-propiedad')?.value || '',
             producto: document.getElementById('inv-producto')?.value || '',
             descripcion: document.getElementById('inv-descripcion')?.value || '',
-            tipoEquipo: document.getElementById('inv-tipo-equipo')?.value || '',
             material: document.getElementById('inv-material')?.value || '',
             area: document.getElementById('inv-area')?.value || '',
             noReporte: document.getElementById('inv-no-reporte')?.value || '',
