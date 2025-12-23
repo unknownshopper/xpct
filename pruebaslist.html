@@ -169,6 +169,16 @@
             </section>
         </section>
 
+        <section id="detalle-prueba" class="detalle-equipo" style="margin-top:1.5rem;">
+            <h2>Detalle de prueba seleccionada</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Haz clic en una fila de las tablas de pruebas para ver aquí el detalle completo.
+            </p>
+            <div id="detalle-prueba-contenido" style="font-size:0.9rem; color:#111827; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.75rem; background:#f9fafb;">
+                No hay ninguna prueba seleccionada.
+            </div>
+        </section>
+
         <section class="detalle-equipo">
             <h2>Pruebas guardadas (local)</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
@@ -256,6 +266,9 @@
         const lblResVig = document.getElementById('pruebas-resumen-vigentes');
         const lblResVenc = document.getElementById('pruebas-resumen-vencidas');
         const lblResSin = document.getElementById('pruebas-resumen-sin');
+
+        const detallePanel = document.getElementById('detalle-prueba');
+        const detalleContenido = document.getElementById('detalle-prueba-contenido');
 
         if (!tbodyPend || !tbodyHist) return;
 
@@ -347,6 +360,50 @@
             const year = aa < 100 ? 2000 + aa : aa;
             const d = new Date(year, mm - 1, dd);
             return isNaN(d.getTime()) ? null : d;
+        }
+
+        function mostrarDetallePrueba(reg) {
+            if (!detalleContenido) return;
+
+            const campos = [
+                ['Equipo', reg.equipo || ''],
+                ['Serial', reg.serial || ''],
+                ['Producto', reg.producto || ''],
+                ['Descripción', reg.descripcion || ''],
+                ['Prueba / Calibración', reg.prueba || reg.pruebaTipo || ''],
+                ['Resultado', reg.resultado || ''],
+                ['Fecha de prueba', reg.fechaPrueba || ''],
+                ['Fecha realización', reg.fechaRealizacion || ''],
+                ['Próxima prueba', reg.proxima || ''],
+                ['No. reporte / certificado', reg.noReporte || ''],
+                ['Técnico', reg.tecnico || ''],
+                ['Emisor', reg.emisor || ''],
+                ['Propiedad', reg.propiedad || ''],
+                ['Área a inspeccionar', reg.area || ''],
+                ['Observaciones', reg.observaciones || '']
+            ];
+
+            const filasHtml = campos
+                .filter(([_, valor]) => valor !== undefined && valor !== null && String(valor).trim() !== '')
+                .map(([label, valor]) => `
+                    <tr>
+                        <th style="text-align:left; padding:0.2rem 0.5rem; width:180px; color:#4b5563; font-weight:600;">${label}</th>
+                        <td style="padding:0.2rem 0.5rem;">${String(valor)}</td>
+                    </tr>
+                `)
+                .join('');
+
+            detalleContenido.innerHTML = `
+                <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                    <tbody>
+                        ${filasHtml || '<tr><td style="padding:0.4rem; color:#6b7280;">Sin datos para esta prueba.</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+
+            if (detallePanel && typeof detallePanel.scrollIntoView === 'function') {
+                detallePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
 
         function hoySinHora() {
@@ -517,6 +574,11 @@
                     </td>
                 `;
 
+                fila.style.cursor = 'pointer';
+                fila.addEventListener('click', () => {
+                    mostrarDetallePrueba(reg);
+                });
+
                 tbodyPend.appendChild(fila);
                 cntPend += 1;
                 if (estado === 'VENCIDA') cntVenc += 1;
@@ -537,6 +599,11 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.noReporte || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.resultado || ''}</td>
                 `;
+
+                fila.style.cursor = 'pointer';
+                fila.addEventListener('click', () => {
+                    mostrarDetallePrueba(reg);
+                });
 
                 tbodyHist.appendChild(fila);
                 cntHist += 1;
@@ -564,6 +631,8 @@
         const clave = 'pct_pruebas';
         const tbody = document.getElementById('tbody-pruebas');
         const msg = document.getElementById('mensaje-sin-pruebas');
+        const detallePanel = document.getElementById('detalle-prueba');
+        const detalleContenido = document.getElementById('detalle-prueba-contenido');
 
         let lista = [];
         try {
@@ -575,6 +644,56 @@
 
         function guardarLista() {
             localStorage.setItem(clave, JSON.stringify(lista));
+        }
+
+        function mostrarDetallePruebaLocal(reg) {
+            if (!detalleContenido) return;
+
+            // Intentar reutilizar la función global si existe (desde el script principal)
+            if (typeof window.mostrarDetallePruebaGlobal === 'function') {
+                window.mostrarDetallePruebaGlobal(reg);
+                return;
+            }
+
+            const campos = [
+                ['Equipo', reg.equipo || ''],
+                ['Serial', reg.serial || ''],
+                ['Producto', reg.producto || ''],
+                ['Descripción', reg.descripcion || ''],
+                ['Prueba / Calibración', reg.prueba || reg.pruebaTipo || ''],
+                ['Resultado', reg.resultado || ''],
+                ['Fecha de prueba', reg.fechaPrueba || ''],
+                ['Fecha realización', reg.fechaRealizacion || ''],
+                ['Próxima prueba', reg.proxima || ''],
+                ['No. reporte / certificado', reg.noReporte || ''],
+                ['Técnico', reg.tecnico || ''],
+                ['Emisor', reg.emisor || ''],
+                ['Propiedad', reg.propiedad || ''],
+                ['Área a inspeccionar', reg.area || ''],
+                ['Observaciones', reg.observaciones || '']
+            ];
+
+            const filasHtml = campos
+                .filter(([_, valor]) => valor !== undefined && valor !== null && String(valor).trim() !== '')
+                .map(([label, valor]) => `
+                    <tr>
+                        <th style="text-align:left; padding:0.2rem 0.5rem; width:180px; color:#4b5563; font-weight:600;">${label}</th>
+                        <td style="padding:0.2rem 0.5rem;">${String(valor)}</td>
+                    </tr>
+                `)
+                .join('');
+
+            detalleContenido.innerHTML = `
+                <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                    <tbody>
+                        ${filasHtml || '<tr><td style="padding:0.4rem; color:#6b7280;">Sin datos para esta prueba.</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+
+            if (detallePanel && typeof detallePanel.scrollIntoView === 'function') {
+                detallePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
 
         function renderTabla() {
@@ -604,6 +723,13 @@
                         <button data-accion="eliminar" data-idx="${idx}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
                     </td>
                 `;
+
+                tr.style.cursor = 'pointer';
+                tr.addEventListener('click', (e) => {
+                    // Evitar que el clic en botones dispare el detalle
+                    if (e.target.closest('button')) return;
+                    mostrarDetallePruebaLocal(reg);
+                });
                 tbody.appendChild(tr);
             });
         }

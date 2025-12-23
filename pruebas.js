@@ -4,11 +4,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     const inputEquipo = document.getElementById('inv-equipo');
     const datalistEquipos = document.getElementById('lista-equipos-pruebas');
+    const inputSerial = document.getElementById('inv-serial');
+    const datalistSeriales = document.getElementById('lista-seriales-pruebas');
     if (!inputEquipo || !datalistEquipos) return; // No estamos en pruebas.html
 
     let filasInv = [];
     let headersInv = [];
     const infoPorEquipo = {}; // { serial, propiedad, material }
+    const infoPorSerial = {};
 
     fetch('docs/invre2.csv')
         .then(r => {
@@ -77,18 +80,84 @@ document.addEventListener('DOMContentLoaded', () => {
 
             lineas.slice(1).forEach(l => {
                 const cols = parseCSVLine(l);
-                const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                let eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                let sr = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
+                let prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
+                let mat = idxAcero >= 0 ? (cols[idxAcero] || '') : '';
+
+                eq = eq.trim();
+                sr = sr.trim();
+                prop = prop.trim();
+                mat = mat.trim();
+
                 if (!eq) return;
 
                 if (!infoPorEquipo[eq]) {
-                    const sr = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
-                    const prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
-                    const mat = idxAcero >= 0 ? (cols[idxAcero] || '') : '';
                     infoPorEquipo[eq] = { serial: sr, propiedad: prop, material: mat };
                 }
+
+                if (sr && !infoPorSerial[sr]) {
+                    infoPorSerial[sr] = { equipo: eq, propiedad: prop, material: mat };
+                }
             });
+
+            if (datalistSeriales) {
+                Object.entries(infoPorSerial).forEach(([sr, datos]) => {
+                    const opt = document.createElement('option');
+                    opt.value = sr;
+                    opt.label = datos.equipo ? `${sr} - ${datos.equipo}` : sr;
+                    datalistSeriales.appendChild(opt);
+                });
+            }
+
+            // Si el usuario ya escribió un serial antes de que cargara el CSV,
+            // intentar autocompletar ahora que infoPorSerial está listo.
+            if (inputSerial && inputSerial.value.trim()) {
+                autocompletarDesdeSerial();
+            }
         })
         .catch(err => console.error(err));
+
+    function autocompletarDesdeSerial() {
+        if (!inputSerial) return;
+        const valor = inputSerial.value.trim();
+        if (!valor) return;
+
+        const buscado = valor.toUpperCase();
+
+        // 1) Intentar coincidencia exacta
+        let srEncontrado = null;
+        let info = infoPorSerial[valor] || null;
+
+        // 2) Si no hay coincidencia directa en el mapa, buscar de forma flexible
+        if (!info) {
+            const entrada = Object.entries(infoPorSerial).find(([sr, datos]) => {
+                const s = sr.trim().toUpperCase();
+                // Coincidencia exacta o por sufijo (por ejemplo, sin prefijo PCT-)
+                return s === buscado || s.replace(/^PCT-/, '') === buscado;
+            });
+
+            if (entrada) {
+                srEncontrado = entrada[0];
+                info = entrada[1];
+            }
+        } else {
+            srEncontrado = valor;
+        }
+
+        if (!info) return;
+
+        // Normalizar el valor mostrado en el input al serial completo encontrado
+        if (srEncontrado && inputSerial.value !== srEncontrado) {
+            inputSerial.value = srEncontrado;
+        }
+
+        if (inputEquipo && info.equipo) {
+            inputEquipo.value = info.equipo;
+        }
+
+        autocompletarDesdeInventario();
+    }
 
     function actualizarAreaSegunEquipoYPrueba() {
         if (!headersInv.length || !filasInv.length) return;
@@ -202,6 +271,11 @@ document.addEventListener('DOMContentLoaded', () => {
     inputEquipo.addEventListener('change', autocompletarDesdeInventario);
     inputEquipo.addEventListener('blur', autocompletarDesdeInventario);
 
+    if (inputSerial) {
+        inputSerial.addEventListener('change', autocompletarDesdeSerial);
+        inputSerial.addEventListener('blur', autocompletarDesdeSerial);
+    }
+
     const selPruebaManual = document.getElementById('inv-prueba');
     if (selPruebaManual) {
         selPruebaManual.addEventListener('change', () => {
@@ -288,7 +362,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const yyyyNext = fecha.getFullYear();
         const mmNext = String(fecha.getMonth() + 1).padStart(2, '0');
         const ddNext = String(fecha.getDate()).padStart(2, '0');
-        inputProxima.value = `${yyyyNext}-${mmNext}-${ddNext}`;
+        // Mostrar próxima prueba en formato dd/mm/aa (2 dígitos de año)
+        const aaNext = String(yyyyNext).slice(-2);
+        inputProxima.value = `${ddNext}/${mmNext}/${aaNext}`;
     }
 
     if (inputFechaReal) {
