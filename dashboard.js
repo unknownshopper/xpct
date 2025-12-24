@@ -7,14 +7,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!spanPruebas && !spanInspecciones && !spanInvre && !spanInvre2 && !spanActividades) return; // No estamos en index.html
 
-    // Pruebas guardadas (localStorage)
+    // Pruebas guardadas en Firestore
     if (spanPruebas) {
-        try {
-            const lista = JSON.parse(localStorage.getItem('pct_pruebas') || '[]');
-            spanPruebas.textContent = Array.isArray(lista) ? String(lista.length) : '0';
-        } catch {
-            spanPruebas.textContent = '0';
-        }
+        spanPruebas.textContent = 'Cargando...';
+
+        (async () => {
+            try {
+                const { getFirestore, collection, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+                const colRef = collection(db, 'pruebas');
+                const snap = await getDocs(colRef);
+
+                spanPruebas.textContent = String(snap.size || 0);
+            } catch (e) {
+                console.error('Error al leer resumen de pruebas para el dashboard', e);
+                spanPruebas.textContent = 'Error';
+            }
+        })();
     }
 
     // Inventario de equipos (invre.csv + inspecciones locales para "fuera de servicio")

@@ -179,32 +179,7 @@
             </div>
         </section>
 
-        <section class="detalle-equipo">
-            <h2>Pruebas guardadas (local)</h2>
-            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
-                Estas pruebas se almacenan solo en este navegador usando <code>localStorage</code>. Se mantiene como respaldo.
-            </p>
-            <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
-                <table id="tabla-pruebas" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
-                    <thead>
-                        <tr style="background:#f3f4f6;">
-                            <th style="text-align:left; padding:0.4rem;">Fecha prueba</th>
-                            <th style="text-align:left; padding:0.4rem;">Equipo</th>
-                            <th style="text-align:left; padding:0.4rem;">Serial</th>
-                            <th style="text-align:left; padding:0.4rem;">Producto</th>
-                            <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
-                            <th style="text-align:left; padding:0.4rem;">Técnico</th>
-                            <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
-                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody-pruebas"></tbody>
-                </table>
-                <p id="mensaje-sin-pruebas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
-                    No hay pruebas guardadas todavía.
-                </p>
-            </div>
-        </section>
+        
     </main>
 
     <script src="nav.js"></script>
@@ -269,6 +244,9 @@
 
         const detallePanel = document.getElementById('detalle-prueba');
         const detalleContenido = document.getElementById('detalle-prueba-contenido');
+
+        // Id (o clave) de la prueba actualmente seleccionada en el panel de detalle
+        let pruebaSeleccionadaId = null;
 
         if (!tbodyPend || !tbodyHist) return;
 
@@ -365,6 +343,19 @@
         function mostrarDetallePrueba(reg) {
             if (!detalleContenido) return;
 
+            // Construir una clave estable para comparar selecciones repetidas
+            const clave =
+                (reg && reg.id) ||
+                `${reg.equipo || ''}__${reg.fechaRealizacion || ''}__${reg.noReporte || ''}`;
+
+            // Si se hace clic de nuevo sobre la misma prueba, contraer el panel
+            if (pruebaSeleccionadaId && pruebaSeleccionadaId === clave) {
+                detalleContenido.innerHTML =
+                    'No hay ninguna prueba seleccionada.';
+                pruebaSeleccionadaId = null;
+                return;
+            }
+
             const campos = [
                 ['Equipo', reg.equipo || ''],
                 ['Serial', reg.serial || ''],
@@ -400,6 +391,8 @@
                     </tbody>
                 </table>
             `;
+
+            pruebaSeleccionadaId = clave;
 
             if (detallePanel && typeof detallePanel.scrollIntoView === 'function') {
                 detallePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -624,149 +617,6 @@
 
         render();
     }
-    </script>
-
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const clave = 'pct_pruebas';
-        const tbody = document.getElementById('tbody-pruebas');
-        const msg = document.getElementById('mensaje-sin-pruebas');
-        const detallePanel = document.getElementById('detalle-prueba');
-        const detalleContenido = document.getElementById('detalle-prueba-contenido');
-
-        let lista = [];
-        try {
-            lista = JSON.parse(localStorage.getItem(clave) || '[]');
-            if (!Array.isArray(lista)) lista = [];
-        } catch (e) {
-            lista = [];
-        }
-
-        function guardarLista() {
-            localStorage.setItem(clave, JSON.stringify(lista));
-        }
-
-        function mostrarDetallePruebaLocal(reg) {
-            if (!detalleContenido) return;
-
-            // Intentar reutilizar la función global si existe (desde el script principal)
-            if (typeof window.mostrarDetallePruebaGlobal === 'function') {
-                window.mostrarDetallePruebaGlobal(reg);
-                return;
-            }
-
-            const campos = [
-                ['Equipo', reg.equipo || ''],
-                ['Serial', reg.serial || ''],
-                ['Producto', reg.producto || ''],
-                ['Descripción', reg.descripcion || ''],
-                ['Prueba / Calibración', reg.prueba || reg.pruebaTipo || ''],
-                ['Resultado', reg.resultado || ''],
-                ['Fecha de prueba', reg.fechaPrueba || ''],
-                ['Fecha realización', reg.fechaRealizacion || ''],
-                ['Próxima prueba', reg.proxima || ''],
-                ['No. reporte / certificado', reg.noReporte || ''],
-                ['Técnico', reg.tecnico || ''],
-                ['Emisor', reg.emisor || ''],
-                ['Propiedad', reg.propiedad || ''],
-                ['Área a inspeccionar', reg.area || ''],
-                ['Observaciones', reg.observaciones || '']
-            ];
-
-            const filasHtml = campos
-                .filter(([_, valor]) => valor !== undefined && valor !== null && String(valor).trim() !== '')
-                .map(([label, valor]) => `
-                    <tr>
-                        <th style="text-align:left; padding:0.2rem 0.5rem; width:180px; color:#4b5563; font-weight:600;">${label}</th>
-                        <td style="padding:0.2rem 0.5rem;">${String(valor)}</td>
-                    </tr>
-                `)
-                .join('');
-
-            detalleContenido.innerHTML = `
-                <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
-                    <tbody>
-                        ${filasHtml || '<tr><td style="padding:0.4rem; color:#6b7280;">Sin datos para esta prueba.</td></tr>'}
-                    </tbody>
-                </table>
-            `;
-
-            if (detallePanel && typeof detallePanel.scrollIntoView === 'function') {
-                detallePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }
-
-        function renderTabla() {
-            tbody.innerHTML = '';
-
-            if (!lista.length) {
-                msg.style.display = 'block';
-                return;
-            }
-            msg.style.display = 'none';
-
-            lista.forEach((reg, idx) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaPrueba || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.serial || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.pruebaTipo || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        <input type="text" class="pl-no-rep" data-idx="${idx}" value="${reg.noReporte || ''}" style="font-size:0.8rem; width:130px;">
-                    </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        <button data-accion="guardar" data-idx="${idx}" style="font-size:0.75rem; margin-right:0.25rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb;">Guardar</button>
-                        <button data-accion="editar" data-idx="${idx}" style="font-size:0.75rem; margin-right:0.25rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">Editar</button>
-                        <button data-accion="eliminar" data-idx="${idx}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
-                    </td>
-                `;
-
-                tr.style.cursor = 'pointer';
-                tr.addEventListener('click', (e) => {
-                    // Evitar que el clic en botones dispare el detalle
-                    if (e.target.closest('button')) return;
-                    mostrarDetallePruebaLocal(reg);
-                });
-                tbody.appendChild(tr);
-            });
-        }
-
-        tbody.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-accion]');
-            if (!btn) return;
-
-            const idx = parseInt(btn.getAttribute('data-idx'), 10);
-            if (isNaN(idx) || idx < 0 || idx >= lista.length) return;
-
-            const accion = btn.getAttribute('data-accion');
-
-            if (accion === 'eliminar') {
-                if (!confirm('¿Eliminar esta prueba?')) return;
-                lista.splice(idx, 1);
-                guardarLista();
-                renderTabla();
-            } else if (accion === 'editar') {
-                const input = tbody.querySelector(`.pl-no-rep[data-idx="${idx}"]`);
-                if (input) {
-                    input.focus();
-                    input.select();
-                }
-            } else if (accion === 'guardar') {
-                const input = tbody.querySelector(`.pl-no-rep[data-idx="${idx}"]`);
-                if (!input) return;
-                const nuevoNoRep = (input.value || '').trim();
-                const reg = lista[idx];
-                lista[idx] = { ...reg, noReporte: nuevoNoRep };
-                guardarLista();
-                alert('No. de reporte / certificado actualizado');
-            }
-        });
-
-        renderTabla();
-    });
     </script>
 </body>
 </html>

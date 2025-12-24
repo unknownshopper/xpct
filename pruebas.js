@@ -623,6 +623,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function limpiarFormularioPruebas() {
+        const camposTexto = [
+            'inv-equipo',
+            'inv-serial',
+            'inv-edo',
+            'inv-propiedad',
+            'inv-producto',
+            'inv-descripcion',
+            'inv-tipo-equipo',
+            'inv-material',
+            'inv-area',
+            'inv-fecha-realizacion',
+            'inv-no-reporte',
+            'inv-emisor',
+            'inv-tecnico',
+            'inv-contador',
+            'prueba-observaciones'
+        ];
+
+        camposTexto.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+
+        const selResultado = document.getElementById('prueba-resultado');
+        if (selResultado) selResultado.value = '';
+
+        const selPrueba = document.getElementById('inv-prueba');
+        if (selPrueba) selPrueba.value = '';
+
+        const selDetalle = document.getElementById('inv-prueba-detalle');
+        if (selDetalle) selDetalle.value = '';
+
+        const selEjecucion = document.getElementById('inv-ejecucion');
+        if (selEjecucion) selEjecucion.value = 'INTERNO';
+
+        const inputProx = document.getElementById('inv-proxima');
+        if (inputProx) inputProx.value = '';
+
+        const inputFecha = document.getElementById('prueba-fecha');
+        if (inputFecha) {
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoy.getDate()).padStart(2, '0');
+            inputFecha.value = `${yyyy}-${mm}-${dd}`;
+        }
+    }
+
     btn.addEventListener('click', async () => {
         const equipo = (document.getElementById('inv-equipo')?.value || '').trim();
         if (!equipo) {
@@ -656,19 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
             observaciones: document.getElementById('prueba-observaciones')?.value || ''
         };
 
-        // Guardar localmente en pct_pruebas
-        const claveLocal = 'pct_pruebas';
-        let lista = [];
-        try {
-            lista = JSON.parse(localStorage.getItem(claveLocal) || '[]');
-            if (!Array.isArray(lista)) lista = [];
-        } catch {
-            lista = [];
-        }
-        lista.push(registro);
-        localStorage.setItem(claveLocal, JSON.stringify(lista));
-
-        // Guardar en Firestore
+        // Guardar en Firestore (fuente principal de datos)
         await guardarPruebaEnFirestore(registro);
 
         limpiarFormularioPruebas();
