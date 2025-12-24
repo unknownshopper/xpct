@@ -65,6 +65,10 @@ const INSPECTORES = [
     "inspector02@pct.com"
 ];
 
+const CAPTURISTAS = [
+    "capturista@pct.com"
+];
+
 // Si ya está logueado, redirigimos según rol
 onAuthStateChanged(auth, (user) => {
     if (!user) return;
@@ -75,8 +79,9 @@ onAuthStateChanged(auth, (user) => {
         window.location.href = "index.html";
     } else if (INSPECTORES.includes(email)) {
         window.location.href = "inspeccion.html";
+    } else if (CAPTURISTAS.includes(email)) {
+        window.location.href = "pruebas.html";
     } else {
-        // Usuario desconocido: por ahora lo regresamos al login (o podríamos bloquear)
         auth.signOut();
     }
 });

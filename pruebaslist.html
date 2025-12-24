@@ -69,6 +69,20 @@
                 </div>
             </section>
 
+            <section style="margin-bottom: 0.75rem;">
+                <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center; font-size:0.9rem;">
+                    <div style="padding:0.4rem 0.75rem; border-radius:999px; background:#eff6ff; color:#1d4ed8;">
+                        60–30 días: <strong id="pruebas-alert-60">0</strong>
+                    </div>
+                    <div style="padding:0.4rem 0.75rem; border-radius:999px; background:#fef3c7; color:#b45309;">
+                        30–15 días: <strong id="pruebas-alert-30">0</strong>
+                    </div>
+                    <div style="padding:0.4rem 0.75rem; border-radius:999px; background:#fee2e2; color:#b91c1c;">
+                        15–0 días: <strong id="pruebas-alert-15">0</strong>
+                    </div>
+                </div>
+            </section>
+
             <section style="margin-bottom:1rem; display:none;">
                 <h3 style="font-size:1rem; margin-bottom:0.35rem;">Estado por equipo (última prueba)</h3>
                 <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
@@ -190,7 +204,21 @@
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
-    onAuthStateChanged(auth, async (user) => {
+    const ADMINS = [
+        "the@unknownshoppers.com",
+        "jalcz@pct.com"
+    ];
+
+    const INSPECTORES = [
+        "inspector01@pct.com",
+        "inspector02@pct.com"
+    ];
+
+    const CAPTURISTAS = [
+    	"capturista@pct.com"
+    ];
+
+    onAuthStateChanged(auth, (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
@@ -199,7 +227,20 @@
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
-        await cargarPruebasDesdeFirestore();
+        const esAdmin = ADMINS.includes(email);
+        const esCapturista = CAPTURISTAS.includes(email);
+
+        // Solo admins o capturistas pueden ver esta página
+        if (!esAdmin && !esCapturista) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        window.isAdmin = esAdmin;
+        window.isInspector = false;
+        window.currentUserEmail = email;
+
+        cargarPruebasDesdeFirestore();
     });
 
     if (btnLogout) {
@@ -225,6 +266,10 @@
         const lblResVig = document.getElementById('pruebas-resumen-vigentes');
         const lblResVenc = document.getElementById('pruebas-resumen-vencidas');
         const lblResSin = document.getElementById('pruebas-resumen-sin');
+
+        const lblAlert60 = document.getElementById('pruebas-alert-60');
+        const lblAlert30 = document.getElementById('pruebas-alert-30');
+        const lblAlert15 = document.getElementById('pruebas-alert-15');
 
         const detallePanel = document.getElementById('detalle-prueba');
         const detalleContenido = document.getElementById('detalle-prueba-contenido');
@@ -551,6 +596,10 @@
             let cntVenc = 0;
             let cntHist = 0;
 
+            let cntPorVencer60 = 0; // 60–30
+            let cntPorVencer30 = 0; // 30–15
+            let cntPorVencer15 = 0; // 15–0
+
             const filasVisibles = [];
 
             historico.forEach(reg => {
@@ -573,21 +622,54 @@
                     fila.style.color = '#b91c1c';
                 }
 
-                const badgeEstado =
-                    estado === 'VIGENTE'
-                        ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>'
-                        : estado === 'VENCIDA'
-                            ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>'
-                            : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin fecha</span>';
-
                 // Cálculo de días restantes hasta la próxima prueba
                 let diasParaProxima = '';
+                let diasNum = null;
                 if (reg._clasif.proxima) {
                     const hoy = hoySinHora();
                     const diffMs = reg._clasif.proxima.getTime() - hoy.getTime();
                     let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
                     if (dias < 0) dias = 0; // para vencidas mostramos 0
+                    diasNum = dias;
                     diasParaProxima = String(dias);
+                }
+
+                // Contar alertas solo para pruebas vigentes con próxima fecha futura (>=0 días)
+                if (estado === 'VIGENTE' && diasNum !== null && diasNum >= 0) {
+                    if (diasNum >= 30 && diasNum <= 60) {
+                        cntPorVencer60 += 1; // 60–30
+                    } else if (diasNum >= 15 && diasNum < 30) {
+                        cntPorVencer30 += 1; // 30–15
+                    } else if (diasNum >= 0 && diasNum < 15) {
+                        cntPorVencer15 += 1; // 15–0
+                    }
+                }
+
+                // Badge visual según estado, días restantes y resultado (solo presentación)
+                const resultadoStr = (reg.resultado || '').toString().trim().toUpperCase();
+                let badgeEstado;
+
+                // Prioridad visual: resultado RECHAZADA => Inoperable
+                if (resultadoStr === 'RECHAZADA') {
+                    badgeEstado = '<span title="Resultado RECHAZADA: equipo inoperable" style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Inoperable</span>';
+                } else if (estado === 'VENCIDA') {
+                    badgeEstado = '<span title="Prueba vencida: la próxima fecha ya pasó" style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>';
+                } else if (estado !== 'VIGENTE') {
+                    badgeEstado = '<span title="Sin información de próxima prueba" style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin fecha</span>';
+                } else {
+                    // VIGENTE: ajustar solo apariencia por rango de días
+                    if (diasNum === null) {
+                        badgeEstado = '<span title="Prueba vigente" style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>';
+                    } else if (diasNum >= 30 && diasNum <= 60) {
+                        badgeEstado = '<span title="Próximo a caducar (60 a 30 días para la próxima prueba)" style="padding:0.1rem 0.5rem; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:0.75rem;">Próximo a caducar</span>';
+                    } else if (diasNum >= 15 && diasNum < 30) {
+                        badgeEstado = '<span title="Próximo a caducar (30 a 15 días para la próxima prueba)" style="padding:0.1rem 0.5rem; border-radius:999px; background:#fef3c7; color:#b45309; font-size:0.75rem;">Próximo a caducar</span>';
+                    } else if (diasNum >= 0 && diasNum < 15) {
+                        badgeEstado = '<span title="Próximo a caducar (menos de 15 días para la próxima prueba)" style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Próximo a caducar</span>';
+                    } else {
+                        // Vigente pero fuera de esos rangos (más de 60 días, etc.)
+                        badgeEstado = '<span title="Prueba vigente" style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>';
+                    }
                 }
 
                 const idx = filasVisibles.length;
@@ -633,6 +715,10 @@
             if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
             if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
             if (lblHist) lblHist.textContent = `${cntHist} en histórico`;
+
+            if (lblAlert60) lblAlert60.textContent = String(cntPorVencer60);
+            if (lblAlert30) lblAlert30.textContent = String(cntPorVencer30);
+            if (lblAlert15) lblAlert15.textContent = String(cntPorVencer15);
 
             // Reiniciar checkbox de selección global
             if (chkSelectTodos) chkSelectTodos.checked = false;

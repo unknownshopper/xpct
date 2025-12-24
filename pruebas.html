@@ -56,16 +56,8 @@
             <h2>Datos de la prueba</h2>
             <div class="grid-datos-prueba">
                 <div class="campo">
-                    <label for="prueba-fecha">Fecha de prueba</label>
+                    <label for="prueba-fecha">Fecha de registro</label>
                     <input type="date" id="prueba-fecha" name="prueba-fecha">
-                </div>
-                <div class="campo">
-                    <label for="prueba-resultado">Resultado</label>
-                    <select id="prueba-resultado" name="prueba-resultado" required>
-                        <option value="">Selecciona...</option>
-                        <option value="ACEPTADA">ACEPTADA</option>
-                        <option value="RECHAZADA">RECHAZADA</option>
-                    </select>
                 </div>
             </div>
         </section>
@@ -151,6 +143,14 @@
                     <input type="text" id="inv-tecnico" placeholder="TECNICO" required>
                 </div>
                 <div class="campo">
+                    <label for="prueba-resultado">Resultado</label>
+                    <select id="prueba-resultado" name="prueba-resultado" required>
+                        <option value="">Selecciona...</option>
+                        <option value="ACEPTADA">ACEPTADA</option>
+                        <option value="RECHAZADA">RECHAZADA</option>
+                    </select>
+                </div>
+                <div class="campo">
                     <label for="inv-proxima">Próxima prueba</label>
                     <input type="text" id="inv-proxima" placeholder="dd/mm/aa" maxlength="8">
                 </div>
@@ -204,6 +204,10 @@
             "inspector02@pct.com"
         ];
 
+        const CAPTURISTAS = [
+            "capturista@pct.com"
+        ];
+
         const emailSpan = document.getElementById('nav-user-email');
         const btnLogout = document.getElementById('btn-logout');
 
@@ -216,7 +220,15 @@
             const email = (user.email || '').toLowerCase();
             if (emailSpan) emailSpan.textContent = email;
 
-            window.isAdmin = ADMINS.includes(email);
+            // Solo admins o capturistas pueden estar en esta página
+            const esAdmin = ADMINS.includes(email);
+            const esCapturista = CAPTURISTAS.includes(email);
+            if (!esAdmin && !esCapturista) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            window.isAdmin = esAdmin;
         });
 
         if (btnLogout) {

@@ -7,9 +7,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!spanPruebas && !spanInspecciones && !spanInvre && !spanInvre2 && !spanActividades) return; // No estamos en index.html
 
-    // Pruebas guardadas en Firestore
+    // Pruebas guardadas en Firestore (total y por vencer a 60/30/15 días)
     if (spanPruebas) {
         spanPruebas.textContent = 'Cargando...';
+
+        function parseProxima(str) {
+            if (!str) return null;
+            const s = String(str).trim();
+            if (!s) return null;
+
+            // Formato dd/mm/aa
+            if (s.includes('/')) {
+                const partes = s.split('/');
+                if (partes.length !== 3) return null;
+                const [ddStr, mmStr, aaStr] = partes;
+                const dd = parseInt(ddStr, 10);
+                const mm = parseInt(mmStr, 10);
+                const aa = parseInt(aaStr, 10);
+                if (!dd || !mm || isNaN(aa)) return null;
+                const year = aa < 100 ? 2000 + aa : aa;
+                const d = new Date(year, mm - 1, dd);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+
+            const d = new Date(s);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
 
         (async () => {
             try {
@@ -21,7 +48,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 const colRef = collection(db, 'pruebas');
                 const snap = await getDocs(colRef);
 
-                spanPruebas.textContent = String(snap.size || 0);
+                const hoy = new Date();
+                hoy.setHours(0, 0, 0, 0);
+
+                let total = 0;
+                let porVencer60 = 0; // 60–30
+                let porVencer30 = 0; // 30–15
+                let porVencer15 = 0; // 15–0
+
+                snap.forEach(doc => {
+                    total += 1;
+                    const data = doc.data() || {};
+                    const proximaStr = data.proxima || '';
+                    const dProx = parseProxima(proximaStr);
+                    if (!dProx) return;
+
+                    const diffMs = dProx.getTime() - hoy.getTime();
+                    let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                    if (dias < 0) return; // ya vencidas, no cuentan como "por vencer"
+
+                    if (dias >= 30 && dias <= 60) {
+                        porVencer60 += 1; // 60–30
+                    } else if (dias >= 15 && dias < 30) {
+                        porVencer30 += 1; // 30–15
+                    } else if (dias >= 0 && dias < 15) {
+                        porVencer15 += 1; // 15–0
+                    }
+                });
+
+                spanPruebas.innerHTML = `
+                    <div style="font-size:0.85rem; line-height:1.4;">
+                        Total: <strong>${total}</strong><br>
+                        60–30 días: <strong>${porVencer60}</strong><br>
+                        30–15 días: <strong>${porVencer30}</strong><br>
+                        15–0 días: <strong>${porVencer15}</strong>
+                    </div>
+                `;
             } catch (e) {
                 console.error('Error al leer resumen de pruebas para el dashboard', e);
                 spanPruebas.textContent = 'Error';

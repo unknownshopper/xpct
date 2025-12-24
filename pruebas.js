@@ -683,11 +683,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const selDetalleEl = document.getElementById('inv-prueba-detalle');
         const emisorEl = document.getElementById('inv-emisor');
         const tecnicoEl = document.getElementById('inv-tecnico');
+        const selResultadoEl = document.getElementById('prueba-resultado');
 
         const pruebaTipo = (selPruebaEl?.value || '').trim();
         const pruebaDetalle = (selDetalleEl?.value || '').trim();
         const emisor = (emisorEl?.value || '').trim();
         const tecnico = (tecnicoEl?.value || '').trim();
+        const resultado = (selResultadoEl?.value || '').trim();
 
         if (!pruebaTipo) {
             alert('Selecciona la prueba / calibración.');
@@ -705,8 +707,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (!resultado) {
+            alert('Selecciona el resultado de la prueba.');
+            if (selResultadoEl) selResultadoEl.focus();
+            return;
+        }
+
         const fechaPrueba = document.getElementById('prueba-fecha')?.value || '';
-        const resultado = document.getElementById('prueba-resultado')?.value || '';
         const fechaRealizacion = document.getElementById('inv-fecha-realizacion')?.value || '';
         const proxima = document.getElementById('inv-proxima')?.value || '';
 
