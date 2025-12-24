@@ -147,6 +147,7 @@
                                 <th style="text-align:left; padding:0.4rem; width:32px;"><input type="checkbox" id="pruebas-select-todos"></th>
                                 <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
+                                <th style="text-align:left; padding:0.4rem;">Periodo</th>
                                 <th style="text-align:left; padding:0.4rem;">Estado</th>
                                 <th style="text-align:left; padding:0.4rem;">Días para próxima</th>
                                 <th style="text-align:left; padding:0.4rem;">Equipo</th>
@@ -409,6 +410,7 @@
                 ['Descripción', reg.descripcion || ''],
                 ['Prueba / Calibración', reg.prueba || reg.pruebaTipo || ''],
                 ['Resultado', reg.resultado || ''],
+                ['Periodo', reg.periodo || ''],
                 ['Fecha de prueba', reg.fechaPrueba || ''],
                 ['Fecha realización', reg.fechaRealizacion || ''],
                 ['Próxima prueba', reg.proxima || ''],
@@ -675,10 +677,24 @@
                 const idx = filasVisibles.length;
                 filasVisibles.push(reg);
 
+                const periodoActual = (reg.periodo || '').toString().trim().toUpperCase();
+                const esAdmin = !!window.isAdmin;
+                const periodoTexto = periodoActual || '';
+
+                const celdaPeriodo = esAdmin
+                    ? `<select class="pl-periodo" data-id="${reg.id || ''}">
+                            <option value=""></option>
+                            <option value="ANUAL" ${periodoActual === 'ANUAL' || !periodoActual ? 'selected' : ''}>Anual</option>
+                            <option value="POST-TRABAJO" ${periodoActual === 'POST-TRABAJO' ? 'selected' : ''}>Post-trabajo</option>
+                            <option value="REPARACION" ${periodoActual === 'REPARACION' ? 'selected' : ''}>Reparación</option>
+                       </select>`
+                    : periodoTexto;
+
                 fila.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}"></td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${diasParaProxima}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
@@ -820,6 +836,28 @@
             } catch (e) {
                 console.error('No se pudo actualizar el Resultado para id ' + id, e);
                 alert('No se pudo guardar el cambio de Resultado. Revisa la consola para más detalles.');
+            }
+        }
+
+        async function actualizarCampoPeriodo(id, nuevoValor) {
+            if (!id) return;
+            try {
+                const { getFirestore, doc, updateDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore(app);
+                const ref = doc(db, 'pruebas', id);
+                await updateDoc(ref, { periodo: nuevoValor || '' });
+
+                pruebas = pruebas.map(reg => {
+                    if (reg && reg.id === id) {
+                        return { ...reg, periodo: nuevoValor || '' };
+                    }
+                    return reg;
+                });
+            } catch (e) {
+                console.error('No se pudo actualizar el Periodo para id ' + id, e);
+                alert('No se pudo guardar el cambio de Periodo. Revisa la consola para más detalles.');
             }
         }
 
@@ -972,6 +1010,8 @@
                 actualizarCampoNoReporte(id, valor);
             } else if (target.classList.contains('pl-resultado')) {
                 actualizarCampoResultado(id, valor);
+            } else if (target.classList.contains('pl-periodo')) {
+                actualizarCampoPeriodo(id, valor || '');
             }
         });
 

@@ -56,10 +56,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 let porVencer30 = 0; // 30–15
                 let porVencer15 = 0; // 15–0
 
+                let totalAnual = 0;
+                let totalPostTrabajo = 0;
+                let totalReparacion = 0;
+
                 snap.forEach(doc => {
                     total += 1;
                     const data = doc.data() || {};
                     const proximaStr = data.proxima || '';
+                    const periodoStr = (data.periodo || '').toString().trim().toUpperCase();
+
+                    if (periodoStr === 'ANUAL' || periodoStr === '') {
+                        totalAnual += 1;
+                    } else if (periodoStr === 'POST-TRABAJO') {
+                        totalPostTrabajo += 1;
+                    } else if (periodoStr === 'REPARACION') {
+                        totalReparacion += 1;
+                    }
                     const dProx = parseProxima(proximaStr);
                     if (!dProx) return;
 
@@ -81,7 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         Total: <strong>${total}</strong><br>
                         60–30 días: <strong>${porVencer60}</strong><br>
                         30–15 días: <strong>${porVencer30}</strong><br>
-                        15–0 días: <strong>${porVencer15}</strong>
+                        15–0 días: <strong>${porVencer15}</strong><br>
+                        <span style="font-size:0.8rem; color:#4b5563;">Anual: <strong>${totalAnual}</strong> · Post-trabajo: <strong>${totalPostTrabajo}</strong> · Reparación: <strong>${totalReparacion}</strong></span>
                     </div>
                 `;
             } catch (e) {

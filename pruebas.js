@@ -494,6 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputFechaReal = document.getElementById('inv-fecha-realizacion');
     const inputProxima = document.getElementById('inv-proxima');
     const inputContador = document.getElementById('inv-contador');
+    const selPeriodo = document.getElementById('inv-periodo');
 
     function formatearFechaRealizacion(valor) {
         const soloDigitos = valor.replace(/\D/g, '').slice(0, 6);
@@ -528,6 +529,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const fecha = new Date(baseYear, mm - 1, dd);
         if (isNaN(fecha.getTime())) return;
 
+        // La lógica actual suma 1 año para obtener la fecha de vencimiento.
+        // Se mantiene igual para todos los periodos (anual, post-trabajo, reparación).
         fecha.setFullYear(fecha.getFullYear() + 1);
         const yyyyNext = fecha.getFullYear();
         const mmNext = String(fecha.getMonth() + 1).padStart(2, '0');
@@ -684,12 +687,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const emisorEl = document.getElementById('inv-emisor');
         const tecnicoEl = document.getElementById('inv-tecnico');
         const selResultadoEl = document.getElementById('prueba-resultado');
+        const selPeriodoEl = document.getElementById('inv-periodo');
 
         const pruebaTipo = (selPruebaEl?.value || '').trim();
         const pruebaDetalle = (selDetalleEl?.value || '').trim();
         const emisor = (emisorEl?.value || '').trim();
         const tecnico = (tecnicoEl?.value || '').trim();
         const resultado = (selResultadoEl?.value || '').trim();
+        const periodo = (selPeriodoEl?.value || 'ANUAL').trim();
 
         if (!pruebaTipo) {
             alert('Selecciona la prueba / calibración.');
@@ -707,6 +712,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const fechaRealizacion = document.getElementById('inv-fecha-realizacion')?.value || '';
+
+        // Para periodos Post-trabajo o Reparación, la fecha de realización es obligatoria
+        if ((periodo === 'POST-TRABAJO' || periodo === 'REPARACION') && !fechaRealizacion.trim()) {
+            alert('Para periodos Post-trabajo o Reparación debes indicar la fecha de realización.');
+            if (inputFechaReal) inputFechaReal.focus();
+            return;
+        }
+
         if (!resultado) {
             alert('Selecciona el resultado de la prueba.');
             if (selResultadoEl) selResultadoEl.focus();
@@ -714,7 +728,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const fechaPrueba = document.getElementById('prueba-fecha')?.value || '';
-        const fechaRealizacion = document.getElementById('inv-fecha-realizacion')?.value || '';
         const proxima = document.getElementById('inv-proxima')?.value || '';
 
         const registro = {
@@ -735,6 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
             area: document.getElementById('inv-area')?.value || '',
             noReporte: document.getElementById('inv-no-reporte')?.value || '',
             ejecucion: document.getElementById('inv-ejecucion')?.value || '',
+            periodo,
             emisor,
             tecnico,
             contador: document.getElementById('inv-contador')?.value || '',
