@@ -679,6 +679,32 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const selPruebaEl = document.getElementById('inv-prueba');
+        const selDetalleEl = document.getElementById('inv-prueba-detalle');
+        const emisorEl = document.getElementById('inv-emisor');
+        const tecnicoEl = document.getElementById('inv-tecnico');
+
+        const pruebaTipo = (selPruebaEl?.value || '').trim();
+        const pruebaDetalle = (selDetalleEl?.value || '').trim();
+        const emisor = (emisorEl?.value || '').trim();
+        const tecnico = (tecnicoEl?.value || '').trim();
+
+        if (!pruebaTipo) {
+            alert('Selecciona la prueba / calibración.');
+            if (selPruebaEl) selPruebaEl.focus();
+            return;
+        }
+        if (!emisor) {
+            alert('Indica el emisor.');
+            if (emisorEl) emisorEl.focus();
+            return;
+        }
+        if (!tecnico) {
+            alert('Indica el técnico.');
+            if (tecnicoEl) tecnicoEl.focus();
+            return;
+        }
+
         const fechaPrueba = document.getElementById('prueba-fecha')?.value || '';
         const resultado = document.getElementById('prueba-resultado')?.value || '';
         const fechaRealizacion = document.getElementById('inv-fecha-realizacion')?.value || '';
@@ -690,6 +716,9 @@ document.addEventListener('DOMContentLoaded', () => {
             resultado,
             fechaRealizacion,
             proxima,
+            prueba: pruebaTipo,
+            pruebaTipo,
+            pruebaDetalle,
             serial: document.getElementById('inv-serial')?.value || '',
             edo: document.getElementById('inv-edo')?.value || '',
             propiedad: document.getElementById('inv-propiedad')?.value || '',
@@ -699,8 +728,8 @@ document.addEventListener('DOMContentLoaded', () => {
             area: document.getElementById('inv-area')?.value || '',
             noReporte: document.getElementById('inv-no-reporte')?.value || '',
             ejecucion: document.getElementById('inv-ejecucion')?.value || '',
-            emisor: document.getElementById('inv-emisor')?.value || '',
-            tecnico: document.getElementById('inv-tecnico')?.value || '',
+            emisor,
+            tecnico,
             contador: document.getElementById('inv-contador')?.value || '',
             observaciones: document.getElementById('prueba-observaciones')?.value || ''
         };

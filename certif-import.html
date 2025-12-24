@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar certificados a Firestore</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <h1 style="margin-left:1rem; font-size:1.2rem;">Importar certificados (certif.csv) a Firestore</h1>
+    </header>
+
+    <main style="max-width: 960px; margin: 1.5rem auto; padding: 1rem;">
+        <section class="detalle-equipo">
+            <h2>Herramienta de importación única</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Esta página lee el archivo <code>docs/certif.csv</code> y crea documentos en la colección
+                <code>pruebas</code> de Firestore. Úsala solo una vez o con cuidado para evitar duplicados.
+            </p>
+
+            <button id="btn-importar" style="padding:0.5rem 1rem;">Importar certificados</button>
+            <button id="btn-simular" style="padding:0.5rem 1rem; margin-left:0.5rem;">Simular (sin escribir)</button>
+
+            <div id="estado" style="margin-top:1rem; font-size:0.9rem; color:#111827;"></div>
+            <pre id="log" style="margin-top:1rem; max-height:320px; overflow:auto; background:#f9fafb; border:1px solid #e5e7eb; padding:0.5rem; font-size:0.8rem;"></pre>
+        </section>
+    </main>
+
+    <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
+        authDomain: "xpct-tab.firebaseapp.com",
+        projectId: "xpct-tab",
+        storageBucket: "xpct-tab.firebasestorage.app",
+        messagingSenderId: "614589989974",
+        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
+    };
+
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const btnImportar = document.getElementById('btn-importar');
+    const btnSimular = document.getElementById('btn-simular');
+    const divEstado = document.getElementById('estado');
+    const preLog = document.getElementById('log');
+
+    function logLinea(msg) {
+        preLog.textContent += msg + "\n";
+    }
+
+    function setEstado(msg) {
+        divEstado.textContent = msg;
+    }
+
+    function parseCSVLineCertif(linea) {
+        if (window.parseCSVLine && typeof window.parseCSVLine === 'function') {
+            return window.parseCSVLine(linea);
+        }
+        // Parser simple por comas, sin manejar comillas complejas (el archivo actual no las usa)
+        return linea.split(',');
+    }
+
+    function normalizarFechaDdMmAa(str) {
+        if (!str) return '';
+        const partes = String(str).trim().split('/');
+        if (partes.length !== 3) return '';
+        let [ddStr, mmStr, aaStr] = partes;
+        if (!ddStr || !mmStr || !aaStr) return '';
+        ddStr = ddStr.padStart(2, '0');
+        mmStr = mmStr.padStart(2, '0');
+        const aaNum = parseInt(aaStr, 10);
+        if (isNaN(aaNum)) return '';
+        const aaNorm = String(aaNum).slice(-2).padStart(2, '0');
+        return `${ddStr}/${mmStr}/${aaNorm}`;
+    }
+
+    function sumar365Dias(fechaDdMmAa) {
+        if (!fechaDdMmAa) return '';
+        const partes = fechaDdMmAa.split('/');
+        if (partes.length !== 3) return '';
+        const [ddStr, mmStr, aaStr] = partes;
+        const dd = parseInt(ddStr, 10);
+        const mm = parseInt(mmStr, 10);
+        const aa = parseInt(aaStr, 10);
+        if (!dd || !mm || isNaN(aa)) return '';
+        const year = 2000 + aa; // 2 dígitos → 2000+aa
+        const d = new Date(year, mm - 1, dd);
+        if (isNaN(d.getTime())) return '';
+        d.setDate(d.getDate() + 365);
+        const ddNext = String(d.getDate()).padStart(2, '0');
+        const mmNext = String(d.getMonth() + 1).padStart(2, '0');
+        const aaNext = String(d.getFullYear()).slice(-2);
+        return `${ddNext}/${mmNext}/${aaNext}`;
+    }
+
+    async function leerCertifCsv() {
+        const resp = await fetch('docs/certif.csv');
+        if (!resp.ok) throw new Error('No se pudo leer docs/certif.csv');
+        const texto = await resp.text();
+        const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+        if (lineas.length < 2) return [];
+
+        // Buscar la primera línea de cabecera real (que tenga "SERIE" al menos)
+        let idxHeader = 0;
+        while (idxHeader < lineas.length) {
+            const cols = parseCSVLineCertif(lineas[idxHeader]);
+            const tieneSerie = cols.some(c => String(c).toUpperCase().includes('SERIE'));
+            if (tieneSerie) break;
+            idxHeader++;
+        }
+        if (idxHeader >= lineas.length) return [];
+
+        const headers = parseCSVLineCertif(lineas[idxHeader]);
+        const idxSerie = headers.indexOf('SERIE');
+        const idxSerieDash = headers.indexOf('SERIE-');
+        const idxRep = headers.indexOf('N° DE REPORTE');
+        const idxRep2 = headers.indexOf('N° DE REPORTE2');
+        const idxRepAlt = headers.indexOf('REPORTES');
+
+        // Buscar una columna que parezca fecha (dd/mm/aa)
+        let idxFecha = -1;
+        for (let i = idxHeader + 1; i < lineas.length && idxFecha === -1; i++) {
+            const cols = parseCSVLineCertif(lineas[i]);
+            cols.forEach((val, idx) => {
+                const s = String(val || '').trim();
+                if (!s) return;
+                if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(s)) {
+                    idxFecha = idx;
+                }
+            });
+        }
+
+        const filas = [];
+        for (let i = idxHeader + 1; i < lineas.length; i++) {
+            const cols = parseCSVLineCertif(lineas[i]);
+            if (!cols.length) continue;
+
+            const serieBase = idxSerie >= 0 ? (cols[idxSerie] || '') : '';
+            const serieDash = idxSerieDash >= 0 ? (cols[idxSerieDash] || '') : '';
+            const repRaw = [
+                idxRep2 >= 0 ? (cols[idxRep2] || '') : '',
+                idxRepAlt >= 0 ? (cols[idxRepAlt] || '') : '',
+                idxRep >= 0 ? (cols[idxRep] || '') : ''
+            ].find(v => String(v || '').trim() !== '') || '';
+
+            const fechaCruda = idxFecha >= 0 ? (cols[idxFecha] || '') : '';
+            if (!serieDash && !serieBase && !repRaw && !fechaCruda) continue; // fila vacía relevante
+
+            const fechaRealizacion = normalizarFechaDdMmAa(fechaCruda);
+            const proxima = fechaRealizacion ? sumar365Dias(fechaRealizacion) : '';
+
+            const equipo = String(serieDash || '').trim();
+            const serial = (String(serieBase || '').trim() && equipo)
+                ? `${String(serieBase).trim()}-${equipo}`
+                : '';
+
+            filas.push({
+                equipo,
+                serial,
+                noReporte: String(repRaw || '').trim(),
+                fechaRealizacion,
+                proxima,
+                origen: 'certif',
+                resultado: 'ACEPTADA'
+            });
+        }
+
+        return filas;
+    }
+
+    async function importarCertificados(simular = false) {
+        setEstado(simular ? 'Simulando importación...' : 'Importando certificados...');
+        preLog.textContent = '';
+
+        try {
+            const filas = await leerCertifCsv();
+            logLinea(`Filas detectadas en certif.csv: ${filas.length}`);
+
+            if (!filas.length) {
+                setEstado('No se encontraron filas válidas en certif.csv');
+                return;
+            }
+
+            if (simular) {
+                filas.slice(0, 10).forEach((f, idx) => {
+                    logLinea(`#${idx + 1}: equipo=${f.equipo}, serial=${f.serial}, noReporte=${f.noReporte}, fechaRealizacion=${f.fechaRealizacion}, proxima=${f.proxima}`);
+                });
+                if (filas.length > 10) {
+                    logLinea(`... y ${filas.length - 10} filas más`);
+                }
+                setEstado(`Simulación completa. Se importarían ${filas.length} documentos en pruebas.`);
+                return;
+            }
+
+            let creados = 0;
+            for (const f of filas) {
+                await addDoc(collection(db, 'pruebas'), {
+                    equipo: f.equipo || '',
+                    serial: f.serial || '',
+                    noReporte: f.noReporte || '',
+                    fechaRealizacion: f.fechaRealizacion || '',
+                    proxima: f.proxima || '',
+                    resultado: f.resultado || '',
+                    origen: f.origen || 'certif'
+                });
+                creados += 1;
+                if (creados <= 10) {
+                    logLinea(`Importado ${creados}: ${f.equipo} / ${f.serial} / ${f.noReporte}`);
+                }
+            }
+
+            setEstado(`Importación completada. Documentos creados: ${creados}.`);
+        } catch (e) {
+            console.error(e);
+            setEstado('Error durante la importación. Revisa la consola para más detalles.');
+            logLinea(String(e));
+        }
+    }
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            setEstado('Debes iniciar sesión para usar esta herramienta.');
+            return;
+        }
+
+        setEstado('Sesión iniciada. Puedes simular o importar certificados.');
+
+        if (btnSimular) {
+            btnSimular.addEventListener('click', () => {
+                importarCertificados(true);
+            });
+        }
+
+        if (btnImportar) {
+            btnImportar.addEventListener('click', () => {
+                const ok = window.confirm('Esto creará documentos en la colección "pruebas" a partir de certif.csv. ¿Continuar?');
+                if (!ok) return;
+                importarCertificados(false);
+            });
+        }
+    });
+    </script>
+</body>
+</html>

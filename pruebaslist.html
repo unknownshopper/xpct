@@ -69,7 +69,7 @@
                 </div>
             </section>
 
-            <section style="margin-bottom:1rem;">
+            <section style="margin-bottom:1rem; display:none;">
                 <h3 style="font-size:1rem; margin-bottom:0.35rem;">Estado por equipo (última prueba)</h3>
                 <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
                     Para cada equipo se muestra la última prueba registrada y su estado de vigencia. Este resumen no se ve afectado por el filtro de búsqueda.
@@ -106,63 +106,49 @@
                 <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                     <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
                 </div>
-                <div style="font-size: 0.85rem; color:#4b5563;">
-                    <span id="pruebas-contador-pendientes">0 por realizar</span>
-                    <span style="margin:0 0.5rem;">·</span>
-                    <span id="pruebas-contador-vencidas">0 vencidas</span>
-                    <span style="margin:0 0.5rem;">·</span>
-                    <span id="pruebas-contador-historico">0 en histórico</span>
+                <div style="font-size: 0.85rem; color:#4b5563; display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+                    <div>
+                        <span id="pruebas-contador-pendientes">0 por realizar</span>
+                        <span style="margin:0 0.5rem;">·</span>
+                        <span id="pruebas-contador-vencidas">0 vencidas</span>
+                        <span style="margin:0 0.5rem;">·</span>
+                        <span id="pruebas-contador-historico">0 en histórico</span>
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="btn-pruebas-eliminar" style="background:#fee2e2; color:#b91c1c;">Eliminar seleccionadas</button>
+                        <button id="btn-pruebas-export-csv">Exportar CSV</button>
+                    </div>
                 </div>
             </section>
 
             <section style="margin-bottom:1rem;">
-                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Pruebas por realizar</h3>
+                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Listado de pruebas</h3>
                 <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
-                    Incluye pruebas con fecha de próxima prueba vigente o vencida. Las vencidas se muestran resaltadas.
+                    Incluye todas las pruebas registradas. Las pruebas con próxima fecha vencida se resaltan en rojo.
                 </p>
                 <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
-                    <table id="tabla-pruebas-pendientes" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
+                    <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1050px;">
                         <thead>
                             <tr style="background:#f3f4f6;">
-                                <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th style="text-align:left; padding:0.4rem; width:32px;"><input type="checkbox" id="pruebas-select-todos"></th>
                                 <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
-                                <th style="text-align:left; padding:0.4rem;">Resultado</th>
-                                <th style="text-align:left; padding:0.4rem;">Técnico</th>
-                                <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
                                 <th style="text-align:left; padding:0.4rem;">Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-pruebas-pendientes"></tbody>
-                    </table>
-                    <p id="mensaje-sin-pruebas-pendientes" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
-                        No hay pruebas pendientes registradas.
-                    </p>
-                </div>
-            </section>
-
-            <section style="margin-bottom:1rem;">
-                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Histórico de pruebas realizadas</h3>
-                <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
-                    Registro histórico de todas las pruebas guardadas.
-                </p>
-                <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
-                    <table id="tabla-pruebas-historico" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
-                        <thead>
-                            <tr style="background:#f3f4f6;">
-                                <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
+                                <th style="text-align:left; padding:0.4rem;">Días para próxima</th>
                                 <th style="text-align:left; padding:0.4rem;">Equipo</th>
-                                <th style="text-align:left; padding:0.4rem;">Descripción</th>
                                 <th style="text-align:left; padding:0.4rem;">Producto</th>
+                                <th style="text-align:left; padding:0.4rem;">Descripción</th>
                                 <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
-                                <th style="text-align:left; padding:0.4rem;">Técnico</th>
+                                <th style="text-align:left; padding:0.4rem;">Área inspección</th>
                                 <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
                                 <th style="text-align:left; padding:0.4rem;">Resultado</th>
+                                <th style="text-align:left; padding:0.4rem;">Emisor</th>
+                                <th style="text-align:left; padding:0.4rem;">Técnico</th>
                             </tr>
                         </thead>
-                        <tbody id="tbody-pruebas-historico"></tbody>
+                        <tbody id="tbody-pruebas-listado"></tbody>
                     </table>
-                    <p id="mensaje-sin-pruebas-historico" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                    <p id="mensaje-sin-pruebas-listado" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                         No hay pruebas registradas todavía.
                     </p>
                 </div>
@@ -227,10 +213,8 @@
     }
 
     async function cargarPruebasDesdeFirestore() {
-        const tbodyPend = document.getElementById('tbody-pruebas-pendientes');
-        const tbodyHist = document.getElementById('tbody-pruebas-historico');
-        const msgPend = document.getElementById('mensaje-sin-pruebas-pendientes');
-        const msgHist = document.getElementById('mensaje-sin-pruebas-historico');
+        const tbodyListado = document.getElementById('tbody-pruebas-listado');
+        const msgListado = document.getElementById('mensaje-sin-pruebas-listado');
         const inputBuscar = document.getElementById('pruebas-buscar');
         const lblPend = document.getElementById('pruebas-contador-pendientes');
         const lblVenc = document.getElementById('pruebas-contador-vencidas');
@@ -245,10 +229,14 @@
         const detallePanel = document.getElementById('detalle-prueba');
         const detalleContenido = document.getElementById('detalle-prueba-contenido');
 
+        const chkSelectTodos = document.getElementById('pruebas-select-todos');
+        const btnEliminar = document.getElementById('btn-pruebas-eliminar');
+        const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
+
         // Id (o clave) de la prueba actualmente seleccionada en el panel de detalle
         let pruebaSeleccionadaId = null;
 
-        if (!tbodyPend || !tbodyHist) return;
+        if (!tbodyListado) return;
 
         let pruebas = [];
         const claveLocal = 'pct_pruebas';
@@ -356,6 +344,19 @@
                 return;
             }
 
+            // Cálculo de días para próxima prueba (mismo criterio que en el listado)
+            let diasParaProximaDetalle = '';
+            if (reg.proxima) {
+                const d = parseProxima(reg.proxima);
+                if (d) {
+                    const hoy = hoySinHora();
+                    const diffMs = d.getTime() - hoy.getTime();
+                    let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                    if (dias < 0) dias = 0;
+                    diasParaProximaDetalle = String(dias);
+                }
+            }
+
             const campos = [
                 ['Equipo', reg.equipo || ''],
                 ['Serial', reg.serial || ''],
@@ -366,6 +367,7 @@
                 ['Fecha de prueba', reg.fechaPrueba || ''],
                 ['Fecha realización', reg.fechaRealizacion || ''],
                 ['Próxima prueba', reg.proxima || ''],
+                ['Días para próxima', diasParaProximaDetalle],
                 ['No. reporte / certificado', reg.noReporte || ''],
                 ['Técnico', reg.tecnico || ''],
                 ['Emisor', reg.emisor || ''],
@@ -407,7 +409,26 @@
 
         function parseProxima(str) {
             if (!str) return null;
-            const d = new Date(str);
+            const s = String(str).trim();
+            if (!s) return null;
+
+            // Soportar formato dd/mm/aa igual que parseFechaRealizacion
+            if (s.includes('/')) {
+                const partes = s.split('/');
+                if (partes.length !== 3) return null;
+                const [ddStr, mmStr, aaStr] = partes;
+                const dd = parseInt(ddStr, 10);
+                const mm = parseInt(mmStr, 10);
+                const aa = parseInt(aaStr, 10);
+                if (!dd || !mm || isNaN(aa)) return null;
+                const year = aa < 100 ? 2000 + aa : aa;
+                const d = new Date(year, mm - 1, dd);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+
+            const d = new Date(s);
             if (isNaN(d.getTime())) return null;
             d.setHours(0, 0, 0, 0);
             return d;
@@ -424,16 +445,13 @@
         function render() {
             const filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
-            tbodyPend.innerHTML = '';
-            tbodyHist.innerHTML = '';
-            if (msgPend) msgPend.style.display = 'none';
-            if (msgHist) msgHist.style.display = 'none';
+            tbodyListado.innerHTML = '';
+            if (msgListado) msgListado.style.display = 'none';
             if (tbodyResumen) tbodyResumen.innerHTML = '';
             if (msgResumen) msgResumen.style.display = 'none';
 
             if (!pruebas.length && (!equiposInventario || !equiposInventario.size)) {
-                if (msgPend) msgPend.style.display = 'block';
-                if (msgHist) msgHist.style.display = 'block';
+                if (msgListado) msgListado.style.display = 'block';
                 if (msgResumen) msgResumen.style.display = 'block';
                 if (lblPend) lblPend.textContent = '0 por realizar';
                 if (lblVenc) lblVenc.textContent = '0 vencidas';
@@ -526,26 +544,28 @@
                 lblResSin.textContent = String(cntEquiposSin);
             }
 
-            // Ordenar: pendientes por fecha de próxima prueba ascendente (primero las más urgentes)
-            porRealizar.sort((a, b) => {
-                const pa = a._clasif.proxima ? a._clasif.proxima.getTime() : Infinity;
-                const pb = b._clasif.proxima ? b._clasif.proxima.getTime() : Infinity;
-                return pa - pb;
-            });
-
-            // Histórico por fecha de realización descendente
+            // Ordenar histórico por fecha de realización descendente
             historico.sort((a, b) => b._fechaRealDate.getTime() - a._fechaRealDate.getTime());
 
             let cntPend = 0;
             let cntVenc = 0;
             let cntHist = 0;
 
-            porRealizar.forEach(reg => {
+            const filasVisibles = [];
+
+            historico.forEach(reg => {
                 const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 const estado = reg._clasif.estado;
                 const proximaStr = reg.proxima || '';
+
+                // Contadores: por realizar = vigentes + vencidas
+                if (estado === 'VIGENTE' || estado === 'VENCIDA') {
+                    cntPend += 1;
+                    if (estado === 'VENCIDA') cntVenc += 1;
+                }
+
                 const fila = document.createElement('tr');
 
                 if (estado === 'VENCIDA') {
@@ -553,44 +573,51 @@
                     fila.style.color = '#b91c1c';
                 }
 
+                const badgeEstado =
+                    estado === 'VIGENTE'
+                        ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>'
+                        : estado === 'VENCIDA'
+                            ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>'
+                            : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin fecha</span>';
+
+                // Cálculo de días restantes hasta la próxima prueba
+                let diasParaProxima = '';
+                if (reg._clasif.proxima) {
+                    const hoy = hoySinHora();
+                    const diffMs = reg._clasif.proxima.getTime() - hoy.getTime();
+                    let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                    if (dias < 0) dias = 0; // para vencidas mostramos 0
+                    diasParaProxima = String(dias);
+                }
+
+                const idx = filasVisibles.length;
+                filasVisibles.push(reg);
+
                 fila.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}"></td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.resultado || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.noReporte || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
-                        ${estado === 'VIGENTE' ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>' :
-                          estado === 'VENCIDA' ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>' :
-                          '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin fecha</span>'}
-                    </td>
-                `;
-
-                fila.style.cursor = 'pointer';
-                fila.addEventListener('click', () => {
-                    mostrarDetallePrueba(reg);
-                });
-
-                tbodyPend.appendChild(fila);
-                cntPend += 1;
-                if (estado === 'VENCIDA') cntVenc += 1;
-            });
-
-            historico.forEach(reg => {
-                const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
-                if (filtro && !textoBuscar.includes(filtro)) return;
-
-                const fila = document.createElement('tr');
-                fila.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${diasParaProxima}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.descripcion || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.prueba || reg.pruebaTipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.descripcion || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <input type="text" class="pl-prueba" data-id="${reg.id || ''}" value="${(reg.prueba || reg.pruebaTipo || '').toString().replace(/"/g, '&quot;')}">
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <input type="text" class="pl-norep" data-id="${reg.id || ''}" value="${(reg.noReporte || '').toString().replace(/"/g, '&quot;')}">
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <select class="pl-resultado" data-id="${reg.id || ''}">
+                            <option value=""></option>
+                            <option value="ACEPTADA" ${reg.resultado === 'ACEPTADA' ? 'selected' : ''}>ACEPTADA</option>
+                            <option value="RECHAZADA" ${reg.resultado === 'RECHAZADA' ? 'selected' : ''}>RECHAZADA</option>
+                        </select>
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.emisor || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.noReporte || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.resultado || ''}</td>
                 `;
 
                 fila.style.cursor = 'pointer';
@@ -598,15 +625,20 @@
                     mostrarDetallePrueba(reg);
                 });
 
-                tbodyHist.appendChild(fila);
+                tbodyListado.appendChild(fila);
                 cntHist += 1;
             });
 
-            if (!cntPend && msgPend) msgPend.style.display = 'block';
-            if (!cntHist && msgHist) msgHist.style.display = 'block';
+            if (!cntHist && msgListado) msgListado.style.display = 'block';
             if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
             if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
             if (lblHist) lblHist.textContent = `${cntHist} en histórico`;
+
+            // Reiniciar checkbox de selección global
+            if (chkSelectTodos) chkSelectTodos.checked = false;
+
+            // Guardar referencia a filasVisibles en el tbody para exportación
+            tbodyListado._filasVisibles = filasVisibles;
         }
 
         if (inputBuscar) {
@@ -614,6 +646,248 @@
                 render();
             });
         }
+
+        if (chkSelectTodos) {
+            chkSelectTodos.addEventListener('change', () => {
+                const checks = tbodyListado.querySelectorAll('.prueba-select');
+                checks.forEach(chk => {
+                    chk.checked = chkSelectTodos.checked;
+                });
+            });
+        }
+
+        function obtenerSeleccionadas() {
+            const filas = tbodyListado._filasVisibles || [];
+            const checks = tbodyListado.querySelectorAll('.prueba-select:checked');
+            const seleccionadas = [];
+            checks.forEach(chk => {
+                const idx = parseInt(chk.getAttribute('data-idx') || '-1', 10);
+                if (!isNaN(idx) && idx >= 0 && idx < filas.length) {
+                    seleccionadas.push(filas[idx]);
+                }
+            });
+            // Si no hay selección explícita, usar todas las visibles
+            return seleccionadas.length ? seleccionadas : filas;
+        }
+
+        async function actualizarCampoPrueba(id, nuevoValor) {
+            if (!id) return;
+            try {
+                const { getFirestore, doc, updateDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore(app);
+                const ref = doc(db, 'pruebas', id);
+                await updateDoc(ref, { prueba: nuevoValor, pruebaTipo: nuevoValor });
+
+                // Actualizar en memoria
+                pruebas = pruebas.map(reg => {
+                    if (reg && reg.id === id) {
+                        return { ...reg, prueba: nuevoValor, pruebaTipo: nuevoValor };
+                    }
+                    return reg;
+                });
+            } catch (e) {
+                console.error('No se pudo actualizar la prueba/calibración para id ' + id, e);
+                alert('No se pudo guardar el cambio de Prueba / Calib. Revisa la consola para más detalles.');
+            }
+        }
+
+        async function actualizarCampoNoReporte(id, nuevoValor) {
+            if (!id) return;
+            try {
+                const { getFirestore, doc, updateDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore(app);
+                const ref = doc(db, 'pruebas', id);
+                await updateDoc(ref, { noReporte: nuevoValor });
+
+                pruebas = pruebas.map(reg => {
+                    if (reg && reg.id === id) {
+                        return { ...reg, noReporte: nuevoValor };
+                    }
+                    return reg;
+                });
+            } catch (e) {
+                console.error('No se pudo actualizar el No. reporte / cert. para id ' + id, e);
+                alert('No se pudo guardar el cambio de No. reporte / cert. Revisa la consola para más detalles.');
+            }
+        }
+
+        async function actualizarCampoResultado(id, nuevoValor) {
+            if (!id) return;
+            try {
+                const { getFirestore, doc, updateDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore(app);
+                const ref = doc(db, 'pruebas', id);
+                await updateDoc(ref, { resultado: nuevoValor });
+
+                pruebas = pruebas.map(reg => {
+                    if (reg && reg.id === id) {
+                        return { ...reg, resultado: nuevoValor };
+                    }
+                    return reg;
+                });
+            } catch (e) {
+                console.error('No se pudo actualizar el Resultado para id ' + id, e);
+                alert('No se pudo guardar el cambio de Resultado. Revisa la consola para más detalles.');
+            }
+        }
+
+        function exportarCsv() {
+            const filas = obtenerSeleccionadas();
+            if (!filas.length) {
+                alert('No hay pruebas para exportar.');
+                return;
+            }
+
+            const encabezados = [
+                'FechaRealizacion',
+                'Proxima',
+                'Estado',
+                'DiasParaProxima',
+                'Equipo',
+                'Producto',
+                'Descripcion',
+                'Prueba',
+                'Area',
+                'NoReporte',
+                'Resultado',
+                'Emisor',
+                'Tecnico'
+            ];
+
+            function esc(val) {
+                const s = String(val ?? '');
+                if (/[",;\n]/.test(s)) {
+                    return '"' + s.replace(/"/g, '""') + '"';
+                }
+                return s;
+            }
+
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoy.getDate()).padStart(2, '0');
+
+            const lineas = [];
+            lineas.push(encabezados.join(','));
+
+            filas.forEach(reg => {
+                const clasif = clasificarPrueba(reg);
+                let dias = '';
+                if (clasif.proxima) {
+                    const d0 = hoySinHora();
+                    const diffMs = clasif.proxima.getTime() - d0.getTime();
+                    let d = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                    if (d < 0) d = 0;
+                    dias = String(d);
+                }
+
+                const filaCsv = [
+                    reg.fechaRealizacion || '',
+                    reg.proxima || '',
+                    clasif.estado || '',
+                    dias,
+                    reg.equipo || '',
+                    reg.producto || '',
+                    reg.descripcion || '',
+                    reg.prueba || reg.pruebaTipo || '',
+                    reg.area || '',
+                    reg.noReporte || '',
+                    reg.resultado || '',
+                    reg.emisor || '',
+                    reg.tecnico || ''
+                ].map(esc).join(',');
+
+                lineas.push(filaCsv);
+            });
+
+            const blob = new Blob([lineas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pruebas_${yyyy}${mm}${dd}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        if (btnExportCsv) {
+            btnExportCsv.addEventListener('click', exportarCsv);
+        }
+
+        async function eliminarSeleccionadas() {
+            const filas = obtenerSeleccionadas();
+            if (!filas.length) {
+                alert('No hay pruebas seleccionadas para eliminar.');
+                return;
+            }
+
+            const confirmar = window.confirm('Se eliminarán ' + filas.length + ' pruebas seleccionadas de Firestore. Esta acción no se puede deshacer. ¿Continuar?');
+            if (!confirmar) return;
+
+            const idsAEliminar = new Set(
+                filas
+                    .map(reg => (reg && reg.id ? String(reg.id) : ''))
+                    .filter(id => !!id)
+            );
+
+            if (!idsAEliminar.size) {
+                alert('Las pruebas actuales no tienen identificador de Firestore, no se pueden eliminar remotamente.');
+                return;
+            }
+
+            try {
+                const { getFirestore, doc, deleteDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore(app);
+
+                for (const id of idsAEliminar) {
+                    try {
+                        const ref = doc(db, 'pruebas', id);
+                        await deleteDoc(ref);
+                    } catch (e) {
+                        console.warn('No se pudo eliminar la prueba con id ' + id, e);
+                    }
+                }
+
+                // Filtrar las pruebas en memoria y volver a renderizar
+                pruebas = pruebas.filter(reg => !(reg && reg.id && idsAEliminar.has(String(reg.id))));
+                render();
+                alert('Eliminación completada.');
+            } catch (e) {
+                console.error('Error al eliminar pruebas desde Firestore', e);
+                alert('Ocurrió un error al eliminar las pruebas. Revisa la consola para más detalles.');
+            }
+        }
+
+        if (btnEliminar) {
+            btnEliminar.addEventListener('click', eliminarSeleccionadas);
+        }
+
+        // Delegación de eventos para inputs/selects editables de prueba, noReporte y resultado
+        tbodyListado.addEventListener('change', (ev) => {
+            const target = ev.target;
+            if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
+
+            const id = target.getAttribute('data-id') || '';
+            const valor = (target.value || '').trim();
+
+            if (target.classList.contains('pl-prueba')) {
+                actualizarCampoPrueba(id, valor);
+            } else if (target.classList.contains('pl-norep')) {
+                actualizarCampoNoReporte(id, valor);
+            } else if (target.classList.contains('pl-resultado')) {
+                actualizarCampoResultado(id, valor);
+            }
+        });
 
         render();
     }
