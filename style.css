@@ -26,12 +26,12 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Myriad Pro';
 }
 
 body {
     background-color: #f4f6f8;
     color: #1f2933;
+    font-family: 'Myriad Pro', 'Myriad', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, 'Noto Sans', 'Helvetica Neue', sans-serif;
 }
 
 header {
@@ -311,6 +311,154 @@ main {
     gap: 1rem;
 }
 
+/* Inputs y selects coherentes */
+.form-input {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 100%;
+    min-height: 36px;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    background-color: #ffffff;
+    color: #111827;
+    font-size: 0.9rem;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Controles del listado de inspecciones */
+#tabla-inspecciones input[type="text"],
+#tabla-inspecciones select {
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.9rem;
+    background: #ffffff;
+    color: #111827;
+    width: 100%;
+}
+
+#tabla-inspecciones input[type="text"]:focus,
+#tabla-inspecciones select:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Controles del listado de actividades */
+.actividadlist-wrap table input[type="text"],
+.actividadlist-wrap table select {
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.9rem;
+    background: #ffffff;
+    color: #111827;
+}
+
+.actividadlist-wrap table input[type="text"]:focus,
+.actividadlist-wrap table select:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+select.form-input {
+    padding-right: 2rem;
+}
+
+/* Botones coherentes */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    color: #0f172a;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #eef2ff;
+}
+
+.btn-danger {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+
+.btn-danger:hover {
+    background: #fecaca;
+}
+
+/* Tablas de pruebas */
+#tabla-pruebas-listado th,
+#tabla-pruebas-listado td {
+    padding: 0.5rem;
+    text-align: left;
+}
+
+#tabla-pruebas-listado thead tr {
+    background: #f3f4f6;
+}
+
+#tabla-pruebas-listado tbody tr:hover {
+    background-color: #f3f4f6;
+}
+
+#tabla-pruebas-listado tbody tr.pl-active {
+    background-color: #eff6ff;
+    border-left: 4px solid #60a5fa;
+}
+
+/* Controles del listado de pruebas: coherentes con .campo input/select */
+#tabla-pruebas-listado input[type="text"],
+#tabla-pruebas-listado select {
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.9rem;
+    background: #ffffff;
+    color: #111827;
+    width: 100%;
+}
+
+#tabla-pruebas-listado input[type="text"]:focus,
+#tabla-pruebas-listado select:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Chips (filtros de rango) */
+.chip {
+    transition: transform 0.05s ease, box-shadow 0.15s ease;
+}
+
+.chip:hover {
+    transform: translateY(-1px);
+}
+
+.chip.chip-active {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+/* Utilidades */
+.min-260 {
+    min-width: 260px;
+}
+
 .actividad-page {
     max-width: 1200px;
     margin: 1rem auto;
@@ -396,6 +544,14 @@ main {
 .inspectlist-wrap {
     background: #ffffff;
     width: 100vw;
+    margin: 0;
+    padding: 1rem 1.5rem 2rem;
+}
+
+/* Contenedor de listado de pruebas a ancho completo */
+.pruebaslist-wrap {
+    background: #ffffff;
+    width: 100%;
     margin: 0;
     padding: 1rem 1.5rem 2rem;
 }

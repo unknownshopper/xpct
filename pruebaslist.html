@@ -51,7 +51,8 @@
         </div>
     </header>
 
-    <main style="max-width: 100%; margin: 0 auto; padding: 1.5rem;">
+    <main style="max-width: 100%; margin: 0; padding: 0;">
+        <section class="pruebaslist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
         <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
             <h2 style="margin-bottom:0.75rem;">Resumen de estado por equipo</h2>
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
@@ -71,13 +72,13 @@
 
             <section style="margin-bottom: 0.75rem;">
                 <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center; font-size:0.9rem;">
-                    <div style="padding:0.4rem 0.75rem; border-radius:999px; background:#eff6ff; color:#1d4ed8;">
+                    <div id="chip-60" class="chip" style="padding:0.4rem 0.75rem; border-radius:999px; background:#eff6ff; color:#1d4ed8; cursor:pointer;">
                         60–30 días: <strong id="pruebas-alert-60">0</strong>
                     </div>
-                    <div style="padding:0.4rem 0.75rem; border-radius:999px; background:#fef3c7; color:#b45309;">
+                    <div id="chip-30" class="chip" style="padding:0.4rem 0.75rem; border-radius:999px; background:#fef3c7; color:#b45309; cursor:pointer;">
                         30–15 días: <strong id="pruebas-alert-30">0</strong>
                     </div>
-                    <div style="padding:0.4rem 0.75rem; border-radius:999px; background:#fee2e2; color:#b91c1c;">
+                    <div id="chip-15" class="chip" style="padding:0.4rem 0.75rem; border-radius:999px; background:#fee2e2; color:#b91c1c; cursor:pointer;">
                         15–0 días: <strong id="pruebas-alert-15">0</strong>
                     </div>
                 </div>
@@ -117,10 +118,10 @@
             </p>
 
             <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
-                <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                     <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
                 </div>
-                <div style="font-size: 0.85rem; color:#4b5563; display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+                <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563; display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                     <div>
                         <span id="pruebas-contador-pendientes">0 por realizar</span>
                         <span style="margin:0 0.5rem;">·</span>
@@ -129,7 +130,7 @@
                         <span id="pruebas-contador-historico">0 en histórico</span>
                     </div>
                     <div style="display:flex; gap:0.5rem;">
-                        <button id="btn-pruebas-eliminar" style="background:#fee2e2; color:#b91c1c;">Eliminar seleccionadas</button>
+                        <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                         <button id="btn-pruebas-export-csv">Exportar CSV</button>
                     </div>
                 </div>
@@ -170,17 +171,7 @@
             </section>
         </section>
 
-        <section id="detalle-prueba" class="detalle-equipo" style="margin-top:1.5rem;">
-            <h2>Detalle de prueba seleccionada</h2>
-            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
-                Haz clic en una fila de las tablas de pruebas para ver aquí el detalle completo.
-            </p>
-            <div id="detalle-prueba-contenido" style="font-size:0.9rem; color:#111827; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.75rem; background:#f9fafb;">
-                No hay ninguna prueba seleccionada.
-            </div>
         </section>
-
-        
     </main>
 
     <script src="nav.js"></script>
@@ -271,6 +262,12 @@
         const lblAlert60 = document.getElementById('pruebas-alert-60');
         const lblAlert30 = document.getElementById('pruebas-alert-30');
         const lblAlert15 = document.getElementById('pruebas-alert-15');
+
+        // Chips de filtro por rango de días
+        const chip60 = document.getElementById('chip-60');
+        const chip30 = document.getElementById('chip-30');
+        const chip15 = document.getElementById('chip-15');
+        let filtroRango = null; // '60' | '30' | '15' | null
 
         const detallePanel = document.getElementById('detalle-prueba');
         const detalleContenido = document.getElementById('detalle-prueba-contenido');
@@ -442,10 +439,88 @@
             `;
 
             pruebaSeleccionadaId = clave;
+        }
 
-            if (detallePanel && typeof detallePanel.scrollIntoView === 'function') {
-                detallePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Construir el HTML del detalle (reutiliza las mismas filas de mostrarDetallePrueba)
+        function construirDetalleHTML(reg) {
+            let diasParaProximaDetalle = '';
+            if (reg.proxima) {
+                const d = parseProxima(reg.proxima);
+                if (d) {
+                    const hoy = hoySinHora();
+                    const diffMs = d.getTime() - hoy.getTime();
+                    let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                    if (dias < 0) dias = 0;
+                    diasParaProximaDetalle = String(dias);
+                }
             }
+
+            const campos = [
+                ['Equipo', reg.equipo || ''],
+                ['Serial', reg.serial || ''],
+                ['Producto', reg.producto || ''],
+                ['Descripción', reg.descripcion || ''],
+                ['Prueba / Calibración', reg.prueba || reg.pruebaTipo || ''],
+                ['Resultado', reg.resultado || ''],
+                ['Periodo', reg.periodo || ''],
+                ['Fecha de prueba', reg.fechaPrueba || ''],
+                ['Fecha realización', reg.fechaRealizacion || ''],
+                ['Próxima prueba', reg.proxima || ''],
+                ['Días para próxima', diasParaProximaDetalle],
+                ['No. reporte / certificado', reg.noReporte || ''],
+                ['Técnico', reg.tecnico || ''],
+                ['Emisor', reg.emisor || ''],
+                ['Propiedad', reg.propiedad || ''],
+                ['Área a inspeccionar', reg.area || ''],
+                ['Observaciones', reg.observaciones || '']
+            ];
+
+            const filasHtml = campos
+                .filter(([_, valor]) => valor !== undefined && valor !== null && String(valor).trim() !== '')
+                .map(([label, valor]) => `
+                    <tr>
+                        <th style="text-align:left; padding:0.2rem 0.5rem; width:180px; color:#4b5563; font-weight:600;">${label}</th>
+                        <td style="padding:0.2rem 0.5rem;">${String(valor)}</td>
+                    </tr>
+                `)
+                .join('');
+
+            return `
+                <div style="font-size:0.9rem; color:#111827; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.75rem; background:#f9fafb;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                        <tbody>
+                            ${filasHtml || '<tr><td style="padding:0.4rem; color:#6b7280;">Sin datos para esta prueba.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>`;
+        }
+
+        // Alterna una fila de detalle inmediatamente debajo de la fila clicada
+        function toggleDetalleInline(fila, reg) {
+            const tbody = fila.parentElement;
+            if (!tbody) return;
+
+            // Si ya estaba abierto justo debajo, colapsar y salir
+            const next = fila.nextElementSibling;
+            if (next && next.classList && next.classList.contains('pl-detalle-row')) {
+                next.remove();
+                fila.classList.remove('pl-active');
+                return;
+            }
+
+            // Cerrar cualquier otro detalle abierto previamente
+            const abiertos = tbody.querySelectorAll('tr.pl-detalle-row');
+            abiertos.forEach(tr => tr.remove());
+            tbody.querySelectorAll('tr.pl-active').forEach(tr => tr.classList.remove('pl-active'));
+
+            const detalleTr = document.createElement('tr');
+            detalleTr.className = 'pl-detalle-row';
+            const detalleTd = document.createElement('td');
+            detalleTd.colSpan = 15; // total de columnas en la tabla de listado
+            detalleTd.innerHTML = construirDetalleHTML(reg);
+            detalleTr.appendChild(detalleTd);
+            fila.insertAdjacentElement('afterend', detalleTr);
+            fila.classList.add('pl-active');
         }
 
         function hoySinHora() {
@@ -647,6 +722,14 @@
                     }
                 }
 
+                // Aplicar filtro por rango si está activo (solo vigentes)
+                if (filtroRango) {
+                    if (estado !== 'VIGENTE' || diasNum === null || diasNum < 0) return;
+                    if (filtroRango === '60' && !(diasNum >= 30 && diasNum <= 60)) return;
+                    if (filtroRango === '30' && !(diasNum >= 15 && diasNum < 30)) return;
+                    if (filtroRango === '15' && !(diasNum >= 0 && diasNum < 15)) return;
+                }
+
                 // Badge visual según estado, días restantes y resultado (solo presentación)
                 const resultadoStr = (reg.resultado || '').toString().trim().toUpperCase();
                 let badgeEstado;
@@ -719,8 +802,13 @@
                 `;
 
                 fila.style.cursor = 'pointer';
+                // Evitar que interacciones con controles activen el toggle de fila
+                fila.querySelectorAll('input, select, button, a, label').forEach(el => {
+                    el.addEventListener('click', (e) => e.stopPropagation());
+                    el.addEventListener('mousedown', (e) => e.stopPropagation());
+                });
                 fila.addEventListener('click', () => {
-                    mostrarDetallePrueba(reg);
+                    toggleDetalleInline(fila, reg);
                 });
 
                 tbodyListado.appendChild(fila);
@@ -748,6 +836,26 @@
                 render();
             });
         }
+
+        function actualizarChipsUI() {
+            [chip60, chip30, chip15].forEach(ch => ch && ch.classList.remove('chip-active'));
+            if (filtroRango === '60' && chip60) chip60.classList.add('chip-active');
+            if (filtroRango === '30' && chip30) chip30.classList.add('chip-active');
+            if (filtroRango === '15' && chip15) chip15.classList.add('chip-active');
+        }
+
+        function toggleFiltro(r) {
+            filtroRango = (filtroRango === r) ? null : r;
+            actualizarChipsUI();
+            render();
+        }
+
+        if (chip60) chip60.addEventListener('click', () => toggleFiltro('60'));
+        if (chip30) chip30.addEventListener('click', () => toggleFiltro('30'));
+        if (chip15) chip15.addEventListener('click', () => toggleFiltro('15'));
+
+        actualizarChipsUI();
+        render();
 
         if (chkSelectTodos) {
             chkSelectTodos.addEventListener('change', () => {
