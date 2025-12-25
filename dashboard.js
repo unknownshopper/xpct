@@ -90,12 +90,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 spanPruebas.innerHTML = `
-                    <div style="font-size:0.85rem; line-height:1.4;">
-                        Total: <strong>${total}</strong><br>
-                        60–30 días: <strong>${porVencer60}</strong><br>
-                        30–15 días: <strong>${porVencer30}</strong><br>
-                        15–0 días: <strong>${porVencer15}</strong><br>
-                        <span style="font-size:0.8rem; color:#4b5563;">Anual: <strong>${totalAnual}</strong> · Post-trabajo: <strong>${totalPostTrabajo}</strong> · Reparación: <strong>${totalReparacion}</strong></span>
+                    <div class="dash-stats" aria-label="Resumen de pruebas">
+                        <div class="dash-stat-row">
+                            <span>Total</span>
+                            <span class="badge gray">${total}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span>60–30 días</span>
+                            <span class="badge blue">${porVencer60}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span>30–15 días</span>
+                            <span class="badge amber">${porVencer30}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span>15–0 días</span>
+                            <span class="badge red">${porVencer15}</span>
+                        </div>
+                        <div class="dash-stat-row small" style="margin-top:0.15rem;">
+                            <span>Tipos</span>
+                            <span class="dash-badges-inline">
+                                <span class="badge gray" title="Pruebas anuales">Anual: ${totalAnual}</span>
+                                <span class="badge gray" title="Post-trabajo">Post-trabajo: ${totalPostTrabajo}</span>
+                                <span class="badge gray" title="Reparación">Reparación: ${totalReparacion}</span>
+                            </span>
+                        </div>
                     </div>
                 `;
             } catch (e) {
@@ -251,9 +270,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 spanInspecciones.innerHTML = `
-                    <div style="font-size:0.85rem; line-height:1.4;">
-                        Por realizar: <strong>${pendientes}</strong><br>
-                        Realizadas: <strong>${realizadas}</strong>
+                    <div class="dash-stats" aria-label="Resumen de inspecciones">
+                        <div class="dash-stat-row">
+                            <span>Por realizar</span>
+                            <span class="badge amber">${pendientes}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span>Realizadas</span>
+                            <span class="badge blue">${realizadas}</span>
+                        </div>
                     </div>
                 `;
             } catch (e) {
@@ -293,10 +318,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 spanActividades.innerHTML = `
-                    <div style="font-size:0.85rem; line-height:1.4;">
-                        Registradas: <strong>${total}</strong><br>
-                        Concluidas: <strong>${concluidas}</strong><br>
-                        Pendientes: <strong>${pendientes}</strong>
+                    <div class="dash-stats" aria-label="Resumen de actividades">
+                        <div class="dash-stat-row">
+                            <span>Registradas</span>
+                            <span class="badge gray">${total}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span>Concluidas</span>
+                            <span class="badge blue">${concluidas}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span>Pendientes</span>
+                            <span class="badge amber">${pendientes}</span>
+                        </div>
                     </div>
                 `;
             } catch (e) {
