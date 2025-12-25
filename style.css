@@ -791,6 +791,48 @@ select.form-input {
     text-decoration: underline;
 }
 
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+}
+
+.toast {
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 0.75rem;
+    padding: 10px 12px;
+    min-width: 260px;
+    max-width: 380px;
+    box-shadow: 0 10px 22px rgba(2, 6, 23, 0.35);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.toast .toast-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+    font-size: 0.95rem;
+}
+
+.toast .toast-body {
+    font-size: 0.9rem;
+    line-height: 1.35;
+}
+
+.toast .toast-close {
+    background: transparent;
+    border: none;
+    color: #e2e8f0;
+    cursor: pointer;
+    float: right;
+    font-size: 0.95rem;
+}
+
 #btn-guardar-prueba {
     padding: 0.45rem 0.9rem;
     border-radius: 999px;

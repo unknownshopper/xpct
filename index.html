@@ -94,6 +94,7 @@
             <a href="pruebaslist.html" class="dash-link">Ver listado de pruebas</a>
             <a href="inspeccion.html" class="dash-link">Ir a inspecciones</a>
             <a href="inspectlist.html" class="dash-link">Ver listado de inspecciones</a>
+            <button id="btn-email-test" type="button" class="dash-link">Enviar correo de prueba</button>
             
             
         </section>
@@ -158,6 +159,23 @@
                 await signOut(auth);
             } finally {
                 window.location.href = 'login.html';
+            }
+        });
+    }
+
+    // Botón: enviar correo de prueba (requiere el backend desplegado)
+    const btnEmailTest = document.getElementById('btn-email-test');
+    if (btnEmailTest) {
+        btnEmailTest.addEventListener('click', async () => {
+            btnEmailTest.disabled = true;
+            try {
+                const resp = await fetch('/api/send-alerts?test=true', { method: 'POST' });
+                const data = await resp.json().catch(() => ({}));
+                alert(resp.ok ? 'Correo de prueba enviado' : `Fallo al enviar: ${data.error || resp.status}`);
+            } catch (e) {
+                alert('Error de red al invocar el backend');
+            } finally {
+                btnEmailTest.disabled = false;
             }
         });
     }

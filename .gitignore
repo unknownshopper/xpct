@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+
+# Env files
+.env
+server/.env
+
+# Node
+node_modules/
+server/node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
