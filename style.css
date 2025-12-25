@@ -293,6 +293,12 @@ main {
     font-weight: 500;
 }
 
+.dash-stat-row .row-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .dash-stat-row.small {
     font-size: 0.85rem;
     color: #4b5563;

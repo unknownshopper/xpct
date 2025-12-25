@@ -92,23 +92,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 spanPruebas.innerHTML = `
                     <div class="dash-stats" aria-label="Resumen de pruebas">
                         <div class="dash-stat-row">
-                            <span>Total</span>
+                            <span class="row-left">📦 <span>Total</span></span>
                             <span class="badge gray">${total}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span>60–30 días</span>
+                            <span class="row-left">🟦 <span>60–30 días</span></span>
                             <span class="badge blue">${porVencer60}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span>30–15 días</span>
+                            <span class="row-left">🟨 <span>30–15 días</span></span>
                             <span class="badge amber">${porVencer30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span>15–0 días</span>
+                            <span class="row-left">🟥 <span>15–0 días</span></span>
                             <span class="badge red">${porVencer15}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
-                            <span>Tipos</span>
+                            <span class="row-left">🧪 <span>Tipos</span></span>
                             <span class="dash-badges-inline">
                                 <span class="badge gray" title="Pruebas anuales">Anual: ${totalAnual}</span>
                                 <span class="badge gray" title="Post-trabajo">Post-trabajo: ${totalPostTrabajo}</span>
@@ -272,11 +272,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 spanInspecciones.innerHTML = `
                     <div class="dash-stats" aria-label="Resumen de inspecciones">
                         <div class="dash-stat-row">
-                            <span>Por realizar</span>
+                            <span class="row-left">⏳ <span>Por realizar</span></span>
                             <span class="badge amber">${pendientes}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span>Realizadas</span>
+                            <span class="row-left">✅ <span>Realizadas</span></span>
                             <span class="badge blue">${realizadas}</span>
                         </div>
                     </div>
@@ -320,15 +320,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 spanActividades.innerHTML = `
                     <div class="dash-stats" aria-label="Resumen de actividades">
                         <div class="dash-stat-row">
-                            <span>Registradas</span>
+                            <span class="row-left">🗂️ <span>Registradas</span></span>
                             <span class="badge gray">${total}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span>Concluidas</span>
+                            <span class="row-left">✅ <span>Concluidas</span></span>
                             <span class="badge blue">${concluidas}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span>Pendientes</span>
+                            <span class="row-left">⏳ <span>Pendientes</span></span>
                             <span class="badge amber">${pendientes}</span>
                         </div>
                     </div>
