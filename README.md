@@ -127,6 +127,9 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Separar `script.js` en módulos por vista (inspección, actividad, pruebas, dashboard) para facilitar mantenimiento.
   - Añadir comentarios breves en las funciones clave de negocio (sin duplicar documentación) y tests básicos donde sea posible.
 
+  esdeprueba
+  
+
 ## Notas para próximos colaboradores
 
 - Antes de tocar `script.js`, es recomendable:
