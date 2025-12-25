@@ -21,6 +21,7 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Autocompletado de datos desde `invre2.csv` / `invre.csv`.
   - Generación automática de número de reporte por equipo.
   - Guardado local y en Firestore (`pruebas`).
+  - Listado prioriza próximas a vencer, soporta filtros por rango (chips 60–30, 30–15, 15–0) y detalle expandible bajo la fila.
 
 - **Actividad (`actividad.html`, `actividadlist.html`, `actividadmin.html`)**:
   - `actividad.html`: registro de nuevas actividades por equipo/cliente.
@@ -62,6 +63,51 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
 - La regla de negocio principal vigente es:
   - Un equipo con actividad abierta (sin fecha de terminación) se considera **en servicio**.
   - La intención es que dicho equipo no se pueda reutilizar en un nuevo registro de actividad hasta que tenga terminación, aunque el detalle visual en la UI todavía se debe pulir.
+
+## Cambios recientes (diciembre 2025)
+
+- UI/Estilos
+  - Se aplicó la fuente `Myriad Pro` globalmente (con fallbacks) y se homogenizaron estilos de inputs/selects en listados para igualarlos a los de formularios (`.campo`).
+  - Se añadió realce sutil por hover y marca de fila activa en listados de pruebas.
+- Pruebas (negocio y UX)
+  - Diferenciación de periodos: ANUAL vs checkpoints (POST-TRABAJO, REPARACION).
+    - ANUAL: requiere fecha de realización, calcula y guarda `proxima = fechaRealizacion + 12 meses`, reinicia el contador anual.
+    - POST-TRABAJO / REPARACION: no calculan ni guardan `proxima`; no reinician contador anual. Sirven como evidencia/histórico del año.
+    - Compatibilidad: registros sin `periodo` se consideran ANUAL.
+  - Listado de pruebas (`pruebaslist.html`):
+    - Ordena priorizando próximas a vencer (ANUAL vigente con menor número de días), luego vencidas, luego sin ANUAL; empates por fecha de realización desc.
+    - Filtros por chips 60–30, 30–15, 15–0 (cuentan por equipo único, basados en la última ANUAL del equipo).
+    - El estado/contador/chips y el resumen por equipo se calculan solo con la última ANUAL por equipo (los checkpoints no afectan la vigencia).
+    - El detalle de una prueba se expande inline justo debajo de la fila y puede colapsarse con un segundo clic. Los controles dentro de la fila no disparan el toggle.
+
+## Guía de uso (pruebas)
+
+- En `pruebas.html`:
+  - Selecciona el periodo.
+    - ANUAL: captura fecha de realización para calcular `Próxima prueba`. El campo `Contador` se llena automáticamente (y se refresca cada hora mientras la página esté abierta).
+    - POST-TRABAJO / REPARACION: `Próxima` y `Contador` no aplican; no reinician el ciclo anual.
+  - Al guardar, `periodo` se persiste y `proxima` solo se guarda para ANUAL.
+
+- En `pruebaslist.html`:
+  - Usa el buscador para filtrar por equipo/producto/técnico/reporte.
+  - Chips (60–30, 30–15, 15–0) limitan la vista a ANUALES próximas dentro de ese rango.
+  - Clic en una fila para ver el detalle inline y clic de nuevo para colapsar.
+  - El resumen por equipo muestra la última ANUAL y su vigencia.
+
+## Verificación recomendada tras cambios
+
+- Crear una prueba ANUAL con fecha reciente y comprobar:
+  - Cálculo de `Próxima` = +12 meses y `Contador` correcto.
+  - Aparición en “próximas a vencer” y chips según días restantes.
+- Crear checkpoints (POST-TRABAJO/REPARACION) en el mismo equipo dentro del año:
+  - Deben aparecer en el listado histórico sin alterar estado/contador/chips del equipo.
+- Confirmar que en `inspectlist.html` y `actividadlist.html` los inputs/selects se vean homogéneos a `pruebas.html`.
+
+## Notas de implementación
+
+- El cálculo de vigencia en el listado se basa en un mapa de “última ANUAL por equipo”. Si no existe ANUAL, el equipo queda “SIN PRUEBA”.
+- Los chips muestran conteo por equipo (no por filas) dentro del rango.
+- Se eliminó el panel inferior de detalle en `pruebaslist.html` para evitar desplazamientos; ahora el detalle es inline.
 
 ## Próximos cambios sugeridos
 

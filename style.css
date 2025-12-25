@@ -332,6 +332,43 @@ main {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
+/* Controles del listado de inspecciones: coherentes con .campo */
+#tabla-inspecciones input[type="text"],
+#tabla-inspecciones select {
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.9rem;
+    background: #ffffff;
+    color: #111827;
+    width: 100%;
+}
+
+#tabla-inspecciones input[type="text"]:focus,
+#tabla-inspecciones select:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Controles del listado de actividades: coherentes con .campo */
+.actividadlist-wrap table input[type="text"],
+.actividadlist-wrap table select {
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.9rem;
+    background: #ffffff;
+    color: #111827;
+}
+
+.actividadlist-wrap table input[type="text"]:focus,
+.actividadlist-wrap table select:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
 /* Controles del listado de inspecciones */
 #tabla-inspecciones input[type="text"],
 #tabla-inspecciones select {

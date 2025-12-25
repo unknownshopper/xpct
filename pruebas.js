@@ -514,6 +514,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function actualizarProximaDesdeFechaRealizacion() {
         if (!inputFechaReal || !inputProxima) return;
+        // Solo ANUAL define próxima prueba
+        const periodoActual = (selPeriodo?.value || '').toUpperCase();
+        if (periodoActual !== 'ANUAL') {
+            inputProxima.value = '';
+            actualizarContadorProxima();
+            return;
+        }
         const valor = inputFechaReal.value.trim();
         if (valor.length !== 8) return; // dd/mm/aa
 
@@ -543,6 +550,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function actualizarContadorProxima() {
         if (!inputProxima || !inputContador) return;
+        // Solo ANUAL muestra contador
+        const periodoActual = (selPeriodo?.value || '').toUpperCase();
+        if (periodoActual !== 'ANUAL') {
+            inputContador.value = '';
+            return;
+        }
         const valor = (inputProxima.value || '').trim();
         if (!valor || valor.length !== 8) {
             inputContador.value = '';
@@ -601,6 +614,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // Refrescar el contador una vez por hora mientras la página esté abierta
     if (inputProxima && inputContador) {
         setInterval(actualizarContadorProxima, 60 * 60 * 1000);
+    }
+
+    // Cambios de periodo: checkpoints no afectan próxima/contador
+    if (selPeriodo) {
+        selPeriodo.addEventListener('change', () => {
+            const val = (selPeriodo.value || '').toUpperCase();
+            const esAnual = val === 'ANUAL';
+            if (!esAnual) {
+                // Limpiar y deshabilitar visualmente próxima/contador
+                if (inputProxima) {
+                    inputProxima.value = '';
+                }
+                if (inputContador) {
+                    inputContador.value = '';
+                }
+            } else {
+                // Recalcular próxima/contador si hay fecha realización
+                actualizarProximaDesdeFechaRealizacion();
+            }
+        });
     }
 
     async function guardarPruebaEnFirestore(registro) {
@@ -735,7 +768,8 @@ document.addEventListener('DOMContentLoaded', () => {
             fechaPrueba,
             resultado,
             fechaRealizacion,
-            proxima,
+            // Solo guardar 'proxima' si el periodo es ANUAL
+            proxima: (periodo === 'ANUAL') ? proxima : '',
             prueba: pruebaTipo,
             pruebaTipo,
             pruebaDetalle,

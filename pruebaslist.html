@@ -601,21 +601,24 @@
                 }
             });
 
-            // Resumen por equipo (última prueba) incluyendo equipos sin pruebas (desde inventario)
-            if (tbodyResumen && lblResVig && lblResVenc && lblResSin) {
-                const porEquipo = new Map();
-                enriquecidas.forEach(reg => {
-                    const eq = (reg.equipo || '').toString();
-                    if (!eq) return;
-                    const actual = porEquipo.get(eq);
-                    if (!actual || reg._fechaRealDate.getTime() > actual._fechaRealDate.getTime()) {
-                        porEquipo.set(eq, reg);
-                    }
-                });
+            // Construir referencia: última ANUAL por equipo
+            const anualPorEquipo = new Map();
+            enriquecidas.forEach(reg => {
+                const eq = (reg.equipo || '').toString();
+                if (!eq) return;
+                const periodo = (reg.periodo || '').toString().toUpperCase();
+                if (periodo !== 'ANUAL') return;
+                const actual = anualPorEquipo.get(eq);
+                if (!actual || reg._fechaRealDate.getTime() > actual._fechaRealDate.getTime()) {
+                    anualPorEquipo.set(eq, reg);
+                }
+            });
 
+            // Resumen por equipo (última ANUAL) incluyendo equipos sin ANUAL (desde inventario)
+            if (tbodyResumen && lblResVig && lblResVenc && lblResSin) {
                 const listaEquiposBase = equiposInventario && equiposInventario.size
                     ? Array.from(equiposInventario)
-                    : Array.from(porEquipo.keys());
+                    : Array.from(anualPorEquipo.keys());
 
                 if (!listaEquiposBase.length && msgResumen) {
                     msgResumen.style.display = 'block';
@@ -626,7 +629,7 @@
                 let cntEquiposSin = 0;
 
                 listaEquiposBase.sort((a, b) => a.localeCompare(b)).forEach(eq => {
-                    const reg = porEquipo.get(eq) || null;
+                    const reg = anualPorEquipo.get(eq) || null;
                     const estado = reg ? reg._clasif.estado : 'SIN_PRUEBA';
 
                     if (estado === 'VIGENTE') cntEquiposVig += 1;
@@ -666,25 +669,62 @@
                 lblResSin.textContent = String(cntEquiposSin);
             }
 
-            // Ordenar histórico por fecha de realización descendente
-            historico.sort((a, b) => b._fechaRealDate.getTime() - a._fechaRealDate.getTime());
+            // Ordenar priorizando próximas a vencer (VIGENTE con días >= 0, ascendente) según última ANUAL del equipo,
+            // luego vencidas, luego sin fecha, y en cada grupo por fecha de realización desc.
+            function diasHastaProxima(reg) {
+                const eq = (reg.equipo || '').toString();
+                const ref = anualPorEquipo.get(eq);
+                if (!ref || !ref._clasif || !ref._clasif.proxima) return null;
+                const hoy0 = hoySinHora();
+                const diffMs = ref._clasif.proxima.getTime() - hoy0.getTime();
+                let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                return dias;
+            }
+
+            const listaOrdenada = [...historico].sort((a, b) => {
+                const da = diasHastaProxima(a);
+                const db = diasHastaProxima(b);
+                const ea = (anualPorEquipo.get((a.equipo || '').toString())?._clasif?.estado) || 'SIN_FECHA';
+                const eb = (anualPorEquipo.get((b.equipo || '').toString())?._clasif?.estado) || 'SIN_FECHA';
+
+                const cat = (regEstado, dias) => {
+                    if (regEstado === 'VIGENTE' && dias !== null && dias >= 0) return 0; // próximas a vencer
+                    if (regEstado === 'VENCIDA') return 1; // vencidas
+                    return 2; // sin fecha u otros
+                };
+
+                const ca = cat(ea, da);
+                const cb = cat(eb, db);
+                if (ca !== cb) return ca - cb;
+
+                if (ca === 0) {
+                    // Ambos en próximas a vencer: menor días primero
+                    if (da !== db) return (da ?? Number.POSITIVE_INFINITY) - (db ?? Number.POSITIVE_INFINITY);
+                }
+
+                // Mismo grupo: más reciente primero
+                return b._fechaRealDate.getTime() - a._fechaRealDate.getTime();
+            });
 
             let cntPend = 0;
             let cntVenc = 0;
             let cntHist = 0;
 
-            let cntPorVencer60 = 0; // 60–30
-            let cntPorVencer30 = 0; // 30–15
-            let cntPorVencer15 = 0; // 15–0
+            // Chips: contar por equipo único
+            const set60 = new Set(); // 60–30
+            const set30 = new Set(); // 30–15
+            const set15 = new Set(); // 15–0
 
             const filasVisibles = [];
 
-            historico.forEach(reg => {
+            listaOrdenada.forEach(reg => {
                 const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
-                const estado = reg._clasif.estado;
-                const proximaStr = reg.proxima || '';
+                const eq = (reg.equipo || '').toString();
+                const refAnual = anualPorEquipo.get(eq) || null;
+                const estado = refAnual ? refAnual._clasif.estado : 'SIN_FECHA';
+                const proximaStr = refAnual ? (refAnual.proxima || '') : '';
 
                 // Contadores: por realizar = vigentes + vencidas
                 if (estado === 'VIGENTE' || estado === 'VENCIDA') {
@@ -702,9 +742,9 @@
                 // Cálculo de días restantes hasta la próxima prueba
                 let diasParaProxima = '';
                 let diasNum = null;
-                if (reg._clasif.proxima) {
+                if (refAnual && refAnual._clasif.proxima) {
                     const hoy = hoySinHora();
-                    const diffMs = reg._clasif.proxima.getTime() - hoy.getTime();
+                    const diffMs = refAnual._clasif.proxima.getTime() - hoy.getTime();
                     let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
                     if (dias < 0) dias = 0; // para vencidas mostramos 0
                     diasNum = dias;
@@ -714,11 +754,11 @@
                 // Contar alertas solo para pruebas vigentes con próxima fecha futura (>=0 días)
                 if (estado === 'VIGENTE' && diasNum !== null && diasNum >= 0) {
                     if (diasNum >= 30 && diasNum <= 60) {
-                        cntPorVencer60 += 1; // 60–30
+                        set60.add(eq);
                     } else if (diasNum >= 15 && diasNum < 30) {
-                        cntPorVencer30 += 1; // 30–15
+                        set30.add(eq);
                     } else if (diasNum >= 0 && diasNum < 15) {
-                        cntPorVencer15 += 1; // 15–0
+                        set15.add(eq);
                     }
                 }
 
@@ -820,9 +860,9 @@
             if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
             if (lblHist) lblHist.textContent = `${cntHist} en histórico`;
 
-            if (lblAlert60) lblAlert60.textContent = String(cntPorVencer60);
-            if (lblAlert30) lblAlert30.textContent = String(cntPorVencer30);
-            if (lblAlert15) lblAlert15.textContent = String(cntPorVencer15);
+            if (lblAlert60) lblAlert60.textContent = String(set60.size);
+            if (lblAlert30) lblAlert30.textContent = String(set30.size);
+            if (lblAlert15) lblAlert15.textContent = String(set15.size);
 
             // Reiniciar checkbox de selección global
             if (chkSelectTodos) chkSelectTodos.checked = false;
