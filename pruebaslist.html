@@ -54,9 +54,9 @@
     <main style="max-width: 100%; margin: 0; padding: 0;">
         <section class="pruebaslist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
         <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
-            <h2 style="margin-bottom:0.75rem;">Resumen de estado por equipo</h2>
+            <h2 style="margin-bottom:0.75rem;">Resumen de estado</h2>
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
-                <div class="dash-card">
+                <div class="dash-card" style="display:none;">
                     <div class="dash-card-label">Equipos con pruebas vigentes</div>
                     <div class="dash-card-value" id="pruebas-resumen-vigentes">0</div>
                     <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">
@@ -64,25 +64,64 @@
                         <div>Caducadas: <strong id="pruebas-resumen-caducadas">0</strong></div>
                     </div>
                 </div>
-                <div class="dash-card">
+                <div class="dash-card" style="display:none;">
                     <div class="dash-card-label">Equipos con prueba vencida</div>
                     <div class="dash-card-value" id="pruebas-resumen-vencidas">0</div>
                 </div>
-                <div class="dash-card">
+                <div class="dash-card" style="display:none;">
                     <div class="dash-card-label">Equipos sin prueba registrada</div>
                     <div class="dash-card-value" id="pruebas-resumen-sin">0</div>
                 </div>
+                <!-- Nueva tabla informativa por categoría de prueba -->
+            <section style="margin-bottom: 1rem;">
+                <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                    <table id="tabla-informativa" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:750px;">
+                        <thead>
+                            <tr style="background:#f3f4f6;">
+                                <th style="text-align:left; padding:0.4rem; width:160px;">Categoría</th>
+                                <th style="text-align:center; padding:0.4rem;">Vigencia &gt; 60 días</th>
+                                <th style="text-align:center; padding:0.4rem;">Vigencia 31–60 días</th>
+                                <th style="text-align:center; padding:0.4rem;">Vigencia 15–30 días</th>
+                                <th style="text-align:center; padding:0.4rem;">Vigencia 0–15 días</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th style="text-align:left; padding:0.4rem; background:#f9fafb;">LT</th>
+                                <td id="inf-lt-gt60" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-lt-60" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-lt-30" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-lt-15" style="text-align:center; padding:0.4rem;">0</td>
+                            </tr>
+                            <tr>
+                                <th style="text-align:left; padding:0.4rem; background:#f9fafb;">VT/PT/MT</th>
+                                <td id="inf-vpm-gt60" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-vpm-60" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-vpm-30" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-vpm-15" style="text-align:center; padding:0.4rem;">0</td>
+                            </tr>
+                            <tr>
+                                <th style="text-align:left; padding:0.4rem; background:#f9fafb;">UTT</th>
+                                <td id="inf-utt-gt60" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-utt-60" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-utt-30" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-utt-15" style="text-align:center; padding:0.4rem;">0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
+        </section>
 
             <section style="margin-bottom: 0.75rem;">
-                <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center; font-size:0.9rem;">
-                    <div id="chip-60" class="chip" style="padding:0.4rem 0.75rem; border-radius:999px; background:#eff6ff; color:#1d4ed8; cursor:pointer;">
+                <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:center; font-size:1rem;">
+                    <div id="chip-60" class="chip chip-large" style="border-radius:999px; background:#eff6ff; color:#1d4ed8; cursor:pointer;">
                         60–30 días: <strong id="pruebas-alert-60">0</strong>
                     </div>
-                    <div id="chip-30" class="chip" style="padding:0.4rem 0.75rem; border-radius:999px; background:#fef3c7; color:#b45309; cursor:pointer;">
+                    <div id="chip-30" class="chip chip-large" style="border-radius:999px; background:#fef3c7; color:#b45309; cursor:pointer;">
                         30–15 días: <strong id="pruebas-alert-30">0</strong>
                     </div>
-                    <div id="chip-15" class="chip" style="padding:0.4rem 0.75rem; border-radius:999px; background:#fee2e2; color:#b91c1c; cursor:pointer;">
+                    <div id="chip-15" class="chip chip-large" style="border-radius:999px; background:#fee2e2; color:#b91c1c; cursor:pointer;">
                         15–0 días: <strong id="pruebas-alert-15">0</strong>
                     </div>
                 </div>
@@ -250,6 +289,28 @@
         const lblResSin = document.getElementById('pruebas-resumen-sin');
         const lblResPorCad = document.getElementById('pruebas-resumen-porcaducar');
         const lblResCaducadas = document.getElementById('pruebas-resumen-caducadas');
+
+        // Celdas de la tabla informativa
+        const inf = {
+            lt: {
+                gt60: document.getElementById('inf-lt-gt60'),
+                d60: document.getElementById('inf-lt-60'),
+                d30: document.getElementById('inf-lt-30'),
+                d15: document.getElementById('inf-lt-15'),
+            },
+            vpm: {
+                gt60: document.getElementById('inf-vpm-gt60'),
+                d60: document.getElementById('inf-vpm-60'),
+                d30: document.getElementById('inf-vpm-30'),
+                d15: document.getElementById('inf-vpm-15'),
+            },
+            utt: {
+                gt60: document.getElementById('inf-utt-gt60'),
+                d60: document.getElementById('inf-utt-60'),
+                d30: document.getElementById('inf-utt-30'),
+                d15: document.getElementById('inf-utt-15'),
+            }
+        };
 
         const lblAlert60 = document.getElementById('pruebas-alert-60');
         const lblAlert30 = document.getElementById('pruebas-alert-30');
@@ -660,6 +721,70 @@
                     anualPorEquipo.set(eq, reg);
                 }
             });
+
+            // Construir referencia: última ANUAL por equipo + categoría (LT, VT/PT/MT, UTT)
+            function categoriaPrueba(reg) {
+                const p = ((reg.prueba || reg.pruebaTipo || '') + '').toUpperCase();
+                if (!p) return null;
+                if (p.includes('UTT')) return 'utt';
+                if (p.includes('LT')) return 'lt';
+                if (p.includes('VT') || p.includes('PT') || p.includes('MT')) return 'vpm';
+                return null;
+            }
+
+            const anualPorEqCat = new Map(); // key: eq::cat
+            enriquecidas.forEach(reg => {
+                const eq = (reg.equipo || '').toString();
+                if (!eq) return;
+                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+                if (periodo && periodo !== 'ANUAL') return;
+                const cat = categoriaPrueba(reg);
+                if (!cat) return;
+                const key = `${eq}::${cat}`;
+                const actual = anualPorEqCat.get(key);
+                if (!actual || reg._fechaRealDate.getTime() > actual._fechaRealDate.getTime()) {
+                    anualPorEqCat.set(key, reg);
+                }
+            });
+
+            // Inicializar contadores
+            const cont = {
+                lt: { gt60: 0, d60: 0, d30: 0, d15: 0 },
+                vpm: { gt60: 0, d60: 0, d30: 0, d15: 0 },
+                utt: { gt60: 0, d60: 0, d30: 0, d15: 0 },
+            };
+
+            // Clasificar por buckets según días a próxima (solo vigentes >=0)
+            anualPorEqCat.forEach(reg => {
+                const cat = categoriaPrueba(reg);
+                if (!cat) return;
+                const prox = parseProxima(reg.proxima || '') || (reg._clasif?.proxima || null);
+                if (!prox) return;
+                const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                if (isNaN(dias) || dias < 0) return; // ignorar vencidas aquí
+                if (dias > 60) cont[cat].gt60 += 1;
+                else if (dias >= 31) cont[cat].d60 += 1;
+                else if (dias >= 15) cont[cat].d30 += 1;
+                else cont[cat].d15 += 1; // 0..14
+            });
+
+            // Pintar tabla informativa
+            try {
+                if (inf.lt.gt60) inf.lt.gt60.textContent = String(cont.lt.gt60);
+                if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
+                if (inf.lt.d30)  inf.lt.d30.textContent  = String(cont.lt.d30);
+                if (inf.lt.d15)  inf.lt.d15.textContent  = String(cont.lt.d15);
+
+                if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(cont.vpm.gt60);
+                if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(cont.vpm.d60);
+                if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(cont.vpm.d30);
+                if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(cont.vpm.d15);
+
+                if (inf.utt.gt60) inf.utt.gt60.textContent = String(cont.utt.gt60);
+                if (inf.utt.d60)  inf.utt.d60.textContent  = String(cont.utt.d60);
+                if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
+                if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
+            } catch {}
 
             // Resumen por equipo (última ANUAL) incluyendo equipos sin ANUAL (desde inventario)
             if (tbodyResumen && lblResVig && lblResVenc && lblResSin) {
