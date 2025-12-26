@@ -305,6 +305,23 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, now: DateTime.now().setZone(TZ).toISO() });
 });
 
-app.listen(PORT, () => {
-  // no-op
-});
+// If RUN_ONCE is set, execute and exit (useful for schedulers/CI)
+if (process.env.RUN_ONCE) {
+  const mode = String(process.env.RUN_ONCE).toLowerCase();
+  const testMode = mode === 'send-alerts-test';
+  calcularYEnviar({ testMode })
+    .then(out => {
+      if (process.env.SMTP_DEBUG === '1') {
+        try { console.log('RUN_ONCE result:', out); } catch {}
+      }
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('RUN_ONCE failed:', err && err.message ? err.message : err);
+      process.exit(1);
+    });
+} else {
+  app.listen(PORT, () => {
+    // no-op
+  });
+}

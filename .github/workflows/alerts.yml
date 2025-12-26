@@ -1,0 +1,41 @@
+name: Send PCT Alerts
+
+on:
+  schedule:
+    # 14:00 UTC ~ 8:00 America/Mexico_City (adjust if DST changes are required)
+    - cron: '0 14 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  send-alerts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Send alerts (RUN_ONCE)
+        env:
+          RUN_ONCE: send-alerts
+          TZ: America/Mexico_City
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_FROM_NAME: ${{ secrets.MAIL_FROM_NAME }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          # Optional verbose SMTP logs in Actions output
+          SMTP_DEBUG: ${{ secrets.SMTP_DEBUG }}
+        run: node index.js
