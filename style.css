@@ -638,8 +638,8 @@ select.form-input {
 }
 
 #tabla-informativa tbody td:nth-child(6) { /* 0 días (vencidas) */
-    background: #1f2937; /* gray-800 */
-    color: #ffffff;
+    background: #a9a9aa; /* gray-100 (light) */
+    color: #111827; /* near-black */
 }
 
 /* Utilidades */
