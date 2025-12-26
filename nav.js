@@ -54,6 +54,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
+                    // Capturista: solo puede ver Pruebas y Inspecciones. Ocultar sección Actividad completa
+                    if (isCapturista) {
+                        // Ocultar el item superior de Actividad y su dropdown
+                        document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown').forEach(li => {
+                            const anchor = li.querySelector(':scope > a');
+                            if (!anchor) return;
+                            const text = (anchor.textContent || '').trim().toLowerCase();
+                            if (text.includes('actividad')) {
+                                li.style.display = 'none';
+                            }
+                        });
+
+                        // Ocultar enlaces sueltos a páginas de actividad si existieran en otros lugares del menú
+                        document.querySelectorAll(
+                            'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="trazabilidades.html"]'
+                        ).forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = 'none';
+                        });
+                    }
+
                     // Redirigir a directores si abren actividadmin.html directamente
                     if (isDirector) {
                         try {

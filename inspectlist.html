@@ -135,8 +135,8 @@
             window.isCapturista = role === 'capturista';
             window.currentUserEmail = email;
 
-            // Acceso: admin, director, inspector
-            if (!(window.isAdmin || window.isDirector || window.isInspector)) {
+            // Acceso: admin, director, inspector, capturista
+            if (!(window.isAdmin || window.isDirector || window.isInspector || window.isCapturista)) {
                 window.location.href = 'login.html';
                 return;
             }

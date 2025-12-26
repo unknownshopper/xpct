@@ -55,14 +55,20 @@
         <section class="pruebaslist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
             <section style="margin-bottom: 0.75rem;">
                 <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:center; font-size:1rem;">
+                    <div id="chip-gt60" class="chip chip-large chip-green" style="cursor:pointer;">
+                        > 60 días: <strong id="pruebas-alert-gt60">0</strong>
+                    </div>
                     <div id="chip-60" class="chip chip-large chip-blue" style="cursor:pointer;">
-                        60–30 días: <strong id="pruebas-alert-60">0</strong>
+                        60–31 días: <strong id="pruebas-alert-60">0</strong>
                     </div>
                     <div id="chip-30" class="chip chip-large chip-amber" style="cursor:pointer;">
-                        30–15 días: <strong id="pruebas-alert-30">0</strong>
+                        30–16 días: <strong id="pruebas-alert-30">0</strong>
                     </div>
                     <div id="chip-15" class="chip chip-large chip-red" style="cursor:pointer;">
-                        15–0 días: <strong id="pruebas-alert-15">0</strong>
+                        15–1 días: <strong id="pruebas-alert-15">0</strong>
+                    </div>
+                    <div id="chip-0" class="chip chip-large chip-black" style="cursor:pointer;">
+                        💀 0 días (vencidas): <strong id="pruebas-alert-0">0</strong>
                     </div>
                 </div>
             </section>
@@ -93,9 +99,10 @@
                             <tr style="background:#f3f4f6;">
                                 <th style="text-align:left; padding:0.4rem; width:160px;">Tipo de Prueba</th>
                                 <th style="text-align:center; padding:0.4rem;">Vigencia &gt; 60 días</th>
-                                <th style="text-align:center; padding:0.4rem;">Vigencia 31–60 días</th>
-                                <th style="text-align:center; padding:0.4rem;">Vigencia 15–30 días</th>
-                                <th style="text-align:center; padding:0.4rem;">Vigencia 0–15 días</th>
+                                <th style="text-align:center; padding:0.4rem;">Vigencia 60-31 días</th>
+                                <th style="text-align:center; padding:0.4rem;">Vigencia 30-16 días</th>
+                                <th style="text-align:center; padding:0.4rem;">Vigencia 15-1 días</th>
+                                <th style="text-align:center; padding:0.4rem;">0 días (vencidas)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -105,6 +112,7 @@
                                 <td id="inf-lt-60" style="text-align:center; padding:0.4rem;">0</td>
                                 <td id="inf-lt-30" style="text-align:center; padding:0.4rem;">0</td>
                                 <td id="inf-lt-15" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-lt-0" style="text-align:center; padding:0.4rem;">0</td>
                             </tr>
                             <tr>
                                 <th style="text-align:left; padding:0.4rem; background:#f9fafb;">VT/PT/MT</th>
@@ -112,6 +120,7 @@
                                 <td id="inf-vpm-60" style="text-align:center; padding:0.4rem;">0</td>
                                 <td id="inf-vpm-30" style="text-align:center; padding:0.4rem;">0</td>
                                 <td id="inf-vpm-15" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-vpm-0" style="text-align:center; padding:0.4rem;">0</td>
                             </tr>
                             <tr>
                                 <th style="text-align:left; padding:0.4rem; background:#f9fafb;">UTT</th>
@@ -119,6 +128,7 @@
                                 <td id="inf-utt-60" style="text-align:center; padding:0.4rem;">0</td>
                                 <td id="inf-utt-30" style="text-align:center; padding:0.4rem;">0</td>
                                 <td id="inf-utt-15" style="text-align:center; padding:0.4rem;">0</td>
+                                <td id="inf-utt-0" style="text-align:center; padding:0.4rem;">0</td>
                             </tr>
                         </tbody>
                     </table>
@@ -298,18 +308,21 @@
                 d60: document.getElementById('inf-lt-60'),
                 d30: document.getElementById('inf-lt-30'),
                 d15: document.getElementById('inf-lt-15'),
+                d0:  document.getElementById('inf-lt-0'),
             },
             vpm: {
                 gt60: document.getElementById('inf-vpm-gt60'),
                 d60: document.getElementById('inf-vpm-60'),
                 d30: document.getElementById('inf-vpm-30'),
                 d15: document.getElementById('inf-vpm-15'),
+                d0:  document.getElementById('inf-vpm-0'),
             },
             utt: {
                 gt60: document.getElementById('inf-utt-gt60'),
                 d60: document.getElementById('inf-utt-60'),
                 d30: document.getElementById('inf-utt-30'),
                 d15: document.getElementById('inf-utt-15'),
+                d0:  document.getElementById('inf-utt-0'),
             }
         };
 
@@ -318,10 +331,12 @@
         const lblAlert15 = document.getElementById('pruebas-alert-15');
 
         // Chips de filtro por rango de días
+        const chipGT60 = document.getElementById('chip-gt60');
         const chip60 = document.getElementById('chip-60');
         const chip30 = document.getElementById('chip-30');
         const chip15 = document.getElementById('chip-15');
-        let filtroRango = null; // '60' | '30' | '15' | null
+        const chip0 = document.getElementById('chip-0');
+        let filtroRango = null; // 'gt60' | '60' | '30' | '15' | '0' | null
 
         const detallePanel = document.getElementById('detalle-prueba');
         const detalleContenido = document.getElementById('detalle-prueba-contenido');
@@ -750,23 +765,24 @@
 
             // Inicializar contadores
             const cont = {
-                lt: { gt60: 0, d60: 0, d30: 0, d15: 0 },
-                vpm: { gt60: 0, d60: 0, d30: 0, d15: 0 },
-                utt: { gt60: 0, d60: 0, d30: 0, d15: 0 },
+                lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
             };
 
-            // Clasificar por buckets según días a próxima (solo vigentes >=0)
+            // Clasificar por buckets según días a próxima (solo vigentes, excluye 0 y negativos)
             anualPorEqCat.forEach(reg => {
                 const cat = categoriaPrueba(reg);
                 if (!cat) return;
                 const prox = parseProxima(reg.proxima || '') || (reg._clasif?.proxima || null);
                 if (!prox) return;
                 const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                if (isNaN(dias) || dias < 0) return; // ignorar vencidas aquí
+                if (isNaN(dias)) return;
+                if (dias <= 0) { cont[cat].d0 += 1; return; }
                 if (dias > 60) cont[cat].gt60 += 1;
                 else if (dias >= 31) cont[cat].d60 += 1;
-                else if (dias >= 15) cont[cat].d30 += 1;
-                else cont[cat].d15 += 1; // 0..14
+                else if (dias >= 16) cont[cat].d30 += 1;
+                else if (dias >= 1) cont[cat].d15 += 1; // 1..15
             });
 
             // Pintar tabla informativa
@@ -775,16 +791,19 @@
                 if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
                 if (inf.lt.d30)  inf.lt.d30.textContent  = String(cont.lt.d30);
                 if (inf.lt.d15)  inf.lt.d15.textContent  = String(cont.lt.d15);
+                if (inf.lt.d0)   inf.lt.d0.textContent   = String(cont.lt.d0);
 
                 if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(cont.vpm.gt60);
                 if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(cont.vpm.d60);
                 if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(cont.vpm.d30);
                 if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(cont.vpm.d15);
+                if (inf.vpm.d0)   inf.vpm.d0.textContent   = String(cont.vpm.d0);
 
                 if (inf.utt.gt60) inf.utt.gt60.textContent = String(cont.utt.gt60);
                 if (inf.utt.d60)  inf.utt.d60.textContent  = String(cont.utt.d60);
                 if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
                 if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
+                if (inf.utt.d0)   inf.utt.d0.textContent   = String(cont.utt.d0);
             } catch {}
 
             // Resumen por equipo (última ANUAL) incluyendo equipos sin ANUAL (desde inventario)
@@ -896,9 +915,11 @@
             let cntHist = 0;
 
             // Chips: contar PRUEBAS (no equipos)
-            let cntChip60 = 0; // 60–30
-            let cntChip30 = 0; // 30–15
-            let cntChip15 = 0; // 15–0
+            let cntChipGT60 = 0; // > 60
+            let cntChip60 = 0;   // 60–31
+            let cntChip30 = 0;   // 30–16
+            let cntChip15 = 0;   // 15–1
+            let cntChip0 = 0;    // 0 (vencidas)
 
             const filasVisibles = [];
 
@@ -938,23 +959,35 @@
                     diasParaProxima = String(dias);
                 }
 
-                // Contar alertas por PRUEBA (no por equipo), solo vigentes con próxima fecha futura (>=0 días)
-                if (estado === 'VIGENTE' && diasNum !== null && diasNum >= 0) {
-                    if (diasNum >= 30 && diasNum <= 60) {
+                // Contar alertas por PRUEBA (no por equipo), solo vigentes; rangos: 60–31, 30–16, 15–1
+                if (estado === 'VIGENTE' && diasNum !== null && diasNum >= 1) {
+                    if (diasNum >= 31 && diasNum <= 60) {
                         cntChip60 += 1;
-                    } else if (diasNum >= 15 && diasNum < 30) {
+                    } else if (diasNum >= 16 && diasNum <= 30) {
                         cntChip30 += 1;
-                    } else if (diasNum >= 0 && diasNum < 15) {
+                    } else if (diasNum >= 1 && diasNum <= 15) {
                         cntChip15 += 1;
                     }
                 }
+                if (estado === 'VIGENTE' && diasNum !== null && diasNum > 60) {
+                    cntChipGT60 += 1;
+                }
+                if (estado === 'VENCIDA') {
+                    cntChip0 += 1;
+                }
 
-                // Aplicar filtro por rango si está activo (solo vigentes)
+                // Aplicar filtro por rango si está activo (solo vigentes), rangos: 60–31, 30–16, 15–1
                 if (filtroRango) {
-                    if (estado !== 'VIGENTE' || diasNum === null || diasNum < 0) return;
-                    if (filtroRango === '60' && !(diasNum >= 30 && diasNum <= 60)) return;
-                    if (filtroRango === '30' && !(diasNum >= 15 && diasNum < 30)) return;
-                    if (filtroRango === '15' && !(diasNum >= 0 && diasNum < 15)) return;
+                    if (filtroRango === '0') {
+                        if (estado !== 'VENCIDA') return;
+                    } else if (filtroRango === 'gt60') {
+                        if (estado !== 'VIGENTE' || diasNum === null || !(diasNum > 60)) return;
+                    } else {
+                        if (estado !== 'VIGENTE' || diasNum === null || diasNum < 1) return;
+                        if (filtroRango === '60' && !(diasNum >= 31 && diasNum <= 60)) return;
+                        if (filtroRango === '30' && !(diasNum >= 16 && diasNum <= 30)) return;
+                        if (filtroRango === '15' && !(diasNum >= 1 && diasNum <= 15)) return;
+                    }
                 }
 
                 // Badge visual según estado, días restantes y resultado (solo presentación)
@@ -1047,9 +1080,13 @@
             if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
             if (lblHist) lblHist.textContent = `${cntHist} en histórico`;
 
-            if (lblAlert60) lblAlert60.textContent = String(cntChip60);
-            if (lblAlert30) lblAlert30.textContent = String(cntChip30);
-            if (lblAlert15) lblAlert15.textContent = String(cntChip15);
+            const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
+            const lblAlert0 = document.getElementById('pruebas-alert-0');
+            if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
+            if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
+            if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
+            if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
+            if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
 
             // Reiniciar checkbox de selección global
             if (chkSelectTodos) chkSelectTodos.checked = false;
@@ -1065,10 +1102,12 @@
         }
 
         function actualizarChipsUI() {
-            [chip60, chip30, chip15].forEach(ch => ch && ch.classList.remove('chip-active'));
+            [chipGT60, chip60, chip30, chip15, chip0].forEach(ch => ch && ch.classList.remove('chip-active'));
+            if (filtroRango === 'gt60' && chipGT60) chipGT60.classList.add('chip-active');
             if (filtroRango === '60' && chip60) chip60.classList.add('chip-active');
             if (filtroRango === '30' && chip30) chip30.classList.add('chip-active');
             if (filtroRango === '15' && chip15) chip15.classList.add('chip-active');
+            if (filtroRango === '0' && chip0) chip0.classList.add('chip-active');
         }
 
         function toggleFiltro(r) {
@@ -1077,9 +1116,11 @@
             render();
         }
 
-        if (chip60) chip60.addEventListener('click', () => toggleFiltro('60'));
+        if (chipGT60) chipGT60.addEventListener('click', () => toggleFiltro('gt60'));
+        if (chip60)  chip60.addEventListener('click', () => toggleFiltro('60'));
         if (chip30) chip30.addEventListener('click', () => toggleFiltro('30'));
         if (chip15) chip15.addEventListener('click', () => toggleFiltro('15'));
+        if (chip0)  chip0.addEventListener('click', () => toggleFiltro('0'));
 
         actualizarChipsUI();
         render();
