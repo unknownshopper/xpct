@@ -113,19 +113,10 @@
     const auth = getAuth(app);
     window.auth = auth;
 
-    const ADMINS = [
-        "the@unknownshoppers.com",
-        "jalcz@pct.com"
-    ];
-    const INSPECTORES = [
-        "inspector01@pct.com",
-        "inspector02@pct.com"
-    ];
-
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
@@ -134,12 +125,23 @@
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
-        window.isAdmin = ADMINS.includes(email);
-        window.isInspector = INSPECTORES.includes(email);
-        window.currentUserEmail = email;
+        try {
+            const token = await user.getIdTokenResult(true);
+            const role = (token?.claims?.role) || null;
+            window.userRole = role;
+            window.isAdmin = role === 'admin';
+            window.isDirector = role === 'director';
+            window.isInspector = role === 'inspector';
+            window.isCapturista = role === 'capturista';
+            window.currentUserEmail = email;
 
-        // Solo admins e inspectores pueden ver esta página
-        if (!ADMINS.includes(email) && !INSPECTORES.includes(email)) {
+            // Acceso: admin, director, inspector
+            if (!(window.isAdmin || window.isDirector || window.isInspector)) {
+                window.location.href = 'login.html';
+                return;
+            }
+        } catch {
+            try { await signOut(auth); } catch {}
             window.location.href = 'login.html';
         }
     });

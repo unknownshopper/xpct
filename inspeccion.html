@@ -89,15 +89,6 @@
     const auth = getAuth(app);
     window.auth = auth;
 
-    const ADMINS = [
-        "the@unknownshoppers.com",
-        "jalcz@pct.com"
-    ];
-    const INSPECTORES = [
-        "inspector01@pct.com",
-        "inspector02@pct.com"
-    ];
-
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
@@ -110,11 +101,22 @@
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
-        // Marcar flag global de admin para el navbar
-        window.isAdmin = ADMINS.includes(email);
+        try {
+            const token = await user.getIdTokenResult(true);
+            const role = (token?.claims?.role) || null;
+            window.userRole = role;
+            window.isAdmin = role === 'admin';
+            window.isDirector = role === 'director';
+            window.isInspector = role === 'inspector';
+            window.isCapturista = role === 'capturista';
 
-        // Solo admins e inspectores pueden estar aquí
-        if (!ADMINS.includes(email) && !INSPECTORES.includes(email)) {
+            // Acceso: admin, director, inspector
+            if (!(window.isAdmin || window.isDirector || window.isInspector)) {
+                window.location.href = 'login.html';
+                return;
+            }
+        } catch {
+            try { await signOut(auth); } catch {}
             window.location.href = 'login.html';
             return;
         }
