@@ -82,10 +82,28 @@ onAuthStateChanged(auth, async (user) => {
         } else if (role === 'capturista') {
             location.href = 'pruebas.html';
         } else {
-            // Sin rol asignado: mostramos mensaje y cerramos sesión
+            // Sin rol asignado: mostrar mensaje y reintentar refrescar claims unos segundos
             const msg = document.getElementById('login-mensaje');
-            if (msg) msg.textContent = 'Tu cuenta no tiene rol asignado. Contacta al administrador.';
-            await auth.signOut();
+            if (msg) msg.textContent = 'Tu cuenta no tiene rol asignado aún. Intentando actualizar permisos...';
+            let tries = 0;
+            const timer = setInterval(async () => {
+                tries += 1;
+                try {
+                    const t = await user.getIdTokenResult(true);
+                    const r = (t?.claims?.role) || null;
+                    if (r) {
+                        clearInterval(timer);
+                        if (r === 'admin' || r === 'director') location.href = 'index.html';
+                        else if (r === 'inspector') location.href = 'inspeccion.html';
+                        else if (r === 'capturista') location.href = 'pruebas.html';
+                        return;
+                    }
+                } catch {}
+                if (tries >= 10) {
+                    clearInterval(timer);
+                    if (msg) msg.textContent = 'Tu cuenta no tiene rol asignado. Contacta al administrador.';
+                }
+            }, 3000);
         }
     } catch (e) {
         console.error(e);
