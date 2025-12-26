@@ -59,6 +59,10 @@
                 <div class="dash-card">
                     <div class="dash-card-label">Equipos con pruebas vigentes</div>
                     <div class="dash-card-value" id="pruebas-resumen-vigentes">0</div>
+                    <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">
+                        <div>Por caducar (≤60 días): <strong id="pruebas-resumen-porcaducar">0</strong></div>
+                        <div>Caducadas: <strong id="pruebas-resumen-caducadas">0</strong></div>
+                    </div>
                 </div>
                 <div class="dash-card">
                     <div class="dash-card-label">Equipos con prueba vencida</div>
@@ -244,6 +248,8 @@
         const lblResVig = document.getElementById('pruebas-resumen-vigentes');
         const lblResVenc = document.getElementById('pruebas-resumen-vencidas');
         const lblResSin = document.getElementById('pruebas-resumen-sin');
+        const lblResPorCad = document.getElementById('pruebas-resumen-porcaducar');
+        const lblResCaducadas = document.getElementById('pruebas-resumen-caducadas');
 
         const lblAlert60 = document.getElementById('pruebas-alert-60');
         const lblAlert30 = document.getElementById('pruebas-alert-30');
@@ -619,6 +625,8 @@
                 if (lblResVig) lblResVig.textContent = '0';
                 if (lblResVenc) lblResVenc.textContent = '0';
                 if (lblResSin) lblResSin.textContent = '0';
+                if (lblResPorCad) lblResPorCad.textContent = '0';
+                if (lblResCaducadas) lblResCaducadas.textContent = '0';
                 return;
             }
 
@@ -666,14 +674,24 @@
                 let cntEquiposVig = 0;
                 let cntEquiposVenc = 0;
                 let cntEquiposSin = 0;
+                let cntEquiposPorCaducar = 0;
 
                 listaEquiposBase.sort((a, b) => a.localeCompare(b)).forEach(eq => {
                     const reg = anualPorEquipo.get(eq) || null;
                     const estado = reg ? reg._clasif.estado : 'SIN_PRUEBA';
 
-                    if (estado === 'VIGENTE') cntEquiposVig += 1;
-                    else if (estado === 'VENCIDA') cntEquiposVenc += 1;
-                    else cntEquiposSin += 1;
+                    if (estado === 'VIGENTE') {
+                        cntEquiposVig += 1;
+                        const dProx = parseProxima(reg ? (reg.proxima || '') : '');
+                        if (dProx) {
+                            const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                            if (dias >= 0 && dias <= 60) cntEquiposPorCaducar += 1;
+                        }
+                    } else if (estado === 'VENCIDA') {
+                        cntEquiposVenc += 1;
+                    } else {
+                        cntEquiposSin += 1;
+                    }
 
                     const fila = document.createElement('tr');
                     const proximaStr = reg ? (reg.proxima || '') : '';
@@ -706,6 +724,8 @@
                 lblResVig.textContent = String(cntEquiposVig);
                 lblResVenc.textContent = String(cntEquiposVenc);
                 lblResSin.textContent = String(cntEquiposSin);
+                if (lblResPorCad) lblResPorCad.textContent = String(cntEquiposPorCaducar);
+                if (lblResCaducadas) lblResCaducadas.textContent = String(cntEquiposVenc);
             }
 
             // Ordenar priorizando próximas a vencer (VIGENTE con días >= 0, ascendente) según última ANUAL del equipo,
