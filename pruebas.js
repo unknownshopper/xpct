@@ -91,23 +91,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapaEstadoOverride = {};
             }
 
-            const vistos = new Set();
-            filasInv.forEach(cols => {
-                const eq = idxInvEquipo >= 0 ? (cols[idxInvEquipo] || '') : '';
-                const desc = idxInvDesc >= 0 ? (cols[idxInvDesc] || '') : '';
-                const edo = idxInvEstado >= 0 ? (cols[idxInvEstado] || '') : '';
-                if (!eq || vistos.has(eq)) return;
-                let edoEfectivo = edo.trim().toUpperCase();
-                const override = mapaEstadoOverride[eq];
-                if (override) edoEfectivo = String(override).trim().toUpperCase();
-                // Aceptar equipos marcados como ON o ACTIVO en el inventario
-                if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') return;
-                vistos.add(eq);
+            function poblarDatalistEquipos() {
+                if (!datalistEquipos) return;
+                // Refrescar overrides cada vez para reflejar cambios recientes
+                let overrides = {};
+                try {
+                    const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+                    const parsed = JSON.parse(crudo);
+                    if (parsed && typeof parsed === 'object') overrides = parsed;
+                } catch {}
 
-                const opt = document.createElement('option');
-                opt.value = eq;
-                opt.label = desc ? `${eq} - ${desc}` : eq;
-                datalistEquipos.appendChild(opt);
+                datalistEquipos.innerHTML = '';
+                const vistos = new Set();
+                filasInv.forEach(cols => {
+                    const eq = idxInvEquipo >= 0 ? (cols[idxInvEquipo] || '') : '';
+                    const desc = idxInvDesc >= 0 ? (cols[idxInvDesc] || '') : '';
+                    const edo = idxInvEstado >= 0 ? (cols[idxInvEstado] || '') : '';
+                    if (!eq || vistos.has(eq)) return;
+                    let edoEfectivo = (edo || '').toString().trim().toUpperCase();
+                    const override = overrides[eq];
+                    if (override) edoEfectivo = String(override).trim().toUpperCase();
+                    // Solo mostrar ON/ACTIVO en pruebas.html
+                    if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') return;
+                    vistos.add(eq);
+
+                    const opt = document.createElement('option');
+                    opt.value = eq;
+                    opt.label = desc ? `${eq} - ${desc}` : eq;
+                    datalistEquipos.appendChild(opt);
+                });
+            }
+
+            // Poblar inicialmente
+            poblarDatalistEquipos();
+            // Refrescar al enfocar el campo (por si hubo cambios de estado en otra pestaña/vista)
+            if (inputEquipo) {
+                inputEquipo.addEventListener('focus', poblarDatalistEquipos);
+            }
+            // Escuchar cambios en localStorage (overrides) para refrescar en vivo
+            window.addEventListener('storage', (e) => {
+                if ((e?.key || '') === claveEstadoOverride) {
+                    poblarDatalistEquipos();
+                }
             });
         })
         .catch(err => console.error(err));
@@ -714,6 +739,24 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Indica el equipo / activo.');
             return;
         }
+
+        // Validar estado del equipo: no permitir guardar si no está ON/ACTIVO
+        (function validarEstadoEquipo() {
+            const edoInput = (document.getElementById('inv-edo')?.value || '').trim().toUpperCase();
+            let edoEfectivo = edoInput;
+            try {
+                const crudo = localStorage.getItem('pct_invre_estado_override') || '{}';
+                const overrides = JSON.parse(crudo);
+                const ov = overrides?.[equipo];
+                if (ov) edoEfectivo = String(ov).trim().toUpperCase();
+            } catch {}
+
+            // Si conocemos el estado y no es ON/ACTIVO, bloquear guardado
+            if (edoEfectivo && edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') {
+                alert(`No se puede guardar una prueba para el equipo "${equipo}" porque su estado es "${edoEfectivo}".`);
+                throw new Error('Estado de equipo no permitido para pruebas');
+            }
+        })();
 
         const selPruebaEl = document.getElementById('inv-prueba');
         const selDetalleEl = document.getElementById('inv-prueba-detalle');
