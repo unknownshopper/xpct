@@ -623,8 +623,8 @@ select.form-input {
     color: #14532d;
 }
 #tabla-informativa tbody td:nth-child(3) { /* 31–60 */
-    background: #fffbeb; /* amber-50 */
-    color: #92400e;
+    background: #eff6ff; /* blue-100 */
+    color: #1d4ed8;
 }
 #tabla-informativa tbody td:nth-child(4) { /* 15–30 */
     background: #fef3c7; /* amber-100 */
