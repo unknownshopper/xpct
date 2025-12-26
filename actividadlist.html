@@ -131,8 +131,16 @@
         if (emailSpan) emailSpan.textContent = email;
 
         try {
-            const token = await user.getIdTokenResult(true);
-            const role = (token?.claims?.role) || null;
+            let role = null;
+            let intentos = 0;
+            // Reintentar hasta 3 veces si el rol no viene aún
+            while (intentos < 3 && !role) {
+                const token = await user.getIdTokenResult(true);
+                role = (token?.claims?.role) || null;
+                if (role) break;
+                await new Promise(r => setTimeout(r, 800));
+                intentos += 1;
+            }
             window.userRole = role;
             window.isAdmin = role === 'admin';
             window.isDirector = role === 'director';
