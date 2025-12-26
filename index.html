@@ -163,13 +163,15 @@
         });
     }
 
-    // Botón: enviar correo de prueba (requiere el backend desplegado)
+    // Botón: enviar correo de prueba (usa backend local en dev y same-origin en prod)
     const btnEmailTest = document.getElementById('btn-email-test');
     if (btnEmailTest) {
         btnEmailTest.addEventListener('click', async () => {
             btnEmailTest.disabled = true;
             try {
-                const resp = await fetch('/api/send-alerts?test=true', { method: 'POST' });
+                const isDev = location.port === '2200' || ['localhost','127.0.0.1','0.0.0.0'].includes(location.hostname);
+                const base = isDev ? 'http://localhost:8080' : '';
+                const resp = await fetch(`${base}/api/send-alerts?test=true`, { method: 'POST' });
                 const data = await resp.json().catch(() => ({}));
                 alert(resp.ok ? 'Correo de prueba enviado' : `Fallo al enviar: ${data.error || resp.status}`);
             } catch (e) {

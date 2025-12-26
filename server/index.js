@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 import nodemailer from 'nodemailer';
 import { DateTime } from 'luxon';
 import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
 
 const PORT = process.env.PORT || 8080;
 const TZ = process.env.TZ || 'America/Mexico_City';
@@ -45,29 +48,39 @@ function ensureAdmin() {
 async function queryUltimasAnuales() {
   const db = admin.firestore();
   const snap = await db.collection('pruebas').get();
-  const porEquipo = new Map();
+  const porEquipoPrueba = new Map();
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
 
   snap.forEach(doc => {
     const data = doc.data() || {};
     const periodo = (data.periodo || '').toString().trim().toUpperCase();
+    // Backward compat: sin periodo => tratar como ANUAL
     if (periodo && periodo !== 'ANUAL') return;
     const equipo = (data.equipo || data.equipoId || data.activo || '').toString().trim() || doc.id;
+    const prueba = (data.prueba || data.pruebaTipo || '').toString().trim();
     const fechaReal = parseFecha(data.fechaRealizacion || data.fecha || '');
-    const proxima = parseFecha(data.proxima || '');
-    const current = porEquipo.get(equipo);
-    const payload = { docId: doc.id, equipo, fechaReal, proxima, raw: data };
+    let proxima = parseFecha(data.proxima || '');
+    // Derivar próxima a partir de fechaReal + 1 año si falta
+    if (!proxima && fechaReal) {
+      const d = new Date(fechaReal);
+      d.setFullYear(d.getFullYear() + 1);
+      d.setHours(0, 0, 0, 0);
+      if (!isNaN(d.getTime())) proxima = d;
+    }
+    const key = `${equipo}__${(prueba || 'ANUAL').toUpperCase()}`;
+    const current = porEquipoPrueba.get(key);
+    const payload = { docId: doc.id, equipo, prueba, fechaReal, proxima, raw: data };
     if (!current) {
-      porEquipo.set(equipo, payload);
+      porEquipoPrueba.set(key, payload);
     } else {
       const a = current.fechaReal || new Date(0);
       const b = fechaReal || new Date(0);
-      if (b.getTime() >= a.getTime()) porEquipo.set(equipo, payload);
+      if (b.getTime() >= a.getTime()) porEquipoPrueba.set(key, payload);
     }
   });
 
-  return Array.from(porEquipo.values());
+  return Array.from(porEquipoPrueba.values());
 }
 
 function clasificarDias(proxima) {
@@ -85,15 +98,18 @@ function clasificarDias(proxima) {
 
 function buildHtml({ lista60, lista30, lista15 }) {
   const fmt = d => (d ? DateTime.fromJSDate(d).setZone(TZ).toFormat('dd/LL/yyyy') : '—');
+  const estadoFromDias = dias => (dias < 0 ? 'Vencida' : 'Vigente');
   const section = (titulo, items) => {
     if (!items.length) return '';
     const rows = items
       .sort((a, b) => a.dias - b.dias)
       .map(x => `
         <tr>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.equipo}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.equipo}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.prueba || '—'}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${fmt(x.proxima)}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.dias}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${estadoFromDias(x.dias)}</td>
         </tr>
       `).join('');
     return `
@@ -102,8 +118,10 @@ function buildHtml({ lista60, lista30, lista15 }) {
         <thead>
           <tr>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Equipo</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Prueba / Calib.</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Próxima</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Días</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Estado</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -111,16 +129,39 @@ function buildHtml({ lista60, lista30, lista15 }) {
     `;
   };
 
-  const body = `
+  // Header with logo (CID must be attached when sending)
+  const headerHtml = `
+    <div style="padding:12px 0 8px; display:flex; align-items:center; gap:12px;">
+      <img src="cid:logo_pctch" alt="PCT" style="height:36px; width:auto; display:block;" />
+      <div style="font-size:18px; font-weight:600; color:#111827;">Alertas de pruebas por vencer</div>
+    </div>
+  `;
+
+  const mainHtml = `
     <div style="font-family:Arial, Helvetica, sans-serif; color:#111827;">
-      <h2 style="margin:0 0 8px;">Alertas de pruebas por vencer</h2>
-      <p style="margin:0 0 10px; font-size:13px; color:#4b5563;">Solo se consideran pruebas ANUAL. Checkpoints no reinician ni afectan el contador.</p>
+      ${headerHtml}
+      <p style="margin:4px 0 12px; font-size:13px; color:#4b5563;">Solo se consideran pruebas ANUALES.</p>
       ${section('60–30 días', lista60)}
       ${section('30–15 días', lista30)}
       ${section('15–0 días (envío diario)', lista15)}
     </div>
   `;
-  return body;
+
+  // Confidentiality footer
+  const footerHtml = `
+    <div style="margin-top:16px; padding-top:10px; border-top:1px solid #e5e7eb;">
+      <p style="margin:0; font-size:11px; color:#6b7280; line-height:1.35;">
+        Aviso de confidencialidad: Este mensaje y sus anexos están dirigidos únicamente a su destinatario y pueden contener información confidencial y/o privilegiada. Si usted no es el destinatario, se le notifica que cualquier revisión, retransmisión, difusión o cualquier otro uso de, o tomar cualquier acción en base a esta información, queda estrictamente prohibido. Si recibió este mensaje por error, por favor elimínelo y notifique al remitente.
+      </p>
+    </div>
+  `;
+
+  return `
+    <div style="font-family:Arial, Helvetica, sans-serif; color:#111827;">
+      ${mainHtml}
+      ${footerHtml}
+    </div>
+  `;
 }
 
 async function enviarCorreo({ html, subject }) {
@@ -128,16 +169,49 @@ async function enviarCorreo({ html, subject }) {
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.MAIL_FROM;
-  const to = process.env.MAIL_TO;
+  // Build sender with display name without requiring config changes
+  const fromAddress = process.env.MAIL_FROM || user;
+  const from = { name: process.env.MAIL_FROM_NAME || 'PCT Alertas', address: fromAddress };
+  // Parse recipient list (comma/semicolon separated) and build SMTP envelope with plain addresses
+  const toRaw = process.env.MAIL_TO || '';
+  const toList = toRaw.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+  if (!toList.length) {
+    throw new Error('MAIL_TO is empty or invalid');
+  }
+  // Try to attach local logo image if present (logopctch.png only)
+  // When running from server/ (npm start), the image usually lives at ../img/logopctch.png
+  // If you run from the project root, img/logopctch.png will be used.
+  const candidates = [
+    path.resolve(process.cwd(), 'img/logopctch.png'),
+    path.resolve(process.cwd(), '../img/logopctch.png'),
+  ];
+  let foundLogo = null;
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) { foundLogo = p; break; } } catch {}
+  }
+  const attachments = foundLogo
+    ? [{ filename: path.basename(foundLogo), path: foundLogo, cid: 'logo_pctch' }]
+    : [];
   const transporter = nodemailer.createTransport({
     host,
     port,
     secure: port === 465,
-    auth: { user, pass }
+    auth: { user, pass },
+    logger: process.env.SMTP_DEBUG === '1',
+    debug: process.env.SMTP_DEBUG === '1'
   });
-  const info = await transporter.sendMail({ from, to, subject, html });
-  return info.messageId || 'ok';
+  const info = await transporter.sendMail({
+    from,
+    to: toList.join(', '),
+    subject,
+    html,
+    attachments,
+    envelope: { from: fromAddress, to: toList }
+  });
+  if (process.env.SMTP_DEBUG === '1') {
+    try { console.log('SMTP sendMail info:', { messageId: info.messageId, accepted: info.accepted, rejected: info.rejected }); } catch {}
+  }
+  return info;
 }
 
 async function calcularYEnviar({ testMode = false }) {
@@ -152,23 +226,24 @@ async function calcularYEnviar({ testMode = false }) {
   for (const reg of ultimas) {
     const { dias, bucket } = clasificarDias(reg.proxima);
     const equipoKey = reg.equipo || reg.docId;
+    const pruebaKey = (reg.prueba || 'ANUAL').toUpperCase();
     if (bucket === '60_30' || bucket === '30_15' || bucket === '15_0') {
-      const trackId = `${equipoKey}__${reg.docId}`;
+      const trackId = `${equipoKey}__${pruebaKey}`;
       const trackRef = db.collection('alertas_pruebas').doc(trackId);
       const trackSnap = await trackRef.get();
       const t = trackSnap.exists ? trackSnap.data() : {};
       if (bucket === '60_30') {
         if (!t.notif60At) {
-          lista60.push({ equipo: equipoKey, proxima: reg.proxima, dias });
+          lista60.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
           if (!testMode) await trackRef.set({ ...t, notif60At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } else if (bucket === '30_15') {
         if (!t.notif30At) {
-          lista30.push({ equipo: equipoKey, proxima: reg.proxima, dias });
+          lista30.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
           if (!testMode) await trackRef.set({ ...t, notif30At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } else if (bucket === '15_0') {
-        lista15.push({ equipo: equipoKey, proxima: reg.proxima, dias });
+        lista15.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
         if (!testMode) await trackRef.set({ ...t, notif15LastAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
       }
     }
@@ -176,22 +251,32 @@ async function calcularYEnviar({ testMode = false }) {
 
   if (!lista60.length && !lista30.length && !lista15.length) {
     if (testMode) {
-      const subject = `[XPCT] Prueba de correo – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy HH:mm')}`;
+      const subject = `[PCT] Prueba de correo – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy HH:mm')}`;
       const html = '<div style="font-family:Arial, Helvetica, sans-serif; font-size:14px;">Correo de prueba OK</div>';
       await enviarCorreo({ html, subject });
       return { sent: true, empty: true };
     }
     return { sent: false, empty: true };
   }
+  
 
+  
   const html = buildHtml({ lista60, lista30, lista15 });
-  const subject = `[XPCT] Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
+  const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
   await enviarCorreo({ html, subject });
   return { sent: true, empty: false, counts: { c60: lista60.length, c30: lista30.length, c15: lista15.length } };
 }
 
 const app = express();
 app.use(express.json());
+// Enable CORS for local dev UI (port 2200) and same-origin
+app.use(cors({
+  origin: [
+    'http://localhost:2200',
+    'http://127.0.0.1:2200',
+  ],
+  methods: ['GET','POST','OPTIONS'],
+}));
 
 app.post('/api/send-alerts', async (req, res) => {
   try {
@@ -207,10 +292,10 @@ app.post('/api/send-alerts', async (req, res) => {
 app.post('/api/test-smtp', async (req, res) => {
   try {
     const now = DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy HH:mm');
-    const subject = `[XPCT] Prueba SMTP directa – ${now}`;
+    const subject = `[PCT] Prueba SMTP directa – ${now}`;
     const html = '<div style="font-family:Arial, Helvetica, sans-serif; font-size:14px;">Prueba de envío SMTP directa OK</div>';
-    const id = await enviarCorreo({ html, subject });
-    res.json({ ok: true, messageId: id });
+    const info = await enviarCorreo({ html, subject });
+    res.json({ ok: true, messageId: info.messageId, accepted: info.accepted, rejected: info.rejected, response: info.response });
   } catch (e) {
     res.status(500).json({ ok: false, error: 'smtp_test_failed', detail: String(e && e.message ? e.message : e) });
   }

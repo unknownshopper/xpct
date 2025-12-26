@@ -109,6 +109,79 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
 - Los chips muestran conteo por equipo (no por filas) dentro del rango.
 - Se eliminó el panel inferior de detalle en `pruebaslist.html` para evitar desplazamientos; ahora el detalle es inline.
 
+## Alertas por correo (IONOS SMTP) – Backend Node
+
+Se añadió un pequeño servidor Node (Express) en `server/` para enviar un correo diario con el resumen de pruebas ANUAL por vencer. Usa IONOS SMTP como transporte y Firestore como fuente de datos.
+
+### Variables de entorno (crear `server/.env` – no se sube a Git)
+
+Ejemplo de contenido mínimo:
+
+```
+TZ=America/Mexico_City
+PORT=8080
+
+MAIL_FROM="XPCT Alertas <logistica@pc-t.com.mx>"
+MAIL_TO=the@unknownshoppers.com
+
+SMTP_HOST=smtp.ionos.com
+# 465 = SSL (recomendado) | 587 = STARTTLS
+SMTP_PORT=465
+SMTP_USER=logistica@pc-t.com.mx
+SMTP_PASS=********
+
+# Opción A (recomendada): JSON de Service Account en una sola línea
+# FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"...","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n","client_email":"...","client_id":"..."}'
+
+# Opción B (alternativa local): ruta absoluta al JSON
+# GOOGLE_APPLICATION_CREDENTIALS=/Users/<usuario>/ruta/al/archivo.json
+```
+
+Notas:
+- Usa UNA de las dos opciones para credenciales de Firebase Admin (A o B).
+- `server/.env` está ignorado por Git (`.gitignore`). No lo subas.
+- Para múltiples destinatarios en `MAIL_TO`, separa por comas: `uno@dom.com,dos@dom.com` o usa el formato `Nombre <mail>`.
+
+### Obtener y pegar el Service Account JSON
+
+1. Firebase Console → Configuración del proyecto → Cuentas de servicio → Firebase Admin SDK → “Generar nueva clave privada”.
+2. Con Homebrew jq instalado, minifica a una sola línea y copia:
+   - `jq -c . /ruta/al/archivo.json | pbcopy`
+3. Pega en `.env` como valor de `FIREBASE_SERVICE_ACCOUNT_JSON` entre comillas simples.
+
+### Arranque local y CORS
+
+- Instalar dependencias y arrancar:
+  - `cd server && npm install && npm start`
+- El frontend de desarrollo corre típicamente en `http://localhost:2200` y el backend en `http://localhost:8080`.
+- CORS está habilitado en el backend para `localhost:2200`.
+- En `index.html`, el botón de prueba usa `http://localhost:8080` automáticamente en desarrollo y same-origin en producción.
+
+### Endpoints
+
+- `POST /api/test-smtp`
+  - Envío de prueba SMTP sin tocar Firestore. Útil para validar credenciales del buzón.
+
+- `POST /api/send-alerts?test=true`
+  - Calcula desde Firestore las últimas ANUAL por equipo, clasifica por días restantes y envía un correo con 3 secciones:
+    - 60–30 días (una sola vez por equipo)
+    - 30–15 días (una sola vez por equipo)
+    - 15–0 días (envío diario)
+  - En modo `test=true`, si no hay elementos, envía un "Correo de prueba OK".
+
+### Despliegue y DNS (resumen)
+
+- SMTP: usar IONOS con remitente `logistica@pc-t.com.mx`.
+- Recomendado configurar SPF, DKIM y DMARC en `pc-t.com.mx` para mejor entregabilidad.
+
+### Problemas comunes
+
+- "Unable to detect a Project Id": falta credencial de Firebase Admin. Usa Opción A o B en `.env` y reinicia.
+- 404 al llamar `/api/send-alerts` desde el navegador en 2200: asegúrate que el backend corra en 8080; el botón ya reenvía a 8080 en desarrollo.
+- Errores CORS: reinicia backend tras `npm install` (se añadió `cors`).
+
+---
+
 ## Próximos cambios sugeridos
 
 - **Actividad**
@@ -127,7 +200,7 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Separar `script.js` en módulos por vista (inspección, actividad, pruebas, dashboard) para facilitar mantenimiento.
   - Añadir comentarios breves en las funciones clave de negocio (sin duplicar documentación) y tests básicos donde sea posible.
 
-  esdeprueba
+ 
   
 
 ## Notas para próximos colaboradores

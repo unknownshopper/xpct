@@ -357,18 +357,37 @@
 
         await cargarInventarioDesdeCsv();
 
-        function parseFechaRealizacion(str) {
-            if (!str) return null;
-            const partes = String(str).split('/');
-            if (partes.length !== 3) return null;
-            const [ddStr, mmStr, aaStr] = partes;
-            const dd = parseInt(ddStr, 10);
-            const mm = parseInt(mmStr, 10);
-            const aa = parseInt(aaStr, 10);
-            if (!dd || !mm || isNaN(aa)) return null;
-            const year = aa < 100 ? 2000 + aa : aa;
-            const d = new Date(year, mm - 1, dd);
-            return isNaN(d.getTime()) ? null : d;
+        function parseFechaRealizacion(val) {
+            if (!val) return null;
+            // Firestore Timestamp
+            if (val && typeof val === 'object' && typeof val.toDate === 'function') {
+                const d = val.toDate(); d.setHours(0,0,0,0); return isNaN(d.getTime()) ? null : d;
+            }
+            // Date
+            if (val instanceof Date) { const d = new Date(val); d.setHours(0,0,0,0); return isNaN(d.getTime()) ? null : d; }
+            // Milliseconds number
+            if (typeof val === 'number' && isFinite(val)) { const d = new Date(val); d.setHours(0,0,0,0); return isNaN(d.getTime()) ? null : d; }
+            const s = String(val).trim();
+            if (!s) return null;
+            // dd/mm/aa o dd/mm/aaaa
+            if (s.includes('/')) {
+                const partes = s.split('/');
+                if (partes.length !== 3) return null;
+                const [ddStr, mmStr, aaStr] = partes;
+                const dd = parseInt(ddStr, 10);
+                const mm = parseInt(mmStr, 10);
+                const aa = parseInt(aaStr, 10);
+                if (!dd || !mm || isNaN(aa)) return null;
+                const year = aaStr.length <= 2 ? (2000 + aa) : aa;
+                const d = new Date(year, mm - 1, dd);
+                d.setHours(0,0,0,0);
+                return isNaN(d.getTime()) ? null : d;
+            }
+            // ISO u otros formatos parseables por Date
+            const d = new Date(s);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0,0,0,0);
+            return d;
         }
 
         function mostrarDetallePrueba(reg) {
@@ -529,12 +548,27 @@
             return d;
         }
 
-        function parseProxima(str) {
-            if (!str) return null;
-            const s = String(str).trim();
-            if (!s) return null;
+        function formateaDDMMAA(d) {
+            if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const aa = String(d.getFullYear()).slice(-2);
+            return `${dd}/${mm}/${aa}`;
+        }
 
-            // Soportar formato dd/mm/aa igual que parseFechaRealizacion
+        function parseProxima(val) {
+            if (!val) return null;
+            // Firestore Timestamp
+            if (val && typeof val === 'object' && typeof val.toDate === 'function') {
+                const d = val.toDate(); d.setHours(0,0,0,0); return isNaN(d.getTime()) ? null : d;
+            }
+            // Date instancia
+            if (val instanceof Date) { const d = new Date(val); d.setHours(0,0,0,0); return isNaN(d.getTime()) ? null : d; }
+            // Milliseconds
+            if (typeof val === 'number' && isFinite(val)) { const d = new Date(val); d.setHours(0,0,0,0); return isNaN(d.getTime()) ? null : d; }
+            const s = String(val).trim();
+            if (!s) return null;
+            // dd/mm/aa o dd/mm/aaaa
             if (s.includes('/')) {
                 const partes = s.split('/');
                 if (partes.length !== 3) return null;
@@ -543,21 +577,33 @@
                 const mm = parseInt(mmStr, 10);
                 const aa = parseInt(aaStr, 10);
                 if (!dd || !mm || isNaN(aa)) return null;
-                const year = aa < 100 ? 2000 + aa : aa;
+                const year = aaStr.length <= 2 ? (2000 + aa) : aa;
                 const d = new Date(year, mm - 1, dd);
                 if (isNaN(d.getTime())) return null;
-                d.setHours(0, 0, 0, 0);
+                d.setHours(0,0,0,0);
                 return d;
             }
-
+            // ISO u otros
             const d = new Date(s);
             if (isNaN(d.getTime())) return null;
-            d.setHours(0, 0, 0, 0);
+            d.setHours(0,0,0,0);
             return d;
         }
 
         function clasificarPrueba(reg) {
-            const proxima = parseProxima(reg.proxima || '');
+            let proxima = parseProxima(reg.proxima || '');
+            // Si no hay 'proxima' pero es ANUAL, intentar derivarla de fechaRealizacion + 12 meses
+            if (!proxima) {
+                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+                const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
+                // Backward compat: sin periodo => tratar como ANUAL
+                if ((periodo === 'ANUAL' || !periodo) && fr) {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0,0,0,0);
+                    if (!isNaN(d.getTime())) proxima = d;
+                }
+            }
             if (!proxima) return { estado: 'SIN_FECHA', proxima: null };
             const hoy = hoySinHora();
             if (proxima < hoy) return { estado: 'VENCIDA', proxima };
@@ -606,8 +652,9 @@
             enriquecidas.forEach(reg => {
                 const eq = (reg.equipo || '').toString();
                 if (!eq) return;
-                const periodo = (reg.periodo || '').toString().toUpperCase();
-                if (periodo !== 'ANUAL') return;
+                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+                // Backward compat: registros sin periodo se consideran ANUAL
+                if (periodo && periodo !== 'ANUAL') return;
                 const actual = anualPorEquipo.get(eq);
                 if (!actual || reg._fechaRealDate.getTime() > actual._fechaRealDate.getTime()) {
                     anualPorEquipo.set(eq, reg);
@@ -724,7 +771,9 @@
                 const eq = (reg.equipo || '').toString();
                 const refAnual = anualPorEquipo.get(eq) || null;
                 const estado = refAnual ? refAnual._clasif.estado : 'SIN_FECHA';
-                const proximaStr = refAnual ? (refAnual.proxima || '') : '';
+                const proximaStr = refAnual
+                    ? ((refAnual.proxima && String(refAnual.proxima)) || formateaDDMMAA(refAnual._clasif.proxima))
+                    : '';
 
                 // Contadores: por realizar = vigentes + vencidas
                 if (estado === 'VIGENTE' || estado === 'VENCIDA') {
