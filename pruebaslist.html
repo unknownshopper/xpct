@@ -738,7 +738,7 @@
                 }
             });
 
-            // Construir referencia: última ANUAL por equipo + categoría (LT, VT/PT/MT, UTT)
+            // Construir referencia de categoría por registro (LT, VT/PT/MT, UTT)
             function categoriaPrueba(reg) {
                 const p = ((reg.prueba || reg.pruebaTipo || '') + '').toUpperCase();
                 if (!p) return null;
@@ -748,21 +748,6 @@
                 return null;
             }
 
-            const anualPorEqCat = new Map(); // key: eq::cat
-            enriquecidas.forEach(reg => {
-                const eq = (reg.equipo || '').toString();
-                if (!eq) return;
-                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
-                if (periodo && periodo !== 'ANUAL') return;
-                const cat = categoriaPrueba(reg);
-                if (!cat) return;
-                const key = `${eq}::${cat}`;
-                const actual = anualPorEqCat.get(key);
-                if (!actual || reg._fechaRealDate.getTime() > actual._fechaRealDate.getTime()) {
-                    anualPorEqCat.set(key, reg);
-                }
-            });
-
             // Inicializar contadores
             const cont = {
                 lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
@@ -770,8 +755,11 @@
                 utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
             };
 
-            // Clasificar por buckets según días a próxima (solo vigentes, excluye 0 y negativos)
-            anualPorEqCat.forEach(reg => {
+            // Clasificar por buckets por REGISTRO (prueba), no por equipo
+            (Array.isArray(historico) ? historico : []).forEach(reg => {
+                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+                // Solo ANUAL define próxima (y por tanto, vigencia)
+                if (periodo && periodo !== 'ANUAL') return;
                 const cat = categoriaPrueba(reg);
                 if (!cat) return;
                 const prox = parseProxima(reg.proxima || '') || (reg._clasif?.proxima || null);

@@ -704,6 +704,20 @@ select.form-input {
     margin-bottom: 0.75rem;
 }
 
+/* Badge para indicar múltiples pruebas por equipo en pruebaslist */
+.pl-badge-multi {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 9999px;
+    background: #eef2ff; /* indigo-100 */
+    color: #3730a3; /* indigo-700 */
+    font-size: 0.7rem;
+    font-weight: 700;
+    border: 1px solid #c7d2fe; /* indigo-200 */
+    vertical-align: middle;
+}
+
 .grid-datos-prueba {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
