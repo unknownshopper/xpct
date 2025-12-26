@@ -55,13 +55,13 @@
         <section class="pruebaslist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
             <section style="margin-bottom: 0.75rem;">
                 <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:center; font-size:1rem;">
-                    <div id="chip-60" class="chip chip-large" style="border-radius:999px; background:#eff6ff; color:#1d4ed8; cursor:pointer;">
+                    <div id="chip-60" class="chip chip-large chip-blue" style="cursor:pointer;">
                         60–30 días: <strong id="pruebas-alert-60">0</strong>
                     </div>
-                    <div id="chip-30" class="chip chip-large" style="border-radius:999px; background:#fef3c7; color:#b45309; cursor:pointer;">
+                    <div id="chip-30" class="chip chip-large chip-amber" style="cursor:pointer;">
                         30–15 días: <strong id="pruebas-alert-30">0</strong>
                     </div>
-                    <div id="chip-15" class="chip chip-large" style="border-radius:999px; background:#fee2e2; color:#b91c1c; cursor:pointer;">
+                    <div id="chip-15" class="chip chip-large chip-red" style="cursor:pointer;">
                         15–0 días: <strong id="pruebas-alert-15">0</strong>
                     </div>
                 </div>
@@ -895,10 +895,10 @@
             let cntVenc = 0;
             let cntHist = 0;
 
-            // Chips: contar por equipo único
-            const set60 = new Set(); // 60–30
-            const set30 = new Set(); // 30–15
-            const set15 = new Set(); // 15–0
+            // Chips: contar PRUEBAS (no equipos)
+            let cntChip60 = 0; // 60–30
+            let cntChip30 = 0; // 30–15
+            let cntChip15 = 0; // 15–0
 
             const filasVisibles = [];
 
@@ -938,14 +938,14 @@
                     diasParaProxima = String(dias);
                 }
 
-                // Contar alertas solo para pruebas vigentes con próxima fecha futura (>=0 días)
+                // Contar alertas por PRUEBA (no por equipo), solo vigentes con próxima fecha futura (>=0 días)
                 if (estado === 'VIGENTE' && diasNum !== null && diasNum >= 0) {
                     if (diasNum >= 30 && diasNum <= 60) {
-                        set60.add(eq);
+                        cntChip60 += 1;
                     } else if (diasNum >= 15 && diasNum < 30) {
-                        set30.add(eq);
+                        cntChip30 += 1;
                     } else if (diasNum >= 0 && diasNum < 15) {
-                        set15.add(eq);
+                        cntChip15 += 1;
                     }
                 }
 
@@ -1047,9 +1047,9 @@
             if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
             if (lblHist) lblHist.textContent = `${cntHist} en histórico`;
 
-            if (lblAlert60) lblAlert60.textContent = String(set60.size);
-            if (lblAlert30) lblAlert30.textContent = String(set30.size);
-            if (lblAlert15) lblAlert15.textContent = String(set15.size);
+            if (lblAlert60) lblAlert60.textContent = String(cntChip60);
+            if (lblAlert30) lblAlert30.textContent = String(cntChip30);
+            if (lblAlert15) lblAlert15.textContent = String(cntChip15);
 
             // Reiniciar checkbox de selección global
             if (chkSelectTodos) chkSelectTodos.checked = false;
