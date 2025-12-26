@@ -5,21 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | PCT</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+      /* Scoped tweaks for login page only */
+      body { background:#f3f4f6; }
+      header { display:none; }
+      .login-shell { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+      .card-prueba { width:100%; max-width:420px; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:20px 18px; box-shadow:0 8px 30px rgba(17,24,39,0.08); }
+      .card-prueba h2 { margin:0 0 10px; color:#111827; font-size:22px; }
+      .campo { margin-top:10px; }
+      .campo label { display:block; font-size:13px; color:#374151; margin-bottom:6px; }
+      .campo input { width:100%; height:38px; border:1px solid #d1d5db; border-radius:10px; padding:8px 10px; outline:none; }
+      #btn-login { height:40px; background:#2563eb; color:#fff; border:0; border-radius:10px; font-weight:600; cursor:pointer; }
+      #btn-login:disabled { background:#e5e7eb; color:#9ca3af; cursor:not-allowed; }
+      .login-logo { display:flex; justify-content:center; margin-bottom:6px; }
+      .login-logo img { height:40px; width:auto; }
+    </style>
 </head>
 <body>
-<header>
-    <div class="logo">
-        <img src="img/logopctch.png" alt="Logo PCT">
-    </div>
-    <nav>
-        <ul>
-            <li><a href="login.html" class="active">Login</a></li>
-        </ul>
-    </nav>
-</header>
+<header></header>
 
-<main class="pruebas-page" style="max-width:420px;">
+<main class="login-shell">
     <section class="card-prueba">
+        <div class="login-logo"><img src="img/logopctch.png" alt="PCT" /></div>
         <h2>Acceso al sistema</h2>
         <div class="campo">
             <label for="login-email">Correo</label>
@@ -27,10 +34,15 @@
         </div>
         <div class="campo">
             <label for="login-password">Contraseña</label>
-            <input type="password" id="login-password" placeholder="Contraseña">
+            <div style="position:relative; display:flex; align-items:center;">
+                <input type="password" id="login-password" placeholder="Contraseña" style="padding-right:2.25rem; width:100%;">
+                <button id="btn-toggle-pass" type="button" aria-label="Mostrar/ocultar contraseña" style="position:absolute; right:0.35rem; background:#f3f4f6; border:1px solid #d1d5db; color:#374151; height:30px; width:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                    👁
+                </button>
+            </div>
         </div>
         <div class="campo">
-            <button id="btn-login" style="margin-top:0.5rem;">Entrar</button>
+            <button id="btn-login" style="margin-top:0.5rem; width:100%;">Entrar</button>
         </div>
         <p id="login-mensaje" style="font-size:0.85rem; color:#b91c1c; margin-top:0.25rem;"></p>
     </section>
@@ -54,35 +66,29 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Listas de correos por rol
-const ADMINS = [
-    "the@unknownshoppers.com",
-    "jalcz@pct.com"
-];
-
-const INSPECTORES = [
-    "inspector01@pct.com",
-    "inspector02@pct.com"
-];
-
-const CAPTURISTAS = [
-    "capturista@pct.com"
-];
-
-// Si ya está logueado, redirigimos según rol
-onAuthStateChanged(auth, (user) => {
+// Si ya está logueado, redirigimos según Custom Claims
+onAuthStateChanged(auth, async (user) => {
     if (!user) return;
-
-    const email = (user.email || "").toLowerCase();
-
-    if (ADMINS.includes(email)) {
-        window.location.href = "index.html";
-    } else if (INSPECTORES.includes(email)) {
-        window.location.href = "inspeccion.html";
-    } else if (CAPTURISTAS.includes(email)) {
-        window.location.href = "pruebas.html";
-    } else {
-        auth.signOut();
+    try {
+        const token = await user.getIdTokenResult(true); // force refresh after role changes
+        const role = (token?.claims?.role) || null;
+        if (role === 'admin') {
+            location.href = 'index.html';
+        } else if (role === 'director') {
+            // Director entra al dashboard; (actividadmin está oculto por nav.js y Rules)
+            location.href = 'index.html';
+        } else if (role === 'inspector') {
+            location.href = 'inspeccion.html';
+        } else if (role === 'capturista') {
+            location.href = 'pruebas.html';
+        } else {
+            // Sin rol asignado: mostramos mensaje y cerramos sesión
+            const msg = document.getElementById('login-mensaje');
+            if (msg) msg.textContent = 'Tu cuenta no tiene rol asignado. Contacta al administrador.';
+            await auth.signOut();
+        }
+    } catch (e) {
+        console.error(e);
     }
 });
 
@@ -91,6 +97,16 @@ const btn = document.getElementById("btn-login");
 const inputEmail = document.getElementById("login-email");
 const inputPass = document.getElementById("login-password");
 const msg = document.getElementById("login-mensaje");
+const btnTogglePass = document.getElementById('btn-toggle-pass');
+
+// Mostrar/ocultar contraseña
+if (btnTogglePass) {
+    btnTogglePass.addEventListener('click', () => {
+        const isPwd = inputPass.type === 'password';
+        inputPass.type = isPwd ? 'text' : 'password';
+        btnTogglePass.textContent = isPwd ? '🙈' : '👁';
+    });
+}
 
 btn.addEventListener("click", async () => {
     msg.textContent = "";

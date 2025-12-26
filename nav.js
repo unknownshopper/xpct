@@ -28,6 +28,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // -- Control de UI por roles (director, inspector, capturista) --
+    (async () => {
+        try {
+            // Esperar a que Firebase App esté lista
+            await new Promise(r => setTimeout(r, 400));
+            const { getAuth, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+            const auth = getAuth();
+            onAuthStateChanged(auth, async (user) => {
+                if (!user) return;
+                try {
+                    const idTok = await user.getIdTokenResult();
+                    const role = (idTok && idTok.claims && idTok.claims.role) || null;
+
+                    const isAdmin = role === 'admin';
+                    const isDirector = role === 'director';
+                    const isInspector = role === 'inspector';
+                    const isCapturista = role === 'capturista';
+
+                    // Para director/inspector/capturista: ocultar actividadmin en la navegación
+                    if (isDirector || isInspector || isCapturista) {
+                        document.querySelectorAll('a[href*="actividadmin"]').forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = 'none';
+                        });
+                    }
+
+                    // Redirigir a directores si abren actividadmin.html directamente
+                    if (isDirector) {
+                        try {
+                            const here = (location.pathname || '').toLowerCase();
+                            if (here.includes('actividadmin.html')) {
+                                location.href = 'index.html';
+                            }
+                        } catch {}
+                    }
+
+                    // Ocultar elementos marcados como solo-admin para no-admins (si existen en el DOM)
+                    if (!isAdmin) {
+                        document.querySelectorAll('.admin-only, [data-admin-only="true"]').forEach(el => {
+                            el.style.display = 'none';
+                        });
+                    }
+
+                    // Inspectores/Capturistas: opcionalmente podríamos ocultar otras rutas si están marcadas
+                    // por atributos data-role en el HTML. Si no existen, esto no afecta nada.
+                } catch {}
+            });
+        } catch {}
+    })();
+
     // -- Notificaciones (toast) de pruebas por caducar: resumen al entrar al sistema --
     // Se muestra a lo sumo 1 vez por día por navegador.
     (async () => {

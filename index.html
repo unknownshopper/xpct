@@ -119,19 +119,10 @@
     const auth = getAuth(app);
     window.auth = auth;
 
-    const ADMINS = [
-        "the@unknownshoppers.com",
-        "jalcz@pct.com"
-    ];
-    const INSPECTORES = [
-        "inspector01@pct.com",
-        "inspector02@pct.com"
-    ];
-
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
@@ -140,16 +131,28 @@
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
-        // Marcar flag global de admin para el navbar
-        window.isAdmin = ADMINS.includes(email);
+        try {
+            const token = await user.getIdTokenResult(true); // refresca claims
+            const role = (token?.claims?.role) || null;
+            // Marcar flag global de admin para el navbar y nav.js
+            window.isAdmin = role === 'admin';
 
-        // Solo admins deben ver index
-        if (!ADMINS.includes(email)) {
-            if (INSPECTORES.includes(email)) {
+            if (role === 'admin' || role === 'director') {
+                // Puede permanecer en dashboard (index.html)
+                return;
+            } else if (role === 'inspector') {
                 window.location.href = 'inspeccion.html';
+                return;
+            } else if (role === 'capturista') {
+                window.location.href = 'pruebas.html';
+                return;
             } else {
+                // Sin rol asignado
+                await signOut(auth);
                 window.location.href = 'login.html';
             }
+        } catch (e) {
+            console.error(e);
         }
     });
 
