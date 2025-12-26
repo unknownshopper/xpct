@@ -7,7 +7,7 @@ import path from 'path';
 function ensureAdmin() {
   if (admin.apps.length) return;
   // Prefer explicit file path if provided
-  const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_FILE;
+  const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const jsonEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   let creds = null;
   try {
