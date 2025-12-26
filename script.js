@@ -1288,8 +1288,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let listaActividad = [];
 
-    // Mapa descripcion por equipo desde invre.csv para vista operación
+    // Mapas desde inventario para vista operación
     const mapaDescripcionPorEquipoList = {};
+    const mapaEstadoPorEquipoList = {};
 
     (async () => {
         try {
@@ -1305,7 +1306,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const headers = parse(lineas[0]);
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxDesc = headers.indexOf('DESCRIPCION');
+            const idxEdo = headers.indexOf('EDO');
             if (idxEquipo < 0 || idxDesc < 0) return;
+
+            // Overrides de estado desde localStorage
+            const claveEstadoOverride = 'pct_invre_estado_override';
+            let overrides = {};
+            try {
+                overrides = JSON.parse(localStorage.getItem(claveEstadoOverride) || '{}') || {};
+            } catch { overrides = {}; }
 
             lineas.slice(1).forEach(l => {
                 const cols = parse(l);
@@ -1314,6 +1323,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!eq || !desc) return;
                 if (!mapaDescripcionPorEquipoList[eq]) {
                     mapaDescripcionPorEquipoList[eq] = desc;
+                }
+                // Estado efectivo
+                if (!mapaEstadoPorEquipoList[eq]) {
+                    let edoBase = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
+                    edoBase = (edoBase || '').toString().trim().toUpperCase() || 'ON';
+                    const ov = overrides[eq];
+                    const edoEfectivo = ov ? String(ov).trim().toUpperCase() : edoBase;
+                    mapaEstadoPorEquipoList[eq] = edoEfectivo;
                 }
             });
         } catch (e) {
@@ -1425,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoCliente = document.createElement('tr');
                     trGrupoCliente.className = 'actlist-group-cliente';
                     trGrupoCliente.innerHTML = `
-                        <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em; cursor:pointer;">
+                        <td colspan="14" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em; cursor:pointer;">
                             CLIENTE: ${clienteActual}
                         </td>
                     `;
@@ -1438,7 +1455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoArea = document.createElement('tr');
                     trGrupoArea.className = 'actlist-group-area';
                     trGrupoArea.innerHTML = `
-                        <td colspan="13" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                        <td colspan="14" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                             Área: ${areaActual}
                         </td>
                     `;
@@ -1450,7 +1467,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoUbic = document.createElement('tr');
                     trGrupoUbic.className = 'actlist-group-ubic';
                     trGrupoUbic.innerHTML = `
-                        <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                        <td colspan="14" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
                             Ubicación: ${ubicacionActual}
                         </td>
                     `;
@@ -1458,6 +1475,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const tr = document.createElement('tr');
+                const edoEquipo = (mapaEstadoPorEquipoList[equipoNombre] || '').toString().toUpperCase();
+                if (edoEquipo === 'OFF') {
+                    return; // no mostrar equipos OFF en actividad
+                }
+                const estadoActividad = (reg.estadoActividad || 'ABIERTO').toString().toUpperCase();
+                const esAdmin = !!(window && window.isAdmin);
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                         <input type="checkbox" class="actlist-select-fila" data-id="${id}">
@@ -1470,6 +1493,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        ${esAdmin
+                            ? `<select class="actlist-select-estado estado-select ${estadoActividad === 'ABIERTO' ? 'abierto' : 'cerrado'}" data-id="${id}" style="font-size:0.8rem; padding:0.15rem 0.3rem; border:1px solid #d1d5db; border-radius:0.25rem;">
+                                    <option value="ABIERTO" ${estadoActividad === 'ABIERTO' ? 'selected' : ''}>ABIERTO</option>
+                                    <option value="CERRADO" ${estadoActividad === 'CERRADO' ? 'selected' : ''}>CERRADO</option>
+                               </select>`
+                            : `<span class="estado-pill ${estadoActividad === 'ABIERTO' ? 'abierto' : 'cerrado'}">${estadoActividad}</span>`}
+                    </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                         <input type="text" class="actlist-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
@@ -1502,6 +1533,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lblCont) {
             lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
         }
+
+        // Guardar cambios de estado de actividad (solo admin)
+        tbody.querySelectorAll('.actlist-select-estado').forEach(sel => {
+            sel.addEventListener('change', async () => {
+                const id = sel.getAttribute('data-id');
+                if (!id) return;
+                const nuevoEstado = (sel.value || '').toUpperCase();
+                try {
+                    const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const db = getFirestore();
+                    const ref = doc(db, 'actividades', id);
+                    await updateDoc(ref, { estadoActividad: nuevoEstado });
+                } catch (e) {
+                    console.error('Error al actualizar estadoActividad', e);
+                }
+                // Actualizar clases visuales del select
+                sel.classList.remove('abierto', 'cerrado');
+                sel.classList.add(nuevoEstado === 'ABIERTO' ? 'abierto' : 'cerrado');
+            });
+        });
 
         // Listeners de colapsado por cliente, área y ubicación
         const colapsarDesde = (tr, nivel) => {

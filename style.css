@@ -655,6 +655,36 @@ select.form-input {
     gap: 1rem;
 }
 
+/* Estado (ABIERTO/CERRADO) en actividadlist */
+.estado-pill {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+.estado-pill.abierto {
+    background: #dcfce7; /* green-100 */
+    color: #14532d;
+    border-color: #bbf7d0;
+}
+.estado-pill.cerrado {
+    background: #e5e7eb; /* gray-200 */
+    color: #111827;
+    border-color: #d1d5db;
+}
+.estado-select.abierto {
+    background: #dcfce7; /* green-100 */
+    color: #14532d;
+    border-color: #bbf7d0;
+}
+.estado-select.cerrado {
+    background: #e5e7eb; /* gray-200 */
+    color: #111827;
+    border-color: #d1d5db;
+}
+
 /* En el listado de actividades queremos usar todo el ancho del navegador */
 .actividad-page.actividadlist-wrap {
     max-width: 100%;
