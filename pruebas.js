@@ -493,10 +493,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (val === 'VT / PT / MT' && tieneOpcionesDetalle) {
             campoDetalle.style.display = 'block';
+            if (selDetalle) selDetalle.required = true;
         } else {
             campoDetalle.style.display = 'none';
             const det = document.getElementById('inv-prueba-detalle');
             if (det) det.value = '';
+            if (selDetalle) selDetalle.required = false;
         }
     }
 
@@ -833,13 +835,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const fechaRealizacion = document.getElementById('inv-fecha-realizacion')?.value || '';
+        const noReporteVal = (document.getElementById('inv-no-reporte')?.value || '').trim();
 
-        // Para periodos Post-trabajo o Reparación, la fecha de realización es obligatoria
-        if ((periodo === 'POST-TRABAJO' || periodo === 'REPARACION') && !fechaRealizacion.trim()) {
-            alert('Para periodos Post-trabajo o Reparación debes indicar la fecha de realización.');
+        // REGLA GLOBAL: Fecha de realización y No. de reporte/certificado son obligatorios para todos los roles y periodos
+        if (!fechaRealizacion.trim()) {
+            alert('Indica la fecha de realización (dd/mm/aa).');
             if (inputFechaReal) inputFechaReal.focus();
             return;
         }
+        // Validación de formato dd/mm/aa y fecha válida
+        (function validarFechaDDMMAA() {
+            const val = fechaRealizacion.trim();
+            if (val.length !== 8 || val.indexOf('/') !== 2 || val.lastIndexOf('/') !== 5) {
+                alert('La fecha de realización debe tener el formato dd/mm/aa.');
+                if (inputFechaReal) inputFechaReal.focus();
+                throw new Error('Formato de fecha inválido');
+            }
+            const [ddStr, mmStr, aaStr] = val.split('/');
+            const dd = parseInt(ddStr, 10);
+            const mm = parseInt(mmStr, 10);
+            const aa = parseInt(aaStr, 10);
+            if (!dd || !mm || isNaN(aa)) {
+                alert('La fecha de realización es inválida.');
+                if (inputFechaReal) inputFechaReal.focus();
+                throw new Error('Fecha inválida');
+            }
+            const year = 2000 + aa;
+            const fecha = new Date(year, mm - 1, dd);
+            // Comprobar que el date coincide con componentes (evita 31/02/25)
+            if (
+                isNaN(fecha.getTime()) ||
+                fecha.getFullYear() !== year ||
+                (fecha.getMonth() + 1) !== mm ||
+                fecha.getDate() !== dd
+            ) {
+                alert('La fecha de realización no es una fecha válida.');
+                if (inputFechaReal) inputFechaReal.focus();
+                throw new Error('Fecha inválida');
+            }
+        })();
+
+        if (!noReporteVal) {
+            alert('Indica el No. de reporte / certificado.');
+            const el = document.getElementById('inv-no-reporte');
+            if (el) el.focus();
+            return;
+        }
+
+        // Si el tipo es VT / PT / MT y existen opciones de detalle, el detalle es obligatorio
+        (function validarDetalleCondicional() {
+            const tipoUpper = (pruebaTipo || '').toUpperCase();
+            const selDet = document.getElementById('inv-prueba-detalle');
+            const opciones = selDet ? Array.from(selDet.options || []) : [];
+            const hayOpciones = opciones.some(o => o.value && o.value !== '');
+            if (tipoUpper === 'VT / PT / MT' && hayOpciones) {
+                if (!pruebaDetalle) {
+                    alert('Selecciona el detalle de la prueba.');
+                    if (selDet) selDet.focus();
+                    throw new Error('Detalle de prueba requerido');
+                }
+            }
+        })();
 
         if (!resultado) {
             alert('Selecciona el resultado de la prueba.');
@@ -867,7 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
             descripcion: document.getElementById('inv-descripcion')?.value || '',
             material: document.getElementById('inv-material')?.value || '',
             area: document.getElementById('inv-area')?.value || '',
-            noReporte: document.getElementById('inv-no-reporte')?.value || '',
+            noReporte: noReporteVal,
             ejecucion: document.getElementById('inv-ejecucion')?.value || '',
             periodo,
             emisor,
