@@ -171,22 +171,32 @@
                 Se muestran las pruebas registradas en Firestore y su estado de vigencia según la fecha de próxima prueba.
             </p>
 
-            <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
-                <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+            <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
+                <!-- Left: search -->
+                <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                     <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
                 </div>
-                <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563; display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
-                    <div>
-                        <span id="pruebas-contador-pendientes">0 por realizar</span>
-                        <span style="margin:0 0.5rem;">·</span>
-                        <span id="pruebas-contador-vencidas">0 vencidas</span>
-                        <span style="margin:0 0.5rem;">·</span>
-                        <span id="pruebas-contador-historico">0 en histórico</span>
+                <!-- Center: counters as chips -->
+                <div class="actividad-toolbar-center" style="flex:1; display:flex; justify-content:center;">
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+                        <span id="pruebas-contador-historico" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #e5e7eb; border-radius:999px; background:#f9fafb; font-weight:600;">
+                            0 en histórico
+                        </span>
+                        <span id="pruebas-contador-anual" title="Pruebas ANUALES" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #dbeafe; border-radius:999px; background:#eff6ff; color:#1d4ed8;">
+                            Anual: 0
+                        </span>
+                        <span id="pruebas-contador-pt" title="Pruebas Post-trabajo" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #fde68a; border-radius:999px; background:#fffbeb; color:#b45309;">
+                            Post-trabajo: 0
+                        </span>
+                        <span id="pruebas-contador-rep" title="Pruebas de Reparación" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #e5e7eb; border-radius:999px; background:#f3f4f6; color:#374151;">
+                            Reparación: 0
+                        </span>
                     </div>
-                    <div style="display:flex; gap:0.5rem;">
-                        <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
-                        <button id="btn-pruebas-export-csv">Exportar CSV</button>
-                    </div>
+                </div>
+                <!-- Right: actions -->
+                <div class="actividad-toolbar-right" style="display:flex; gap:0.5rem; margin-left:auto;">
+                    <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
+                    <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
             </section>
 
@@ -256,6 +266,8 @@
             return;
         }
 
+        // (Se calcula tras cargar las pruebas en cargarPruebasDesdeFirestore)
+
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
@@ -293,6 +305,9 @@
         const lblPend = document.getElementById('pruebas-contador-pendientes');
         const lblVenc = document.getElementById('pruebas-contador-vencidas');
         const lblHist = document.getElementById('pruebas-contador-historico');
+        const lblAnual = document.getElementById('pruebas-contador-anual');
+        const lblPT = document.getElementById('pruebas-contador-pt');
+        const lblRep = document.getElementById('pruebas-contador-rep');
 
         const tbodyResumen = document.getElementById('tbody-pruebas-resumen');
         const msgResumen = document.getElementById('mensaje-sin-pruebas-resumen');
@@ -398,6 +413,21 @@
                 pruebas = [];
             }
         }
+
+        // Actualizar contadores de tipos (Anual, Post-trabajo, Reparación) con base en TODAS las pruebas (sin filtros)
+        (function actualizarContadoresTiposLocal() {
+            if (!Array.isArray(pruebas)) return;
+            let cAnual = 0, cPT = 0, cRep = 0;
+            pruebas.forEach(reg => {
+                const p = (reg && reg.periodo ? String(reg.periodo) : '').trim().toUpperCase();
+                if (p === 'POST-TRABAJO') cPT += 1;
+                else if (p === 'REPARACION') cRep += 1;
+                else cAnual += 1; // incluye vacío como ANUAL (compat)
+            });
+            if (lblAnual) lblAnual.textContent = `Anual: ${cAnual}`;
+            if (lblPT) lblPT.textContent = `Post-trabajo: ${cPT}`;
+            if (lblRep) lblRep.textContent = `Reparación: ${cRep}`;
+        })();
 
         async function cargarInventarioDesdeCsv() {
             try {
@@ -902,14 +932,13 @@
                 if (lblResCaducadas) lblResCaducadas.textContent = String(cntEquiposVenc);
             }
 
-            // Ordenar priorizando próximas a vencer (VIGENTE con días >= 0, ascendente) según última ANUAL del equipo,
+            // Ordenar priorizando próximas a vencer (VIGENTE con días >= 0, ascendente) POR PRUEBA,
             // luego vencidas, luego sin fecha, y en cada grupo por fecha de realización desc.
             function diasHastaProxima(reg) {
-                const eq = (reg.equipo || '').toString();
-                const ref = anualPorEquipo.get(eq);
-                if (!ref || !ref._clasif || !ref._clasif.proxima) return null;
+                const clasif = clasificarPrueba(reg);
+                if (!clasif || !clasif.proxima) return null;
                 const hoy0 = hoySinHora();
-                const diffMs = ref._clasif.proxima.getTime() - hoy0.getTime();
+                const diffMs = clasif.proxima.getTime() - hoy0.getTime();
                 let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
                 return dias;
             }
@@ -917,8 +946,8 @@
             const listaOrdenada = [...historico].sort((a, b) => {
                 const da = diasHastaProxima(a);
                 const db = diasHastaProxima(b);
-                const ea = (anualPorEquipo.get((a.equipo || '').toString())?._clasif?.estado) || 'SIN_FECHA';
-                const eb = (anualPorEquipo.get((b.equipo || '').toString())?._clasif?.estado) || 'SIN_FECHA';
+                const ea = (clasificarPrueba(a)?.estado) || 'SIN_FECHA';
+                const eb = (clasificarPrueba(b)?.estado) || 'SIN_FECHA';
 
                 const cat = (regEstado, dias) => {
                     if (regEstado === 'VIGENTE' && dias !== null && dias >= 0) return 0; // próximas a vencer
@@ -956,18 +985,11 @@
                 const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
-                const eq = (reg.equipo || '').toString();
-                const refAnual = anualPorEquipo.get(eq) || null;
-                const estado = refAnual ? refAnual._clasif.estado : 'SIN_FECHA';
-                const proximaStr = refAnual
-                    ? ((refAnual.proxima && String(refAnual.proxima)) || formateaDDMMAA(refAnual._clasif.proxima))
+                const clasif = clasificarPrueba(reg);
+                const estado = clasif ? clasif.estado : 'SIN_FECHA';
+                const proximaStr = clasif && clasif.proxima
+                    ? (reg.proxima ? String(reg.proxima) : formateaDDMMAA(clasif.proxima))
                     : '';
-
-                // Contadores: por realizar = vigentes + vencidas
-                if (estado === 'VIGENTE' || estado === 'VENCIDA') {
-                    cntPend += 1;
-                    if (estado === 'VENCIDA') cntVenc += 1;
-                }
 
                 const fila = document.createElement('tr');
 
@@ -979,9 +1001,9 @@
                 // Cálculo de días restantes hasta la próxima prueba
                 let diasParaProxima = '';
                 let diasNum = null;
-                if (refAnual && refAnual._clasif.proxima) {
+                if (clasif && clasif.proxima) {
                     const hoy = hoySinHora();
-                    const diffMs = refAnual._clasif.proxima.getTime() - hoy.getTime();
+                    const diffMs = clasif.proxima.getTime() - hoy.getTime();
                     let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
                     if (dias < 0) dias = 0; // para vencidas mostramos 0
                     diasNum = dias;
@@ -989,7 +1011,9 @@
                 }
 
                 // Contar alertas por PRUEBA (no por equipo), solo vigentes; rangos: 60–31, 30–16, 15–1
-                if (estado === 'VIGENTE' && diasNum !== null && diasNum >= 1) {
+                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                if (esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 1) {
                     if (diasNum >= 31 && diasNum <= 60) {
                         cntChip60 += 1;
                     } else if (diasNum >= 16 && diasNum <= 30) {
@@ -998,15 +1022,16 @@
                         cntChip15 += 1;
                     }
                 }
-                if (estado === 'VIGENTE' && diasNum !== null && diasNum > 60) {
+                if (esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum > 60) {
                     cntChipGT60 += 1;
                 }
-                if (estado === 'VENCIDA') {
+                if (esAnualReg && estado === 'VENCIDA') {
                     cntChip0 += 1;
                 }
 
                 // Aplicar filtro por rango si está activo (solo vigentes), rangos: 60–31, 30–16, 15–1
-                if (filtroRango) {
+                // Importante: SOLO filtra ANUAL; los checkpoints (POST-TRABAJO, REPARACION) siguen visibles
+                if (filtroRango && esAnualReg) {
                     if (filtroRango === '0') {
                         if (estado !== 'VENCIDA') return;
                     } else if (filtroRango === 'gt60') {
@@ -1017,6 +1042,16 @@
                         if (filtroRango === '30' && !(diasNum >= 16 && diasNum <= 30)) return;
                         if (filtroRango === '15' && !(diasNum >= 1 && diasNum <= 15)) return;
                     }
+                }
+
+                // Contadores alineados al dashboard (después de calcular diasNum):
+                // - "Por realizar" = pruebas ANUALES vigentes cuyo dProx está entre 0 y 60 días (suma de 60–30, 30–15, 15–0)
+                // - "Vencidas" = pruebas ANUALES con próxima ya pasada (estado VENCIDA)
+                if (esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 0 && diasNum <= 60) {
+                    cntPend += 1;
+                }
+                if (esAnualReg && estado === 'VENCIDA') {
+                    cntVenc += 1;
                 }
 
                 // Badge visual según estado, días restantes y resultado (solo presentación)

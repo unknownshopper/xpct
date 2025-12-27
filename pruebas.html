@@ -224,31 +224,7 @@
                     return;
                 }
 
-                // Autocompletar Técnico para cualquier usuario logueado; bloquear solo si es capturista
-                const tecnicoMapGlobal = {
-                    'sgi@pc-t.com.mx': 'Rubén',
-                    'auxger@pc-t.com.mx': 'Valeria',
-                    'capturista@pc-t.com.mx': 'Capturista',
-                    'inspector01@pc-t.com.mx': 'Inspector',
-                    'the@unknownshoppers.com': 'admin',
-                    'jalcz@pc-t.com.mx': 'JALCZ',
-                    'lgmt@pc-t.com.mx': 'LGMT',
-                };
-                const tecnicoInput = document.getElementById('inv-tecnico');
-                if (tecnicoInput) {
-                    const nombreAuto = tecnicoMapGlobal[email] || '';
-                    if (nombreAuto) {
-                        tecnicoInput.value = nombreAuto;
-                    }
-                    // Solo capturista queda bloqueado
-                    if (window.isCapturista && tecnicoInput.value) {
-                        tecnicoInput.readOnly = true;
-                        tecnicoInput.title = 'Asignado automáticamente por perfil de capturista';
-                    } else {
-                        tecnicoInput.readOnly = false;
-                        tecnicoInput.title = '';
-                    }
-                }
+                // El campo Técnico queda abierto para que lo capture el usuario (sin autocompletar ni bloquear)
             } catch {}
         });
 

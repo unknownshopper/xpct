@@ -809,24 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (emisorEl) emisorEl.focus();
             return;
         }
-        // Para CAPTURISTA, forzar técnico según email (evitar manipulación del DOM)
-        try {
-            if (window.isCapturista) {
-                const email = (window.currentUserEmail || '').toLowerCase();
-                const map = {
-                    'auxger@pc-t.com.mx': 'Valeria',
-                    'capturista@pc-t.com.mx': 'Capturista',
-                };
-                const nombre = map[email] || '';
-                if (nombre) {
-                    tecnico = nombre;
-                    if (tecnicoEl) {
-                        tecnicoEl.value = nombre;
-                        tecnicoEl.readOnly = true;
-                    }
-                }
-            }
-        } catch {}
+        // El campo Técnico queda libre: no forzamos el valor por rol
 
         if (!tecnico) {
             alert('Indica el técnico.');
