@@ -224,20 +224,29 @@
                     return;
                 }
 
-                // Autocompletar y bloquear técnico para CAPTURISTA según email
-                if (window.isCapturista) {
-                    const tecnicoMap = {
-                        'auxger@pc-t.com.mx': 'Valeria',
-                        'capturista@pc-t.com.mx': 'Capturista',
-                    };
-                    const tecnicoInput = document.getElementById('inv-tecnico');
-                    if (tecnicoInput) {
-                        const nombre = tecnicoMap[email] || '';
-                        if (nombre) {
-                            tecnicoInput.value = nombre;
-                            tecnicoInput.readOnly = true; // impedir cambios manuales
-                            tecnicoInput.title = 'Asignado automáticamente por perfil de capturista';
-                        }
+                // Autocompletar Técnico para cualquier usuario logueado; bloquear solo si es capturista
+                const tecnicoMapGlobal = {
+                    'sgi@pc-t.com.mx': 'Rubén',
+                    'auxger@pc-t.com.mx': 'Valeria',
+                    'capturista@pc-t.com.mx': 'Capturista',
+                    'inspector01@pc-t.com.mx': 'Inspector',
+                    'the@unknownshoppers.com': 'admin',
+                    'jalcz@pc-t.com.mx': 'JALCZ',
+                    'lgmt@pc-t.com.mx': 'LGMT',
+                };
+                const tecnicoInput = document.getElementById('inv-tecnico');
+                if (tecnicoInput) {
+                    const nombreAuto = tecnicoMapGlobal[email] || '';
+                    if (nombreAuto) {
+                        tecnicoInput.value = nombreAuto;
+                    }
+                    // Solo capturista queda bloqueado
+                    if (window.isCapturista && tecnicoInput.value) {
+                        tecnicoInput.readOnly = true;
+                        tecnicoInput.title = 'Asignado automáticamente por perfil de capturista';
+                    } else {
+                        tecnicoInput.readOnly = false;
+                        tecnicoInput.title = '';
                     }
                 }
             } catch {}
