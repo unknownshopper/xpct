@@ -77,6 +77,9 @@ onAuthStateChanged(auth, async (user) => {
         } else if (role === 'director') {
             // Director entra al dashboard; (actividadmin está oculto por nav.js y Rules)
             location.href = 'index.html';
+        } else if (role === 'supervisor') {
+            // Supervisor tiene permisos de edición sin eliminación; entra al dashboard
+            location.href = 'index.html';
         } else if (role === 'inspector') {
             location.href = 'inspeccion.html';
         } else if (role === 'capturista') {
@@ -93,7 +96,7 @@ onAuthStateChanged(auth, async (user) => {
                     const r = (t?.claims?.role) || null;
                     if (r) {
                         clearInterval(timer);
-                        if (r === 'admin' || r === 'director') location.href = 'index.html';
+                        if (r === 'admin' || r === 'director' || r === 'supervisor') location.href = 'index.html';
                         else if (r === 'inspector') location.href = 'inspeccion.html';
                         else if (r === 'capturista') location.href = 'pruebas.html';
                         return;

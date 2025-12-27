@@ -134,10 +134,12 @@
         try {
             const token = await user.getIdTokenResult(true); // refresca claims
             const role = (token?.claims?.role) || null;
-            // Marcar flag global de admin para el navbar y nav.js
+            // Marcar flags globales para el navbar y nav.js
             window.isAdmin = role === 'admin';
+            window.isDirector = role === 'director';
+            window.isSupervisor = role === 'supervisor';
 
-            if (role === 'admin' || role === 'director') {
+            if (role === 'admin' || role === 'director' || role === 'supervisor') {
                 // Puede permanecer en dashboard (index.html)
                 return;
             } else if (role === 'inspector') {

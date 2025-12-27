@@ -265,6 +265,7 @@
             window.userRole = role;
             window.isAdmin = role === 'admin';
             window.isDirector = role === 'director';
+            window.isSupervisor = role === 'supervisor';
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
         } catch {}
@@ -344,6 +345,13 @@
         const chkSelectTodos = document.getElementById('pruebas-select-todos');
         const btnEliminar = document.getElementById('btn-pruebas-eliminar');
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
+
+        const permitirEliminar = !!(window.isAdmin || window.isDirector);
+        // Ocultar botón eliminar y cabecera de checkbox si no tiene permiso
+        if (btnEliminar) btnEliminar.style.display = permitirEliminar ? '' : 'none';
+        if (chkSelectTodos && chkSelectTodos.closest && chkSelectTodos.closest('th')) {
+            chkSelectTodos.closest('th').style.display = permitirEliminar ? '' : 'none';
+        }
 
         // Id (o clave) de la prueba actualmente seleccionada en el panel de detalle
         let pruebaSeleccionadaId = null;
@@ -432,6 +440,39 @@
 
         await cargarInventarioDesdeCsv();
 
+        // Helpers para formatear 'Fecha de registro' (usa creadoEn con fallback a fechaPrueba)
+        function toDateGeneric(val) {
+            if (!val) return null;
+            try {
+                if (val && typeof val === 'object' && typeof val.toDate === 'function') {
+                    return val.toDate();
+                }
+                if (val instanceof Date) return new Date(val);
+                if (typeof val === 'number' && isFinite(val)) return new Date(val);
+                const s = String(val).trim();
+                if (!s) return null;
+                const d = new Date(s);
+                return isNaN(d.getTime()) ? null : d;
+            } catch { return null; }
+        }
+
+        function formatoFechaHora(d) {
+            if (!d || isNaN(d.getTime())) return '';
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const yyyy = d.getFullYear();
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mi = String(d.getMinutes()).padStart(2, '0');
+            return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+        }
+
+        function obtenerFechaRegistroTexto(reg) {
+            const d = toDateGeneric(reg && reg.creadoEn);
+            if (d) return formatoFechaHora(d);
+            const d2 = toDateGeneric(reg && reg.fechaPrueba);
+            return d2 ? formatoFechaHora(d2) : '';
+        }
+
         function parseFechaRealizacion(val) {
             if (!val) return null;
             // Firestore Timestamp
@@ -501,8 +542,8 @@
                 ['Descripción', reg.descripcion || ''],
                 ['Prueba / Calibración', reg.prueba || reg.pruebaTipo || ''],
                 ['Resultado', reg.resultado || ''],
-                ['Periodo', reg.periodo || ''],
-                ['Fecha de registro', reg.fechaPrueba || ''],
+                ['Periodo', reg.periodo || ''], 
+                ['Fecha de registro', obtenerFechaRegistroTexto(reg)],
                 ['Fecha realización', reg.fechaRealizacion || ''],
                 ['Próxima prueba', reg.proxima || ''],
                 ['Días para próxima', diasParaProximaDetalle],
@@ -557,7 +598,7 @@
                 ['Prueba / Calibración', reg.prueba || reg.pruebaTipo || ''],
                 ['Resultado', reg.resultado || ''],
                 ['Periodo', reg.periodo || ''],
-                ['Fecha de registro', reg.fechaPrueba || ''],
+                ['Fecha de registro', obtenerFechaRegistroTexto(reg)],
                 ['Fecha realización', reg.fechaRealizacion || ''],
                 ['Próxima prueba', reg.proxima || ''],
                 ['Días para próxima', diasParaProximaDetalle],
@@ -610,7 +651,7 @@
             const detalleTr = document.createElement('tr');
             detalleTr.className = 'pl-detalle-row';
             const detalleTd = document.createElement('td');
-            detalleTd.colSpan = 15; // total de columnas en la tabla de listado
+            detalleTd.colSpan = permitirEliminar ? 15 : 14; // ajustar si no hay columna de selección
             detalleTd.innerHTML = construirDetalleHTML(reg);
             detalleTr.appendChild(detalleTd);
             fila.insertAdjacentElement('afterend', detalleTr);
@@ -1012,7 +1053,7 @@
                 const esAdmin = !!window.isAdmin;
                 const periodoTexto = periodoActual || '';
 
-                const esEditable = !!(window.isAdmin || window.isDirector);
+                const esEditable = !!(window.isAdmin || window.isDirector || window.isSupervisor);
                 const celdaPeriodo = esEditable
                     ? `<select class="pl-periodo" data-id="${reg.id || ''}">
                             <option value=""></option>
@@ -1029,8 +1070,9 @@
 
                 const textoNoRep = (reg.noReporte || '').toString();
                 const celdaNoRep = esEditable
-                    ? `<input type="text" class="pl-norep" data-id="${reg.id || ''}" value="${textoNoRep.replace(/"/g, '&quot;')}">`
-                    : textoNoRep;
+                    ? `<input type="text" class="pl-norep" required data-id="${reg.id || ''}" data-prev="$
+                    {textoNoRep.replace(/"/g, '&quot;')}" value="${textoNoRep.replace(/"/g, '&quot;')}">`
+    : textoNoRep;
 
                 const resultadoActual = (reg.resultado || '').toString();
                 const celdaResultado = esEditable
@@ -1042,7 +1084,7 @@
                     : resultadoActual;
 
                 fila.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}"></td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${permitirEliminar ? `<input type="checkbox" class="prueba-select" data-idx="${idx}">` : ``}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
@@ -1123,7 +1165,7 @@
         actualizarChipsUI();
         render();
 
-        if (chkSelectTodos) {
+        if (permitirEliminar && chkSelectTodos) {
             chkSelectTodos.addEventListener('change', () => {
                 const checks = tbodyListado.querySelectorAll('.prueba-select');
                 checks.forEach(chk => {
@@ -1370,27 +1412,35 @@
             btnEliminar.addEventListener('click', eliminarSeleccionadas);
         }
 
-        // Delegación de eventos para inputs/selects editables de prueba, noReporte y resultado
-        tbodyListado.addEventListener('change', (ev) => {
-            const target = ev.target;
-            if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
+   // Delegación de eventos para inputs/selects editables de prueba, noReporte y resultado
+tbodyListado.addEventListener('change', (ev) => {
+  const target = ev.target;
+  if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
 
-            const id = target.getAttribute('data-id') || '';
-            const valor = (target.value || '').trim();
+  const id = target.getAttribute('data-id') || '';
+  const valor = (target.value || '').trim();
 
-            if (target.classList.contains('pl-prueba')) {
-                actualizarCampoPrueba(id, valor);
-            } else if (target.classList.contains('pl-norep')) {
-                actualizarCampoNoReporte(id, valor);
-            } else if (target.classList.contains('pl-resultado')) {
-                actualizarCampoResultado(id, valor);
-            } else if (target.classList.contains('pl-periodo')) {
-                actualizarCampoPeriodo(id, valor || '');
-            }
-        });
-
-        render();
+  if (target.classList.contains('pl-prueba')) {
+    actualizarCampoPrueba(id, valor);
+  } else if (target.classList.contains('pl-norep')) {
+    if (!valor) {
+      alert('El campo "No. reporte / cert." es requerido.');
+      const prev = target.getAttribute('data-prev') || '';
+      target.value = prev;
+      return;
     }
-    </script>
+    actualizarCampoNoReporte(id, valor);
+    target.setAttribute('data-prev', valor);
+  } else if (target.classList.contains('pl-resultado')) {
+    actualizarCampoResultado(id, valor);
+  } else if (target.classList.contains('pl-periodo')) {
+    actualizarCampoPeriodo(id, valor || '');
+  }
+});
+
+// Asegura ejecutar un render final tras registrar handlers
+render();
+}
+</script>
 </body>
 </html>

@@ -499,6 +499,25 @@ document.addEventListener('DOMContentLoaded', () => {
             if (det) det.value = '';
         }
     }
+
+    // Sincronizar Emisor según Ejecución (INTERNO => PCT bloqueado, EXTERNO => editable)
+    (function configurarEjecucionYEmisor() {
+        const selEjec = document.getElementById('inv-ejecucion');
+        const emisorEl = document.getElementById('inv-emisor');
+        if (!selEjec || !emisorEl) return;
+        const sync = () => {
+            const val = (selEjec.value || '').toUpperCase();
+            if (val === 'INTERNO') {
+                emisorEl.value = 'PCT';
+                emisorEl.readOnly = true;
+            } else {
+                emisorEl.readOnly = false;
+                if (emisorEl.value === 'PCT') emisorEl.value = '';
+            }
+        };
+        selEjec.addEventListener('change', sync);
+        sync();
+    })();
 });
 
 // Guardado de pruebas en pruebas.html
@@ -719,6 +738,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const selEjecucion = document.getElementById('inv-ejecucion');
         if (selEjecucion) selEjecucion.value = 'INTERNO';
+
+        const emisorEl = document.getElementById('inv-emisor');
+        if (emisorEl) {
+            emisorEl.value = 'PCT';
+            emisorEl.readOnly = true;
+        }
 
         const inputProx = document.getElementById('inv-proxima');
         if (inputProx) inputProx.value = '';

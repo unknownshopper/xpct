@@ -139,6 +139,49 @@ SMTP_PASS=********
 
 Notas:
 - Usa UNA de las dos opciones para credenciales de Firebase Admin (A o B).
+
+## Roles y Permisos
+
+Definición de roles y su alcance en la aplicación. Inspector y Capturista comparten exactamente las mismas restricciones; únicamente `sgi@pc-t.com.mx` pasa a ser Supervisor.
+
+- **admin**
+  - Acceso total a todas las páginas y acciones.
+  - Puede crear, editar, eliminar y exportar en listados de Pruebas e Inspecciones.
+  - Acceso a secciones de administración (actividadmin, trazabilidades, etc.).
+
+- **director**
+  - Acceso casi total (misma edición que admin) incluyendo eliminar y exportar.
+  - Acceso a listados y alta de Pruebas e Inspecciones. Administración según se defina (por defecto, solo admin).
+
+- **supervisor** (asignado a `sgi@pc-t.com.mx`)
+  - Puede crear nuevas Pruebas e Inspecciones.
+  - En listados (pruebaslist, inspectlist): puede editar campos permitidos (p. ej. Prueba/Calib., No. reporte/cert. —requerido—, Resultado, Periodo), ver detalle y exportar CSV.
+  - No puede eliminar registros (no ve botón “Eliminar seleccionadas” ni checkboxes de selección).
+
+- **capturista**
+  - Puede crear nuevas Pruebas e Inspecciones.
+  - En listados: solo lectura y ver detalle. Sin edición, sin eliminar, sin checkboxes.
+  - En pruebas.html: el campo `Técnico` se auto-llena según correo y queda bloqueado (p. ej. `auxger@pc-t.com.mx` → “Valeria”).
+
+- **inspector**
+  - Mismas reglas que Capturista (solo lectura en listados, crear nuevas, sin eliminar). No tiene privilegios adicionales.
+
+### Reglas funcionales clave
+- Fecha de registro (pruebaslist): se muestra “dd/mm/aaaa hh:mm” usando `creadoEn` (Timestamp de Firestore) con fallback a `fechaPrueba` para registros antiguos.
+- No. reporte / cert. (pruebaslist): requerido al editar (admin/director/supervisor). Si se intenta dejar vacío, no se guarda y se revierte al valor previo.
+- Eliminación: solo admin y director. Supervisor/inspector/capturista no eliminan (botón y checkboxes ocultos).
+
+### Asignación de roles (Firebase Custom Claims)
+Usar el script `server/setRole.js` con Firebase Admin SDK.
+
+```bash
+# Asignar rol supervisor al usuario sgi@pc-t.com.mx
+node server/setRole.js set-role sgi@pc-t.com.mx supervisor
+```
+
+Notas:
+- El usuario debe haber iniciado sesión al menos una vez en el proyecto.
+- Después del cambio de rol, debe cerrar sesión e iniciar nuevamente para refrescar el token.
 - `server/.env` está ignorado por Git (`.gitignore`). No lo subas.
 - Para múltiples destinatarios en `MAIL_TO`, separa por comas: `uno@dom.com,dos@dom.com` o usa el formato `Nombre <mail>`.
 
