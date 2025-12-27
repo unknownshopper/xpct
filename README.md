@@ -144,6 +144,15 @@ Notas:
 
 Definición de roles y su alcance en la aplicación. Inspector y Capturista comparten exactamente las mismas restricciones; únicamente `sgi@pc-t.com.mx` pasa a ser Supervisor.
 
+- **Cuentas, roles y nombres (referencia)**
+  - sgi@pc-t.com.mx → Rol: supervisor → Nombre: Rubén
+  - auxger@pc-t.com.mx → Rol: capturista → Nombre: Valeria
+  - capturista@pc-t.com.mx → Rol: capturista → Nombre: Capturista
+  - inspector01@pc-t.com.mx → Rol: inspector → Nombre: Inspector
+  - the@unknownshoppers.com → Rol: admin → Nombre: admin
+  - jalcz@pc-t.com.mx → Rol: admin → Nombre: JALCZ
+  - lgmt@pc-t.com.mx → Rol: director → Nombre: LGMT
+
 - **admin**
   - Acceso total a todas las páginas y acciones.
   - Puede crear, editar, eliminar y exportar en listados de Pruebas e Inspecciones.

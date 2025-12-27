@@ -814,8 +814,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.isCapturista) {
                 const email = (window.currentUserEmail || '').toLowerCase();
                 const map = {
-                    'sgi@pc-t.com.mx': 'Rubén',
                     'auxger@pc-t.com.mx': 'Valeria',
+                    'capturista@pc-t.com.mx': 'Capturista',
                 };
                 const nombre = map[email] || '';
                 if (nombre) {
