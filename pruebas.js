@@ -768,7 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pruebaTipo = (selPruebaEl?.value || '').trim();
         const pruebaDetalle = (selDetalleEl?.value || '').trim();
         const emisor = (emisorEl?.value || '').trim();
-        const tecnico = (tecnicoEl?.value || '').trim();
+        let tecnico = (tecnicoEl?.value || '').trim();
         const resultado = (selResultadoEl?.value || '').trim();
         const periodo = (selPeriodoEl?.value || 'ANUAL').trim();
 
@@ -782,6 +782,25 @@ document.addEventListener('DOMContentLoaded', () => {
             if (emisorEl) emisorEl.focus();
             return;
         }
+        // Para CAPTURISTA, forzar técnico según email (evitar manipulación del DOM)
+        try {
+            if (window.isCapturista) {
+                const email = (window.currentUserEmail || '').toLowerCase();
+                const map = {
+                    'sgi@pc-t.com.mx': 'Rubén',
+                    'auxger@pc-t.com.mx': 'Valeria',
+                };
+                const nombre = map[email] || '';
+                if (nombre) {
+                    tecnico = nombre;
+                    if (tecnicoEl) {
+                        tecnicoEl.value = nombre;
+                        tecnicoEl.readOnly = true;
+                    }
+                }
+            }
+        } catch {}
+
         if (!tecnico) {
             alert('Indica el técnico.');
             if (tecnicoEl) tecnicoEl.focus();

@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let equipos = [];
     let headers = [];
     let formatosPorCodigo = {};
+    let mapaDanos = []; // [{ match: 'recubrimiento', opciones: [...] }]
     let inventarioCargado = false;
     let formatosCargados = false;
     let guardandoInspeccion = false; // evita doble guardado
@@ -344,6 +345,35 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => {
             console.error(err);
         });
+
+    // Cargar catálogo de daños (solo para diagnóstico de cobertura inicialmente)
+    fetch('docs/danos.csv')
+        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar danos.csv')))
+        .then(txt => {
+            const lineas = txt.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (lineas.length <= 1) return;
+            const header = parseCSVLine(lineas[0]).map(h => (h || '').toLowerCase().trim());
+            const idxParam = header.indexOf('parametro');
+            const idxOpc = header.indexOf('opciones');
+            if (idxParam < 0 || idxOpc < 0) return;
+            const normalize = (s) => (s || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+            mapaDanos = lineas.slice(1)
+                .map(l => parseCSVLine(l))
+                .map(cols => {
+                    const m = normalize(cols[idxParam] || '');
+                    const opciones = String(cols[idxOpc] || '')
+                        .split('|').map(x => x.trim()).filter(Boolean);
+                    return m ? { match: m, opciones } : null;
+                })
+                .filter(Boolean);
+        })
+        .catch(err => {
+            console.warn('No se pudo cargar docs/danos.csv para diagnóstico', err);
+        });
     
     // Cuando el usuario escribe y elige un equipo en el input/datalist
     function actualizarDetalleDesdeInput() {
@@ -400,6 +430,27 @@ document.addEventListener('DOMContentLoaded', () => {
             vistos.add(base);
             return true;
         });
+
+        // Diagnóstico: detectar parámetros sin match en danos.csv (normalizado)
+        (function diagnosticarCoberturaDanos() {
+            if (!Array.isArray(mapaDanos) || !mapaDanos.length) return;
+            const normalize = (s) => (s || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+            const faltantes = [];
+            parametrosInspeccion.forEach(p => {
+                const np = normalize(p);
+                // Ignorar Fleje (sin catálogo por diseño)
+                if (np.includes('fleje')) return;
+                const tiene = mapaDanos.some(row => np.includes(row.match));
+                if (!tiene) faltantes.push(p);
+            });
+            if (faltantes.length) {
+                console.warn('[danos.csv] Parámetros sin match:', faltantes);
+            }
+        })();
 
         // Catálogos de tipo de daño según el nombre del parámetro
         function obtenerTiposDano(nombreParametro) {

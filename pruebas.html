@@ -215,6 +215,7 @@
 
             const email = (user.email || '').toLowerCase();
             if (emailSpan) emailSpan.textContent = email;
+            window.currentUserEmail = email;
 
             try {
                 const token = await user.getIdTokenResult(true);
@@ -229,6 +230,23 @@
                 if (window.isInspector) {
                     window.location.href = 'inspeccion.html';
                     return;
+                }
+
+                // Autocompletar y bloquear técnico para CAPTURISTA según email
+                if (window.isCapturista) {
+                    const tecnicoMap = {
+                        'sgi@pc-t.com.mx': 'Rubén',
+                        'auxger@pc-t.com.mx': 'Valeria',
+                    };
+                    const tecnicoInput = document.getElementById('inv-tecnico');
+                    if (tecnicoInput) {
+                        const nombre = tecnicoMap[email] || '';
+                        if (nombre) {
+                            tecnicoInput.value = nombre;
+                            tecnicoInput.readOnly = true; // impedir cambios manuales
+                            tecnicoInput.title = 'Asignado automáticamente por perfil de capturista';
+                        }
+                    }
                 }
             } catch {}
         });

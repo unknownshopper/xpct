@@ -1012,7 +1012,8 @@
                 const esAdmin = !!window.isAdmin;
                 const periodoTexto = periodoActual || '';
 
-                const celdaPeriodo = esAdmin
+                const esEditable = !!(window.isAdmin || window.isDirector);
+                const celdaPeriodo = esEditable
                     ? `<select class="pl-periodo" data-id="${reg.id || ''}">
                             <option value=""></option>
                             <option value="ANUAL" ${periodoActual === 'ANUAL' || !periodoActual ? 'selected' : ''}>Anual</option>
@@ -1020,6 +1021,25 @@
                             <option value="REPARACION" ${periodoActual === 'REPARACION' ? 'selected' : ''}>Reparación</option>
                        </select>`
                     : periodoTexto;
+
+                const textoPrueba = (reg.prueba || reg.pruebaTipo || '').toString();
+                const celdaPrueba = esEditable
+                    ? `<input type="text" class="pl-prueba" data-id="${reg.id || ''}" value="${textoPrueba.replace(/"/g, '&quot;')}">`
+                    : textoPrueba;
+
+                const textoNoRep = (reg.noReporte || '').toString();
+                const celdaNoRep = esEditable
+                    ? `<input type="text" class="pl-norep" data-id="${reg.id || ''}" value="${textoNoRep.replace(/"/g, '&quot;')}">`
+                    : textoNoRep;
+
+                const resultadoActual = (reg.resultado || '').toString();
+                const celdaResultado = esEditable
+                    ? `<select class="pl-resultado" data-id="${reg.id || ''}">
+                            <option value=""></option>
+                            <option value="ACEPTADA" ${resultadoActual === 'ACEPTADA' ? 'selected' : ''}>ACEPTADA</option>
+                            <option value="RECHAZADA" ${resultadoActual === 'RECHAZADA' ? 'selected' : ''}>RECHAZADA</option>
+                       </select>`
+                    : resultadoActual;
 
                 fila.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}"></td>
@@ -1031,20 +1051,10 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.descripcion || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
-                        <input type="text" class="pl-prueba" data-id="${reg.id || ''}" value="${(reg.prueba || reg.pruebaTipo || '').toString().replace(/"/g, '&quot;')}">
-                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                        <input type="text" class="pl-norep" data-id="${reg.id || ''}" value="${(reg.noReporte || '').toString().replace(/"/g, '&quot;')}">
-                    </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
-                        <select class="pl-resultado" data-id="${reg.id || ''}">
-                            <option value=""></option>
-                            <option value="ACEPTADA" ${reg.resultado === 'ACEPTADA' ? 'selected' : ''}>ACEPTADA</option>
-                            <option value="RECHAZADA" ${reg.resultado === 'RECHAZADA' ? 'selected' : ''}>RECHAZADA</option>
-                        </select>
-                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${celdaNoRep}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaResultado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.emisor || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
                 `;

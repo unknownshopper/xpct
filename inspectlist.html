@@ -306,7 +306,7 @@
                         `;
                     }
 
-                    const accionesHtml = insp ? `
+                    const accionesHtml = (insp && (window.isAdmin || window.isInspector)) ? `
                             <button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>
                             <button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
                         ` : '';
