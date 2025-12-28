@@ -36,6 +36,31 @@
         overflow: auto;
         max-height: calc(100vh - 280px);
       }
+
+      /* Chips de período (arriba del Resumen) con estilo neutro gris y efecto activo */
+      .chips-periodo .chip {
+        background: #f8fafc; /* gris claro */
+        border: 1px solid #e5e7eb;
+        color: #111827;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        background-image: none; /* elimina línea/gradiente superior si existiera */
+        position: relative; /* para la línea superior */
+        overflow: hidden;
+      }
+      /* Asegura que no se vea ninguna línea superior heredada */
+      .chips-periodo .chip::before {
+        content: none !important;
+        display: none !important;
+      }
+      .chips-periodo .chip:hover {
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      }
+      /* Resalta activo (el JS ya alterna dataset.active) */
+      .chips-periodo .chip[data-active="1"] {
+        box-shadow: 0 0 0 2px #2563eb inset; /* efecto active */
+        font-weight: 700;
+      }
+
     </style>
 </head>
 <body>
@@ -85,6 +110,9 @@
 
     <main style="max-width: 100%; margin: 0; padding: 0;">
         <section class="pruebaslist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
+            <h1 style="text-align:center; font-size:2.25rem; font-weight:800; letter-spacing:0.02em; margin:0.25rem 0 0.75rem; color:#111827;">
+                VISOR DE PND Y CALIBRACIONES
+            </h1>
             <section style="margin-bottom: 0.75rem;">
                 <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:center; font-size:1rem;">
                     <div id="chip-gt60" class="chip chip-large chip-green" style="cursor:pointer;">
@@ -109,7 +137,7 @@
             </p>
         <!-- Chips de período centrados antes del Resumen de estado -->
         <section style="margin: 0 0 0.75rem; display:flex; justify-content:center;">
-            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+            <div class="chips-periodo" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                 <span id="pruebas-contador-historico" class="chip chip-large" style="font-weight:600;">
                     0 en histórico
                 </span>
