@@ -5,6 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pruebas guardadas</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+      /* Encabezado fijo para el listado principal de pruebas */
+      #tabla-pruebas-listado thead {
+        position: sticky;
+        top: 0;
+        z-index: 6;
+        background: #f3f4f6;
+      }
+      #tabla-pruebas-listado thead th {
+        position: sticky;
+        top: 0;
+        z-index: 7;
+        background: #f3f4f6; /* mismo tono ya usado */
+        box-shadow: 0 1px 0 0 #e5e7eb;
+      }
+
+      /* Barra de acciones (eliminar/exportar) fija al hacer scroll de página */
+      .sticky-list-toolbar {
+        position: sticky;
+        top: 60px; /* bajo el header y la zona superior */
+        z-index: 9;
+        background: #ffffff;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+      }
+
+      /* Hacer el listado un panel scrollable para mantener visible su encabezado */
+      .listado-scroll {
+        overflow: auto;
+        max-height: calc(100vh - 280px);
+      }
+    </style>
 </head>
 <body>
     <header>
@@ -75,6 +107,24 @@
             <p style="text-align:center; font-size:0.85rem; color:#6b7280; margin-top:0.25rem; margin-bottom:0.75rem;">
                 Los rangos anteriores aplican únicamente a pruebas <strong>ANUALES</strong>. Las pruebas de <strong>Post-trabajo</strong> y <strong>Reparación</strong> siempre se muestran en el listado; sus chips sirven para filtrar por período.
             </p>
+        <!-- Chips de período centrados antes del Resumen de estado -->
+        <section style="margin: 0 0 0.75rem; display:flex; justify-content:center;">
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
+                <span id="pruebas-contador-historico" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #e5e7eb; border-radius:999px; background:#f9fafb; font-weight:600;">
+                    0 en histórico
+                </span>
+                <span id="pruebas-contador-anual" title="Pruebas ANUALES" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #dbeafe; border-radius:999px; background:#eff6ff; color:#1d4ed8;">
+                    Anual: 0
+                </span>
+                <span id="pruebas-contador-pt" title="Pruebas Post-trabajo" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #fde68a; border-radius:999px; background:#fffbeb; color:#b45309;">
+                    Post-trabajo: 0
+                </span>
+                <span id="pruebas-contador-rep" title="Pruebas de Reparación" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #e5e7eb; border-radius:999px; background:#f3f4f6; color:#374151;">
+                    Reparación: 0
+                </span>
+            </div>
+        </section>
+
         <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
             <h2 style="margin-bottom:0.75rem;">Resumen de estado</h2>
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
@@ -174,27 +224,10 @@
                 Se muestran las pruebas registradas en Firestore y su estado de vigencia según la fecha de próxima prueba.
             </p>
 
-            <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
+            <section class="actividad-toolbar sticky-list-toolbar" style="margin-bottom: 0.5rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
                 <!-- Left: search -->
                 <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                     <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
-                </div>
-                <!-- Center: counters as chips -->
-                <div class="actividad-toolbar-center" style="flex:1; display:flex; justify-content:center;">
-                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
-                        <span id="pruebas-contador-historico" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #e5e7eb; border-radius:999px; background:#f9fafb; font-weight:600;">
-                            0 en histórico
-                        </span>
-                        <span id="pruebas-contador-anual" title="Pruebas ANUALES" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #dbeafe; border-radius:999px; background:#eff6ff; color:#1d4ed8;">
-                            Anual: 0
-                        </span>
-                        <span id="pruebas-contador-pt" title="Pruebas Post-trabajo" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #fde68a; border-radius:999px; background:#fffbeb; color:#b45309;">
-                            Post-trabajo: 0
-                        </span>
-                        <span id="pruebas-contador-rep" title="Pruebas de Reparación" style="display:inline-block; padding:0.3rem 0.8rem; border:1px solid #e5e7eb; border-radius:999px; background:#f3f4f6; color:#374151;">
-                            Reparación: 0
-                        </span>
-                    </div>
                 </div>
                 <!-- Right: actions -->
                 <div class="actividad-toolbar-right" style="display:flex; gap:0.5rem; margin-left:auto;">
@@ -208,7 +241,7 @@
                 <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
                     Incluye todas las pruebas registradas. Las pruebas con próxima fecha vencida se resaltan en rojo.
                 </p>
-                <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                <div class="tabla-inspecciones-wrapper listado-scroll" style="overflow-x:auto;">
                     <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1050px;">
                         <thead>
                             <tr style="background:#f3f4f6;">
@@ -1150,7 +1183,8 @@
                 } else if (estado === 'VENCIDA') {
                     badgeEstado = '<span title="Prueba vencida: la próxima fecha ya pasó" style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>';
                 } else if (estado !== 'VIGENTE') {
-                    badgeEstado = '<span title="Sin información de próxima prueba" style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin fecha</span>';
+                    const etiqueta = esAnualReg ? 'Sin fecha' : 'N/A';
+                    badgeEstado = `<span title="Sin información de próxima prueba" style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">${etiqueta}</span>`;
                 } else {
                     // VIGENTE: ajustar solo apariencia por rango de días
                     if (diasNum === null) {
