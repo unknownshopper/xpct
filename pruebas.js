@@ -663,23 +663,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Cambios de periodo: checkpoints no afectan próxima/contador
-    if (selPeriodo) {
-        selPeriodo.addEventListener('change', () => {
-            const val = (selPeriodo.value || '').toUpperCase();
-            const esAnual = val === 'ANUAL';
-            if (!esAnual) {
-                // Limpiar y deshabilitar visualmente próxima/contador
-                if (inputProxima) {
-                    inputProxima.value = '';
-                }
-                if (inputContador) {
-                    inputContador.value = '';
-                }
-            } else {
-                // Recalcular próxima/contador si hay fecha realización
-                actualizarProximaDesdeFechaRealizacion();
+    function syncPeriodoUI() {
+        const val = (selPeriodo?.value || '').toUpperCase();
+        const esAnual = val === 'ANUAL';
+        if (!esAnual) {
+            if (inputProxima) {
+                inputProxima.value = '';
+                inputProxima.disabled = true;
+                inputProxima.readOnly = true;
             }
-        });
+            if (inputContador) {
+                inputContador.value = '';
+                inputContador.disabled = true;
+                inputContador.readOnly = true;
+            }
+        } else {
+            if (inputProxima) {
+                inputProxima.disabled = false;
+                inputProxima.readOnly = false;
+            }
+            if (inputContador) {
+                inputContador.disabled = false;
+                // El contador se edita por lógica, no manualmente
+                inputContador.readOnly = true;
+            }
+            // Recalcular próxima/contador si hay fecha realización
+            actualizarProximaDesdeFechaRealizacion();
+        }
+    }
+
+    if (selPeriodo) {
+        selPeriodo.addEventListener('change', syncPeriodoUI);
+        // Sincronizar estado inicial al cargar
+        syncPeriodoUI();
     }
 
     async function guardarPruebaEnFirestore(registro) {

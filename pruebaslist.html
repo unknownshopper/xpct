@@ -72,6 +72,9 @@
                     </div>
                 </div>
             </section>
+            <p style="text-align:center; font-size:0.85rem; color:#6b7280; margin-top:0.25rem; margin-bottom:0.75rem;">
+                Los rangos anteriores aplican únicamente a pruebas <strong>ANUALES</strong>. Las pruebas de <strong>Post-trabajo</strong> y <strong>Reparación</strong> siempre se muestran en el listado; sus chips sirven para filtrar por período.
+            </p>
         <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
             <h2 style="margin-bottom:0.75rem;">Resumen de estado</h2>
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
@@ -353,6 +356,51 @@
         const chip15 = document.getElementById('chip-15');
         const chip0 = document.getElementById('chip-0');
         let filtroRango = null; // 'gt60' | '60' | '30' | '15' | '0' | null
+
+        // Filtro por periodo (ANUAL / POST-TRABAJO / REPARACION)
+        let filtroPeriodo = null; // null = todos, 'ANUAL' | 'POST-TRABAJO' | 'REPARACION'
+        function actualizarChipsPeriodoActivos() {
+            const activeStyle = (el, color) => {
+                if (!el) return;
+                if (el.dataset.active === '1') {
+                    el.style.boxShadow = `0 0 0 2px ${color} inset`;
+                    el.style.fontWeight = '700';
+                } else {
+                    el.style.boxShadow = '';
+                    el.style.fontWeight = '';
+                }
+            };
+            if (lblAnual) activeStyle(lblAnual, '#1d4ed8');
+            if (lblPT) activeStyle(lblPT, '#f59e0b');
+            if (lblRep) activeStyle(lblRep, '#6b7280');
+        }
+        function setFiltroPeriodo(nuevo) {
+            filtroPeriodo = nuevo;
+            if (lblAnual) lblAnual.dataset.active = (nuevo === 'ANUAL') ? '1' : '0';
+            if (lblPT) lblPT.dataset.active = (nuevo === 'POST-TRABAJO') ? '1' : '0';
+            if (lblRep) lblRep.dataset.active = (nuevo === 'REPARACION') ? '1' : '0';
+            actualizarChipsPeriodoActivos();
+            render();
+        }
+
+        if (lblAnual) {
+            lblAnual.style.cursor = 'pointer';
+            lblAnual.addEventListener('click', () => {
+                setFiltroPeriodo((filtroPeriodo === 'ANUAL') ? null : 'ANUAL');
+            });
+        }
+        if (lblPT) {
+            lblPT.style.cursor = 'pointer';
+            lblPT.addEventListener('click', () => {
+                setFiltroPeriodo((filtroPeriodo === 'POST-TRABAJO') ? null : 'POST-TRABAJO');
+            });
+        }
+        if (lblRep) {
+            lblRep.style.cursor = 'pointer';
+            lblRep.addEventListener('click', () => {
+                setFiltroPeriodo((filtroPeriodo === 'REPARACION') ? null : 'REPARACION');
+            });
+        }
 
         const detallePanel = document.getElementById('detalle-prueba');
         const detalleContenido = document.getElementById('detalle-prueba-contenido');
@@ -826,6 +874,18 @@
                 utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
             };
 
+            // Post-trabajo y Reparación distribuidos por buckets según fecha de realización (antigüedad)
+            const pt = {
+                lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+            };
+            const rep = {
+                lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+            };
+
             // Clasificar por buckets por REGISTRO (prueba), no por equipo
             (Array.isArray(historico) ? historico : []).forEach(reg => {
                 const periodo = (reg.periodo || '').toString().trim().toUpperCase();
@@ -844,7 +904,21 @@
                 else if (dias >= 1) cont[cat].d15 += 1; // 1..15
             });
 
-            // Pintar tabla informativa
+            // Contar Post-trabajo y Reparación por categoría y bucket (según fecha de realización)
+            (Array.isArray(historico) ? historico : []).forEach(reg => {
+                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+                const cat = categoriaPrueba(reg);
+                if (!cat) return;
+                if (periodo !== 'POST-TRABAJO' && periodo !== 'REPARACION') return;
+                const fr = reg._fechaRealDate instanceof Date ? reg._fechaRealDate : parseFechaRealizacion(reg.fechaRealizacion || '');
+                if (!fr) return;
+                const dAnt = Math.max(0, Math.round((hoy.getTime() - fr.getTime()) / (1000 * 60 * 60 * 24)));
+                const bucket = (dAnt === 0) ? 'd0' : (dAnt >= 1 && dAnt <= 15) ? 'd15' : (dAnt >= 16 && dAnt <= 30) ? 'd30' : (dAnt >= 31 && dAnt <= 60) ? 'd60' : 'gt60';
+                if (periodo === 'POST-TRABAJO') pt[cat][bucket] += 1;
+                else if (periodo === 'REPARACION') rep[cat][bucket] += 1;
+            });
+
+            // Pintar tabla informativa (solo conteo ANUAL por rango)
             try {
                 if (inf.lt.gt60) inf.lt.gt60.textContent = String(cont.lt.gt60);
                 if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
@@ -985,10 +1059,19 @@
                 const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
-                const clasif = clasificarPrueba(reg);
-                const estado = clasif ? clasif.estado : 'SIN_FECHA';
-                const proximaStr = clasif && clasif.proxima
-                    ? (reg.proxima ? String(reg.proxima) : formateaDDMMAA(clasif.proxima))
+                const clasifOriginal = clasificarPrueba(reg);
+                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                const refAnual = !esAnualReg ? (anualPorEquipo.get((reg.equipo || '').toString()) || null) : null;
+                const clasifRef = refAnual ? (refAnual._clasif || clasificarPrueba(refAnual)) : null;
+
+                // Mostrar estado/próxima basado en ANUAL de referencia para Post/Reparación
+                const estado = (!esAnualReg && clasifRef) ? (clasifRef.estado || 'SIN_FECHA') : (clasifOriginal ? clasifOriginal.estado : 'SIN_FECHA');
+                const proximaBase = (!esAnualReg && clasifRef && clasifRef.proxima)
+                    ? clasifRef.proxima
+                    : (clasifOriginal && clasifOriginal.proxima) ? clasifOriginal.proxima : null;
+                const proximaStr = proximaBase
+                    ? ( (!esAnualReg && refAnual && refAnual.proxima) ? String(refAnual.proxima) : formateaDDMMAA(proximaBase) )
                     : '';
 
                 const fila = document.createElement('tr');
@@ -1001,9 +1084,9 @@
                 // Cálculo de días restantes hasta la próxima prueba
                 let diasParaProxima = '';
                 let diasNum = null;
-                if (clasif && clasif.proxima) {
+                if (proximaBase) {
                     const hoy = hoySinHora();
-                    const diffMs = clasif.proxima.getTime() - hoy.getTime();
+                    const diffMs = proximaBase.getTime() - hoy.getTime();
                     let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
                     if (dias < 0) dias = 0; // para vencidas mostramos 0
                     diasNum = dias;
@@ -1011,8 +1094,7 @@
                 }
 
                 // Contar alertas por PRUEBA (no por equipo), solo vigentes; rangos: 60–31, 30–16, 15–1
-                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
-                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                // esAnualReg ya calculado arriba
                 if (esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 1) {
                     if (diasNum >= 31 && diasNum <= 60) {
                         cntChip60 += 1;
@@ -1029,9 +1111,13 @@
                     cntChip0 += 1;
                 }
 
+                // Aplicar filtro por periodo si está activo
+                const periodoNorm = (reg.periodo || '').toString().trim().toUpperCase() || 'ANUAL';
+                if (filtroPeriodo && periodoNorm !== filtroPeriodo) return;
+
                 // Aplicar filtro por rango si está activo (solo vigentes), rangos: 60–31, 30–16, 15–1
-                // Importante: SOLO filtra ANUAL; los checkpoints (POST-TRABAJO, REPARACION) siguen visibles
-                if (filtroRango && esAnualReg) {
+                // Importante: SOLO filtra ANUAL; si el filtroPeriodo fuerza POST-TRABAJO o REPARACION, no aplica rangos
+                if (filtroRango && esAnualReg && (!filtroPeriodo || filtroPeriodo === 'ANUAL')) {
                     if (filtroRango === '0') {
                         if (estado !== 'VENCIDA') return;
                     } else if (filtroRango === 'gt60') {

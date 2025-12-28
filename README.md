@@ -70,29 +70,41 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Se aplicó la fuente `Myriad Pro` globalmente (con fallbacks) y se homogenizaron estilos de inputs/selects en listados para igualarlos a los de formularios (`.campo`).
   - Se añadió realce sutil por hover y marca de fila activa en listados de pruebas.
 - Pruebas (negocio y UX)
-  - Diferenciación de periodos: ANUAL vs checkpoints (POST-TRABAJO, REPARACION).
-    - ANUAL: requiere fecha de realización, calcula y guarda `proxima = fechaRealizacion + 12 meses`, reinicia el contador anual.
-    - POST-TRABAJO / REPARACION: no calculan ni guardan `proxima`; no reinician contador anual. Sirven como evidencia/histórico del año.
+  - Periodos de prueba y reglas:
+    - ANUAL: requiere “Fecha de realización”, calcula y guarda `proxima = fechaRealizacion + 12 meses` y muestra “Contador” (días restantes). Habilita edición de `Próxima` y `Contador` en el formulario.
+    - POST-TRABAJO / REPARACION: requieren “Fecha de realización”, pero NO calculan ni guardan `proxima`. “Próxima” y “Contador” se deshabilitan visualmente en el formulario. Estos registros no reinician el ciclo anual; funcionan como evidencia/histórico.
     - Compatibilidad: registros sin `periodo` se consideran ANUAL.
+  - Validaciones en `pruebas.html`:
+    - “Fecha de realización” (formato dd/mm/aa) y “No. de reporte / certificado” son obligatorios para todos los periodos y roles.
+    - Para VT / PT / MT, si hay opciones de detalle, el detalle es obligatorio.
+    - Se bloquea guardar pruebas para equipos con estado efectivo OFF/INACTIVO.
   - Listado de pruebas (`pruebaslist.html`):
-    - Ordena priorizando próximas a vencer (ANUAL vigente con menor número de días), luego vencidas, luego sin ANUAL; empates por fecha de realización desc.
-    - Filtros por chips 60–30, 30–15, 15–0 (cuentan por equipo único, basados en la última ANUAL del equipo).
-    - El estado/contador/chips y el resumen por equipo se calculan solo con la última ANUAL por equipo (los checkpoints no afectan la vigencia).
-    - El detalle de una prueba se expande inline justo debajo de la fila y puede colapsarse con un segundo clic. Los controles dentro de la fila no disparan el toggle.
+    - Ordena priorizando ANUALES próximas a vencer, luego vencidas, luego sin próxima. Dentro de cada grupo, por fecha de realización desc.
+    - Para registros POST-TRABAJO/REPARACION: muestran su propia “Fecha de realización”, pero “Próxima”, “Días para próxima” y “Estado” se toman de la ANUAL de referencia del mismo equipo. Si no existe ANUAL para el equipo, se muestran sin próxima/“Sin fecha”.
+    - Los chips de rango (>60, 60–31, 30–16, 15–1, 0) aplican únicamente a ANUALES. Se añadió una leyenda explicativa bajo los chips.
+    - Los chips de período (Anual / Post-trabajo / Reparación) permiten filtrar el listado por tipo de período.
+    - El detalle de una prueba se expande inline debajo de la fila; controles dentro de la fila no disparan el toggle.
 
 ## Guía de uso (pruebas)
 
 - En `pruebas.html`:
-  - Selecciona el periodo.
-    - ANUAL: captura fecha de realización para calcular `Próxima prueba`. El campo `Contador` se llena automáticamente (y se refresca cada hora mientras la página esté abierta).
-    - POST-TRABAJO / REPARACION: `Próxima` y `Contador` no aplican; no reinician el ciclo anual.
+  - Selecciona el periodo (ANUAL / POST-TRABAJO / REPARACION).
+    - ANUAL: captura “Fecha de realización” para calcular “Próxima prueba” (+12 meses). “Contador” se llena automáticamente y se refresca cada hora mientras la página esté abierta.
+    - POST-TRABAJO / REPARACION: captura “Fecha de realización”; “Próxima” y “Contador” se deshabilitan y no se guardan.
   - Al guardar, `periodo` se persiste y `proxima` solo se guarda para ANUAL.
 
 - En `pruebaslist.html`:
   - Usa el buscador para filtrar por equipo/producto/técnico/reporte.
-  - Chips (60–30, 30–15, 15–0) limitan la vista a ANUALES próximas dentro de ese rango.
+  - Chips de rango (>60, 60–31, 30–16, 15–1, 0) limitan la vista a ANUALES próximas dentro de ese rango. Leyenda bajo los chips lo aclara.
+  - Chips de período (Anual / Post-trabajo / Reparación) permiten filtrar el listado por tipo de período.
   - Clic en una fila para ver el detalle inline y clic de nuevo para colapsar.
   - El resumen por equipo muestra la última ANUAL y su vigencia.
+
+### Corrección de históricos sin fecha de realización
+- Algunos registros antiguos pueden carecer de “Fecha de realización”. A partir de ahora el formulario no permite guardar sin ese dato.
+- Para corregir históricos:
+  - Localiza los registros en `pruebaslist.html` y edítalos (roles con permisos: admin/director/supervisor).
+  - Si el equipo no tiene ANUAL de referencia, la “Próxima” de Post/Reparación quedará vacía hasta que exista una ANUAL válida.
 
 ## Verificación recomendada tras cambios
 
