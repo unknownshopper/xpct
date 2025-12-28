@@ -259,6 +259,8 @@
                 </div>
                 <!-- Right: actions -->
                 <div class="actividad-toolbar-right" style="display:flex; gap:0.5rem; margin-left:auto;">
+                    <input id="input-import-csv" type="file" accept=".csv" style="display:none;" />
+                    <button id="btn-pruebas-import-csv" title="Importar formato_pruebas.csv" style="display:none;">Ingresar formato.csv</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
@@ -296,6 +298,17 @@
                         No hay pruebas registradas todavía.
                     </p>
                 </div>
+                <!-- Panel de vista previa de importación CSV (solo admin) -->
+                <section id="import-preview" style="display:none; margin-top:0.75rem; border:1px solid #e5e7eb; border-radius:8px; padding:0.75rem; background:#fafafa;">
+                    <h3 style="margin:0 0 0.5rem;">Vista previa de importación</h3>
+                    <div id="import-summary" style="font-size:0.9rem; color:#374151; margin-bottom:0.5rem;"></div>
+                    <div id="import-warnings" style="font-size:0.85rem; color:#92400e; margin-bottom:0.5rem;"></div>
+                    <div id="import-errors" style="font-size:0.85rem; color:#991b1b; margin-bottom:0.5rem;"></div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="btn-import-confirm" style="display:none;">Confirmar importación</button>
+                        <button id="btn-import-cancel" style="display:none;">Cancelar</button>
+                    </div>
+                </section>
             </section>
         </section>
 
@@ -469,6 +482,14 @@
         const chkSelectTodos = document.getElementById('pruebas-select-todos');
         const btnEliminar = document.getElementById('btn-pruebas-eliminar');
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
+        const btnImportCsv = document.getElementById('btn-pruebas-import-csv');
+        const inputImportCsv = document.getElementById('input-import-csv');
+        const importPreview = document.getElementById('import-preview');
+        const importSummary = document.getElementById('import-summary');
+        const importWarnings = document.getElementById('import-warnings');
+        const importErrors = document.getElementById('import-errors');
+        const btnImportConfirm = document.getElementById('btn-import-confirm');
+        const btnImportCancel = document.getElementById('btn-import-cancel');
 
         const permitirEliminar = !!(window.isAdmin || window.isDirector);
         // Ocultar botón eliminar y cabecera de checkbox si no tiene permiso
@@ -476,6 +497,11 @@
         if (chkSelectTodos && chkSelectTodos.closest && chkSelectTodos.closest('th')) {
             chkSelectTodos.closest('th').style.display = permitirEliminar ? '' : 'none';
         }
+
+        // Import CSV solo para admin
+        if (btnImportCsv) btnImportCsv.style.display = (window.isAdmin ? '' : 'none');
+        if (btnImportConfirm) btnImportConfirm.style.display = 'none';
+        if (btnImportCancel) btnImportCancel.style.display = 'none';
 
         // Id (o clave) de la prueba actualmente seleccionada en el panel de detalle
         let pruebaSeleccionadaId = null;
@@ -578,6 +604,258 @@
         }
 
         await cargarInventarioDesdeCsv();
+
+        // ================== Importación CSV (solo admin) ==================
+        let importRowsReady = [];
+        let existingKeys = new Set();
+
+        function composeKey(r) {
+            const equipo = (r.equipo||'').trim().toUpperCase();
+            const numeroSerie = (r.numeroSerie||r.serial||'').trim().toUpperCase();
+            const periodo = (r.periodo||'').trim().toUpperCase();
+            const fechaRealizacion = (r.fechaRealizacion||'').trim();
+            const noReporte = (r.noReporte||'').trim().toUpperCase();
+            return `${equipo}__${numeroSerie}__${periodo}__${fechaRealizacion}__${noReporte}`;
+        }
+
+        function buildExistingKeys() {
+            existingKeys = new Set();
+            (pruebas||[]).forEach(reg => {
+                const k = composeKey({
+                    equipo: reg.equipo,
+                    numeroSerie: reg.serial || reg.numeroSerie,
+                    periodo: reg.periodo,
+                    fechaRealizacion: reg.fechaRealizacion,
+                    noReporte: reg.noReporte,
+                });
+                if (k) existingKeys.add(k);
+            });
+        }
+        buildExistingKeys();
+
+        function parseCsv(text) {
+            const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lines.length) return { headers: [], rows: [] };
+            const parseLine = (line) => {
+                const out = [];
+                let cur = '';
+                let inside = false;
+                for (let i=0;i<line.length;i++) {
+                    const ch = line[i];
+                    if (ch === '"') {
+                        if (inside && line[i+1] === '"') { cur += '"'; i++; }
+                        else inside = !inside;
+                    } else if (ch === ',' && !inside) {
+                        out.push(cur); cur = '';
+                    } else {
+                        cur += ch;
+                    }
+                }
+                out.push(cur);
+                return out;
+            };
+            const headers = parseLine(lines[0]).map(h => String(h||'').trim());
+            const rows = lines.slice(1).map(l => parseLine(l));
+            return { headers, rows };
+        }
+
+        function req(val) { return val !== undefined && val !== null && String(val).trim() !== ''; }
+        function isValidPeriodo(p) { const v = String(p||'').toUpperCase(); return v==='ANUAL' || v==='POST-TRABAJO' || v==='REPARACION'; }
+        function isValidResultado(r) { const v = String(r||'').toUpperCase(); return v==='APROBADA' || v==='RECHAZADA' || v==='N/A'; }
+        function isValidEjecucion(e) { if (!e) return true; const v = String(e||'').toUpperCase(); return v==='INTERNO' || v==='EXTERNO'; }
+        function parseFechaDDMMAAAA(s) {
+            const t = String(s||'').trim();
+            const m = t.match(/^([0-3]?\d)\/([0-1]?\d)\/(\d{4})$/);
+            if (!m) return null;
+            const dd = parseInt(m[1],10), mm = parseInt(m[2],10), yyyy = parseInt(m[3],10);
+            const d = new Date(yyyy, mm-1, dd); d.setHours(0,0,0,0);
+            return isNaN(d.getTime()) ? null : d;
+        }
+        function formatDDMMAAAA(d) {
+            const dd = String(d.getDate()).padStart(2,'0');
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            const yyyy = d.getFullYear();
+            return `${dd}/${mm}/${yyyy}`;
+        }
+        function addDays(d, days) { const nd = new Date(d.getTime()); nd.setDate(nd.getDate()+days); return nd; }
+
+        function validateCsv(text) {
+            const expectHeaders = ['cliente','equipo','numeroSerie','periodo','prueba','fechaRealizacion','noReporte','resultado','ejecucion','emisor','pruebaDetalle','observaciones','ubicacion','areaPrueba','tecnico','proxima'];
+            const { headers, rows } = parseCsv(text);
+            const hdrStr = headers.join(',');
+            const okHeaders = expectHeaders.join(',') === hdrStr;
+            const errors = [];
+            const warnings = [];
+            const valids = [];
+            if (!okHeaders) {
+                errors.push(`Encabezados inválidos. Se esperaba: ${expectHeaders.join(',')}. Se obtuvo: ${hdrStr}`);
+                return { valids, errors, warnings };
+            }
+
+            rows.forEach((cols, idx) => {
+                const n = idx + 2; // línea real
+                const rec = Object.fromEntries(headers.map((h,i)=>[h, cols[i]!==undefined? String(cols[i]).trim() : '']));
+                // Requeridos
+                if (!req(rec.cliente)) errors.push(`L${n}: cliente requerido`);
+                if (!req(rec.equipo)) errors.push(`L${n}: equipo requerido`);
+                if (!req(rec.numeroSerie)) errors.push(`L${n}: numeroSerie requerido`);
+                if (!req(rec.periodo) || !isValidPeriodo(rec.periodo)) errors.push(`L${n}: periodo inválido (ANUAL|POST-TRABAJO|REPARACION)`);
+                if (!req(rec.prueba)) errors.push(`L${n}: prueba requerida`);
+                const f = parseFechaDDMMAAAA(rec.fechaRealizacion);
+                if (!req(rec.fechaRealizacion) || !f) errors.push(`L${n}: fechaRealizacion inválida (dd/mm/aaaa)`);
+                if (!req(rec.noReporte)) errors.push(`L${n}: noReporte requerido`);
+                if (!req(rec.resultado) || !isValidResultado(rec.resultado)) errors.push(`L${n}: resultado inválido (APROBADA|RECHAZADA|N/A)`);
+                if (!isValidEjecucion(rec.ejecucion)) errors.push(`L${n}: ejecucion inválida (INTERNO|EXTERNO)`);
+                if (String(rec.ejecucion||'').toUpperCase()==='EXTERNO' && !req(rec.emisor)) errors.push(`L${n}: emisor requerido cuando ejecucion=EXTERNO`);
+                if (['VT','PT','MT'].includes(String(rec.prueba||'').toUpperCase()) && !req(rec.pruebaDetalle)) errors.push(`L${n}: pruebaDetalle requerido para VT/PT/MT`);
+
+                // Inventario
+                if (equiposInventario && equiposInventario.size && !equiposInventario.has(rec.equipo)) {
+                    warnings.push(`L${n}: equipo no encontrado en inventario (se permitirá la carga)`);
+                }
+
+                // Duplicados
+                const k = composeKey(rec);
+                if (existingKeys.has(k)) warnings.push(`L${n}: duplicado detectado (se omitirá en la importación)`);
+
+                const hasRowError = errors.some(e => e.startsWith(`L${n}:`));
+                if (!hasRowError) {
+                    const periodo = String(rec.periodo).toUpperCase();
+                    // Próxima para ANUAL
+                    let proxima = '';
+                    if (periodo === 'ANUAL' && req(rec.proxima)) {
+                        const p = parseFechaDDMMAAAA(rec.proxima);
+                        if (p) proxima = formatDDMMAAAA(p);
+                        else warnings.push(`L${n}: proxima inválida; se calculará automáticamente`);
+                    }
+                    if (periodo === 'ANUAL' && !proxima && f) proxima = formatDDMMAAAA(addDays(f, 365));
+                    // Emisor para INTERNO
+                    let emisor = rec.emisor || '';
+                    if (String(rec.ejecucion||'').toUpperCase()==='INTERNO') emisor = 'PCT';
+
+                    valids.push({
+                        cliente: rec.cliente,
+                        equipo: rec.equipo,
+                        serial: rec.numeroSerie,
+                        periodo,
+                        prueba: rec.prueba.toUpperCase(),
+                        fechaRealizacion: formatDDMMAAAA(f),
+                        noReporte: rec.noReporte,
+                        resultado: String(rec.resultado||'').toUpperCase(),
+                        ejecucion: String(rec.ejecucion||'').toUpperCase(),
+                        emisor,
+                        pruebaDetalle: rec.pruebaDetalle || '',
+                        observaciones: rec.observaciones || '',
+                        ubicacion: rec.ubicacion || '',
+                        areaPrueba: rec.areaPrueba || '',
+                        tecnico: rec.tecnico || '',
+                        proxima
+                    });
+                }
+            });
+
+            return { valids, errors, warnings };
+        }
+
+        function renderImportPreview(res) {
+            if (!importPreview) return;
+            const total = (res.valids?.length||0) + (res.errors?.filter(e=>/^L\d+:/.test(e)).length||0);
+            importSummary.innerHTML = `Registros válidos: <strong>${res.valids.length}</strong> de ${total}`;
+            importWarnings.innerHTML = res.warnings.length ? (`<ul>` + res.warnings.slice(0,50).map(w=>`<li>${w}</li>`).join('') + (res.warnings.length>50?`<li>... (${res.warnings.length-50} más)</li>`:'') + `</ul>`) : '';
+            importErrors.innerHTML = res.errors.length ? (`<ul>` + res.errors.slice(0,50).map(e=>`<li>${e}</li>`).join('') + (res.errors.length>50?`<li>... (${res.errors.length-50} más)</li>`:'') + `</ul>`) : '';
+            importPreview.style.display = '';
+            if (btnImportConfirm) btnImportConfirm.style.display = res.valids.length ? '' : 'none';
+            if (btnImportCancel) btnImportCancel.style.display = '';
+        }
+
+        async function doImportToFirestore(rows) {
+            const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore(app);
+            let ok = 0, skipped = 0, failed = 0;
+            for (const r of rows) {
+                const k = composeKey({
+                    equipo: r.equipo,
+                    numeroSerie: r.serial,
+                    periodo: r.periodo,
+                    fechaRealizacion: r.fechaRealizacion,
+                    noReporte: r.noReporte,
+                });
+                if (existingKeys.has(k)) { skipped++; continue; }
+                const payload = {
+                    cliente: r.cliente,
+                    equipo: r.equipo,
+                    serial: r.serial,
+                    periodo: r.periodo,
+                    prueba: r.prueba,
+                    fechaRealizacion: r.fechaRealizacion,
+                    noReporte: r.noReporte,
+                    resultado: r.resultado,
+                    ejecucion: r.ejecucion,
+                    emisor: r.emisor,
+                    pruebaDetalle: r.pruebaDetalle,
+                    observaciones: r.observaciones,
+                    ubicacion: r.ubicacion,
+                    areaPrueba: r.areaPrueba,
+                    tecnico: r.tecnico,
+                    creadoEn: serverTimestamp(),
+                };
+                if (r.periodo === 'ANUAL' && r.proxima) payload.proxima = r.proxima;
+                try {
+                    await addDoc(collection(db, 'pruebas'), payload);
+                    existingKeys.add(k);
+                    ok++;
+                } catch (e) {
+                    console.error('Error insertando fila import', e);
+                    failed++;
+                }
+            }
+            return { ok, skipped, failed };
+        }
+
+        if (btnImportCsv && inputImportCsv) {
+            btnImportCsv.addEventListener('click', () => inputImportCsv.click());
+            inputImportCsv.addEventListener('change', async (ev) => {
+                const file = ev.target.files && ev.target.files[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const res = validateCsv(text);
+                    importRowsReady = res.valids;
+                    renderImportPreview(res);
+                } catch (e) {
+                    alert('No se pudo leer el archivo CSV');
+                }
+            });
+        }
+
+        if (btnImportConfirm) {
+            btnImportConfirm.addEventListener('click', async () => {
+                if (!window.isAdmin) return;
+                btnImportConfirm.disabled = true;
+                try {
+                    const res = await doImportToFirestore(importRowsReady||[]);
+                    importSummary.innerHTML += ` — Importados: <strong>${res.ok}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
+                    // Recargar listado
+                    const desdeFs2 = await leerFirestore();
+                    if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
+                    buildExistingKeys();
+                    render();
+                } finally {
+                    btnImportConfirm.disabled = false;
+                }
+            });
+        }
+
+        if (btnImportCancel) {
+            btnImportCancel.addEventListener('click', () => {
+                if (importPreview) importPreview.style.display = 'none';
+                if (importSummary) importSummary.innerHTML = '';
+                if (importWarnings) importWarnings.innerHTML = '';
+                if (importErrors) importErrors.innerHTML = '';
+                importRowsReady = [];
+                if (inputImportCsv) inputImportCsv.value = '';
+            });
+        }
 
         // Helpers para formatear 'Fecha de registro' (usa creadoEn con fallback a fechaPrueba)
         function toDateGeneric(val) {

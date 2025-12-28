@@ -1,0 +1,4 @@
+cliente,equipo,numeroSerie,periodo,prueba,fechaRealizacion,noReporte,resultado,ejecucion,emisor,pruebaDetalle,observaciones,ubicacion,areaPrueba,tecnico,proxima
+ACME,Winch-10T,SN123,ANUAL,LT,15/12/2025,LT-001,APROBADA,INTERNO,,N/A,OK general,Planta A,Área 1,Juan Perez,15/12/2026
+ACME,Winch-10T,SN123,POST-TRABAJO,VT,20/12/2025,VT-077,APROBADA,EXTERNO,ProveedorX,VT-General,Post mantenimiento,Planta A,Área 1,Maria Lopez,
+ACME,Grúa-5T,SN987,REPARACION,PT,22/12/2025,PT-045,APROBADA,INTERNO,,PT-General,,Planta B,Zona 3,Carlos Díaz,
