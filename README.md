@@ -100,6 +100,35 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Clic en una fila para ver el detalle inline y clic de nuevo para colapsar.
   - El resumen por equipo muestra la última ANUAL y su vigencia.
 
+## Importación masiva de Pruebas (CSV) — solo admin
+
+- Ubicación: en `pruebaslist.html`, barra de acciones (derecha), botón: `Ingresar formato.csv`.
+- Permisos: visible y usable únicamente para usuarios con rol `admin`.
+- Flujo de uso:
+  - Selecciona el archivo CSV (plantilla en `docs/formato_pruebas.csv`).
+  - El sistema realiza un “dry-run” (vista previa) y muestra:
+    - Resumen de registros válidos.
+    - Advertencias (equipo no encontrado en inventario, fila duplicada, próxima inválida, etc.).
+    - Errores por línea (campos requeridos, cabeceras incorrectas, formato de fecha, valores fuera de catálogo).
+  - Al confirmar, se insertan solo los registros válidos en Firestore (`pruebas`) y se recarga el listado.
+- Encabezados y orden obligatorios (exactos):
+  - `cliente,equipo,numeroSerie,periodo,prueba,fechaRealizacion,noReporte,resultado,ejecucion,emisor,pruebaDetalle,observaciones,ubicacion,areaPrueba,tecnico,proxima`
+- Reglas de validación:
+  - Requeridos: `cliente`, `equipo`, `numeroSerie`, `periodo` (ANUAL|POST-TRABAJO|REPARACION), `prueba`, `fechaRealizacion` (dd/mm/aaaa), `noReporte`, `resultado` (APROBADA|RECHAZADA|N/A).
+  - `ejecucion`: INTERNO|EXTERNO. Si INTERNO ⇒ `emisor='PCT'`. Si EXTERNO ⇒ `emisor` requerido.
+  - `pruebaDetalle`: requerido para `VT`/`PT`/`MT` cuando aplique catálogo.
+  - Inventario: si `equipo` no aparece en `docs/invre.csv`, se marca advertencia (no bloquea la importación).
+  - Duplicados: se omiten si coincide la clave compuesta `equipo+numeroSerie+periodo+fechaRealizacion+noReporte`.
+  - `proxima` solo aplica a `ANUAL`. Si viene vacía, se calcula como `fechaRealizacion + 365 días`. Para POST-TRABAJO/REPARACION se ignora; en el listado heredan Próxima/Estado de la ANUAL más reciente del mismo equipo (si no existe ANUAL, mostrarán N/A).
+- Persistencia:
+  - Cada inserción guarda `creadoEn` con `serverTimestamp()`.
+  - Solo se guarda `proxima` cuando `periodo=ANUAL`.
+- Recursos para capturistas:
+  - Plantilla: `docs/formato_pruebas.csv`.
+  - Guía: `docs/instrucciones_capturistas.md` (llenado y exportación desde Excel en UTF-8).
+
+Pendiente/Nota: Se reforzará la validación para que la confirmación de importación exija “cero errores” en la vista previa. Mientras tanto, la importación confirma únicamente los registros válidos y omite filas con errores.
+
 ### Corrección de históricos sin fecha de realización
 - Algunos registros antiguos pueden carecer de “Fecha de realización”. A partir de ahora el formulario no permite guardar sin ese dato.
 - Para corregir históricos:
