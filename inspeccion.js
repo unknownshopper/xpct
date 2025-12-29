@@ -106,9 +106,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const db = getFirestore();
                 const colRef = collection(db, 'pruebas');
-                const q = query(colRef, where('equipo', '==', equipoId));
-                const snap = await getDocs(q);
-                return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                // Intento 1: coincidencia exacta
+                const qExact = query(colRef, where('equipo', '==', equipoId));
+                let snap = await getDocs(qExact);
+                let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (rows && rows.length) return rows;
+
+                // Fallback: cargar todas y filtrar por normalización (trim + case-insensitive)
+                snap = await getDocs(colRef);
+                const norm = (s) => (s || '').toString().trim().toUpperCase();
+                const target = norm(equipoId);
+                rows = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() }))
+                    .filter(r => norm(r.equipo) === target);
+                return rows;
             } catch (e) {
                 console.warn('No se pudieron leer pruebas desde Firestore (inspeccion)', e);
                 return null;
