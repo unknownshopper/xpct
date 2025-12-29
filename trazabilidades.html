@@ -155,19 +155,12 @@
     const auth = getAuth(app);
     window.auth = auth;
 
-    const ADMINS = [
-        "the@unknownshoppers.com",
-        "jalcz@pct.com"
-    ];
-    const INSPECTORES = [
-        "inspector01@pct.com",
-        "inspector02@pct.com"
-    ];
+    // Acceso por Custom Claims (Firebase): role === 'admin'
 
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
@@ -176,13 +169,15 @@
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
-        const esAdmin = ADMINS.includes(email);
+        // Resolver rol desde Custom Claims
+        let role = null;
+        try {
+            const tok = await user.getIdTokenResult(true);
+            role = tok?.claims?.role || null;
+        } catch {}
+        const esAdmin = (role === 'admin');
         if (!esAdmin) {
-            if (INSPECTORES.includes(email)) {
-                window.location.href = 'inspeccion.html';
-            } else {
-                window.location.href = 'login.html';
-            }
+            window.location.href = 'inspeccion.html';
             return;
         }
 

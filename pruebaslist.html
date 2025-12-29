@@ -1522,6 +1522,7 @@
                 const periodoTexto = periodoActual || '';
 
                 const esEditable = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                const esAdminOnly = !!window.isAdmin;
                 const celdaPeriodo = esEditable
                     ? `<select class="pl-periodo" data-id="${reg.id || ''}">
                             <option value=""></option>
@@ -1538,9 +1539,8 @@
 
                 const textoNoRep = (reg.noReporte || '').toString();
                 const celdaNoRep = esEditable
-                    ? `<input type="text" class="pl-norep" required data-id="${reg.id || ''}" data-prev="$
-                    {textoNoRep.replace(/"/g, '&quot;')}" value="${textoNoRep.replace(/"/g, '&quot;')}">`
-    : textoNoRep;
+                    ? `<input type="text" class="pl-norep" required data-id="${reg.id || ''}" data-prev="${textoNoRep.replace(/"/g, '&quot;')}" value="${textoNoRep.replace(/"/g, '&quot;')}" style="direction:rtl; text-align:left;">`
+                    : textoNoRep;
 
                 const resultadoActual = (reg.resultado || '').toString();
                 const celdaResultado = esEditable
@@ -1550,6 +1550,14 @@
                             <option value="RECHAZADA" ${resultadoActual === 'RECHAZADA' ? 'selected' : ''}>RECHAZADA</option>
                        </select>`
                     : resultadoActual;
+
+                const celdaEmisor = esAdminOnly
+                    ? `<input type="text" class="pl-emisor" data-id="${reg.id || ''}" value="${(reg.emisor || '').toString().replace(/"/g, '&quot;')}">`
+                    : (reg.emisor || '');
+
+                const celdaTecnico = esAdminOnly
+                    ? `<input type="text" class="pl-tecnico" data-id="${reg.id || ''}" value="${(reg.tecnico || '').toString().replace(/"/g, '&quot;')}">`
+                    : (reg.tecnico || '');
 
                 fila.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${permitirEliminar ? `<input type="checkbox" class="prueba-select" data-idx="${idx}">` : ``}</td>
@@ -1565,8 +1573,8 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${celdaNoRep}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaResultado}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.emisor || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.tecnico || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaEmisor}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaTecnico}</td>
                 `;
 
                 fila.style.cursor = 'pointer';
@@ -1745,6 +1753,50 @@
             }
         }
 
+        async function actualizarCampoEmisor(id, nuevoValor) {
+            if (!id) return;
+            try {
+                const { getFirestore, doc, updateDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore(app);
+                const ref = doc(db, 'pruebas', id);
+                await updateDoc(ref, { emisor: nuevoValor });
+
+                pruebas = pruebas.map(reg => {
+                    if (reg && reg.id === id) {
+                        return { ...reg, emisor: nuevoValor };
+                    }
+                    return reg;
+                });
+            } catch (e) {
+                console.error('No se pudo actualizar el Emisor para id ' + id, e);
+                alert('No se pudo guardar el cambio de Emisor. Revisa la consola para más detalles.');
+            }
+        }
+
+        async function actualizarCampoTecnico(id, nuevoValor) {
+            if (!id) return;
+            try {
+                const { getFirestore, doc, updateDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore(app);
+                const ref = doc(db, 'pruebas', id);
+                await updateDoc(ref, { tecnico: nuevoValor });
+
+                pruebas = pruebas.map(reg => {
+                    if (reg && reg.id === id) {
+                        return { ...reg, tecnico: nuevoValor };
+                    }
+                    return reg;
+                });
+            } catch (e) {
+                console.error('No se pudo actualizar el Técnico para id ' + id, e);
+                alert('No se pudo guardar el cambio de Técnico. Revisa la consola para más detalles.');
+            }
+        }
+
         function exportarCsv() {
             const filas = obtenerSeleccionadas();
             if (!filas.length) {
@@ -1903,7 +1955,23 @@ tbodyListado.addEventListener('change', (ev) => {
     actualizarCampoResultado(id, valor);
   } else if (target.classList.contains('pl-periodo')) {
     actualizarCampoPeriodo(id, valor || '');
+  } else if (target.classList.contains('pl-emisor')) {
+    actualizarCampoEmisor(id, valor);
+  } else if (target.classList.contains('pl-tecnico')) {
+    actualizarCampoTecnico(id, valor);
   }
+});
+
+// Mostrar los últimos dígitos por defecto en No. reporte / cert.
+tbodyListado.addEventListener('focusin', (ev) => {
+  const target = ev.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (!target.classList.contains('pl-norep')) return;
+  const len = target.value.length;
+  setTimeout(() => {
+    try { target.setSelectionRange(len, len); } catch {}
+    target.scrollLeft = target.scrollWidth;
+  }, 0);
 });
 
 // Asegura ejecutar un render final tras registrar handlers

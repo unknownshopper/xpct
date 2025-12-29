@@ -1419,7 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (diffDias >= 0) dias = diffDias;
             }
             const os = reg.os || '';
-            const factura = reg.factura || '';
+            const estCotVal = reg.estCot || reg.factura || '';
             const ordenCompra = reg.ordenSuministro || '';
             const descripcionBase = reg.descripcion || '';
 
@@ -1429,7 +1429,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             equiposArr.forEach(equipoNombre => {
                 const descEfectiva = descripcionBase || mapaDescripcionPorEquipoList[equipoNombre] || '';
-                const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${factura}`.toLowerCase();
+                const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${estCotVal}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 visibles += 1;
@@ -1511,9 +1511,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center; width:80px;">
                         ${dias || ''}
                     </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${os}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${ordenCompra}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${factura}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <input type="text" class="actlist-input-os" data-id="${id}" value="${os}" style="width:110px; font-size:0.8rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <input type="text" class="actlist-input-oc" data-id="${id}" value="${ordenCompra}" style="width:110px; font-size:0.8rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <input type="text" class="actlist-input-estcot" data-id="${id}" value="${estCotVal}" style="width:110px; font-size:0.8rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                    </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                         <button type="button" class="actlist-btn-guardar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;" disabled>
                             Guardar
@@ -1594,6 +1600,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 habilitar('.actlist-input-area');
                 habilitar('.actlist-input-inicio');
                 habilitar('.actlist-input-term');
+                habilitar('.actlist-input-os');
+                habilitar('.actlist-input-oc');
+                habilitar('.actlist-input-estcot');
 
                 const btnGuardar = tbody.querySelector(`.actlist-btn-guardar[data-id="${id}"]`);
                 if (btnGuardar) btnGuardar.disabled = false;
@@ -1615,6 +1624,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const nuevaArea = getVal('.actlist-input-area');
                 const nuevoInicio = getVal('.actlist-input-inicio');
                 const nuevaTerm = getVal('.actlist-input-term');
+                const nuevoOs = getVal('.actlist-input-os');
+                const nuevaOc = getVal('.actlist-input-oc');
+                const nuevoEstCot = getVal('.actlist-input-estcot');
 
                 // Validar fechas si están llenas
                 const dIni = nuevoInicio ? parseFechaDdMmAaListado(nuevoInicio) : null;
@@ -1634,6 +1646,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     regLocal.areaCliente = nuevaArea;
                     regLocal.inicioServicio = nuevoInicio;
                     regLocal.terminacionServicio = nuevaTerm;
+                    regLocal.os = nuevoOs;
+                    regLocal.ordenSuministro = nuevaOc;
+                    regLocal.estCot = nuevoEstCot;
                 }
 
                 try {
@@ -1647,6 +1662,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         areaCliente: nuevaArea,
                         inicioServicio: nuevoInicio,
                         terminacionServicio: nuevaTerm,
+                        os: nuevoOs,
+                        ordenSuministro: nuevaOc,
+                        estCot: nuevoEstCot,
                     });
                 } catch (e) {
                     console.error('Error al actualizar actividad desde listado', e);

@@ -567,6 +567,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         ${parametrosInspeccion.map((p, idx) => {
                             const baseNombre = (p || '').toLowerCase();
+                            // Caso especial: Recubrimiento no lleva selector de daños, solo BUENO/MALO
+                            if (baseNombre.includes('recubrimiento')) {
+                                return `
+                            <div class="parametros-fila">
+                                <div class="col-nombre">${p}</div>
+                                <div class="col-estado">
+                                    <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
+                                    <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
+                                </div>
+                            </div>
+                        `;
+                            }
+
                             const tiposDano = obtenerTiposDano(p);
                             return `
                             <div class="parametros-fila">
@@ -724,6 +737,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const valor = inputEquipo.value.trim();
             if (!valor) return;
 
+            // Validar Tipo de inspección (requerido)
+            const selTipo = document.getElementById('inspeccion-tipo');
+            const tipoInspeccion = selTipo ? String(selTipo.value || '').trim().toUpperCase() : '';
+            if (!tipoInspeccion) {
+                alert('Selecciona el Tipo de inspección');
+                guardandoInspeccion = false;
+                return;
+            }
+
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxReporte = headers.indexOf('REPORTE P/P');
             const fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
@@ -862,6 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 serial: get(idxSerial),
                 descripcion: get(idxDescripcion),
                 reporte: get(idxReporte),
+                tipoInspeccion,
                 parametros: parametrosCapturados,
                 fechaEmbarque,
                 inicioServicio,
