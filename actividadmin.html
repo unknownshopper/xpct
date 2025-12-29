@@ -366,19 +366,6 @@
                     await actualizarActividadEnFirestore(id, { factura: valor });
                 });
             });
-
-            // Guardado automático en blur para Est-Cot
-            tbody.querySelectorAll('.adm-input-estcot').forEach(input => {
-                input.addEventListener('blur', async () => {
-                    const id = input.getAttribute('data-id');
-                    if (!id) return;
-                    const valor = (input.value || '').trim();
-                    const regLocal = listaActividad.find(r => r.id === id);
-                    if (!regLocal) return;
-                    regLocal.estCot = valor;
-                    await actualizarActividadEnFirestore(id, { estCot: valor });
-                });
-            });
         } catch (e) {
             console.warn('No se pudo cargar invre.csv para descripciones (admin)', e);
         }

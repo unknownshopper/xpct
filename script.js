@@ -758,6 +758,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const base = obtenerDatosBaseActividad();
         // Validación estricta: no permitir guardar si faltan datos clave
         const faltantes = [];
+        const tipoUpper = (base.tipo || '').toString().toUpperCase();
+        const esTercero = tipoUpper === 'TERCERO';
         if (!base.tipo) faltantes.push('Tipo');
         if (!base.cliente) faltantes.push('Cliente');
         if (!base.areaCliente) faltantes.push('Área del cliente');
@@ -766,8 +768,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!base.inicioServicio) faltantes.push('Inicio del servicio');
         if (!base.os) faltantes.push('OS');
         if (!base.ordenSuministro) faltantes.push('OC');
-        if (!base.estCot) faltantes.push('Est-Cot');
-        if (!base.factura) faltantes.push('Factura');
+        if (!esTercero && !base.estCot) faltantes.push('Est-Cot');
+        if (!esTercero && !base.factura) faltantes.push('Factura');
 
         if (faltantes.length) {
             alert('Completa los siguientes campos antes de guardar:\n\n- ' + faltantes.join('\n- '));
