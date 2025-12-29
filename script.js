@@ -253,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputNoRepAuto = document.getElementById('act-no-reporte-auto');
     const inputDescAuto = document.getElementById('act-descripcion-auto');
     const contEquiposSel = document.getElementById('act-equipos-seleccionados');
+    const selectTipo = document.getElementById('act-tipo');
 
     const btnGuardar = document.getElementById('act-btn-guardar');
     const btnLimpiar = document.getElementById('act-btn-limpiar');
@@ -261,6 +262,24 @@ document.addEventListener('DOMContentLoaded', () => {
     let filasAct = [];
     const infoPorEquipoAct = {}; // { serial, estado, propiedad, descripcion }
     let equiposSeleccionados = [];
+
+    // Modo de captura para TERCERO: no usar inventario ni sugerencias
+    let esTercero = false;
+    function actualizarModoTipo() {
+        esTercero = ((selectTipo?.value || '').toString().toUpperCase() === 'TERCERO');
+        if (esTercero) {
+            // Quitar lista de sugerencias para permitir captura libre
+            inputEquipo.removeAttribute('list');
+        } else {
+            // Restaurar datalist para equipos propios
+            inputEquipo.setAttribute('list', 'lista-equipos-actividad');
+        }
+    }
+    if (selectTipo) {
+        selectTipo.addEventListener('change', actualizarModoTipo);
+        // Inicializar estado al cargar
+        actualizarModoTipo();
+    }
 
     // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage y sincronizados con Firestore
     const claveEstadoOverrideAct = 'pct_invre_estado_override';
