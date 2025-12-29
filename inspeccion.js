@@ -456,9 +456,14 @@ document.addEventListener('DOMContentLoaded', () => {
         function obtenerTiposDano(nombreParametro) {
             const base = (nombreParametro || '').toLowerCase();
 
-            // Fleje: el estado ya es LEGIBLE / NO LEGIBLE, no se usa catálogo de daño
+            // Fleje: usar BUENO/MALO y si es MALO, permitir seleccionar tipo de daño
             if (base.includes('fleje')) {
-                return [];
+                return [
+                    '',
+                    'DEFORMADO',
+                    'NO LEGIBLE',
+                    'SIN FLEJE'
+                ];
             }
 
             // Estado del Elastómero
@@ -475,15 +480,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 ];
             }
 
-            // Recubrimiento
+            // Recubrimiento (según catálogo proporcionado)
             if (base.includes('recubrimiento')) {
                 return [
                     '',
-                    'SIN ELASTOMERO',
-                    'DEFORMADO',
-                    'CORTADO',
-                    'RESECO',
+                    'DESPRENDIDO',
+                    'AMPOLLADO',
+                    'CORROSION',
+                    'OXIDACION',
                     'DEGRADADO',
+                    'ABRASION',
                     'OTRO'
                 ];
             }
@@ -561,20 +567,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         ${parametrosInspeccion.map((p, idx) => {
                             const baseNombre = (p || '').toLowerCase();
-
-                            // Para Fleje: solo estado LEGIBLE / NO LEGIBLE, sin tipo de daño adicional
-                            if (baseNombre.includes('fleje')) {
-                                return `
-                            <div class="parametros-fila">
-                                <div class="col-nombre">${p}</div>
-                                <div class="col-estado">
-                                    <label><input type="radio" name="param-${idx}-estado" value="LEGIBLE" checked> LEGIBLE</label>
-                                    <label><input type="radio" name="param-${idx}-estado" value="NO LEGIBLE"> NO LEGIBLE</label>
-                                </div>
-                            </div>
-                        `;
-                            }
-
                             const tiposDano = obtenerTiposDano(p);
                             return `
                             <div class="parametros-fila">
@@ -585,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <div class="col-dano" data-param-idx="${idx}" style="display:none;">
                                     <select name="param-${idx}-dano" disabled>
-                                        ${tiposDano.map(op => op ? `<option value="${op}">${op}</option>` : '<option value="">(Sin daño)</option>').join('')}
+                                        ${tiposDano.map(op => op ? `<option value="${op}">${op}</option>` : '<option value="">Daños</option>').join('')}
                                     </select>
                                     <input type="text" name="param-${idx}-dano-otro" placeholder="Describa el hallazgo" style="display:none; margin-top:0.25rem; font-size:0.8rem; width:100%;" disabled>
                                 </div>
@@ -755,6 +747,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const detalleOtro = inputOtro ? (inputOtro.value || '').trim() : '';
                 parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro });
             });
+
+            // Validaciones requeridas por parámetro
+            for (let i = 0; i < parametrosCapturados.length; i++) {
+                const p = parametrosCapturados[i];
+                if (!p.estado) {
+                    alert(`Selecciona el estado para el parámetro: ${p.nombre}`);
+                    guardandoInspeccion = false;
+                    return;
+                }
+                if (p.estado.toUpperCase() === 'MALO') {
+                    if (!p.tipoDano) {
+                        alert(`Selecciona el tipo de daño para: ${p.nombre}`);
+                        guardandoInspeccion = false;
+                        return;
+                    }
+                    if (p.tipoDano.toUpperCase() === 'OTRO' && !p.detalleOtro) {
+                        alert(`Describe el hallazgo en 'OTRO' para: ${p.nombre}`);
+                        guardandoInspeccion = false;
+                        return;
+                    }
+                }
+            }
 
             // Construir un resumen de observaciones con los hallazgos (parámetros en estado MALO o NO LEGIBLE)
             const hallazgos = parametrosCapturados

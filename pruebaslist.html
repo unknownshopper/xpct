@@ -304,6 +304,7 @@
                     <div id="import-summary" style="font-size:0.9rem; color:#374151; margin-bottom:0.5rem;"></div>
                     <div id="import-warnings" style="font-size:0.85rem; color:#92400e; margin-bottom:0.5rem;"></div>
                     <div id="import-errors" style="font-size:0.85rem; color:#991b1b; margin-bottom:0.5rem;"></div>
+                    <div id="import-note" style="font-size:0.85rem; color:#b45309; margin-bottom:0.5rem; display:none;">Corrige los errores para continuar.</div>
                     <div style="display:flex; gap:0.5rem;">
                         <button id="btn-import-confirm" style="display:none;">Confirmar importación</button>
                         <button id="btn-import-cancel" style="display:none;">Cancelar</button>
@@ -764,8 +765,14 @@
             importWarnings.innerHTML = res.warnings.length ? (`<ul>` + res.warnings.slice(0,50).map(w=>`<li>${w}</li>`).join('') + (res.warnings.length>50?`<li>... (${res.warnings.length-50} más)</li>`:'') + `</ul>`) : '';
             importErrors.innerHTML = res.errors.length ? (`<ul>` + res.errors.slice(0,50).map(e=>`<li>${e}</li>`).join('') + (res.errors.length>50?`<li>... (${res.errors.length-50} más)</li>`:'') + `</ul>`) : '';
             importPreview.style.display = '';
-            if (btnImportConfirm) btnImportConfirm.style.display = res.valids.length ? '' : 'none';
+            const hasErrors = (res.errors && res.errors.length > 0);
+            if (btnImportConfirm) {
+                btnImportConfirm.style.display = '';
+                btnImportConfirm.disabled = hasErrors || !res.valids.length;
+            }
             if (btnImportCancel) btnImportCancel.style.display = '';
+            const note = document.getElementById('import-note');
+            if (note) note.style.display = hasErrors ? '' : 'none';
         }
 
         async function doImportToFirestore(rows) {

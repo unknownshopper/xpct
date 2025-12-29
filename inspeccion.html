@@ -55,6 +55,13 @@
     <main class="inspeccion-page">
         <section class="selector-equipo">
             <h1>Inspección de equipos</h1>
+            <label for="inspeccion-tipo">Tipo de inspección</label>
+            <select id="inspeccion-tipo" class="form-input">
+                <option value="" selected>Seleccione tipo…</option>
+                <option value="PRE-TRABAJO">Pre-trabajo</option>
+                <option value="POST-TRABAJO">Post-trabajo</option>
+                <option value="RECEPCION">Recepción</option>
+            </select>
             <label for="equipo-input">Equipo</label>
             <input type="text" id="equipo-input" list="lista-equipos" placeholder="Escriba PUP, XO o parte del código / descripción">
             <datalist id="lista-equipos"></datalist>
