@@ -153,6 +153,7 @@
                             <th style="text-align:left; padding:0.4rem;">Ingreso acumulado</th>
                             <th style="text-align:left; padding:0.4rem;">OS</th>
                             <th style="text-align:left; padding:0.4rem;">OC</th>
+                            <th style="text-align:left; padding:0.4rem;">Est-Cot</th>
                             <th style="text-align:left; padding:0.4rem;">Factura</th>
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
                         </tr>
@@ -338,6 +339,45 @@
                 if (!mapaDescripcionPorEquipoAdm[eq]) {
                     mapaDescripcionPorEquipoAdm[eq] = desc;
                 }
+            });
+
+            // Guardado automático en blur para OS
+            tbody.querySelectorAll('.adm-input-os').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+                    const valor = (input.value || '').trim();
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+                    regLocal.os = valor;
+                    await actualizarActividadEnFirestore(id, { os: valor });
+                });
+            });
+
+            // Guardado automático en blur para Factura
+            tbody.querySelectorAll('.adm-input-factura').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+                    const valor = (input.value || '').trim();
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+                    regLocal.factura = valor;
+                    await actualizarActividadEnFirestore(id, { factura: valor });
+                });
+            });
+
+            // Guardado automático en blur para Est-Cot
+            tbody.querySelectorAll('.adm-input-estcot').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+                    const valor = (input.value || '').trim();
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+                    regLocal.estCot = valor;
+                    await actualizarActividadEnFirestore(id, { estCot: valor });
+                });
             });
         } catch (e) {
             console.warn('No se pudo cargar invre.csv para descripciones (admin)', e);
@@ -1029,6 +1069,7 @@
                 const termTexto = reg.terminacionServicio || '';
                 const os = reg.os || '';
                 const oc = reg.ordenSuministro || '';
+                const estCot = reg.estCot || '';
                 const factura = reg.factura || '';
                 const precio = Number(reg.precio || 0);
                 const descripcionBase = reg.descripcion || '';
@@ -1056,7 +1097,7 @@
                 equiposArr.forEach(equipoNombre => {
                     const mapaDesc = (window.mapaDescripcionPorEquipoAdm || {});
                     const descEfectiva = descripcionBase || mapaDesc[equipoNombre] || '';
-                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${factura}`.toLowerCase();
+                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${oc} ${estCot} ${factura}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
                     }
@@ -1165,11 +1206,18 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:right;">
                             ${ingresoEquipo ? formatearMoneda(ingresoEquipo) : ''}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">${os}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
+                            <input type="text" class="adm-input-os" data-id="${id}" value="${os || ''}" style="font-size:0.8rem; width:110px;">
+                        </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <input type="text" class="adm-input-oc" data-id="${id}" value="${oc || ''}" style="font-size:0.8rem; width:110px;">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">${factura}</td>
+                        <td style=\"padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;\">
+                            <input type=\"text\" class=\"adm-input-estcot\" data-id=\"${id}\" value=\"${estCot || ''}\" style=\"font-size:0.8rem; width:110px;\">
+                        </td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
+                            <input type="text" class="adm-input-factura" data-id="${id}" value="${factura || ''}" style="font-size:0.8rem; width:110px;">
+                        </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
                                 Eliminar

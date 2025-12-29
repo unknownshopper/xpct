@@ -746,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (guardandoInspeccion) return;
             guardandoInspeccion = true;
             const valor = inputEquipo.value.trim();
-            if (!valor) return;
+            if (!valor) { guardandoInspeccion = false; return; }
 
             // Validar Tipo de inspección (requerido)
             const selTipo = document.getElementById('inspeccion-tipo');
@@ -760,7 +760,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxReporte = headers.indexOf('REPORTE P/P');
             const fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
-            if (!fila) return;
+            if (!fila) { guardandoInspeccion = false; return; }
 
             const idxProducto = headers.indexOf('PRODUCTO');
             const idxSerial = headers.indexOf('SERIAL');
