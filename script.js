@@ -756,12 +756,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const base = obtenerDatosBaseActividad();
-        if (!base.cliente) {
-            alert('Indica el cliente.');
-            return;
-        }
-        if (!base.inicioServicio) {
-            alert('Indica la fecha de inicio del servicio.');
+        // Validación estricta: no permitir guardar si faltan datos clave
+        const faltantes = [];
+        if (!base.tipo) faltantes.push('Tipo');
+        if (!base.cliente) faltantes.push('Cliente');
+        if (!base.areaCliente) faltantes.push('Área del cliente');
+        if (!base.ubicacion) faltantes.push('Ubicación');
+        if (!base.fechaEmbarque) faltantes.push('Fecha de embarque');
+        if (!base.inicioServicio) faltantes.push('Inicio del servicio');
+        if (!base.os) faltantes.push('OS');
+        if (!base.ordenSuministro) faltantes.push('OC');
+        if (!base.estCot) faltantes.push('Est-Cot');
+        if (!base.factura) faltantes.push('Factura');
+
+        if (faltantes.length) {
+            alert('Completa los siguientes campos antes de guardar:\n\n- ' + faltantes.join('\n- '));
             return;
         }
 
@@ -813,23 +822,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const ahora = serverTimestamp();
 
-            // Si no se capturó OC en el formulario, generar una sola OC automática
-            // y reutilizarla para todos los equipos de esta alta.
-            let ocGeneradaGlobal = '';
-
             for (const eq of equiposSeleccionados) {
-                let osFinal = base.os;
-                if (!osFinal) {
-                    osFinal = generarOsAutomatico(eq, base.inicioServicio) || '';
-                }
-
-                let ocFinal = base.ordenSuministro;
-                if (!ocFinal) {
-                    if (!ocGeneradaGlobal) {
-                        ocGeneradaGlobal = generarOcAutomatica(eq, base.inicioServicio) || '';
-                    }
-                    ocFinal = ocGeneradaGlobal;
-                }
+                const osFinal = base.os; // ya validado requerido
+                const ocFinal = base.ordenSuministro; // ya validado requerido
 
                 const infoEq = infoPorEquipoAct[eq] || {};
                 const descripcion = infoEq.descripcion || '';
