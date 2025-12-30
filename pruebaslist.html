@@ -1182,6 +1182,7 @@
 
             const porRealizar = [];
             const historico = [...enriquecidas];
+            const totalHistorico = historico.length;
 
             enriquecidas.forEach(reg => {
                 if (reg._clasif.estado === 'VIGENTE' || reg._clasif.estado === 'VENCIDA') {
@@ -1594,7 +1595,7 @@
             if (!cntHist && msgListado) msgListado.style.display = 'block';
             if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
             if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
-            if (lblHist) lblHist.textContent = `${cntHist} en histórico`;
+            if (lblHist) lblHist.textContent = `${totalHistorico} en histórico`;
 
             const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
             const lblAlert0 = document.getElementById('pruebas-alert-0');
