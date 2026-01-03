@@ -261,8 +261,45 @@
                 <div class="actividad-toolbar-right" style="display:flex; gap:0.5rem; margin-left:auto;">
                     <input id="input-import-csv" type="file" accept=".csv" style="display:none;" />
                     <button id="btn-pruebas-import-csv" title="Importar formato_pruebas.csv" style="display:none;">Ingresar formato.csv</button>
+                    <input id="input-delete-csv" type="file" accept=".csv" style="display:none;" />
+                    <button id="btn-pruebas-delete-csv" title="Eliminar registros del CSV en Firestore" style="display:none;">Eliminar por CSV</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
+                </div>
+            </section>
+
+            <!-- Panel de vista previa de importación CSV (solo admin) - ubicado bajo el botón de importar -->
+            <section id="import-preview" style="display:none; margin:0.5rem 0 1rem; border:1px solid #e5e7eb; border-radius:8px; padding:0.75rem; background:#fafafa;">
+                <h3 style="margin:0 0 0.5rem;">Vista previa de importación</h3>
+                <div id="import-summary" style="font-size:0.9rem; color:#374151; margin-bottom:0.5rem;"></div>
+                <div id="import-warnings" style="font-size:0.85rem; color:#92400e; margin-bottom:0.5rem;"></div>
+                <div id="import-errors" style="font-size:0.85rem; color:#991b1b; margin-bottom:0.5rem;"></div>
+                <label style="display:flex; gap:0.4rem; align-items:center; font-size:0.85rem; margin:0.25rem 0 0.5rem;">
+                    <input type="checkbox" id="chk-import-overwrite">
+                    Sobrescribir existentes (actualiza campos si la clave ya existe)
+                </label>
+                <label style="display:flex; gap:0.4rem; align-items:center; font-size:0.85rem; margin:0 0 0.5rem;">
+                    <input type="checkbox" id="chk-auto-import">
+                    Auto-importar al validar (modo sobrescribir)
+                </label>
+                <div id="import-note" style="font-size:0.85rem; color:#b45309; margin-bottom:0.5rem; display:none;">Corrige los errores para continuar.</div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                    <label style="display:flex; gap:0.35rem; align-items:center; font-size:0.85rem;">
+                        <input type="checkbox" id="chk-use-base" /> Usar base
+                    </label>
+                    <label style="display:flex; gap:0.35rem; align-items:center; font-size:0.85rem;">
+                        Tamaño base: <input id="input-base-size" type="number" min="1" value="117" style="width:70px;" />
+                    </label>
+                    <button id="btn-import-confirm" style="display:none;">Confirmar importación</button>
+                    <button id="btn-import-delete-existing" style="display:none; background:#fee2e2; color:#991b1b;">Eliminar existentes del CSV</button>
+                    <button id="btn-import-export-missing" style="display:none;">Exportar faltantes inventario</button>
+                    <button id="btn-import-diagnose-missing" style="display:none;">Diagnosticar faltantes vs lista</button>
+                    <button id="btn-import-export-errors">Exportar errores CSV</button>
+                    <button id="btn-import-show-errors" style="display:none;">Mostrar errores</button>
+                    <button id="btn-import-diagnose-existing-only" style="display:none;">Diagnosticar existentes sin CSV</button>
+                    <button id="btn-import-summary-sets" style="display:none;">Resumen CSV vs existentes</button>
+                    <button id="btn-import-reconcile" style="display:none;">Sugerir reconciliaciones (llave relajada)</button>
+                    <button id="btn-import-cancel" style="display:none;">Cancelar</button>
                 </div>
             </section>
 
@@ -298,18 +335,6 @@
                         No hay pruebas registradas todavía.
                     </p>
                 </div>
-                <!-- Panel de vista previa de importación CSV (solo admin) -->
-                <section id="import-preview" style="display:none; margin-top:0.75rem; border:1px solid #e5e7eb; border-radius:8px; padding:0.75rem; background:#fafafa;">
-                    <h3 style="margin:0 0 0.5rem;">Vista previa de importación</h3>
-                    <div id="import-summary" style="font-size:0.9rem; color:#374151; margin-bottom:0.5rem;"></div>
-                    <div id="import-warnings" style="font-size:0.85rem; color:#92400e; margin-bottom:0.5rem;"></div>
-                    <div id="import-errors" style="font-size:0.85rem; color:#991b1b; margin-bottom:0.5rem;"></div>
-                    <div id="import-note" style="font-size:0.85rem; color:#b45309; margin-bottom:0.5rem; display:none;">Corrige los errores para continuar.</div>
-                    <div style="display:flex; gap:0.5rem;">
-                        <button id="btn-import-confirm" style="display:none;">Confirmar importación</button>
-                        <button id="btn-import-cancel" style="display:none;">Cancelar</button>
-                    </div>
-                </section>
             </section>
         </section>
 
@@ -342,6 +367,215 @@
         if (!user) {
             window.location.href = 'login.html';
             return;
+        }
+
+        // Exportar todos los errores de validación a un archivo de texto
+        const btnExportErrors = document.getElementById('btn-import-export-errors');
+        if (btnExportErrors) {
+            btnExportErrors.addEventListener('click', () => {
+                try {
+                    const res = window.__lastValidationResult;
+                    const errs = (res && Array.isArray(res.errors)) ? res.errors : [];
+                    if (!errs.length) { alert('No hay errores para exportar.'); return; }
+                    const contenido = errs.join('\n');
+                    const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'errores_validacion_pruebas.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+                } catch (e) {
+                    alert('No fue posible exportar los errores.');
+                }
+            });
+        }
+
+        // Reconciliación por llave relajada: encuentra parejas CSV vs existentes que coinciden relajado pero no estricto
+        const btnReconcile = document.getElementById('btn-import-reconcile');
+        if (btnReconcile) {
+            btnReconcile.addEventListener('click', () => {
+                try {
+                    if (window.buildExistingKeys) window.buildExistingKeys();
+                    const exSetStrict = (window.getExistingKeysSet && window.getExistingKeysSet()) || new Set();
+                    // Construir mapas relaxed para existentes
+                    const existentesRelax = new Map();
+                    (pruebas || []).forEach(reg => {
+                        const kR = composeKeyRelaxed({
+                            equipo: reg.equipo,
+                            numeroSerie: reg.serial || reg.numeroSerie,
+                            periodo: reg.periodo,
+                            fechaRealizacion: reg.fechaRealizacion,
+                            noReporte: reg.noReporte,
+                        });
+                        if (kR) existentesRelax.set(kR, reg);
+                    });
+                    // Preparar filas del CSV
+                    let rows = (window.getImportRowsReady && window.getImportRowsReady()) || [];
+                    if (!rows.length && (window.getLastCsvText && window.getLastCsvText())) {
+                        const r = validateCsv(window.getLastCsvText());
+                        rows = r.valids || [];
+                    }
+                    if (!rows.length) { alert('Primero selecciona el CSV para diagnosticar.'); return; }
+                    const candidatos = [];
+                    rows.forEach(r => {
+                        const kStrict = composeKey(r);
+                        const kRelax = composeKeyRelaxed(r);
+                        if (!exSetStrict.has(kStrict) && existentesRelax.has(kRelax)) {
+                            const reg = existentesRelax.get(kRelax);
+                            candidatos.push({ kStrict, kRelax, noReporteCsv: r.noReporte, noReporteExist: reg && reg.noReporte });
+                        }
+                    });
+                    const cont = document.getElementById('import-errors');
+                    if (cont) {
+                        if (!candidatos.length) {
+                            cont.innerHTML = 'No se encontraron coincidencias por llave relajada. Las diferencias no son solo de puntuación en noReporte.';
+                        } else {
+                            const sample = candidatos.slice(0, 20).map(c => `<li><code>${c.kStrict}</code><br><small>relajado coincide con existente (CSV noReporte: ${c.noReporteCsv} → normalizado; existente noReporte: ${c.noReporteExist})</small></li>`).join('');
+                            const extra = candidatos.length>20 ? `<div>... y ${candidatos.length-20} más</div>` : '';
+                            cont.innerHTML = `<div>Posibles reconciliaciones por llave relajada: <strong>${candidatos.length}</strong></div><ul>${sample}</ul>${extra}`;
+                        }
+                    } else {
+                        alert(`Posibles reconciliaciones por llave relajada: ${candidatos.length}`);
+                    }
+                } catch (e) {
+                    console.error('Reconciliación relajada falló', e);
+                    alert(`No fue posible sugerir reconciliaciones. Detalle: ${e && (e.message||e.toString())}`);
+                }
+            });
+        }
+
+        // Diagnóstico: existentes que no están en CSV
+        const btnDiagnoseExistingOnly = document.getElementById('btn-import-diagnose-existing-only');
+        if (btnDiagnoseExistingOnly) {
+            btnDiagnoseExistingOnly.addEventListener('click', () => {
+                try {
+                    if (window.buildExistingKeys) window.buildExistingKeys();
+                    let rows = (window.getImportRowsReady && window.getImportRowsReady()) || [];
+                    if (!rows.length && (window.getLastCsvText && window.getLastCsvText())) {
+                        const r = validateCsv(window.getLastCsvText());
+                        rows = r.valids || [];
+                    }
+                    if (!rows.length) { alert('Primero selecciona el CSV para diagnosticar.'); return; }
+                    const csvKeys = new Set();
+                    rows.forEach(r => {
+                        const k = composeKey({
+                            equipo: r.equipo,
+                            numeroSerie: r.serial,
+                            periodo: r.periodo,
+                            fechaRealizacion: r.fechaRealizacion,
+                            noReporte: r.noReporte,
+                        });
+                        if (k) csvKeys.add(k);
+                    });
+                    const exSet = (window.getExistingKeysSet && window.getExistingKeysSet()) || existingKeys || new Set();
+                    const onlyExisting = [];
+                    exSet.forEach(k => { if (!csvKeys.has(k)) onlyExisting.push(k); });
+                    const cont = document.getElementById('import-errors');
+                    if (cont) {
+                        if (!onlyExisting.length) {
+                            cont.innerHTML = 'Todos los existentes tienen correspondencia en el CSV (por llave).';
+                        } else {
+                            const sample = onlyExisting.slice(0, 15).map(x => `<li>${x}</li>`).join('');
+                            cont.innerHTML = `<div>Registros existentes que NO están en el CSV: <strong>${onlyExisting.length}</strong></div><ul>${sample}</ul>` + (onlyExisting.length>15?`<div>... y ${onlyExisting.length-15} más</div>`:'');
+                        }
+                    } else {
+                        alert(`Existentes sin CSV: ${onlyExisting.length}`);
+                    }
+                } catch (e) {
+                    console.error('Diagnóstico existentes sin CSV falló', e);
+                    alert(`No fue posible ejecutar el diagnóstico. Detalle: ${e && (e.message||e.toString())}`);
+                }
+            });
+        }
+
+        // Resumen de conjuntos: CSV vs existentes
+        const btnSummarySets = document.getElementById('btn-import-summary-sets');
+        if (btnSummarySets) {
+            btnSummarySets.addEventListener('click', () => {
+                try {
+                    if (window.buildExistingKeys) window.buildExistingKeys();
+                    const exSet = (window.getExistingKeysSet && window.getExistingKeysSet()) || existingKeys || new Set();
+                    const existingCount = exSet.size;
+                    let rows = (window.getImportRowsReady && window.getImportRowsReady()) || [];
+                    if (!rows.length && (window.getLastCsvText && window.getLastCsvText())) {
+                        const r = validateCsv(window.getLastCsvText());
+                        rows = r.valids || [];
+                    }
+                    if (!rows.length) { alert('Primero selecciona el CSV para diagnosticar.'); return; }
+                    const csvKeys = new Set();
+                    const keyFreq = new Map();
+                    rows.forEach(r => {
+                        const k = composeKey({
+                            equipo: r.equipo,
+                            numeroSerie: r.serial,
+                            periodo: r.periodo,
+                            fechaRealizacion: r.fechaRealizacion,
+                            noReporte: r.noReporte,
+                        });
+                        if (k) {
+                            csvKeys.add(k);
+                            keyFreq.set(k, (keyFreq.get(k)||0)+1);
+                        }
+                    });
+                    const csvTotalRows = rows.length;
+                    const csvCount = csvKeys.size;
+                    // ¿Usar base? base = onlyExisting ∪ subset(intersection) hasta tamaño base
+                    const useBase = !!(document.getElementById('chk-use-base') && document.getElementById('chk-use-base').checked);
+                    const baseSizeInput = document.getElementById('input-base-size');
+                    const baseTarget = Math.max(1, parseInt((baseSizeInput && baseSizeInput.value) ? baseSizeInput.value : '117', 10));
+
+                    let inter = 0;
+                    const interList = [];
+                    csvKeys.forEach(k => { if (exSet.has(k)) { inter++; interList.push(k); } });
+                    const onlyExistingSet = new Set();
+                    exSet.forEach(k => { if (!csvKeys.has(k)) onlyExistingSet.add(k); });
+
+                    let onlyCsv, onlyExisting, union, effectiveExistingCount, note = '';
+                    if (!useBase) {
+                        onlyCsv = csvCount - inter;
+                        onlyExisting = existingCount - inter;
+                        union = inter + onlyCsv + onlyExisting;
+                        effectiveExistingCount = existingCount;
+                    } else {
+                        // Construir base
+                        const baseSet = new Set();
+                        // 1) incluir todos los existentes fuera del CSV
+                        onlyExistingSet.forEach(k => baseSet.add(k));
+                        // 2) completar con parte de la intersección hasta baseTarget
+                        let need = Math.max(0, baseTarget - baseSet.size);
+                        for (let i=0; i<interList.length && need>0; i++) { baseSet.add(interList[i]); need--; }
+
+                        // Recalcular métricas respecto a la base
+                        effectiveExistingCount = baseSet.size;
+                        let interBase = 0;
+                        csvKeys.forEach(k => { if (baseSet.has(k)) interBase++; });
+                        inter = interBase;
+                        onlyCsv = csvCount - interBase;
+                        let onlyBase = 0; baseSet.forEach(k => { if (!csvKeys.has(k)) onlyBase++; });
+                        onlyExisting = onlyBase;
+                        union = interBase + onlyCsv + onlyBase;
+                        note = ` (usando base=${effectiveExistingCount}, objetivo=${baseTarget})`;
+                    }
+
+                    // Nota sobre duplicados dentro del CSV (mismas llaves)
+                    let dupCount = 0;
+                    keyFreq.forEach(v => { if (v>1) dupCount += (v-1); });
+
+                    const sumEl = document.getElementById('import-summary');
+                    const nominal = csvTotalRows + effectiveExistingCount;
+                    const summaryStr = `Resumen conjuntos — CSV válidos (filas): <strong>${csvTotalRows}</strong>, CSV llaves únicas: <strong>${csvCount}</strong>, Existentes: <strong>${effectiveExistingCount}</strong>, Intersección: <strong>${inter}</strong>, Solo CSV: <strong>${onlyCsv}</strong>, Solo existentes: <strong>${onlyExisting}</strong>, Unión (deduplicada): <strong>${union}</strong>, Suma nominal (CSV + existentes): <strong>${nominal}</strong>${note}` + (dupCount? ` — Duplicados intra-CSV: <strong>${dupCount}</strong>` : '');
+                    if (sumEl) {
+                        sumEl.innerHTML = summaryStr;
+                    } else {
+                        alert(summaryStr.replace(/<[^>]+>/g,'') );
+                    }
+                } catch (e) {
+                    console.error('Resumen conjuntos falló', e);
+                    alert(`No fue posible calcular el resumen. Detalle: ${e && (e.message||e.toString())}`);
+                }
+            });
         }
 
         // (Se calcula tras cargar las pruebas en cargarPruebasDesdeFirestore)
@@ -464,6 +698,9 @@
                 setFiltroPeriodo((filtroPeriodo === 'ANUAL') ? null : 'ANUAL');
             });
         }
+
+        
+
         if (lblPT) {
             lblPT.style.cursor = 'pointer';
             lblPT.addEventListener('click', () => {
@@ -485,11 +722,14 @@
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
         const btnImportCsv = document.getElementById('btn-pruebas-import-csv');
         const inputImportCsv = document.getElementById('input-import-csv');
+        const btnDeleteCsv = document.getElementById('btn-pruebas-delete-csv');
+        const inputDeleteCsv = document.getElementById('input-delete-csv');
         const importPreview = document.getElementById('import-preview');
         const importSummary = document.getElementById('import-summary');
         const importWarnings = document.getElementById('import-warnings');
         const importErrors = document.getElementById('import-errors');
         const btnImportConfirm = document.getElementById('btn-import-confirm');
+        const btnImportDeleteExisting = document.getElementById('btn-import-delete-existing');
         const btnImportCancel = document.getElementById('btn-import-cancel');
 
         const permitirEliminar = !!(window.isAdmin || window.isDirector);
@@ -501,13 +741,98 @@
 
         // Import CSV solo para admin
         if (btnImportCsv) btnImportCsv.style.display = (window.isAdmin ? '' : 'none');
+        if (btnDeleteCsv) {
+            const canDelCsv = (window.isAdmin || window.isDirector);
+            if (canDelCsv) {
+                try {
+                    btnDeleteCsv.style.display = 'inline-block';
+                    btnDeleteCsv.style.removeProperty('display');
+                    setTimeout(() => { try { btnDeleteCsv.style.display = 'inline-block'; } catch {} }, 0);
+                } catch {}
+            } else {
+                btnDeleteCsv.style.display = 'none';
+            }
+            try { console.debug('roles:', { isAdmin: window.isAdmin, isDirector: window.isDirector }, 'btnDeleteCsv visible:', canDelCsv); } catch {}
+        }
         if (btnImportConfirm) btnImportConfirm.style.display = 'none';
+        if (btnImportDeleteExisting) btnImportDeleteExisting.style.display = 'none';
         if (btnImportCancel) btnImportCancel.style.display = 'none';
+
+        // Guard de navegación durante procesos largos (import/delete)
+        let _unloadHandler = null;
+        function setProcessingGuard(active) {
+            try {
+                if (active) {
+                    if (_unloadHandler) return;
+                    _unloadHandler = (e) => { e.preventDefault(); e.returnValue = 'Hay un proceso en curso. No cierres ni recargues la página.'; };
+                    window.addEventListener('beforeunload', _unloadHandler);
+                } else {
+                    if (_unloadHandler) {
+                        window.removeEventListener('beforeunload', _unloadHandler);
+                        _unloadHandler = null;
+                    }
+                }
+            } catch {}
+        }
+
+        // Eliminar por CSV: flujo independiente que no activa auto-import (ubicado tras inicialización de variables)
+        if (btnDeleteCsv && inputDeleteCsv) {
+            btnDeleteCsv.addEventListener('click', () => inputDeleteCsv.click());
+            inputDeleteCsv.addEventListener('change', async (ev) => {
+                if (!(window.isAdmin || window.isDirector)) { alert('Se requiere rol admin o director para eliminar por CSV.'); return; }
+                const file = ev.target.files && ev.target.files[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const res = validateCsv(text);
+                    const rowsToDelete = res.valids || [];
+                    if (!rowsToDelete.length) { alert('El CSV no contiene filas válidas para eliminar.'); return; }
+                    const okGo = window.confirm('Se iniciará la ELIMINACIÓN de los registros del CSV. Este proceso no tiene vuelta atrás y no debes cerrar ni recargar la página hasta que termine. ¿Deseas continuar?');
+                    if (!okGo) return;
+                    if (importPreview) importPreview.style.display = '';
+                    if (importWarnings) importWarnings.innerHTML = '';
+                    if (importErrors) importErrors.innerHTML = '';
+                    if (importSummary) importSummary.innerHTML = `Eliminando... <strong>0</strong> / ${rowsToDelete.length}`;
+                    setProcessingGuard(true);
+                    const delRes = await deleteExistingFromCsv(rowsToDelete);
+                    if (importSummary) importSummary.innerHTML = `Eliminados: <strong>${delRes.delOk}</strong>, No encontrados: ${delRes.delMiss}, Fallidos: ${delRes.delFail}`;
+                    // Recargar listado
+                    const desdeFs2 = await leerFirestore();
+                    if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
+                    buildExistingKeys();
+                    render();
+                } catch (e) {
+                    alert('No se pudo procesar el CSV para eliminar.');
+                } finally {
+                    if (inputDeleteCsv) inputDeleteCsv.value = '';
+                    setProcessingGuard(false);
+                }
+            });
+        }
+
+        // Fijar listener de eliminación tan pronto como el botón exista
+        if (btnImportDeleteExisting) {
+            btnImportDeleteExisting.addEventListener('click', async () => {
+                if (!importRowsReady || !importRowsReady.length) { alert('No hay filas para procesar.'); return; }
+                if (!window.isAdmin) { alert('Se requiere rol admin para eliminar.'); return; }
+                btnImportDeleteExisting.disabled = true;
+                try {
+                    const res = await deleteExistingFromCsv(importRowsReady||[]);
+                    importSummary.innerHTML += ` — Eliminados: <strong>${res.delOk}</strong>, No encontrados: ${res.delMiss}, Fallidos: ${res.delFail}`;
+                    const desdeFs2 = await leerFirestore();
+                    if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
+                    buildExistingKeys();
+                    render();
+                } finally {
+                    btnImportDeleteExisting.disabled = false;
+                }
+            });
+        }
 
         // Id (o clave) de la prueba actualmente seleccionada en el panel de detalle
         let pruebaSeleccionadaId = null;
 
-        if (!tbodyListado) return;
+        if (!tbodyListado) { /* continuar para permitir acciones de importación */ }
 
         try {
             if (auth && auth.currentUser) {
@@ -518,9 +843,15 @@
         let pruebas = [];
         const claveLocal = 'pct_pruebas';
 
-        // Inventario base desde invre.csv para mostrar todos los equipos, incluso sin pruebas.
+        // Inventario base desde invre.csv/invre2.csv para mostrar todos los equipos, incluso sin pruebas.
         let equiposInventario = new Set();
         let descripcionPorEquipoInv = {};
+        let productoPorEquipoInv = {};
+        let descripcionPorSerialInv = {};
+        let productoPorSerialInv = {};
+        // Áreas por equipo/serial y tipo de prueba (derivadas de invre2.csv)
+        let areaPorEquipoPruebaInv = {};
+        let areaPorSerialPruebaInv = {};
 
         async function leerFirestore() {
             try {
@@ -570,35 +901,94 @@
                 const resp = await fetch('docs/invre.csv');
                 if (!resp.ok) return;
                 const texto = await resp.text();
-                const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-                if (!lineas.length) return;
+                const parsed = parseCsv(texto);
+                const headers = parsed.headers || [];
+                const rows = parsed.rows || [];
+                if (!headers.length || !rows.length) return;
 
-                const parse = (window && window.parseCSVLine) ? window.parseCSVLine : null;
-                if (!parse) return;
-
-                const headers = parse(lineas[0]);
                 const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+                const idxSerial = headers.indexOf('SERIAL');
                 const idxDesc = headers.indexOf('DESCRIPCION');
+                const idxProd = headers.indexOf('PRODUCTO');
                 if (idxEquipo < 0) return;
 
                 const setEq = new Set();
                 const mapaDesc = {};
+                const mapaProd = {};
+                const mapaDescSerial = {};
+                const mapaProdSerial = {};
 
-                lineas.slice(1).forEach(l => {
-                    const cols = parse(l);
-                    const eq = (cols[idxEquipo] || '').toString().trim();
+                rows.forEach(cols => {
+                    let eq = (cols[idxEquipo] || '').toString().trim().toUpperCase();
+                    const serial = ((idxSerial>=0 ? cols[idxSerial] : '') || '').toString().trim().toUpperCase();
                     if (!eq) return;
                     setEq.add(eq);
                     if (idxDesc >= 0) {
                         const desc = (cols[idxDesc] || '').toString().trim();
-                        if (desc && !mapaDesc[eq]) {
-                            mapaDesc[eq] = desc;
-                        }
+                        if (desc && !mapaDesc[eq]) mapaDesc[eq] = desc;
+                        if (serial && desc && !mapaDescSerial[serial]) mapaDescSerial[serial] = desc;
+                    }
+                    if (idxProd >= 0) {
+                        const prod = (cols[idxProd] || '').toString().trim();
+                        if (prod && !mapaProd[eq]) mapaProd[eq] = prod;
+                        if (serial && prod && !mapaProdSerial[serial]) mapaProdSerial[serial] = prod;
                     }
                 });
 
+                try {
+                    const resp2 = await fetch('docs/invre2.csv');
+                    if (resp2.ok) {
+                        const texto2 = await resp2.text();
+                        const parsed2 = parseCsv(texto2);
+                        const headers2 = parsed2.headers || [];
+                        const rows2 = parsed2.rows || [];
+                        const idxEquipo2 = headers2.indexOf('EQUIPO / ACTIVO');
+                        const idxSerial2 = headers2.indexOf('SERIAL');
+                        const idxDesc2 = headers2.indexOf('DESCRIPCION');
+                        const idxProd2 = headers2.indexOf('PRODUCTO');
+                        // Heurística: en invre2, después de ACERO vienen columnas para tipo de prueba y área.
+                        const idxAcero2 = headers2.indexOf('ACERO');
+                        const idxTipoPrueba2 = (idxAcero2 >= 0) ? (idxAcero2 + 1) : -1; // 'LT' | 'VT / PT / MT' | 'UTT' ...
+                        const idxArea2 = (idxAcero2 >= 0) ? (idxAcero2 + 3) : -1;      // Área inspección (e.g., CAVIDAD, CARA, PARED)
+                        if (idxEquipo2 >= 0 && rows2.length) {
+                            rows2.forEach(cols2 => {
+                                let eq2 = (cols2[idxEquipo2] || '').toString().trim().toUpperCase();
+                                const serial2 = ((idxSerial2>=0 ? cols2[idxSerial2] : '') || '').toString().trim().toUpperCase();
+                                if (!eq2) return;
+                                setEq.add(eq2);
+                                if (idxDesc2 >= 0) {
+                                    const desc2 = (cols2[idxDesc2] || '').toString().trim();
+                                    if (desc2 && !mapaDesc[eq2]) mapaDesc[eq2] = desc2;
+                                    if (serial2 && desc2 && !mapaDescSerial[serial2]) mapaDescSerial[serial2] = desc2;
+                                }
+                                if (idxProd2 >= 0) {
+                                    const prod2 = (cols2[idxProd2] || '').toString().trim();
+                                    if (prod2 && !mapaProd[eq2]) mapaProd[eq2] = prod2;
+                                    if (serial2 && prod2 && !mapaProdSerial[serial2]) mapaProdSerial[serial2] = prod2;
+                                }
+                                // Mapear área por equipo/serial y tipo de prueba si están las columnas
+                                if (idxTipoPrueba2 >= 0 && idxArea2 >= 0) {
+                                    const tipo2 = (cols2[idxTipoPrueba2] || '').toString().trim().toUpperCase();
+                                    const area2 = (cols2[idxArea2] || '').toString().trim();
+                                    if (tipo2 && area2) {
+                                        const keyEq = `${eq2}::${tipo2}`;
+                                        if (!areaPorEquipoPruebaInv[keyEq]) areaPorEquipoPruebaInv[keyEq] = area2;
+                                        if (serial2) {
+                                            const keySn = `${serial2}::${tipo2}`;
+                                            if (!areaPorSerialPruebaInv[keySn]) areaPorSerialPruebaInv[keySn] = area2;
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                } catch {}
+
                 equiposInventario = setEq;
                 descripcionPorEquipoInv = mapaDesc;
+                productoPorEquipoInv = mapaProd;
+                descripcionPorSerialInv = mapaDescSerial;
+                productoPorSerialInv = mapaProdSerial;
             } catch (e) {
                 console.warn('No se pudo cargar invre.csv para resumen de pruebas', e);
             }
@@ -609,6 +999,7 @@
         // ================== Importación CSV (solo admin) ==================
         let importRowsReady = [];
         let existingKeys = new Set();
+        let lastCsvText = '';
 
         function composeKey(r) {
             const equipo = (r.equipo||'').trim().toUpperCase();
@@ -618,6 +1009,29 @@
             const noReporte = (r.noReporte||'').trim().toUpperCase();
             return `${equipo}__${numeroSerie}__${periodo}__${fechaRealizacion}__${noReporte}`;
         }
+
+        try { window.composeKey = composeKey; } catch {}
+
+        // Llave "relajada": normaliza puntuación en noReporte y colapsa guiones/espacios
+        function normalizeReportId(id) {
+            const s = String(id||'').toUpperCase().normalize('NFKC');
+            // Sustituye cualquier carácter no [A-Z0-9-] por '-'
+            let t = s.replace(/[^A-Z0-9-]+/g, '-');
+            // Colapsa guiones múltiples
+            t = t.replace(/-+/g, '-');
+            // Trim guiones en extremos
+            t = t.replace(/^-/, '').replace(/-$/, '');
+            return t;
+        }
+        function composeKeyRelaxed(r) {
+            const equipo = (r.equipo||'').trim().toUpperCase();
+            const numeroSerie = (r.numeroSerie||r.serial||'').trim().toUpperCase();
+            const periodo = (r.periodo||'').trim().toUpperCase();
+            const fechaRealizacion = (r.fechaRealizacion||'').trim(); // ya viene normalizada dd/mm/aaaa
+            const noReporte = normalizeReportId(r.noReporte||'');
+            return `${equipo}__${numeroSerie}__${periodo}__${fechaRealizacion}__${noReporte}`;
+        }
+        try { window.composeKeyRelaxed = composeKeyRelaxed; } catch {}
 
         function buildExistingKeys() {
             existingKeys = new Set();
@@ -633,6 +1047,13 @@
             });
         }
         buildExistingKeys();
+        // Exponer utilidades para handlers definidos fuera de este alcance
+        try {
+            window.buildExistingKeys = buildExistingKeys;
+            window.getExistingKeysSet = () => existingKeys;
+            window.getImportRowsReady = () => importRowsReady;
+            window.getLastCsvText = () => lastCsvText;
+        } catch {}
 
         function parseCsv(text) {
             const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
@@ -662,13 +1083,17 @@
 
         function req(val) { return val !== undefined && val !== null && String(val).trim() !== ''; }
         function isValidPeriodo(p) { const v = String(p||'').toUpperCase(); return v==='ANUAL' || v==='POST-TRABAJO' || v==='REPARACION'; }
-        function isValidResultado(r) { const v = String(r||'').toUpperCase(); return v==='APROBADA' || v==='RECHAZADA' || v==='N/A'; }
+        function isValidResultado(r) { const v = String(r||'').toUpperCase(); return v==='ACEPTADA' || v==='APROBADA' || v==='RECHAZADA' || v==='N/A'; }
+        function normalizaResultado(r) { const v = String(r||'').toUpperCase(); if (v==='APROBADA') return 'ACEPTADA'; return v; }
         function isValidEjecucion(e) { if (!e) return true; const v = String(e||'').toUpperCase(); return v==='INTERNO' || v==='EXTERNO'; }
         function parseFechaDDMMAAAA(s) {
             const t = String(s||'').trim();
-            const m = t.match(/^([0-3]?\d)\/([0-1]?\d)\/(\d{4})$/);
+            // Acepta dd/mm/aa o dd/mm/aaaa
+            const m = t.match(/^([0-3]?\d)\/([0-1]?\d)\/(\d{2}|\d{4})$/);
             if (!m) return null;
-            const dd = parseInt(m[1],10), mm = parseInt(m[2],10), yyyy = parseInt(m[3],10);
+            const dd = parseInt(m[1],10), mm = parseInt(m[2],10);
+            let yyyy = parseInt(m[3],10);
+            if (m[3].length === 2) { yyyy = 2000 + yyyy; }
             const d = new Date(yyyy, mm-1, dd); d.setHours(0,0,0,0);
             return isNaN(d.getTime()) ? null : d;
         }
@@ -693,9 +1118,25 @@
                 return { valids, errors, warnings };
             }
 
+            // Mapear áreas previas conocidas por equipo/serial a partir de lo ya cargado
+            const areaPorEquipoPrev = {};
+            const areaPorSerialPrev = {};
+            (pruebas || []).forEach(reg => {
+                const eqK = (reg && reg.equipo ? String(reg.equipo).trim().toUpperCase() : '');
+                const snK = (reg && (reg.serial || reg.numeroSerie) ? String(reg.serial || reg.numeroSerie).trim().toUpperCase() : '');
+                const areaK = reg && reg.area ? String(reg.area).trim() : '';
+                if (areaK) {
+                    if (eqK && !areaPorEquipoPrev[eqK]) areaPorEquipoPrev[eqK] = areaK;
+                    if (snK && !areaPorSerialPrev[snK]) areaPorSerialPrev[snK] = areaK;
+                }
+            });
+
             rows.forEach((cols, idx) => {
                 const n = idx + 2; // línea real
                 const rec = Object.fromEntries(headers.map((h,i)=>[h, cols[i]!==undefined? String(cols[i]).trim() : '']));
+                // Omitir filas totalmente vacías (todas las columnas en blanco)
+                const allEmpty = Object.values(rec).every(v => !req(v));
+                if (allEmpty) { warnings.push(`L${n}: fila vacía (omitida)`); return; }
                 // Requeridos
                 if (!req(rec.cliente)) errors.push(`L${n}: cliente requerido`);
                 if (!req(rec.equipo)) errors.push(`L${n}: equipo requerido`);
@@ -703,11 +1144,12 @@
                 if (!req(rec.periodo) || !isValidPeriodo(rec.periodo)) errors.push(`L${n}: periodo inválido (ANUAL|POST-TRABAJO|REPARACION)`);
                 if (!req(rec.prueba)) errors.push(`L${n}: prueba requerida`);
                 const f = parseFechaDDMMAAAA(rec.fechaRealizacion);
-                if (!req(rec.fechaRealizacion) || !f) errors.push(`L${n}: fechaRealizacion inválida (dd/mm/aaaa)`);
+                if (!req(rec.fechaRealizacion) || !f) errors.push(`L${n}: fechaRealizacion inválida (dd/mm/aa o dd/mm/aaaa)`);
                 if (!req(rec.noReporte)) errors.push(`L${n}: noReporte requerido`);
                 if (!req(rec.resultado) || !isValidResultado(rec.resultado)) errors.push(`L${n}: resultado inválido (APROBADA|RECHAZADA|N/A)`);
                 if (!isValidEjecucion(rec.ejecucion)) errors.push(`L${n}: ejecucion inválida (INTERNO|EXTERNO)`);
-                if (String(rec.ejecucion||'').toUpperCase()==='EXTERNO' && !req(rec.emisor)) errors.push(`L${n}: emisor requerido cuando ejecucion=EXTERNO`);
+                // Relajar: si ejecucion=EXTERNO sin emisor, marcar warning y permitir la fila
+                if (String(rec.ejecucion||'').toUpperCase()==='EXTERNO' && !req(rec.emisor)) warnings.push(`L${n}: emisor ausente con ejecucion=EXTERNO (se permitirá la carga)`);
                 if (['VT','PT','MT'].includes(String(rec.prueba||'').toUpperCase()) && !req(rec.pruebaDetalle)) errors.push(`L${n}: pruebaDetalle requerido para VT/PT/MT`);
 
                 // Inventario
@@ -733,6 +1175,34 @@
                     // Emisor para INTERNO
                     let emisor = rec.emisor || '';
                     if (String(rec.ejecucion||'').toUpperCase()==='INTERNO') emisor = 'PCT';
+                    // Producto/Descripción desde inventario por equipo
+                    const eqKey = (rec.equipo || '').toString().trim().toUpperCase();
+                    const serialKey = (rec.numeroSerie || '').toString().trim().toUpperCase();
+                    const producto = (productoPorEquipoInv && productoPorEquipoInv[eqKey])
+                        ? productoPorEquipoInv[eqKey]
+                        : (productoPorSerialInv && productoPorSerialInv[serialKey])
+                            ? productoPorSerialInv[serialKey]
+                            : (rec.producto || '');
+                    const descripcion = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqKey])
+                        ? descripcionPorEquipoInv[eqKey]
+                        : (descripcionPorSerialInv && descripcionPorSerialInv[serialKey])
+                            ? descripcionPorSerialInv[serialKey]
+                            : (rec.descripcion || '');
+
+                    // Resolver área: CSV -> inventario (invre2) por equipo/serial+tipo -> previo por equipo -> previo por serial
+                    let tipoKey = String(rec.prueba||'').toUpperCase();
+                    if (tipoKey === 'VT' || tipoKey === 'PT' || tipoKey === 'MT') {
+                        tipoKey = 'VT / PT / MT';
+                    }
+                    const areaInv = (areaPorEquipoPruebaInv && areaPorEquipoPruebaInv[`${eqKey}::${tipoKey}`])
+                        ? areaPorEquipoPruebaInv[`${eqKey}::${tipoKey}`]
+                        : (areaPorSerialPruebaInv && areaPorSerialPruebaInv[`${serialKey}::${tipoKey}`])
+                            ? areaPorSerialPruebaInv[`${serialKey}::${tipoKey}`]
+                            : '';
+                    const areaResolved = rec.areaPrueba || areaInv || areaPorEquipoPrev[eqKey] || areaPorSerialPrev[serialKey] || '';
+                    if (!areaResolved) {
+                        warnings.push(`L${n}: área de inspección no encontrada (equipo/serial/tipo sin coincidencia en invre2 y sin antecedente)`);
+                    }
 
                     valids.push({
                         cliente: rec.cliente,
@@ -742,13 +1212,15 @@
                         prueba: rec.prueba.toUpperCase(),
                         fechaRealizacion: formatDDMMAAAA(f),
                         noReporte: rec.noReporte,
-                        resultado: String(rec.resultado||'').toUpperCase(),
+                        resultado: normalizaResultado(rec.resultado),
                         ejecucion: String(rec.ejecucion||'').toUpperCase(),
                         emisor,
+                        producto,
+                        descripcion,
                         pruebaDetalle: rec.pruebaDetalle || '',
                         observaciones: rec.observaciones || '',
                         ubicacion: rec.ubicacion || '',
-                        areaPrueba: rec.areaPrueba || '',
+                        area: areaResolved,
                         tecnico: rec.tecnico || '',
                         proxima
                     });
@@ -770,15 +1242,66 @@
                 btnImportConfirm.style.display = '';
                 btnImportConfirm.disabled = hasErrors || !res.valids.length;
             }
+            if (btnImportDeleteExisting) {
+                btnImportDeleteExisting.style.display = '';
+                // Mantener habilitado para que muestre alerta si no es admin
+                btnImportDeleteExisting.disabled = !res.valids.length;
+            }
+            const btnDiagnose = document.getElementById('btn-import-diagnose-missing');
+            if (btnDiagnose) {
+                btnDiagnose.style.display = (window.isAdmin && res.valids.length) ? '' : 'none';
+                btnDiagnose.disabled = !res.valids.length;
+            }
+            const btnDiagExisting = document.getElementById('btn-import-diagnose-existing-only');
+            if (btnDiagExisting) {
+                // Mostrar si hay datos cargados en lista y hay CSV válido
+                const hasExisting = (pruebas && pruebas.length) ? true : false;
+                btnDiagExisting.style.display = (window.isAdmin && hasExisting && res.valids.length) ? '' : 'none';
+                btnDiagExisting.disabled = !(hasExisting && res.valids.length);
+            }
+            const btnSummarySets = document.getElementById('btn-import-summary-sets');
+            if (btnSummarySets) {
+                const hasExisting = (pruebas && pruebas.length) ? true : false;
+                btnSummarySets.style.display = (window.isAdmin && hasExisting && res.valids.length) ? '' : 'none';
+                btnSummarySets.disabled = !(hasExisting && res.valids.length);
+            }
+            const btnReconcile = document.getElementById('btn-import-reconcile');
+            if (btnReconcile) {
+                const hasExisting = (pruebas && pruebas.length) ? true : false;
+                btnReconcile.style.display = (window.isAdmin && hasExisting && res.valids.length) ? '' : 'none';
+                btnReconcile.disabled = !(hasExisting && res.valids.length);
+            }
+            const btnExportErrors = document.getElementById('btn-import-export-errors');
+            if (btnExportErrors) {
+                btnExportErrors.style.display = hasErrors ? '' : 'none';
+                btnExportErrors.disabled = !hasErrors;
+            }
             if (btnImportCancel) btnImportCancel.style.display = '';
             const note = document.getElementById('import-note');
             if (note) note.style.display = hasErrors ? '' : 'none';
         }
 
-        async function doImportToFirestore(rows) {
-            const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        async function doImportToFirestore(rows, { overwrite } = { overwrite: false }) {
+            const { getFirestore, collection, addDoc, updateDoc, doc, getDocs, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const db = getFirestore(app);
-            let ok = 0, skipped = 0, failed = 0;
+            let ok = 0, updated = 0, skipped = 0, failed = 0;
+            let mapFs = null;
+            if (overwrite) {
+                // Construir mapa key->docId actual para poder actualizar
+                const snap = await getDocs(collection(db, 'pruebas'));
+                mapFs = new Map();
+                snap.docs.forEach(d => {
+                    const data = d.data();
+                    const k = composeKey({
+                        equipo: data.equipo,
+                        numeroSerie: data.serial || data.numeroSerie,
+                        periodo: data.periodo,
+                        fechaRealizacion: data.fechaRealizacion,
+                        noReporte: data.noReporte,
+                    });
+                    if (k) mapFs.set(k, d.id);
+                });
+            }
             for (const r of rows) {
                 const k = composeKey({
                     equipo: r.equipo,
@@ -787,7 +1310,7 @@
                     fechaRealizacion: r.fechaRealizacion,
                     noReporte: r.noReporte,
                 });
-                if (existingKeys.has(k)) { skipped++; continue; }
+                if (!overwrite && existingKeys.has(k)) { skipped++; continue; }
                 const payload = {
                     cliente: r.cliente,
                     equipo: r.equipo,
@@ -799,24 +1322,103 @@
                     resultado: r.resultado,
                     ejecucion: r.ejecucion,
                     emisor: r.emisor,
+                    producto: r.producto,
+                    descripcion: r.descripcion,
                     pruebaDetalle: r.pruebaDetalle,
                     observaciones: r.observaciones,
                     ubicacion: r.ubicacion,
-                    areaPrueba: r.areaPrueba,
+                    area: r.area || '',
                     tecnico: r.tecnico,
                     creadoEn: serverTimestamp(),
                 };
                 if (r.periodo === 'ANUAL' && r.proxima) payload.proxima = r.proxima;
                 try {
-                    await addDoc(collection(db, 'pruebas'), payload);
-                    existingKeys.add(k);
-                    ok++;
+                    if (overwrite && mapFs && mapFs.has(k)) {
+                        const id = mapFs.get(k);
+                        // Evitar sobreescribir con cadenas vacías en actualización
+                        const payloadUpdate = Object.fromEntries(
+                            Object.entries(payload).filter(([_, v]) => v !== '' && v !== undefined && v !== null)
+                        );
+                        try {
+                            if (Object.keys(payloadUpdate).length === 0) {
+                                // Si no hay nada que actualizar, considerar como omitido
+                                skipped++;
+                            } else {
+                                await updateDoc(doc(db, 'pruebas', id), payloadUpdate);
+                                existingKeys.add(k);
+                                updated++;
+                            }
+                        } catch (eUpdate) {
+                            // Si el doc no existe (ej. quedó eliminado), crearlo en su lugar
+                            const msg = (eUpdate && eUpdate.message) || '';
+                            if (/No document to update/i.test(msg) || (eUpdate && eUpdate.code === 'not-found')) {
+                                await addDoc(collection(db, 'pruebas'), payload);
+                                existingKeys.add(k);
+                                ok++;
+                            } else {
+                                throw eUpdate;
+                            }
+                        }
+                    } else {
+                        await addDoc(collection(db, 'pruebas'), payload);
+                        existingKeys.add(k);
+                        ok++;
+                    }
+                    if (((ok + updated) % 50) === 0 && importSummary) {
+                        importSummary.innerHTML = `Importando... <strong>${ok + updated}</strong> / ${rows.length}`;
+                    }
                 } catch (e) {
                     console.error('Error insertando fila import', e);
                     failed++;
                 }
             }
-            return { ok, skipped, failed };
+            return { ok, updated, skipped, failed };
+        }
+
+        async function deleteExistingFromCsv(rows) {
+            const { getFirestore, collection, getDocs, deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore(app);
+            // Construir mapa key->docId de Firestore
+            const colRef = collection(db, 'pruebas');
+            const snap = await getDocs(colRef);
+            const mapFs = new Map();
+            snap.docs.forEach(d => {
+                const data = d.data();
+                const k = composeKey({
+                    equipo: data.equipo,
+                    numeroSerie: data.serial || data.numeroSerie,
+                    periodo: data.periodo,
+                    fechaRealizacion: data.fechaRealizacion,
+                    noReporte: data.noReporte,
+                });
+                if (k) mapFs.set(k, d.id);
+            });
+
+            let delOk = 0, delMiss = 0, delFail = 0;
+            let processed = 0;
+            for (const r of rows) {
+                const k = composeKey({
+                    equipo: r.equipo,
+                    numeroSerie: r.serial,
+                    periodo: r.periodo,
+                    fechaRealizacion: r.fechaRealizacion,
+                    noReporte: r.noReporte,
+                });
+                const id = mapFs.get(k);
+                if (!id) { delMiss++; continue; }
+                try {
+                    await deleteDoc(doc(db, 'pruebas', id));
+                    delOk++;
+                } catch (e) {
+                    console.error('Error eliminando doc', e);
+                    delFail++;
+                }
+                processed++;
+                if (processed % 50 === 0 && importSummary) {
+                    importSummary.innerHTML = `Eliminando... <strong>${processed}</strong> / ${rows.length}`;
+                }
+            }
+            return { delOk, delMiss, delFail };
         }
 
         if (btnImportCsv && inputImportCsv) {
@@ -826,11 +1428,83 @@
                 if (!file) return;
                 try {
                     const text = await file.text();
+                    lastCsvText = text;
                     const res = validateCsv(text);
                     importRowsReady = res.valids;
+                    window.__lastValidationResult = res;
                     renderImportPreview(res);
+
+                    // Menos clics: auto-importar solo si el usuario lo marcó explícitamente
+                    const hasErrors = (res.errors && res.errors.length > 0);
+                    const chkAuto = document.getElementById('chk-auto-import');
+                    const wantAuto = !!(chkAuto && chkAuto.checked);
+                    if (window.isAdmin && wantAuto && !hasErrors && importRowsReady.length) {
+                        // Confirmación previa
+                        const okGo = window.confirm('Se iniciará la IMPORTACIÓN en modo sobrescribir. Este proceso no tiene vuelta atrás y no debes cerrar ni recargar la página hasta que termine. ¿Deseas continuar?');
+                        if (!okGo) return;
+                        // Mostrar feedback antes de arrancar y proteger navegación
+                        if (importSummary) importSummary.innerHTML = `Importando... <strong>0</strong> / ${importRowsReady.length}`;
+                        setProcessingGuard(true);
+                        const autoRes = await doImportToFirestore(importRowsReady, { overwrite: true });
+                        if (importSummary) {
+                            importSummary.innerHTML = `Importados: <strong>${autoRes.ok}</strong>, Actualizados: <strong>${autoRes.updated}</strong>, Omitidos: ${autoRes.skipped}, Fallidos: ${autoRes.failed}`;
+                        }
+                        // Recargar listado
+                        const desdeFs2 = await leerFirestore();
+                        if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
+                        buildExistingKeys();
+                        render();
+                        // Ocultar preview tras importación automática
+                        if (importPreview) importPreview.style.display = 'none';
+                        if (inputImportCsv) inputImportCsv.value = '';
+                        setProcessingGuard(false);
+                    }
                 } catch (e) {
                     alert('No se pudo leer el archivo CSV');
+                    setProcessingGuard(false);
+                }
+            });
+        }
+
+        // Diagnóstico: CSV vs pruebas existentes
+        const btnDiagnoseMissing = document.getElementById('btn-import-diagnose-missing');
+        if (btnDiagnoseMissing) {
+            btnDiagnoseMissing.addEventListener('click', async () => {
+                try {
+                    // Asegurar llaves actuales de lo que está cargado
+                    if (window.buildExistingKeys) window.buildExistingKeys();
+                    let rows = (window.getImportRowsReady && window.getImportRowsReady()) || [];
+                    if (!rows.length && (window.getLastCsvText && window.getLastCsvText())) {
+                        const r = validateCsv(window.getLastCsvText());
+                        rows = r.valids || [];
+                    }
+                    if (!rows.length) {
+                        alert('Primero selecciona el CSV para diagnosticar.');
+                        return;
+                    }
+                    const csvKeys = new Set();
+                    rows.forEach(r => {
+                        const k = composeKey({
+                            equipo: r.equipo,
+                            numeroSerie: r.serial,
+                            periodo: r.periodo,
+                            fechaRealizacion: r.fechaRealizacion,
+                            noReporte: r.noReporte,
+                        });
+                        if (k) csvKeys.add(k);
+                    });
+                    const exSet = (window.getExistingKeysSet && window.getExistingKeysSet()) || existingKeys || new Set();
+                    const missing = [];
+                    csvKeys.forEach(k => { if (!exSet.has(k)) missing.push(k); });
+                    if (!missing.length) {
+                        importErrors.innerHTML = 'Sin faltantes: todas las filas del CSV están presentes en la lista.';
+                    } else {
+                        const sample = missing.slice(0, 15).map(x => `<li>${x}</li>`).join('');
+                        importErrors.innerHTML = `<div>Faltantes detectados: <strong>${missing.length}</strong></div><ul>${sample}</ul>` + (missing.length>15?`<div>... y ${missing.length-15} más</div>`:'');
+                    }
+                } catch (e) {
+                    console.error('Diagnóstico de faltantes falló', e);
+                    alert('No fue posible ejecutar el diagnóstico.');
                 }
             });
         }
@@ -840,8 +1514,10 @@
                 if (!window.isAdmin) return;
                 btnImportConfirm.disabled = true;
                 try {
-                    const res = await doImportToFirestore(importRowsReady||[]);
-                    importSummary.innerHTML += ` — Importados: <strong>${res.ok}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
+                    const chk = document.getElementById('chk-import-overwrite');
+                    const overwrite = !!(chk && chk.checked);
+                    const res = await doImportToFirestore(importRowsReady||[], { overwrite });
+                    importSummary.innerHTML += ` — Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
                     // Recargar listado
                     const desdeFs2 = await leerFirestore();
                     if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;

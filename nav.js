@@ -33,10 +33,45 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Esperar a que Firebase App esté lista
             await new Promise(r => setTimeout(r, 400));
-            const { getAuth, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+            const { getAuth, onAuthStateChanged, setPersistence, browserSessionPersistence, signOut } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
             const auth = getAuth();
+
+            // Limitar persistencia a la sesión del navegador (logout al cerrar navegador)
+            try { await setPersistence(auth, browserSessionPersistence); } catch {}
+
+            // Auto sign-out por inactividad y por duración absoluta de sesión
+            const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
+            const ABSOLUTE_MS   = 1  * 60 * 60 * 1000; // 1 hora
+
+            let lastActivity = Date.now();
+            function bumpActivity() { lastActivity = Date.now(); }
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
+                document.addEventListener(evt, bumpActivity, { passive: true });
+            });
+
+            function ensureLoginStartStamp() {
+                try {
+                    const key = 'pct_login_time';
+                    if (!sessionStorage.getItem(key)) sessionStorage.setItem(key, String(Date.now()));
+                } catch {}
+            }
+
+            function loginStartMs() {
+                try {
+                    const v = Number(sessionStorage.getItem('pct_login_time'));
+                    return isNaN(v) ? Date.now() : v;
+                } catch { return Date.now(); }
+            }
             onAuthStateChanged(auth, async (user) => {
                 if (!user) return;
+                ensureLoginStartStamp();
+                // Expiración absoluta
+                try {
+                    if (Date.now() - loginStartMs() > ABSOLUTE_MS) {
+                        await signOut(auth);
+                        return;
+                    }
+                } catch {}
                 try {
                     const idTok = await user.getIdTokenResult();
                     const role = (idTok && idTok.claims && idTok.claims.role) || null;
@@ -96,6 +131,80 @@ document.addEventListener('DOMContentLoaded', () => {
                     // por atributos data-role en el HTML. Si no existen, esto no afecta nada.
                 } catch {}
             });
+
+            // UI: aviso 60s antes de expirar
+            let warnNode = null;
+            let warnTick = null;
+            function hideWarn() {
+                if (warnTick) { clearInterval(warnTick); warnTick = null; }
+                if (warnNode && warnNode.parentElement) { warnNode.remove(); }
+                warnNode = null;
+            }
+            function showWarn(seconds) {
+                const secs = Math.max(1, Math.floor(seconds / 1000));
+                if (!warnNode) {
+                    warnNode = document.createElement('div');
+                    warnNode.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; z-index:9999;';
+                    warnNode.innerHTML = `
+                        <div style="background:#fff; max-width:420px; width:92%; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.35); padding:16px 18px; font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+                            <div style="font-weight:700; font-size:1.05rem; color:#111827; margin-bottom:6px;">Sesión por expirar</div>
+                            <div id="pct-warn-body" style="font-size:0.95rem; color:#374151; margin-bottom:12px;">Tu sesión se cerrará en <strong id="pct-warn-secs">${secs}</strong> segundos por seguridad.</div>
+                            <div style="display:flex; gap:8px; justify-content:flex-end;">
+                                <button id="pct-warn-keep" style="padding:6px 10px; border:1px solid #d1d5db; background:#2563eb; color:#fff; border-radius:6px; cursor:pointer; font-weight:600;">Mantener sesión</button>
+                                <button id="pct-warn-close" style="padding:6px 10px; border:1px solid #d1d5db; background:#fff; color:#111827; border-radius:6px; cursor:pointer;">Cerrar</button>
+                            </div>
+                        </div>`;
+                    document.body.appendChild(warnNode);
+                    const btnKeep = warnNode.querySelector('#pct-warn-keep');
+                    const btnClose = warnNode.querySelector('#pct-warn-close');
+                    if (btnKeep) btnKeep.addEventListener('click', () => {
+                        // Extender sesión: marcar actividad y reiniciar ventana absoluta
+                        bumpActivity();
+                        try { sessionStorage.setItem('pct_login_time', String(Date.now())); } catch {}
+                        hideWarn();
+                    });
+                    if (btnClose) btnClose.addEventListener('click', hideWarn);
+                }
+                const span = warnNode.querySelector('#pct-warn-secs');
+                if (span) span.textContent = String(secs);
+                if (!warnTick) {
+                    warnTick = setInterval(() => {
+                        try {
+                            const now = Date.now();
+                            const tIdle = INACTIVITY_MS - (now - lastActivity);
+                            const tAbs  = ABSOLUTE_MS   - (now - loginStartMs());
+                            const next  = Math.min(tIdle, tAbs);
+                            const s = Math.max(0, Math.floor(next / 1000));
+                            const sp = warnNode && warnNode.querySelector('#pct-warn-secs');
+                            if (sp) sp.textContent = String(s);
+                            if (next <= 0) hideWarn();
+                        } catch {}
+                    }, 1000);
+                }
+            }
+
+            // Verificación periódica de inactividad/expiración (cada 5s)
+            setInterval(async () => {
+                try {
+                    if (!auth.currentUser) { hideWarn(); return; }
+                    const now = Date.now();
+                    const idle = now - lastActivity;
+                    const alive = now - loginStartMs();
+                    const tIdle = INACTIVITY_MS - idle;
+                    const tAbs  = ABSOLUTE_MS   - alive;
+                    const next  = Math.min(tIdle, tAbs);
+                    if (next <= 0) {
+                        hideWarn();
+                        await signOut(auth);
+                        return;
+                    }
+                    if (next <= 60000) {
+                        showWarn(next);
+                    } else if (warnNode) {
+                        hideWarn();
+                    }
+                } catch {}
+            }, 5000);
         } catch {}
     })();
 
