@@ -129,6 +129,130 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
 
 Pendiente/Nota: Se reforzará la validación para que la confirmación de importación exija “cero errores” en la vista previa. Mientras tanto, la importación confirma únicamente los registros válidos y omite filas con errores.
 
+#### Notas de importación CSV (enero 2026)
+
+- Duplicado detectado en `docs/inyeccion.csv` (causa de 848 llaves únicas):
+  - Llave: `PCT-PLG-013__PCT-24-4206-P-003__POST-TRABAJO__28/08/2025__PCT-NDT-1-0115`
+  - Aparece duplicada en líneas CSV: L436 y L437 (mismas columnas/valores).
+  - Acción sugerida para la próxima sesión: editar o eliminar una de las dos filas duplicadas antes del siguiente import, para que el conteo de llaves únicas alcance 849 y la “Suma nominal (CSV + base 117)” arroje 966 como referencia.
+
+#### Depuración de duplicados ANUAL en Firestore (enero 2026)
+
+- Contexto: Se identificaron 3 llaves duplicadas del periodo ANUAL que inflaban “> 60 días” y “N en histórico”. Se decidió conservar el registro más reciente por `creadoEn` y eliminar los demás.
+- Registros eliminados (colección `pruebas`):
+  - id: `8svaiLahHsef7Kczkw0S`, equipo: `PCT-90-183`, periodo: `ANUAL`, fechaRealizacion: `17/04/25`, noReporte: `PCT-NDT-1-004`
+  - id: `SZ2dsFNmpYhRQaarR1WB`, equipo: `PCT-90-183`, periodo: `ANUAL`, fechaRealizacion: `17/04/25`, noReporte: `PCT-NDT-1-004`
+  - id: `fYZL5s8t7x6mDWekci3m`, equipo: `PCT-90-183`, periodo: `ANUAL`, fechaRealizacion: `17/04/25`, noReporte: `PCT-NDT-1-004`
+  - id: `KTtP9JmRoV7uqSRmsroB`, equipo: `PCT-PUP-0019`, periodo: `ANUAL`, fechaRealizacion: `18/04/25`, noReporte: `PCT-NDT-1-007`
+  - id: `elyrDhfkwXIfk4LeZ9nx`, equipo: `PCT-90-181`, periodo: `ANUAL`, fechaRealizacion: `17/04/25`, noReporte: `PCT-NDT-1-003`
+
+- Registros conservados (referencia de supervivientes):
+  - `PCT-90-183__EBS-4206-LRE-SS-90-21__ANUAL__17/04/25__PCT-NDT-1-004` → id conservado: `RGNKZguSWD6px3lanuIt`
+  - `PCT-PUP-0019__PCT-23-4206-10-019__ANUAL__18/04/25__PCT-NDT-1-007` → id conservado: `GLlZDoSRyOP27jW3Jy5K`
+  - `PCT-90-181__EBS-4206-LRE-SS-90-19__ANUAL__17/04/25__PCT-NDT-1-003` → id conservado: `wX6Rf8WDPRlWusEzdl4w`
+
+- Impacto esperado tras depuración:
+  - “> 60 días” disminuye en 5.
+  - “Anual” disminuye en 5.
+  - “N en histórico” pasa de 965 a 960.
+  - Registros de `POST-TRABAJO`/`REPARACION` permanecen intactos; su estado/próxima se hereda de la ANUAL conservada.
+
+#### Snippets útiles (detectar y limpiar duplicados en `pruebas`)
+
+- Detectar llaves duplicadas y su impacto en chips (rango):
+
+```js
+// Ejecutar en consola del navegador (p. ej., pruebaslist.html)
+const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+const db = getFirestore(getApp());
+const snap = await getDocs(collection(db, 'pruebas'));
+const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+function composeKey(r){
+  const equipo=(r.equipo||'').trim().toUpperCase();
+  const numeroSerie=(r.serial||r.numeroSerie||'').trim().toUpperCase();
+  const periodo=(r.periodo||'').trim().toUpperCase();
+  const fecha=(r.fechaRealizacion||'').trim();
+  const noRep=(r.noReporte||'').trim().toUpperCase();
+  return `${equipo}__${numeroSerie}__${periodo}__${fecha}__${noRep}`;
+}
+function parseFechaDDMMAA(s){
+  const t=String(s||'').trim();
+  const m=t.match(/^([0-3]?\d)\/([0-1]?\d)\/(\d{2}|\d{4})$/);
+  if(!m) return null; const dd=+m[1], mm=+m[2]; let yyyy=+m[3];
+  if(m[3].length===2) yyyy=2000+yyyy; const d=new Date(yyyy,mm-1,dd); d.setHours(0,0,0,0);
+  return isNaN(d)?null:d;
+}
+function clasificarAnual(r){
+  const per=(r.periodo||'').toUpperCase(); if(per && per!=='ANUAL') return null;
+  const fr=parseFechaDDMMAA(r.fechaRealizacion); if(!fr) return {estado:'SIN_FECHA',dias:null};
+  const prox=new Date(fr.getFullYear()+1,fr.getMonth(),fr.getDate());
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const dias=Math.round((prox-hoy)/(1000*60*60*24));
+  return {estado: (dias<0?'VENCIDA':'VIGENTE'), dias};
+}
+function rango(estado,d){
+  if(estado==='VENCIDA') return '0'; if(estado!=='VIGENTE' || d===null) return 'N/A';
+  if(d>60) return '>60'; if(d>=31) return '60-31'; if(d>=16) return '30-16'; if(d>=1) return '15-1'; return '0';
+}
+
+const groups=new Map();
+arr.forEach(r=>{ const k=composeKey(r); if(!k) return; (groups.get(k)||groups.set(k,[]).get(k)).push(r); });
+const dups=[...groups.entries()].filter(([,rows])=>rows.length>1);
+
+const resumen=dups.map(([k,rows])=>{
+  const rangos=rows.map(r=>{ const c=clasificarAnual(r); return rango(c?.estado,c?.dias); })
+                   .reduce((a,x)=>(a[x]=(a[x]||0)+1,a),{});
+  return { key:k, total: rows.length, ...rangos };
+});
+console.table(resumen);
+```
+
+- Eliminar duplicados dejando 1 por clave (con confirmación):
+
+```js
+// Ajusta el criterio de superviviente (más reciente por creadoEn)
+const { getApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+const { getFirestore, collection, getDocs, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+const db = getFirestore(getApp());
+const snap = await getDocs(collection(db, 'pruebas'));
+const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+function composeKey(r){
+  const equipo=(r.equipo||'').trim().toUpperCase();
+  const numeroSerie=(r.serial||r.numeroSerie||'').trim().toUpperCase();
+  const periodo=(r.periodo||'').trim().toUpperCase();
+  const fecha=(r.fechaRealizacion||'').trim();
+  const noRep=(r.noReporte||'').trim().toUpperCase();
+  return `${equipo}__${numeroSerie}__${periodo}__${fecha}__${noRep}`;
+}
+
+const groups=new Map();
+arr.forEach(r=>{ const k=composeKey(r); if(!k) return; (groups.get(k)||groups.set(k,[]).get(k)).push(r); });
+const dups=[...groups.entries()].filter(([,rows])=>rows.length>1);
+
+const toDelete = [];
+dups.forEach(([k,rows])=>{
+  const orden = rows.slice().sort((a,b)=>{
+    const ad=a.creadoEn?.toDate?.()||new Date(0);
+    const bd=b.creadoEn?.toDate?.()||new Date(0);
+    return bd - ad; // mantener más reciente, borrar el resto
+  });
+  orden.slice(1).forEach(r=>toDelete.push({ key:k, id:r.id }));
+});
+
+console.table(toDelete.slice(0,50));
+if(!confirm(`Se eliminaran ${toDelete.length} documentos duplicados, dejando 1 por clave. Continuar?`)) throw new Error('Cancelado');
+
+for(let i=0;i<toDelete.length;i++){
+  const d=toDelete[i];
+  try{ await deleteDoc(doc(db,'pruebas',d.id)); console.log(`[${i+1}/${toDelete.length}] eliminado`, d); await new Promise(r=>setTimeout(r,800)); }
+  catch(e){ console.warn('Fallo al eliminar', d, e); }
+}
+console.log('Depuracion completa.');
+```
+
 ### Corrección de históricos sin fecha de realización
 - Algunos registros antiguos pueden carecer de “Fecha de realización”. A partir de ahora el formulario no permite guardar sin ese dato.
 - Para corregir históricos:

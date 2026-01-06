@@ -564,8 +564,21 @@
                     keyFreq.forEach(v => { if (v>1) dupCount += (v-1); });
 
                     const sumEl = document.getElementById('import-summary');
-                    const nominal = csvTotalRows + effectiveExistingCount;
-                    const summaryStr = `Resumen conjuntos — CSV válidos (filas): <strong>${csvTotalRows}</strong>, CSV llaves únicas: <strong>${csvCount}</strong>, Existentes: <strong>${effectiveExistingCount}</strong>, Intersección: <strong>${inter}</strong>, Solo CSV: <strong>${onlyCsv}</strong>, Solo existentes: <strong>${onlyExisting}</strong>, Unión (deduplicada): <strong>${union}</strong>, Suma nominal (CSV + existentes): <strong>${nominal}</strong>${note}` + (dupCount? ` — Duplicados intra-CSV: <strong>${dupCount}</strong>` : '');
+                    const nominal = csvTotalRows + effectiveExistingCount; // nominal según contexto actual (base o global)
+                    const globalNominal = csvTotalRows + existingCount;    // referencia global sin base
+                    const volumeLabel = 'Volumen bruto (sin deduplicar)';
+
+                    const summaryStr = useBase
+                        ? (
+                            `Resumen conjuntos — Base + CSV (nominal): <strong>${nominal}</strong>, Base ∪ CSV (deduplicada): <strong>${union}</strong>${note} — ` +
+                            `CSV válidos (filas): <strong>${csvTotalRows}</strong>, CSV llaves únicas: <strong>${csvCount}</strong>, Base: <strong>${effectiveExistingCount}</strong>, Intersección: <strong>${inter}</strong>, ` +
+                            `Solo CSV: <strong>${onlyCsv}</strong>, Solo base: <strong>${onlyExisting}</strong> — ${volumeLabel}: <strong>${globalNominal}</strong>`
+                          ) + (dupCount ? ` — Duplicados intra-CSV: <strong>${dupCount}</strong>` : '')
+                        : (
+                            `Resumen conjuntos — CSV válidos (filas): <strong>${csvTotalRows}</strong>, CSV llaves únicas: <strong>${csvCount}</strong>, Existentes: <strong>${effectiveExistingCount}</strong>, ` +
+                            `Intersección: <strong>${inter}</strong>, Solo CSV: <strong>${onlyCsv}</strong>, Solo existentes: <strong>${onlyExisting}</strong>, ` +
+                            `Unión (deduplicada): <strong>${union}</strong>, ${volumeLabel}: <strong>${nominal}</strong>`
+                          ) + (dupCount ? ` — Duplicados intra-CSV: <strong>${dupCount}</strong>` : '');
                     if (sumEl) {
                         sumEl.innerHTML = summaryStr;
                     } else {

@@ -148,13 +148,13 @@
                             <th style="text-align:left; padding:0.4rem;">Descripción</th>
                             <th id="adm-th-inicio" style="text-align:left; padding:0.4rem; cursor:pointer;">Inicio del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Parcial / Final</th>
-                            <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
-                            <th style="text-align:left; padding:0.4rem;">Precio</th>
-                            <th style="text-align:left; padding:0.4rem;">Ingreso acumulado</th>
-                            <th style="text-align:left; padding:0.4rem;">OS</th>
-                            <th style="text-align:left; padding:0.4rem;">OC</th>
-                            <th style="text-align:left; padding:0.4rem;">Est-Cot</th>
-                            <th style="text-align:left; padding:0.4rem;">Factura</th>
+                            <th style="text-align:center; padding:0.4rem;">Días en servicio</th>
+                            <th style="text-align:center; padding:0.4rem;">Precio</th>
+                            <th style="text-align:center; padding:0.4rem;">Ingreso acumulado</th>
+                            <th style="text-align:center; padding:0.4rem;">OS</th>
+                            <th style="text-align:center; padding:0.4rem;">OC</th>
+                            <th style="text-align:center; padding:0.4rem;">Est-Cot</th>
+                            <th style="text-align:center; padding:0.4rem;">Factura</th>
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
                         </tr>
                     </thead>
@@ -1183,27 +1183,27 @@
                                 return `<span style="margin-left:0.35rem; font-size:0.7rem; font-weight:600; color:${color};">${label}</span>`;
                             })()}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                             ${dias || ''}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:center;">
                             <input type="number" min="0" step="1" class="adm-input-precio" data-id="${id}"
-                                   value="${precio || ''}" style="width:80px; font-size:0.8rem;">
+                                   value="${precio || ''}" style="width:80px; font-size:0.8rem; text-align:center;">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:right;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:center;">
                             ${ingresoEquipo ? formatearMoneda(ingresoEquipo) : ''}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
-                            <input type="text" class="adm-input-os" data-id="${id}" value="${os || ''}" style="font-size:0.8rem; width:110px;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                            <input type="text" class="adm-input-os" data-id="${id}" value="${os || ''}" style="font-size:0.8rem; width:110px; text-align:center;">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
-                            <input type="text" class="adm-input-oc" data-id="${id}" value="${oc || ''}" style="font-size:0.8rem; width:110px;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:center;">
+                            <input type="text" class="adm-input-oc" data-id="${id}" value="${oc || ''}" style="font-size:0.8rem; width:110px; text-align:center;">
                         </td>
-                        <td style=\"padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;\">
-                            <input type=\"text\" class=\"adm-input-estcot\" data-id=\"${id}\" value=\"${estCot || ''}\" style=\"font-size:0.8rem; width:110px;\">
+                        <td style=\"padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:center;\">
+                            <input type=\"text\" class=\"adm-input-estcot\" data-id=\"${id}\" value=\"${estCot || ''}\" style=\"font-size:0.8rem; width:110px; text-align:center;\">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
-                            <input type="text" class="adm-input-factura" data-id="${id}" value="${factura || ''}" style="font-size:0.8rem; width:110px;">
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                            <input type="text" class="adm-input-factura" data-id="${id}" value="${factura || ''}" style="font-size:0.8rem; width:110px; text-align:center;">
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <button type="button" class="adm-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
