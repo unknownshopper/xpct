@@ -756,6 +756,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const base = obtenerDatosBaseActividad();
+
+        // Autocompletar antes de validar
+        try {
+            // Usar el primer equipo seleccionado como referencia para OC
+            const eqRef = (equiposSeleccionados && equiposSeleccionados.length) ? equiposSeleccionados[0] : '';
+            const inicioSrv = base.inicioServicio || '';
+
+            // OS
+            if (!base.os) {
+                const osAuto = generarOsAutomatico(eqRef, inicioSrv);
+                if (osAuto) {
+                    const inp = document.getElementById('act-os');
+                    if (inp) inp.value = osAuto;
+                    base.os = osAuto;
+                }
+            }
+
+            // OC
+            if (!base.ordenSuministro) {
+                const ocAuto = generarOcAutomatica(eqRef, inicioSrv);
+                if (ocAuto) {
+                    const inp = document.getElementById('act-orden-suministro');
+                    if (inp) inp.value = ocAuto;
+                    base.ordenSuministro = ocAuto;
+                }
+            }
+
+            // Est-Cot / Factura por defecto si están vacíos
+            if (!base.estCot) {
+                const def = 'PENDIENTE';
+                const inp = document.getElementById('act-est-cot');
+                if (inp) inp.value = def;
+                base.estCot = def;
+            }
+            if (!base.factura) {
+                const def = 'PENDIENTE';
+                const inp = document.getElementById('act-factura');
+                if (inp) inp.value = def;
+                base.factura = def;
+            }
+        } catch (e) {
+            console.warn('Autocompletado previo al guardado falló (se continuará con validación)', e);
+        }
+
         // Validación estricta: no permitir guardar si faltan datos clave
         const faltantes = [];
         const tipoUpper = (base.tipo || '').toString().toUpperCase();
@@ -1302,6 +1346,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const lblCont = document.getElementById('actlist-contador');
     const inputBuscar = document.getElementById('actlist-buscar');
 
+    // Referencias al tabulador modal
+    const modal = document.getElementById('actlist-tab');
+    const btnCerrar = document.getElementById('actlist-tab-cerrar');
+    const btnCancelar = document.getElementById('actlist-tab-cancelar');
+    const btnGuardar = document.getElementById('actlist-tab-guardar');
+    const lblEquipo = document.getElementById('actlist-tab-equipo');
+    const lblCliente = document.getElementById('actlist-tab-cliente');
+    const lblArea = document.getElementById('actlist-tab-area');
+    const lblUbic = document.getElementById('actlist-tab-ubic');
+    const inpInicio = document.getElementById('actlist-tab-inicio');
+    const inpTerm = document.getElementById('actlist-tab-terminacion');
+    let modalId = null;
+
     let listaActividad = [];
 
     // Mapas desde inventario para vista operación
@@ -1458,7 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoCliente = document.createElement('tr');
                     trGrupoCliente.className = 'actlist-group-cliente';
                     trGrupoCliente.innerHTML = `
-                        <td colspan="14" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em; cursor:pointer;">
+                        <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em; cursor:pointer;">
                             CLIENTE: ${clienteActual}
                         </td>
                     `;
@@ -1471,7 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoArea = document.createElement('tr');
                     trGrupoArea.className = 'actlist-group-area';
                     trGrupoArea.innerHTML = `
-                        <td colspan="14" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                        <td colspan="13" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                             Área: ${areaActual}
                         </td>
                     `;
@@ -1483,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const trGrupoUbic = document.createElement('tr');
                     trGrupoUbic.className = 'actlist-group-ubic';
                     trGrupoUbic.innerHTML = `
-                        <td colspan="14" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                        <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
                             Ubicación: ${ubicacionActual}
                         </td>
                     `;
@@ -1495,7 +1552,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (edoEquipo === 'OFF') {
                     return; // no mostrar equipos OFF en actividad
                 }
-                const estadoActividad = (reg.estadoActividad || 'ABIERTO').toString().toUpperCase();
                 const esAdmin = !!(window && window.isAdmin);
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
@@ -1509,14 +1565,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
-                        ${esAdmin
-                            ? `<select class="actlist-select-estado estado-select ${estadoActividad === 'ABIERTO' ? 'abierto' : 'cerrado'}" data-id="${id}" style="font-size:0.8rem; padding:0.15rem 0.3rem; border:1px solid #d1d5db; border-radius:0.25rem;">
-                                    <option value="ABIERTO" ${estadoActividad === 'ABIERTO' ? 'selected' : ''}>ABIERTO</option>
-                                    <option value="CERRADO" ${estadoActividad === 'CERRADO' ? 'selected' : ''}>CERRADO</option>
-                               </select>`
-                            : `<span class="estado-pill ${estadoActividad === 'ABIERTO' ? 'abierto' : 'cerrado'}">${estadoActividad}</span>`}
-                    </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                         <input type="text" class="actlist-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
@@ -1548,7 +1596,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                     </td>
                 `;
-                tbody.appendChild(tr);
+                // Atributos para abrir modal
+        tr.setAttribute('data-id', id);
+        tr.setAttribute('data-cliente', cliente);
+        tr.setAttribute('data-area', area);
+        tr.setAttribute('data-ubicacion', ubicacion);
+        tr.setAttribute('data-equipo', equipoNombre);
+        tr.setAttribute('data-inicio', inicioTexto);
+        tr.setAttribute('data-terminacion', terminacionTexto);
+        tbody.appendChild(tr);
             });
         });
 
@@ -1556,25 +1612,76 @@ document.addEventListener('DOMContentLoaded', () => {
             lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
         }
 
-        // Guardar cambios de estado de actividad (solo admin)
-        tbody.querySelectorAll('.actlist-select-estado').forEach(sel => {
-            sel.addEventListener('change', async () => {
-                const id = sel.getAttribute('data-id');
-                if (!id) return;
-                const nuevoEstado = (sel.value || '').toUpperCase();
+        // Estado de actividad removido de la vista (columna eliminada)
+
+        // Click en fila: abrir modal/tabulador para editar fechas (director/admin)
+        tbody.querySelectorAll('tr').forEach(tr => {
+            tr.addEventListener('click', (e) => {
+                const target = e.target;
+                // Ignorar si clic fue sobre botones/inputs/checkbox
+                if (target.closest('button') || target.closest('input') || target.closest('select')) return;
+                if (!(window.isAdmin || window.isDirector)) return;
+
+                modalId = tr.getAttribute('data-id');
+                if (!modalId) return;
+                lblEquipo.textContent = tr.getAttribute('data-equipo') || '';
+                lblCliente.textContent = tr.getAttribute('data-cliente') || '';
+                lblArea.textContent = tr.getAttribute('data-area') || '';
+                lblUbic.textContent = tr.getAttribute('data-ubicacion') || '';
+                inpInicio.value = tr.getAttribute('data-inicio') || '';
+                inpTerm.value = tr.getAttribute('data-terminacion') || '';
+                if (modal) modal.style.display = 'flex';
+            });
+        });
+
+        // Autoformato dd/mm/aa en modal
+        const autoMaskFecha = (el) => {
+            if (!el) return;
+            el.addEventListener('input', () => {
+                const raw = (el.value || '').replace(/\D/g, '').slice(0, 6);
+                let out = raw;
+                if (raw.length >= 3 && raw.length <= 4) out = raw.slice(0, 2) + '/' + raw.slice(2);
+                else if (raw.length >= 5) out = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4);
+                el.value = out;
+            });
+        };
+        autoMaskFecha(inpInicio);
+        autoMaskFecha(inpTerm);
+
+        const cerrarModal = () => { if (modal) modal.style.display = 'none'; modalId = null; };
+        if (btnCerrar) btnCerrar.addEventListener('click', cerrarModal);
+        if (btnCancelar) btnCancelar.addEventListener('click', cerrarModal);
+
+        if (btnGuardar) {
+            btnGuardar.addEventListener('click', async () => {
+                if (!modalId) return;
+                const nuevoInicio = (inpInicio?.value || '').trim();
+                const nuevaTerm = (inpTerm?.value || '').trim();
+
+                // Validaciones de formato
+                const dIni = nuevoInicio ? parseFechaDdMmAaListado(nuevoInicio) : null;
+                const dTer = nuevaTerm ? parseFechaDdMmAaListado(nuevaTerm) : null;
+                if (nuevoInicio && !dIni) { alert('Inicio del servicio con formato inválido. Usa dd/mm/aa'); return; }
+                if (nuevaTerm && !dTer) { alert('Terminación del servicio con formato inválido. Usa dd/mm/aa'); return; }
+
+                // Persistir
                 try {
                     const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                     const db = getFirestore();
-                    const ref = doc(db, 'actividades', id);
-                    await updateDoc(ref, { estadoActividad: nuevoEstado });
+                    const ref = doc(db, 'actividades', modalId);
+                    await updateDoc(ref, {
+                        inicioServicio: nuevoInicio,
+                        terminacionServicio: nuevaTerm,
+                        // Editar desde listado no decide definitivo; se deja sin terminacionEsFinal
+                    });
                 } catch (e) {
-                    console.error('Error al actualizar estadoActividad', e);
+                    console.error('Error al actualizar fechas desde tabulador listado', e);
                 }
-                // Actualizar clases visuales del select
-                sel.classList.remove('abierto', 'cerrado');
-                sel.classList.add(nuevoEstado === 'ABIERTO' ? 'abierto' : 'cerrado');
+
+                cerrarModal();
+                await cargarActividadDesdeFirestoreParaListado();
             });
-        });
+        }
 
         // Listeners de colapsado por cliente, área y ubicación
         const colapsarDesde = (tr, nivel) => {

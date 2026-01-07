@@ -1534,7 +1534,12 @@
                 });
             }
 
-            cargarActividadDesdeFirestore();
+            // Cargar primero el resumen de pruebas por equipo y luego las actividades
+            cargarPruebasResumenPorEquipo()
+                .catch(() => {})
+                .finally(() => {
+                    cargarActividadDesdeFirestore();
+                });
             // Exponer función de migración sólo para admins (uso desde consola)
             window.migrarActividadesMultiEquipo = migrarActividadesMultiEquipo;
         });

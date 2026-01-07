@@ -86,7 +86,6 @@
                             <th style="text-align:left; padding:0.4rem; display:none;">Ubicación</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
                             <th style="text-align:left; padding:0.4rem;">Descripción</th>
-                            <th style="text-align:left; padding:0.4rem;">Estado</th>
                             <th style="text-align:left; padding:0.4rem;">Inicio del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Terminación del servicio</th>
                             <th style="text-align:left; padding:0.4rem;">Días en servicio</th>
@@ -104,6 +103,36 @@
             </p>
         </section>
     </main>
+
+    <!-- Panel/tabulador para editar fechas (visible para director/admin) -->
+    <div id="actlist-tab" style="position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; align-items:center; justify-content:center; z-index:50;">
+        <div style="background:#fff; width:560px; max-width:95vw; border-radius:0.5rem; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid #e5e7eb;">
+                <h3 style="margin:0; font-size:1rem;">Editar fechas de actividad</h3>
+                <button id="actlist-tab-cerrar" type="button" style="font-size:0.9rem;">✕</button>
+            </div>
+            <div style="padding:1rem; display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                <div style="grid-column:1 / span 2; font-size:0.85rem; color:#4b5563;">
+                    <div><strong>Equipo:</strong> <span id="actlist-tab-equipo"></span></div>
+                    <div><strong>Cliente:</strong> <span id="actlist-tab-cliente"></span></div>
+                    <div><strong>Área:</strong> <span id="actlist-tab-area"></span></div>
+                    <div><strong>Ubicación:</strong> <span id="actlist-tab-ubic"></span></div>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.85rem; color:#374151;">Inicio del servicio</label>
+                    <input id="actlist-tab-inicio" type="text" placeholder="dd/mm/aa" maxlength="8" style="width:100%; font-size:0.9rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.35rem;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.85rem; color:#374151;">Terminación del servicio</label>
+                    <input id="actlist-tab-terminacion" type="text" placeholder="dd/mm/aa" maxlength="8" style="width:100%; font-size:0.9rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.35rem;">
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; padding:0.75rem 1rem; border-top:1px solid #e5e7eb;">
+                <button id="actlist-tab-guardar" type="button" style="font-size:0.9rem;">Guardar</button>
+                <button id="actlist-tab-cancelar" type="button" style="font-size:0.9rem;">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
