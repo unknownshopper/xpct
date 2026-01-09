@@ -309,11 +309,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 snap.forEach(doc => {
                     total += 1;
                     const data = doc.data() || {};
-                    const term = (data.terminacionServicio || '').trim();
-                    if (term) {
+                    const esFinal = data.terminacionEsFinal === true;
+                    if (esFinal) {
                         concluidas += 1;
                     } else {
-                        pendientes += 1;
+                        pendientes += 1; // incluye abiertas y parciales
                     }
                 });
 
