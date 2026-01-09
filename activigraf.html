@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flujo de Actividades</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="img/logopctch.png" type="image/png">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        .graf-wrap { max-width: 1200px; margin: 0 auto; padding: 0.75rem; }
+        .graf-toolbar { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; justify-content:space-between; margin:0.5rem 0 1rem; }
+        .graf-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap:0.75rem; }
+        .graf-card { background:#fff; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.75rem; }
+        .graf-kpi { display:flex; gap:0.75rem; }
+        .graf-kpi .kpi { flex:1; background:#111827; color:#fff; border-radius:0.5rem; padding:0.75rem; text-align:center; }
+        .graf-kpi .kpi small { display:block; color:#d1d5db; font-size:0.75rem; }
+        .graf-kpi .kpi strong { font-size:1.25rem; letter-spacing:0.02em; }
+        .col-12 { grid-column: span 12; }
+        .col-6 { grid-column: span 6; }
+        .col-4 { grid-column: span 4; }
+        @media (max-width: 960px) { .col-6, .col-4 { grid-column: span 12; } }
+        label { font-size:0.8rem; color:#374151; }
+        select, input[type="month"], input[type="search"] { font-size:0.9rem; padding:0.3rem 0.4rem; border:1px solid #e5e7eb; border-radius:0.35rem; }
+        .muted { color:#6b7280; font-size:0.85rem; }
+    </style>
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+    import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const db = window.db;
+    const auth = window.auth;
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) { window.location.href = 'login.html'; return; }
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+        // Acceso: admin y director. Otros a inspeccion.
+        let role = null;
+        try {
+            const tok = await user.getIdTokenResult(true);
+            role = tok?.claims?.role || null;
+        } catch {}
+        window.isAdmin = role === 'admin';
+        window.isDirector = role === 'director';
+        if (!(window.isAdmin || window.isDirector)) {
+            window.location.href = 'inspeccion.html';
+            return;
+        }
+
+        await cargarYRender();
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => { try { await signOut(auth); } finally { window.location.href = 'login.html'; } });
+    }
+
+    const selCliente = document.addEventListener ? document.getElementById('gf-cliente') : null;
+    const selArea = document.getElementById('gf-area');
+    const inpPeriodo = document.getElementById('gf-periodo');
+    const inpBuscar = document.getElementById('gf-buscar');
+
+    let chartEstado, chartCliente, chartLinea;
+
+    function parseFechaDdMmAa(str) {
+        if (!str) return null;
+        const p = String(str).split('/');
+        if (p.length !== 3) return null;
+        const dd = parseInt(p[0], 10), mm = parseInt(p[1], 10), aa = parseInt(p[2], 10);
+        if (!dd || !mm || isNaN(aa)) return null;
+        const yyyy = 2000 + aa;
+        const d = new Date(yyyy, mm - 1, dd);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    function estadoActividad(reg) {
+        const fin = (reg.terminacionServicio || '').toString().trim();
+        if (!fin) return 'ABIERTO';
+        return reg.terminacionEsFinal ? 'FINAL' : 'PARCIAL';
+    }
+
+    function formatoMes(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    }
+
+    async function leerActividades() {
+        const snap = await getDocs(collection(db, 'actividades'));
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    function filtrarActividades(lista) {
+        const cli = (document.getElementById('gf-cliente')?.value || '').trim();
+        const area = (document.getElementById('gf-area')?.value || '').trim();
+        const periodo = (document.getElementById('gf-periodo')?.value || '').trim(); // yyyy-mm
+        const q = (document.getElementById('gf-buscar')?.value || '').toLowerCase().trim();
+
+        return lista.filter(reg => {
+            if (cli && (String(reg.cliente || '') !== cli)) return false;
+            if (area && (String(reg.areaCliente || '') !== area)) return false;
+            if (periodo) {
+                const d = parseFechaDdMmAa(reg.inicioServicio || '');
+                if (!d || formatoMes(d) !== periodo) return false;
+            }
+            if (q) {
+                const txt = `${reg.cliente||''} ${reg.areaCliente||''} ${reg.ubicacion||''} ${reg.equipo|| (Array.isArray(reg.equipos)? reg.equipos.join(' '):'')} ${reg.descripcion||''} ${reg.os||''} ${reg.ordenSuministro||''} ${reg.estCot||''}`.toLowerCase();
+                if (!txt.includes(q)) return false;
+            }
+            return true;
+        });
+    }
+
+    function poblarCombos(lista) {
+        const selCli = document.getElementById('gf-cliente');
+        const selArea = document.getElementById('gf-area');
+        const clientes = [...new Set(lista.map(r => (r.cliente||'').toString()).filter(Boolean))].sort();
+        const areas = [...new Set(lista.map(r => (r.areaCliente||'').toString()).filter(Boolean))].sort();
+        if (selCli) {
+            selCli.innerHTML = '<option value="">Todos los clientes</option>' + clientes.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+        if (selArea) {
+            selArea.innerHTML = '<option value="">Todas las áreas</option>' + areas.map(a => `<option value="${a}">${a}</option>`).join('');
+        }
+    }
+
+    function destruir(chart) { if (chart) { chart.destroy(); } }
+
+    function renderKpis(lista) {
+        const tot = lista.length;
+        const abiertos = lista.filter(r => estadoActividad(r) === 'ABIERTO').length;
+        const parciales = lista.filter(r => estadoActividad(r) === 'PARCIAL').length;
+        const finales = lista.filter(r => estadoActividad(r) === 'FINAL').length;
+        document.getElementById('kpi-total').textContent = String(tot);
+        document.getElementById('kpi-abiertos').textContent = String(abiertos);
+        document.getElementById('kpi-parciales').textContent = String(parciales);
+        document.getElementById('kpi-finales').textContent = String(finales);
+    }
+
+    function renderGraficos(lista) {
+        // Por estado
+        const porEstado = { ABIERTO: 0, PARCIAL: 0, FINAL: 0 };
+        lista.forEach(r => { porEstado[estadoActividad(r)] = (porEstado[estadoActividad(r)]||0) + 1; });
+        destruir(chartEstado);
+        chartEstado = new Chart(document.getElementById('ch-estado'), {
+            type: 'doughnut',
+            data: { labels: ['Abierto','Parcial','Final'], datasets: [{ data: [porEstado.ABIERTO, porEstado.PARCIAL, porEstado.FINAL], backgroundColor: ['#f59e0b','#60a5fa','#ef4444'] }] },
+            options: { plugins:{ legend:{ position:'bottom' } } }
+        });
+
+        // Por cliente (top 10)
+        const mapCli = new Map();
+        lista.forEach(r => { const c = (r.cliente||'').toString(); if (!c) return; mapCli.set(c, (mapCli.get(c)||0)+1); });
+        const arrCli = [...mapCli.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+        destruir(chartCliente);
+        chartCliente = new Chart(document.getElementById('ch-cliente'), {
+            type: 'bar',
+            data: { labels: arrCli.map(x=>x[0]), datasets: [{ label:'Actividades', data: arrCli.map(x=>x[1]), backgroundColor:'#10b981' }] },
+            options: { indexAxis:'y', plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true } } }
+        });
+
+        // Línea por mes (inicioServicio)
+        const buckets = new Map();
+        lista.forEach(r => { const d = parseFechaDdMmAa(r.inicioServicio||''); if (!d) return; const k = formatoMes(d); buckets.set(k, (buckets.get(k)||0)+1); });
+        const meses = [...buckets.keys()].sort();
+        const valores = meses.map(k => buckets.get(k));
+        destruir(chartLinea);
+        chartLinea = new Chart(document.getElementById('ch-linea'), {
+            type: 'line',
+            data: { labels: meses, datasets: [{ label:'Inicios por mes', data: valores, borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,0.2)', tension:0.2, fill:true }] },
+            options: { plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } }
+        });
+    }
+
+    async function cargarYRender() {
+        const lblMsg = document.getElementById('gf-msg');
+        lblMsg.textContent = 'Cargando...';
+        const lista = await leerActividades();
+        poblarCombos(lista);
+
+        const aplicar = () => {
+            const filtrada = filtrarActividades(lista);
+            renderKpis(filtrada);
+            renderGraficos(filtrada);
+            document.getElementById('gf-count').textContent = String(filtrada.length);
+            lblMsg.textContent = '';
+        };
+
+        document.getElementById('gf-cliente')?.addEventListener('change', aplicar);
+        document.getElementById('gf-area')?.addEventListener('change', aplicar);
+        document.getElementById('gf-periodo')?.addEventListener('change', aplicar);
+        document.getElementById('gf-buscar')?.addEventListener('input', aplicar);
+        aplicar();
+    }
+    </script>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">&#9776;</button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#" class="active">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html">Administración</a></li>
+                        <li><a href="trazabilidades.html">Trazabilidades</a></li>
+                        <li><a href="activigraf.html" class="active">Flujo</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="graf-wrap">
+        <h1>Flujo de actividades</h1>
+        <div class="graf-toolbar">
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                <div>
+                    <label for="gf-cliente">Cliente</label><br>
+                    <select id="gf-cliente"><option value="">Todos los clientes</option></select>
+                </div>
+                <div>
+                    <label for="gf-area">Área</label><br>
+                    <select id="gf-area"><option value="">Todas las áreas</option></select>
+                </div>
+                <div>
+                    <label for="gf-periodo">Periodo</label><br>
+                    <input type="month" id="gf-periodo">
+                </div>
+                <div>
+                    <label for="gf-buscar">Buscar</label><br>
+                    <input type="search" id="gf-buscar" placeholder="Cliente, equipo, OS, OC, descripción...">
+                </div>
+            </div>
+            <div class="muted">Registros filtrados: <span id="gf-count">0</span> <span id="gf-msg"></span></div>
+        </div>
+
+        <section class="graf-grid">
+            <div class="col-12 graf-card">
+                <div class="graf-kpi">
+                    <div class="kpi"><small>Total</small><strong id="kpi-total">0</strong></div>
+                    <div class="kpi" style="background:#f59e0b;"><small>Abiertos</small><strong id="kpi-abiertos">0</strong></div>
+                    <div class="kpi" style="background:#60a5fa;"><small>Parciales</small><strong id="kpi-parciales">0</strong></div>
+                    <div class="kpi" style="background:#ef4444;"><small>Finales</small><strong id="kpi-finales">0</strong></div>
+                </div>
+            </div>
+
+            <div class="col-6 graf-card">
+                <h3 style="margin:0 0 0.5rem;">Distribución por estado</h3>
+                <canvas id="ch-estado" height="200"></canvas>
+            </div>
+            <div class="col-6 graf-card">
+                <h3 style="margin:0 0 0.5rem;">Top clientes por actividades</h3>
+                <canvas id="ch-cliente" height="200"></canvas>
+            </div>
+            <div class="col-12 graf-card">
+                <h3 style="margin:0 0 0.5rem;">Inicios por mes</h3>
+                <canvas id="ch-linea" height="120"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <script src="nav.js"></script>
+    <script src="utils.js"></script>
+</body>
+</html>

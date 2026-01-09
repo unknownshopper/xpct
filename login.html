@@ -48,23 +48,13 @@
     </section>
 </main>
 
-<!-- Inicialización de Firebase -->
+<!-- Inicialización de Firebase (segura) -->
+<script src="config.local.js"></script>
+<script type="module" src="firebase-init.js"></script>
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-/* Usa el MISMO config que en index.html */
-const firebaseConfig = {
-    apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
-    authDomain: "xpct-tab.firebaseapp.com",
-    projectId: "xpct-tab",
-    storageBucket: "xpct-tab.firebasestorage.app",
-    messagingSenderId: "614589989974",
-    appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const auth = window.auth;
 
 // Si ya está logueado, redirigimos según Custom Claims
 onAuthStateChanged(auth, async (user) => {

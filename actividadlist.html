@@ -64,11 +64,14 @@
         <section id="actividad-resumen" style="padding:0.25rem 0 0.75rem;">
         </section>
 
-        <section class="actividad-toolbar" style="margin-bottom: 0.75rem;">
-            <div class="actividad-toolbar-left">
+        <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; align-items:center; gap:0.5rem; justify-content:space-between;">
+            <div class="actividad-toolbar-left" style="display:flex; align-items:center; gap:0.5rem;">
                 <input type="search" id="actlist-buscar" placeholder="Buscar por cliente, equipo, OS, Est-Cot...">
             </div>
-            <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563;">
+            <div class="actividad-toolbar-right" style="display:flex; align-items:center; gap:0.5rem; font-size: 0.85rem; color:#4b5563;">
+                <button id="actlist-btn-area-gp5" type="button" style="font-size:0.8rem;">Fijar Área = GP5 (visibles)</button>
+                <button id="actlist-btn-cliente-mayus" type="button" style="font-size:0.8rem;">Normalizar Cliente MAYÚSCULAS (visibles)</button>
+                <button id="actlist-btn-normalizar-mp5-global" type="button" style="font-size:0.8rem;">Normalizar MP5→GP5 (todas)</button>
                 <span id="actlist-contador">0 registros</span>
             </div>
         </section>
@@ -134,26 +137,13 @@
         </div>
     </div>
 
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
     <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyCmutjS09d1hCjwlhuH0upkGr_TIVVBktc",
-        authDomain: "xpct-tab.firebaseapp.com",
-        projectId: "xpct-tab",
-        storageBucket: "xpct-tab.firebasestorage.app",
-        messagingSenderId: "614589989974",
-        appId: "1:614589989974:web:e89a808180e4b563a8e7f7"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    window.db = db;
-
-    const auth = getAuth(app);
-    window.auth = auth;
+    const db = window.db;
+    const auth = window.auth;
 
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');

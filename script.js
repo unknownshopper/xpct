@@ -756,6 +756,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const base = obtenerDatosBaseActividad();
+        // Normalizar cliente (solo mayúsculas) antes de validar/guardar
+        if (base) {
+            if (base.cliente) {
+                base.cliente = String(base.cliente).trim().toUpperCase();
+                const inpCli = document.getElementById('act-cliente');
+                if (inpCli) inpCli.value = base.cliente;
+            }
+            // Área ya no se corrige automáticamente de MP5→GP5 en nuevos registros
+            if (typeof base.areaCliente === 'string') {
+                let areaN = String(base.areaCliente).trim().toUpperCase();
+                base.areaCliente = areaN;
+                const inpArea = document.getElementById('act-area-cliente');
+                if (inpArea) inpArea.value = base.areaCliente;
+            }
+        }
 
         // Autocompletar antes de validar
         try {
@@ -1345,6 +1360,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const msgVacio = document.getElementById('actlist-msg-vacio');
     const lblCont = document.getElementById('actlist-contador');
     const inputBuscar = document.getElementById('actlist-buscar');
+    const btnAreaGp5 = document.getElementById('actlist-btn-area-gp5');
+    const btnClienteMayus = document.getElementById('actlist-btn-cliente-mayus');
+    const btnNormMp5Global = document.getElementById('actlist-btn-normalizar-mp5-global');
 
     // Referencias al tabulador modal
     const modal = document.getElementById('actlist-tab');
@@ -1744,7 +1762,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 const nuevoCliente = getVal('.actlist-input-cliente');
-                const nuevaArea = getVal('.actlist-input-area');
+                let nuevaArea = getVal('.actlist-input-area');
                 const nuevoInicio = getVal('.actlist-input-inicio');
                 const nuevaTerm = getVal('.actlist-input-term');
                 const nuevoOs = getVal('.actlist-input-os');
@@ -1762,6 +1780,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert('Terminación del servicio con formato inválido. Usa dd/mm/aa');
                     return;
                 }
+
+                // Normalizaciones (sin forzar MP5→GP5)
+                nuevoCliente = (nuevoCliente || '').toUpperCase();
+                nuevaArea = (nuevaArea || '').toUpperCase();
 
                 const regLocal = listaOrdenada.find(r => r.id === id);
                 if (regLocal) {
@@ -1849,6 +1871,84 @@ document.addEventListener('DOMContentLoaded', () => {
     if (inputBuscar) {
         inputBuscar.addEventListener('input', () => {
             renderTabla();
+        });
+    }
+
+    // Acción masiva: fijar Área = GP5 para registros visibles
+    if (btnAreaGp5) {
+        btnAreaGp5.addEventListener('click', async () => {
+            const filas = Array.from(document.querySelectorAll('#actlist-tbody tr'));
+            if (!filas.length) return;
+            if (!confirm('Actualizar Área = GP5 en todos los registros visibles. ¿Continuar?')) return;
+
+            try {
+                const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const ops = [];
+                for (const tr of filas) {
+                    const id = tr.getAttribute('data-id');
+                    if (!id) continue;
+                    ops.push(updateDoc(doc(db, 'actividades'), { })); // placeholder to ensure import tree-shake
+                    ops.pop();
+                    ops.push(updateDoc(doc(db, 'actividades', id), { areaCliente: 'GP5' }));
+                }
+                await Promise.allSettled(ops);
+            } catch (e) {
+                console.error('Error al fijar Área = GP5', e);
+            }
+
+            await cargarActividadDesdeFirestoreParaListado();
+        });
+    }
+
+    // Normalizar Cliente a MAYÚSCULAS para registros visibles
+    if (btnClienteMayus) {
+        btnClienteMayus.addEventListener('click', async () => {
+            const filas = Array.from(document.querySelectorAll('#actlist-tbody tr'));
+            if (!filas.length) return;
+            if (!confirm('Normalizar Cliente a MAYÚSCULAS en todos los registros visibles. ¿Continuar?')) return;
+
+            try {
+                const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const ops = [];
+                for (const tr of filas) {
+                    const id = tr.getAttribute('data-id');
+                    const cliente = (tr.getAttribute('data-cliente') || '').toUpperCase();
+                    if (!id) continue;
+                    ops.push(updateDoc(doc(db, 'actividades', id), { cliente }));
+                }
+                await Promise.allSettled(ops);
+            } catch (e) {
+                console.error('Error al normalizar Cliente MAYÚSCULAS', e);
+            }
+
+            await cargarActividadDesdeFirestoreParaListado();
+        });
+    }
+
+    // Normalizar globalmente MP5→GP5 en todas las actividades
+    if (btnNormMp5Global) {
+        btnNormMp5Global.addEventListener('click', async () => {
+            if (!confirm('Esto recorrerá TODAS las actividades y convertirá área MP5→GP5. ¿Continuar?')) return;
+            try {
+                const { getFirestore, collection, getDocs, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const colRef = collection(db, 'actividades');
+                const snap = await getDocs(colRef);
+                const ops = [];
+                snap.docs.forEach(d => {
+                    const data = d.data() || {};
+                    const area = (data.areaCliente || '').toString().trim().toUpperCase();
+                    if (area === 'MP5') {
+                        ops.push(updateDoc(doc(db, 'actividades', d.id), { areaCliente: 'GP5' }));
+                    }
+                });
+                if (ops.length) await Promise.allSettled(ops);
+            } catch (e) {
+                console.error('Error al normalizar MP5→GP5 global', e);
+            }
+            await cargarActividadDesdeFirestoreParaListado();
         });
     }
 
