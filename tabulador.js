@@ -34,9 +34,10 @@
       const aa = parseInt(partes[2], 10);
       if (!dd || !mm || isNaN(aa)) return null;
       const yyyy = 2000 + aa;
-      const d = new Date(yyyy, mm - 1, dd);
+      const time = Date.UTC(yyyy, mm - 1, dd);
+      const d = new Date(time);
       if (isNaN(d.getTime())) return null;
-      return d;
+      return d; // fecha anclada a UTC 00:00
     }
 
     function recalcularPeriodo() {
@@ -49,8 +50,8 @@
       let dias = 0;
       if (dIni && dFin) {
         const diffMs = dFin.getTime() - dIni.getTime();
-        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        if (diffDias >= 0) dias = diffDias + 1;
+        const diffDias = Math.floor(diffMs / 86400000);
+        if (diffDias >= 0) dias = diffDias + 1; // inclusivo
       }
       inputDias.value = dias || '';
       const importe = dias && tarifa ? dias * tarifa : 0;
@@ -206,7 +207,7 @@
       }
 
       const diffMs = dFin.getTime() - dIni.getTime();
-      const dias = diffMs >= 0 ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1 : 0;
+      const dias = diffMs >= 0 ? Math.floor(diffMs / 86400000) + 1 : 0;
       const tarifa = Number(datos.precioDiario || 0);
       const importe = dias && tarifa ? dias * tarifa : 0;
 
@@ -264,9 +265,9 @@
     }
 
     function formatearFechaDdMmAa(date) {
-      const d = date.getDate().toString().padStart(2, '0');
-      const m = (date.getMonth() + 1).toString().padStart(2, '0');
-      const a = (date.getFullYear() % 100).toString().padStart(2, '0');
+      const d = date.getUTCDate().toString().padStart(2, '0');
+      const m = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+      const a = (date.getUTCFullYear() % 100).toString().padStart(2, '0');
       return `${d}/${m}/${a}`;
     }
 

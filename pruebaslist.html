@@ -862,7 +862,7 @@
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
-                const db = getFirestore(app);
+                const db = getFirestore();
                 const colRef = collection(db, 'pruebas');
                 const snap = await getDocs(colRef);
                 return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
