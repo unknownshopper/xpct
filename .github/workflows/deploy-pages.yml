@@ -24,8 +24,8 @@ jobs:
       # Crear config.local.js desde el Secret
       - name: Generate config.local.js
         run: |
-          echo "window.PCT_FIREBASE_CONFIG = $FIREBASE_CONFIG_JSON;" > config.local.js
-          echo "Generated config.local.js:"
+          printf 'window.PCT_FIREBASE_CONFIG = %s;\n' "$FIREBASE_CONFIG_JSON" > config.local.js
+          echo "Generated config.local.js (first line):"
           head -n 1 config.local.js
         env:
           FIREBASE_CONFIG_JSON: ${{ secrets.FIREBASE_CONFIG_JSON }}
