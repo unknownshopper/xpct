@@ -370,19 +370,20 @@
         }
 
         function agruparClientes() {
-            const mapa = new Map(); // cliente -> grupo
+            const mapa = new Map(); // cliente (UPPER) -> grupo
 
             listaActividades.forEach(act => {
-                const cli = (act.cliente || '').toString().trim();
-                if (!cli) return;
+                const cliRaw = (act.cliente || '').toString().trim();
+                if (!cliRaw) return;
+                const cliKey = cliRaw.toUpperCase();
 
-                if (!mapa.has(cli)) {
-                    mapa.set(cli, {
-                        cliente: cli,
+                if (!mapa.has(cliKey)) {
+                    mapa.set(cliKey, {
+                        cliente: cliKey, // mostrar en mayúsculas para consistencia
                         actividades: [],
                     });
                 }
-                mapa.get(cli).actividades.push(act);
+                mapa.get(cliKey).actividades.push(act);
             });
 
             clientesAgrupados = Array.from(mapa.values()).map(grp => {

@@ -1108,7 +1108,7 @@
                         trGrupoArea.innerHTML = `
                             <td colspan="15" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">
                                 <input type="checkbox" class="adm-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
-                                <span>Área: ${areaActual}</span>
+                                <span class="adm-area-title" data-cliente="${cliente}" data-area="${areaActual}" title="Click para renombrar área">Área: ${areaActual}</span>
                             </td>
                         `;
                         tbody.appendChild(trGrupoArea);
@@ -1255,6 +1255,36 @@
                     await actualizarActividadEnFirestore(id, { inicioServicio: valor });
                     renderTabla();
                 });
+            });
+
+            // Renombrar área desde el encabezado del grupo (solo admin)
+            tbody.addEventListener('click', async (ev) => {
+                const el = ev.target.closest('.adm-area-title');
+                if (!el) return;
+                if (!(window.isAdmin)) { alert('Solo administradores pueden renombrar áreas.'); return; }
+                const cliente = (el.getAttribute('data-cliente') || '').toString();
+                const areaOld = (el.getAttribute('data-area') || '').toString();
+                const nuevo = window.prompt('Nuevo nombre de área:', areaOld);
+                if (!nuevo) return;
+                const areaNew = String(nuevo).trim().toUpperCase();
+                if (!areaNew || areaNew === areaOld.toUpperCase()) return;
+
+                // Filas del área actual visibles
+                const filas = Array.from(tbody.querySelectorAll('.adm-select-fila'))
+                    .filter(chk => (chk.getAttribute('data-cliente') || '').toString() === cliente
+                                 && (chk.getAttribute('data-area') || '').toString().toUpperCase() === areaOld.toUpperCase());
+                if (!filas.length) { alert('No se encontraron filas para esta área.'); return; }
+                if (!confirm(`Renombrar área '${areaOld}' a '${areaNew}' en ${filas.length} registro(s)?`)) return;
+
+                // Persistir cambios
+                const ops = filas.map(chk => {
+                    const id = chk.getAttribute('data-id') || '';
+                    if (!id) return Promise.resolve();
+                    return actualizarActividadEnFirestore(id, { areaCliente: areaNew });
+                });
+                await Promise.allSettled(ops);
+                // Re-render para reagrupar
+                renderTabla();
             });
 
             // TERMINACIÓN DEL SERVICIO

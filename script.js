@@ -1578,8 +1578,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">
                         <input type="text" class="actlist-input-cliente" data-id="${id}" value="${cliente}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">
-                        <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" ${esAdmin ? '' : 'disabled'}>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
@@ -1723,6 +1723,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         tbody.querySelectorAll('.actlist-group-ubic').forEach(tr => {
             tr.addEventListener('click', () => colapsarDesde(tr, 'ubic'));
+        });
+
+        // Guardado en blur del campo Área (solo admin)
+        tbody.querySelectorAll('.actlist-input-area').forEach(inp => {
+            if (inp.disabled) return;
+            inp.addEventListener('blur', async () => {
+                const id = inp.getAttribute('data-id');
+                if (!id) return;
+                let nuevaArea = (inp.value || '').trim().toUpperCase();
+                try {
+                    const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const db = getFirestore();
+                    await updateDoc(doc(db, 'actividades', id), { areaCliente: nuevaArea });
+                } catch (e) {
+                    console.error('Error al actualizar área (blur)', e);
+                }
+                // Refrescar para reagrupar por área
+                await cargarActividadDesdeFirestoreParaListado();
+            });
         });
 
         // Botón Editar: habilita los campos de la fila

@@ -72,6 +72,13 @@
                 <button id="actlist-btn-area-gp5" type="button" style="font-size:0.8rem;">Fijar Área = GP5 (visibles)</button>
                 <button id="actlist-btn-cliente-mayus" type="button" style="font-size:0.8rem;">Normalizar Cliente MAYÚSCULAS (visibles)</button>
                 <button id="actlist-btn-normalizar-mp5-global" type="button" style="font-size:0.8rem;">Normalizar MP5→GP5 (todas)</button>
+                <!-- Herramienta admin: Renombrar área en lote (visibles) -->
+                <span class="admin-only" id="actlist-rename-area-wrap" style="display:none; align-items:center; gap:0.35rem;">
+                    <input id="actlist-area-from" type="text" placeholder="Área actual" style="width:110px; font-size:0.8rem;" />
+                    <span>→</span>
+                    <input id="actlist-area-to" type="text" placeholder="Nueva área" style="width:110px; font-size:0.8rem;" />
+                    <button id="actlist-btn-rename-area" type="button" style="font-size:0.8rem;">Renombrar área (visibles)</button>
+                </span>
                 <span id="actlist-contador">0 registros</span>
             </div>
         </section>
@@ -85,7 +92,7 @@
                                 <input type="checkbox" id="actlist-select-todos" title="Seleccionar / deseleccionar todos">
                             </th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
-                            <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
+                            <th style="text-align:left; padding:0.4rem;">Área</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Ubicación</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / Activo</th>
                             <th style="text-align:left; padding:0.4rem;">Descripción</th>
@@ -183,6 +190,12 @@
                 }
                 return;
             }
+
+            // Mostrar herramienta de renombrar área solo para admin
+            const wrapRename = document.getElementById('actlist-rename-area-wrap');
+            if (wrapRename && window.isAdmin) {
+                wrapRename.style.display = 'inline-flex';
+            }
         } catch {
             try { await signOut(auth); } catch {}
             window.location.href = 'login.html';
@@ -195,6 +208,60 @@
                 await signOut(auth);
             } finally {
                 window.location.href = 'login.html';
+            }
+        });
+    }
+    </script>
+
+    <script type="module">
+    // Lógica del botón "Renombrar área (visibles)" (solo admin)
+    const btnRename = document.getElementById('actlist-btn-rename-area');
+    if (btnRename) {
+        btnRename.addEventListener('click', async () => {
+            try {
+                if (!window.isAdmin) { alert('Solo disponible para administradores.'); return; }
+                const inpFrom = document.getElementById('actlist-area-from');
+                const inpTo = document.getElementById('actlist-area-to');
+                const fromRaw = (inpFrom?.value || '').trim();
+                const toRaw = (inpTo?.value || '').trim();
+                if (!fromRaw || !toRaw) { alert('Indica el área actual y la nueva área.'); return; }
+                const from = fromRaw.toUpperCase();
+                const to = toRaw.toUpperCase();
+
+                const tbody = document.getElementById('actlist-tbody');
+                if (!tbody) { alert('No se encontró la tabla.'); return; }
+
+                const filas = Array.from(tbody.querySelectorAll('tr'));
+                const objetivo = filas.filter(tr => {
+                    const visible = (tr.style.display || '') !== 'none';
+                    const area = (tr.getAttribute('data-area') || '').toUpperCase();
+                    return visible && area === from;
+                });
+
+                if (!objetivo.length) { alert('No hay filas visibles con esa área.'); return; }
+
+                if (!confirm(`Renombrar área '${from}' a '${to}' en ${objetivo.length} registro(s) visibles?`)) return;
+
+                const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+
+                const ops = objetivo.map(tr => {
+                    const id = tr.getAttribute('data-id') || '';
+                    if (!id) return Promise.resolve();
+                    return updateDoc(doc(db, 'actividades', id), { areaCliente: to });
+                });
+
+                await Promise.allSettled(ops);
+
+                // Intentar refrescar listado si existe función; si no, recargar
+                if (typeof window.cargarActividadDesdeFirestoreParaListado === 'function') {
+                    await window.cargarActividadDesdeFirestoreParaListado();
+                } else {
+                    location.reload();
+                }
+            } catch (e) {
+                console.error('Fallo al renombrar áreas', e);
+                alert('No fue posible renombrar las áreas. Revisa la consola.');
             }
         });
     }
