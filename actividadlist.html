@@ -116,7 +116,7 @@
 
     <!-- Panel/tabulador para editar fechas (visible para director/admin) -->
     <div id="actlist-tab" style="position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; align-items:center; justify-content:center; z-index:50;">
-        <div style="background:#fff; width:560px; max-width:95vw; border-radius:0.5rem; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+        <div style="background:#fff; width:760px; max-width:95vw; border-radius:0.5rem; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
             <div style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid #e5e7eb;">
                 <h3 style="margin:0; font-size:1rem;">Editar fechas de actividad</h3>
                 <button id="actlist-tab-cerrar" type="button" style="font-size:0.9rem;">✕</button>
@@ -135,6 +135,42 @@
                 <div>
                     <label style="display:block; font-size:0.85rem; color:#374151;">Terminación del servicio</label>
                     <input id="actlist-tab-terminacion" type="text" placeholder="dd/mm/aa" maxlength="8" style="width:100%; font-size:0.9rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.35rem;">
+                </div>
+                <div style="grid-column:1 / span 2; margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid #e5e7eb;">
+                    <h4 style="margin:0 0 0.5rem; font-size:0.95rem;">Periodos de facturación</h4>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end; margin-bottom:0.5rem;">
+                        <div>
+                            <label style="display:block; font-size:0.8rem; color:#374151;">Inicio período</label>
+                            <input id="actlist-per-inicio" type="text" placeholder="__/__/__" maxlength="8" style="width:120px; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.3rem;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.8rem; color:#374151;">Fin período</label>
+                            <input id="actlist-per-fin" type="text" placeholder="__/__/__" maxlength="8" style="width:120px; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.3rem;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.8rem; color:#374151;">Tipo</label>
+                            <select id="actlist-per-tipo" style="width:120px; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.3rem;">
+                                <option value="PARCIAL">PARCIAL</option>
+                                <option value="FINAL">FINAL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button id="actlist-per-agregar" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem;">Agregar período</button>
+                        </div>
+                    </div>
+                    <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                            <thead>
+                                <tr style="background:#f3f4f6;">
+                                    <th style="text-align:left; padding:0.35rem;">Inicio</th>
+                                    <th style="text-align:left; padding:0.35rem;">Fin</th>
+                                    <th style="text-align:right; padding:0.35rem;">Días</th>
+                                    <th style="text-align:left; padding:0.35rem;">Tipo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="actlist-per-tbody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; padding:0.75rem 1rem; border-top:1px solid #e5e7eb;">

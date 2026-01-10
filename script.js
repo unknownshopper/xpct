@@ -1571,6 +1571,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return; // no mostrar equipos OFF en actividad
                 }
                 const esAdmin = !!(window && window.isAdmin);
+                const esDirector = !!(window && window.isDirector);
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                         <input type="checkbox" class="actlist-select-fila" data-id="${id}">
@@ -1579,7 +1580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="text" class="actlist-input-cliente" data-id="${id}" value="${cliente}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
-                        <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" ${esAdmin ? '' : 'disabled'}>
+                        <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" ${(esAdmin || esDirector) ? '' : 'disabled'}>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
@@ -1609,9 +1610,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="button" class="actlist-btn-editar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
                             Editar
                         </button>
-                        <button type="button" class="actlist-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">
-                            Eliminar
-                        </button>
+                        ${esAdmin ? `<button type="button" class="actlist-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">Eliminar</button>` : ''}
                     </td>
                 `;
                 // Atributos para abrir modal
@@ -1634,7 +1633,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Click en fila: abrir modal/tabulador para editar fechas (director/admin)
         tbody.querySelectorAll('tr').forEach(tr => {
-            tr.addEventListener('click', (e) => {
+            tr.addEventListener('click', async (e) => {
                 const target = e.target;
                 // Ignorar si clic fue sobre botones/inputs/checkbox
                 if (target.closest('button') || target.closest('input') || target.closest('select')) return;
@@ -1649,6 +1648,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 inpInicio.value = tr.getAttribute('data-inicio') || '';
                 inpTerm.value = tr.getAttribute('data-terminacion') || '';
                 if (modal) modal.style.display = 'flex';
+                // Cargar periodos del registro seleccionado
+                await cargarPeriodosListado(modalId);
             });
         });
 
@@ -1665,6 +1666,64 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         autoMaskFecha(inpInicio);
         autoMaskFecha(inpTerm);
+
+        // Elementos del tabulador simple (periodos) en actividadlist
+        const perInicio = document.getElementById('actlist-per-inicio');
+        const perFin = document.getElementById('actlist-per-fin');
+        const perTipo = document.getElementById('actlist-per-tipo');
+        const perAgregar = document.getElementById('actlist-per-agregar');
+        const perTbody = document.getElementById('actlist-per-tbody');
+        [perInicio, perFin].forEach(autoMaskFecha);
+
+        function diasEntreUtc(d1, d2) {
+            const t = (d2.getTime() - d1.getTime());
+            return Math.floor(t / 86400000);
+        }
+
+        function formatearDdMmAaUtc(d) {
+            const dd = String(d.getUTCDate()).padStart(2, '0');
+            const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const aa = String(d.getUTCFullYear() % 100).padStart(2, '0');
+            return `${dd}/${mm}/${aa}`;
+        }
+
+        async function cargarPeriodosListado(actividadId) {
+            if (!perTbody) return;
+            perTbody.innerHTML = '';
+            try {
+                const { getFirestore, collection, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const col = collection(db, 'actividadPeriodos');
+                const q = query(col, where('actividadId', '==', actividadId));
+                const snap = await getDocs(q);
+                const arr = [];
+                snap.forEach(d => arr.push({ id: d.id, ...(d.data()||{}) }));
+                // ordenar por inicioPeriodoOrdenable y fin
+                arr.sort((a,b)=>{
+                    const ai = a.inicioPeriodoOrdenable || 0; const bi = b.inicioPeriodoOrdenable || 0;
+                    if (ai !== bi) return ai - bi;
+                    const af = a.finPeriodo ? parseFechaDdMmAaListado(a.finPeriodo) : null;
+                    const bf = b.finPeriodo ? parseFechaDdMmAaListado(b.finPeriodo) : null;
+                    return (af?af.getTime():0) - (bf?bf.getTime():0);
+                });
+                arr.forEach(p => {
+                    const dIni = p.inicioPeriodo ? parseFechaDdMmAaListado(p.inicioPeriodo) : null;
+                    const dFin = p.finPeriodo ? parseFechaDdMmAaListado(p.finPeriodo) : null;
+                    let dias = '';
+                    if (dIni && dFin) dias = diasEntreUtc(new Date(Date.UTC(dIni.getFullYear(), dIni.getMonth(), dIni.getDate())), new Date(Date.UTC(dFin.getFullYear(), dFin.getMonth(), dFin.getDate()))) + 1;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${p.inicioPeriodo || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${p.finPeriodo || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">${dias || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${p.tipoPeriodo || ''}</td>
+                    `;
+                    perTbody.appendChild(tr);
+                });
+            } catch (e) {
+                console.error('No se pudieron cargar periodos en listado', e);
+            }
+        }
 
         const cerrarModal = () => { if (modal) modal.style.display = 'none'; modalId = null; };
         if (btnCerrar) btnCerrar.addEventListener('click', cerrarModal);
@@ -1698,6 +1757,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 cerrarModal();
                 await cargarActividadDesdeFirestoreParaListado();
+            });
+        }
+
+        // Agregar período desde listado (director/admin). Sin eliminar.
+        if (perAgregar) {
+            perAgregar.addEventListener('click', async () => {
+                try {
+                    if (!modalId) { alert('Abre un registro primero.'); return; }
+                    const inicio = (perInicio?.value || '').trim();
+                    const fin = (perFin?.value || '').trim();
+                    const tipo = (perTipo?.value || 'PARCIAL');
+                    const dIni = inicio ? parseFechaDdMmAaListado(inicio) : null;
+                    const dFin = fin ? parseFechaDdMmAaListado(fin) : null;
+                    if (!dIni || !dFin) { alert('Inicio y fin válidos (dd/mm/aa)'); return; }
+                    if (dFin < dIni) { alert('La fecha fin no puede ser anterior a la de inicio'); return; }
+
+                    const { getFirestore, collection, addDoc, doc, updateDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const db = getFirestore();
+                    const col = collection(db, 'actividadPeriodos');
+                    const inicioOrdenable = dIni.getTime();
+                    await addDoc(col, {
+                        actividadId: modalId,
+                        inicioPeriodo: inicio,
+                        finPeriodo: fin,
+                        inicioPeriodoOrdenable: inicioOrdenable,
+                        diasFacturados: (Math.floor((dFin.getTime()-dIni.getTime())/86400000)+1),
+                        tarifaDiaria: 0,
+                        importe: 0,
+                        tipoPeriodo: tipo,
+                        factura: '',
+                        oc: '',
+                        observaciones: '',
+                        creadoEn: serverTimestamp(),
+                    });
+
+                    // Actualizar flags en actividad según tipo
+                    const refAct = doc(db, 'actividades', modalId);
+                    if (tipo === 'FINAL') {
+                        await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: true });
+                        inpTerm.value = fin;
+                    } else {
+                        await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: false });
+                        inpTerm.value = fin;
+                        // Prefill siguiente periodo al día siguiente
+                        const dNext = new Date(dFin.getTime());
+                        dNext.setDate(dNext.getDate() + 1);
+                        if (perInicio) perInicio.value = formatearDdMmAaUtc(new Date(Date.UTC(dNext.getFullYear(), dNext.getMonth(), dNext.getDate())));
+                        if (perFin) perFin.value = '';
+                    }
+
+                    await cargarPeriodosListado(modalId);
+                    await cargarActividadDesdeFirestoreParaListado();
+                } catch (e) {
+                    console.error('No se pudo agregar periodo desde listado', e);
+                    alert('No se pudo agregar el período. Revisa la consola.');
+                }
             });
         }
 
