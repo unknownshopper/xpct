@@ -801,7 +801,8 @@
 
             const porEquipo = new Map();
             enriquecidas.forEach(reg => {
-                const eq = (reg.equipo || '').toString();
+                const eqRaw = (reg.equipo || '').toString();
+                const eq = __normalizeEquipoAdm(eqRaw);
                 if (!eq) return;
                 const actual = porEquipo.get(eq);
                 if (!actual || reg._fechaReal.getTime() > actual._fechaReal.getTime()) {
@@ -1158,7 +1159,7 @@
 
                     const tr = document.createElement('tr');
 
-                    const infoPruebas = mapaPruebasPorEquipo[equipoNombre] || { estadoUltima: 'SIN_PRUEBA' };
+                    const infoPruebas = mapaPruebasPorEquipo[eqNorm] || { estadoUltima: 'SIN_PRUEBA' };
                     const estadoPruebas = infoPruebas.estadoUltima || 'SIN_PRUEBA';
                     const badgePruebas =
                         estadoPruebas === 'VIGENTE'

@@ -756,17 +756,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const base = obtenerDatosBaseActividad();
-        // Normalizar cliente (solo mayúsculas) antes de validar/guardar
+        // Normalizadores locales: quitar acentos y mayúsculas
+        const rmAcc = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const upNoAcc = (s) => rmAcc(String(s || '').trim()).toUpperCase();
+        // Normalizar cliente y ubicación antes de validar/guardar
         if (base) {
-            if (base.cliente) {
-                base.cliente = String(base.cliente).trim().toUpperCase();
+            if (typeof base.cliente === 'string') {
+                base.cliente = upNoAcc(base.cliente);
                 const inpCli = document.getElementById('act-cliente');
                 if (inpCli) inpCli.value = base.cliente;
             }
-            // Área ya no se corrige automáticamente de MP5→GP5 en nuevos registros
+            if (typeof base.ubicacion === 'string') {
+                base.ubicacion = upNoAcc(base.ubicacion);
+                const inpUbi = document.getElementById('act-ubicacion');
+                if (inpUbi) inpUbi.value = base.ubicacion;
+            }
+            // Área ya no se corrige automáticamente de MP5→GP5 en nuevos registros, pero sí se normaliza a mayúsculas
             if (typeof base.areaCliente === 'string') {
-                let areaN = String(base.areaCliente).trim().toUpperCase();
-                base.areaCliente = areaN;
+                base.areaCliente = String(base.areaCliente).trim().toUpperCase();
                 const inpArea = document.getElementById('act-area-cliente');
                 if (inpArea) inpArea.value = base.areaCliente;
             }
