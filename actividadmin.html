@@ -327,32 +327,6 @@
                     mapaDescripcionPorEquipoAdm[eq] = desc;
                 }
             });
-
-            // Guardado automático en blur para OS
-            tbody.querySelectorAll('.adm-input-os').forEach(input => {
-                input.addEventListener('blur', async () => {
-                    const id = input.getAttribute('data-id');
-                    if (!id) return;
-                    const valor = (input.value || '').trim();
-                    const regLocal = listaActividad.find(r => r.id === id);
-                    if (!regLocal) return;
-                    regLocal.os = valor;
-                    await actualizarActividadEnFirestore(id, { os: valor });
-                });
-            });
-
-            // Guardado automático en blur para Factura
-            tbody.querySelectorAll('.adm-input-factura').forEach(input => {
-                input.addEventListener('blur', async () => {
-                    const id = input.getAttribute('data-id');
-                    if (!id) return;
-                    const valor = (input.value || '').trim();
-                    const regLocal = listaActividad.find(r => r.id === id);
-                    if (!regLocal) return;
-                    regLocal.factura = valor;
-                    await actualizarActividadEnFirestore(id, { factura: valor });
-                });
-            });
         } catch (e) {
             console.warn('No se pudo cargar invre.csv para descripciones (admin)', e);
         }

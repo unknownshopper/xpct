@@ -1363,6 +1363,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAreaGp5 = document.getElementById('actlist-btn-area-gp5');
     const btnClienteMayus = document.getElementById('actlist-btn-cliente-mayus');
     const btnNormMp5Global = document.getElementById('actlist-btn-normalizar-mp5-global');
+    const btnToggleUbic = document.getElementById('actlist-toggle-ubic');
+    window.__actlistUbicCollapsed = window.__actlistUbicCollapsed || false;
 
     // Referencias al tabulador modal
     const modal = document.getElementById('actlist-tab');
@@ -1514,13 +1516,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const ordenCompra = reg.ordenSuministro || '';
             const descripcionBase = reg.descripcion || '';
 
+            // Descripciones y normalización de equipo: definir antes de usar
+            window.mapaDescripcionPorEquipoList = window.mapaDescripcionPorEquipoList || {};
+            const mapaDescripcionPorEquipoList = window.mapaDescripcionPorEquipoList;
+            const rmAcc = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const upNoAcc = (s) => rmAcc((s || '').toString().toUpperCase().trim());
+            function normalizeEquipoCode(raw) {
+                const s = upNoAcc(raw).replace(/[-\s]+/g, ' ');
+                const m = s.match(/^PCT\s+([A-Z]{2,3})\s*0?(\d{1,2})$/) ||
+                          s.match(/^PCT\s*([A-Z]{2,3})\s*-?\s*0?(\d{1,2})$/) ||
+                          s.match(/^PCT([A-Z]{2,3})0?(\d{1,2})$/) ||
+                          s.match(/^PCT\s*-\s*([A-Z]{2,3})\s*-\s*0?(\d{1,2})$/);
+                if (m) return `PCT-${m[1]}-${m[2].padStart(2,'0')}`;
+                const m2 = upNoAcc(raw).match(/^PCT-[A-Z]{2,3}-\d{2}$/);
+                if (m2) return m2[0];
+                return upNoAcc(raw).replace(/\s+/g, '-');
+            }
+
             const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
                 ? reg.equipos
                 : (reg.equipo ? [reg.equipo] : []);
 
             equiposArr.forEach(equipoNombre => {
-                const descEfectiva = descripcionBase || mapaDescripcionPorEquipoList[equipoNombre] || '';
-                const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${estCotVal}`.toLowerCase();
+                const eqMostrarFiltro = normalizeEquipoCode(equipoNombre);
+                const descFiltro = (reg.equipoDescripcion || descripcionBase || mapaDescripcionPorEquipoList[eqMostrarFiltro] || '');
+                const textoBuscar = `${cliente} ${area} ${ubicacion} ${eqMostrarFiltro} ${descFiltro} ${os} ${estCotVal}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 visibles += 1;
@@ -1572,6 +1592,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const esAdmin = !!(window && window.isAdmin);
                 const esDirector = !!(window && window.isDirector);
+                const equipoMostrar = normalizeEquipoCode(equipoNombre);
+                const descEfectiva = (reg.equipoDescripcion || reg.descripcion || mapaDescripcionPorEquipoList[equipoMostrar] || '').toString();
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                         <input type="checkbox" class="actlist-select-fila" data-id="${id}">
@@ -1582,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
                         <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" ${(esAdmin || esDirector) ? '' : 'disabled'}>
                     </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoNombre}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoMostrar}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
@@ -1618,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.setAttribute('data-cliente', cliente);
         tr.setAttribute('data-area', area);
         tr.setAttribute('data-ubicacion', ubicacion);
-        tr.setAttribute('data-equipo', equipoNombre);
+        tr.setAttribute('data-equipo', equipoMostrar);
         tr.setAttribute('data-inicio', inicioTexto);
         tr.setAttribute('data-terminacion', terminacionTexto);
         tbody.appendChild(tr);
@@ -1630,6 +1652,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Estado de actividad removido de la vista (columna eliminada)
+
+        // (definiciones movidas arriba para evitar TDZ y duplicados)
+
+        // Cargar invre.csv solo una vez por sesión
+        (async () => {
+            try {
+                if (window.__invreCargadoListado) return;
+                const resp = await fetch('docs/invre.csv');
+                if (!resp.ok) { window.__invreCargadoListado = true; return; }
+                const texto = await resp.text();
+                const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+                if (!lineas.length) { window.__invreCargadoListado = true; return; }
+                let parse = (window && window.parseCSVLine) ? window.parseCSVLine : null;
+                if (!parse) {
+                    parse = function(linea) {
+                        const res = []; let cur = ''; let q = false;
+                        for (let i = 0; i < linea.length; i++) {
+                            const ch = linea[i];
+                            if (ch === '"') { q = !q; cur += ch; continue; }
+                            if (ch === ',' && !q) { res.push(cur); cur = ''; continue; }
+                            cur += ch;
+                        }
+                        res.push(cur);
+                        return res.map(s => s.replace(/^\"|\"$/g, '').replace(/\"\"/g, '"').trim());
+                    };
+                }
+                const headers = parse(lineas[0]);
+                let idxEquipo = headers.findIndex(h => upNoAcc(h) === 'EQUIPO / ACTIVO');
+                if (idxEquipo < 0) idxEquipo = headers.findIndex(h => /EQUIPO|CODIG|CLAVE|ACTIVO/i.test(upNoAcc(h)));
+                const idxDesc = headers.findIndex(h => upNoAcc(h) === 'DESCRIPCION');
+                if (idxEquipo < 0 || idxDesc < 0) { window.__invreCargadoListado = true; return; }
+                lineas.slice(1).forEach(l => {
+                    const cols = parse(l);
+                    const eqRaw = (cols[idxEquipo] || '').toString().trim();
+                    const eq = normalizeEquipoCode(eqRaw);
+                    const desc = (cols[idxDesc] || '').toString().trim();
+                    if (eq && desc && !mapaDescripcionPorEquipoList[eq]) {
+                        mapaDescripcionPorEquipoList[eq] = desc;
+                    }
+                });
+                window.__invreCargadoListado = true;
+                // Forzar refresco del listado para reflejar descripciones
+                try {
+                    if (typeof cargarActividadDesdeFirestoreParaListado === 'function') {
+                        await cargarActividadDesdeFirestoreParaListado();
+                    } else {
+                        window.dispatchEvent(new CustomEvent('invre-descripciones-cargadas'));
+                    }
+                } catch {}
+            } catch {}
+        })();
 
         // Click en fila: abrir modal/tabulador para editar fechas (director/admin)
         tbody.querySelectorAll('tr').forEach(tr => {
@@ -1840,6 +1913,13 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.addEventListener('click', () => colapsarDesde(tr, 'ubic'));
         });
 
+        // Aplicar estado global de colapso por ubicación si está activo
+        if (window.__actlistUbicCollapsed) {
+            tbody.querySelectorAll('.actlist-group-ubic').forEach(tr => {
+                if (tr.dataset.colapsado !== '1') colapsarDesde(tr, 'ubic');
+            });
+        }
+
         // Guardado en blur del campo Área (solo admin)
         tbody.querySelectorAll('.actlist-input-area').forEach(inp => {
             if (inp.disabled) return;
@@ -2004,6 +2084,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (inputBuscar) {
         inputBuscar.addEventListener('input', () => {
+            renderTabla();
+        });
+    }
+
+    // Botón global de colapsar/expandir por ubicación
+    if (btnToggleUbic) {
+        const syncToggleText = () => {
+            btnToggleUbic.textContent = window.__actlistUbicCollapsed ? 'Expandir ubicaciones' : 'Colapsar ubicaciones';
+        };
+        syncToggleText();
+        btnToggleUbic.addEventListener('click', () => {
+            window.__actlistUbicCollapsed = !window.__actlistUbicCollapsed;
+            syncToggleText();
+            // Re-render para aplicar a todas las secciones
             renderTabla();
         });
     }
