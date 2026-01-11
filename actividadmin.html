@@ -302,6 +302,21 @@
     window.mapaDescripcionPorEquipoAdm = window.mapaDescripcionPorEquipoAdm || {};
     const mapaDescripcionPorEquipoAdm = window.mapaDescripcionPorEquipoAdm;
 
+    // Helpers de normalización (formato PCT-XX-NN) para usar llaves consistentes
+    const __rmAcc = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const __upNoAcc = (s) => __rmAcc((s || '').toUpperCase().trim());
+    function __normalizeEquipoAdm(raw) {
+        const t = __upNoAcc(raw).replace(/[-\s]+/g, ' ');
+        const m = t.match(/^PCT\s+([A-Z]{2,3})\s*0?(\d{1,2})$/) ||
+                  t.match(/^PCT\s*([A-Z]{2,3})\s*-?\s*0?(\d{1,2})$/) ||
+                  t.match(/^PCT([A-Z]{2,3})0?(\d{1,2})$/) ||
+                  t.match(/^PCT\s*-\s*([A-Z]{2,3})\s*-\s*0?(\d{1,2})$/);
+        if (m) return `PCT-${m[1]}-${m[2].padStart(2,'0')}`;
+        const m2 = __upNoAcc(raw).match(/^PCT-[A-Z]{2,3}-\d{2}$/);
+        if (m2) return m2[0];
+        return __upNoAcc(raw).replace(/\s+/g, '-');
+    }
+
     (async () => {
         try {
             const resp = await fetch('docs/invre.csv');
@@ -310,8 +325,23 @@
             const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
             if (!lineas.length) return;
 
-            const parse = (window && window.parseCSVLine) ? window.parseCSVLine : null;
-            if (!parse) return;
+            const parse = (window && window.parseCSVLine) ? window.parseCSVLine : (line => {
+                const out = [];
+                let cur = '';
+                let q = false;
+                for (let i = 0; i < line.length; i++) {
+                    const ch = line[i];
+                    if (ch === '"') {
+                        const next = line[i + 1];
+                        if (next === '"') { cur += '"'; i++; continue; }
+                        q = !q; continue;
+                    }
+                    if (ch === ',' && !q) { out.push(cur); cur = ''; continue; }
+                    cur += ch;
+                }
+                out.push(cur);
+                return out.map(s => s.trim());
+            });
 
             const headers = parse(lineas[0]);
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
@@ -320,13 +350,17 @@
 
             lineas.slice(1).forEach(l => {
                 const cols = parse(l);
-                const eq = (cols[idxEquipo] || '').toString().trim();
+                const eqRaw = (cols[idxEquipo] || '').toString().trim();
+                const eq = __normalizeEquipoAdm(eqRaw);
                 const desc = (cols[idxDesc] || '').toString().trim();
                 if (!eq || !desc) return;
                 if (!mapaDescripcionPorEquipoAdm[eq]) {
                     mapaDescripcionPorEquipoAdm[eq] = desc;
                 }
             });
+            if (window && typeof window.__admRenderTabla === 'function') {
+                try { window.__admRenderTabla(); } catch {}
+            }
         } catch (e) {
             console.warn('No se pudo cargar invre.csv para descripciones (admin)', e);
         }
@@ -599,6 +633,7 @@
         window.marcarTerminacionesFinalesDesdePeriodos = marcarTerminacionesFinalesDesdePeriodos;
         window.marcarTerminacionesParcialesDesdePeriodos = marcarTerminacionesParcialesDesdePeriodos;
         window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
+        // El render se expondrá desde el IIFE principal para evitar referencias fuera de su ámbito
     });
 
     if (btnLogout) {
@@ -633,6 +668,21 @@
         // Mapa precargado de estado de pruebas por equipo, para no recalcular en cada render.
         // Estructura: { [equipo]: { estadoUltima: 'VIGENTE' | 'VENCIDA' | 'SIN_FECHA' | 'SIN_PRUEBA', ultima?: {...} } }
         let mapaPruebasPorEquipo = {};
+
+        // Helpers de normalización locales (este <script> no es módulo, no ve los del bloque anterior)
+        const __rmAcc_local = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const __upNoAcc_local = (s) => __rmAcc_local((s || '').toUpperCase().trim());
+        function __normalizeEquipoAdm(raw) {
+            const t = __upNoAcc_local(raw).replace(/[-\s]+/g, ' ');
+            const m = t.match(/^PCT\s+([A-Z]{2,3})\s*0?(\d{1,2})$/) ||
+                      t.match(/^PCT\s*([A-Z]{2,3})\s*-?\s*0?(\d{1,2})$/) ||
+                      t.match(/^PCT([A-Z]{2,3})0?(\d{1,2})$/) ||
+                      t.match(/^PCT\s*-\s*([A-Z]{2,3})\s*-\s*0?(\d{1,2})$/);
+            if (m) return `PCT-${m[1]}-${m[2].padStart(2,'0')}`;
+            const m2 = __upNoAcc_local(raw).match(/^PCT-[A-Z]{2,3}-\d{2}$/);
+            if (m2) return m2[0];
+            return __upNoAcc_local(raw).replace(/\s+/g, '-');
+        }
 
         function formatearMoneda(valor) {
             const n = Number(valor) || 0;
@@ -919,18 +969,21 @@
 
                 if (filtroDescripcion) {
                     const descBase = (reg.descripcion || '').toString().toLowerCase();
+                    const descPersist = (reg.equipoDescripcion || '').toString().toLowerCase();
                     const mapaDesc = (window.mapaDescripcionPorEquipoAdm || {});
 
                     let matchDesc = false;
 
-                    if (descBase && descBase.includes(filtroDescripcion)) {
+                    if ((descPersist && descPersist.includes(filtroDescripcion)) ||
+                        (descBase && descBase.includes(filtroDescripcion))) {
                         matchDesc = true;
                     } else {
                         const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
                             ? reg.equipos
                             : (reg.equipo ? [reg.equipo] : []);
                         matchDesc = equiposArr.some(eq => {
-                            const descInv = (mapaDesc[eq] || '').toString().toLowerCase();
+                            const eqNorm = __normalizeEquipoAdm(eq);
+                            const descInv = (mapaDesc[eqNorm] || '').toString().toLowerCase();
                             return descInv.includes(filtroDescripcion);
                         });
                     }
@@ -1045,8 +1098,11 @@
 
                 equiposArr.forEach(equipoNombre => {
                     const mapaDesc = (window.mapaDescripcionPorEquipoAdm || {});
-                    const descEfectiva = descripcionBase || mapaDesc[equipoNombre] || '';
-                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoNombre} ${descEfectiva} ${os} ${oc} ${estCot} ${factura}`.toLowerCase();
+                    const eqNorm = __normalizeEquipoAdm(equipoNombre);
+                    const equipoMostrar = eqNorm || equipoNombre;
+                    const descPersist = (reg.equipoDescripcion || '').toString();
+                    const descEfectiva = descPersist || descripcionBase || mapaDesc[eqNorm] || '';
+                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoMostrar} ${descEfectiva} ${os} ${oc} ${estCot} ${factura}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
                     }
@@ -1119,7 +1175,7 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
-                            ${equipoNombre}
+                            ${equipoMostrar}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; white-space:nowrap;">
                             ${badgePruebas}
