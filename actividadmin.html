@@ -459,6 +459,72 @@
             }
         }
 
+        // Generar períodos mensuales entre inicioServicio y terminacionServicio para una actividad
+        // Uso desde consola: generarPeriodosMensuales('<actividadId>')
+        async function generarPeriodosMensuales(actividadId) {
+            if (!actividadId) { console.warn('Proporciona actividadId'); return; }
+            try {
+                const { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const ref = doc(db, 'actividades', actividadId);
+                const snap = await getDoc(ref);
+                if (!snap.exists()) { console.warn('Actividad no encontrada'); return; }
+                const act = snap.data() || {};
+                const iniStr = (act.inicioServicio || '').toString().trim();
+                const finStr = (act.terminacionServicio || '').toString().trim();
+                if (!iniStr || !finStr) { console.warn('La actividad necesita inicioServicio y terminacionServicio'); return; }
+
+                const dIni = parseFechaDdMmAa(iniStr);
+                const dFin = parseFechaDdMmAa(finStr);
+                if (!dIni || !dFin) { console.warn('Fechas inválidas en la actividad'); return; }
+                if (dFin < dIni) { console.warn('terminacionServicio es anterior a inicioServicio'); return; }
+
+                // No duplicar si ya hay periodos
+                const colPer = collection(db, 'actividadPeriodos');
+                const qPer = query(colPer, where('actividadId', '==', actividadId));
+                const snapPer = await getDocs(qPer);
+                if (!snapPer.empty) { console.warn('La actividad ya tiene períodos; abortando para evitar duplicados'); return; }
+
+                function finDeMes(d) { return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+                function siguienteDia(d) { const n = new Date(d.getFullYear(), d.getMonth(), d.getDate()); n.setDate(n.getDate()+1); return n; }
+                function fmt(d) { const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const aa = String(d.getFullYear()%100).padStart(2,'0'); return `${dd}/${mm}/${aa}`; }
+                function diasIncl(d1,d2){ const t = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime() - new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime(); return Math.floor(t/86400000)+1; }
+
+                const periodos = [];
+                let curIni = new Date(dIni.getFullYear(), dIni.getMonth(), dIni.getDate());
+                while (true) {
+                    let curFin = finDeMes(curIni);
+                    if (curFin > dFin) curFin = dFin;
+                    const esFinal = curFin.getTime() === dFin.getTime();
+                    periodos.push({ inicio: new Date(curIni), fin: new Date(curFin), tipo: esFinal ? 'FINAL' : 'PARCIAL' });
+                    if (esFinal) break;
+                    curIni = siguienteDia(curFin);
+                }
+
+                for (const p of periodos) {
+                    await addDoc(colPer, {
+                        actividadId,
+                        inicioPeriodo: fmt(p.inicio),
+                        finPeriodo: fmt(p.fin),
+                        inicioPeriodoOrdenable: new Date(p.inicio.getFullYear(), p.inicio.getMonth(), p.inicio.getDate()).getTime(),
+                        diasFacturados: diasIncl(p.inicio, p.fin),
+                        tarifaDiaria: 0,
+                        importe: 0,
+                        tipoPeriodo: p.tipo,
+                        factura: '',
+                        oc: '',
+                        observaciones: '',
+                        creadoEn: serverTimestamp(),
+                    });
+                }
+
+                // Alinear flags de la actividad
+                await updateDoc(ref, { terminacionEsFinal: true });
+                console.log(`Generados ${periodos.length} períodos para actividad ${actividadId}`);
+            } catch (e) {
+                console.error('Error generando períodos mensuales', e);
+            }
+        }
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
@@ -633,6 +699,8 @@
         window.marcarTerminacionesFinalesDesdePeriodos = marcarTerminacionesFinalesDesdePeriodos;
         window.marcarTerminacionesParcialesDesdePeriodos = marcarTerminacionesParcialesDesdePeriodos;
         window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
+        // Exponer generador de períodos mensuales
+        window.generarPeriodosMensuales = generarPeriodosMensuales;
         // El render se expondrá desde el IIFE principal para evitar referencias fuera de su ámbito
     });
 

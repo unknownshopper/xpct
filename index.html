@@ -87,6 +87,17 @@
            
         </section>
 
+        <!-- Modal: Detalle de pendientes (actividades) -->
+        <div id="dash-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:50;">
+            <div style="background:white; max-width:640px; width:95%; border-radius:0.5rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:1rem 1.25rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+                    <h3 style="margin:0; font-size:1rem; font-weight:600;">Actividades pendientes</h3>
+                    <button id="dash-modal-cerrar" type="button" style="font-size:0.85rem;">Cerrar</button>
+                </div>
+                <div id="dash-modal-body" style="font-size:0.9rem; color:#111827;"></div>
+            </div>
+        </div>
+
         <section class="dashboard-links">
             <a href="actividad.html" class="dash-link">Registrar nueva actividad</a>
             <a href="actividadlist.html" class="dash-link">Ver listado de actividades</a>

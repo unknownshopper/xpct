@@ -305,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let total = 0;
                 let concluidas = 0;
                 let pendientes = 0;
+                const pendientesItems = [];
 
                 snap.forEach(doc => {
                     total += 1;
@@ -314,8 +315,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         concluidas += 1;
                     } else {
                         pendientes += 1; // incluye abiertas y parciales
+                        pendientesItems.push({ id: doc.id, ...data });
                     }
                 });
+
+                // Ordenar pendientes por inicioServicio (más recientes primero)
+                const parseDdMmAa = (s) => {
+                    const str = (s || '').toString();
+                    const p = str.split('/');
+                    if (p.length !== 3) return null;
+                    const dd = parseInt(p[0], 10), mm = parseInt(p[1], 10), aa = parseInt(p[2], 10);
+                    if (!dd || !mm || isNaN(aa)) return null;
+                    const yyyy = aa < 100 ? 2000 + aa : aa;
+                    const d = new Date(yyyy, mm - 1, dd);
+                    return isNaN(d.getTime()) ? null : d;
+                };
+                pendientesItems.sort((a,b)=>{
+                    const da = parseDdMmAa(a.inicioServicio) || new Date(2000,0,1);
+                    const dbd = parseDdMmAa(b.inicioServicio) || new Date(2000,0,1);
+                    return dbd.getTime() - da.getTime();
+                });
+                const topPend = pendientesItems.slice(0, 2);
 
                 spanActividades.innerHTML = `
                     <div class="dash-stats" aria-label="Resumen de actividades">
@@ -328,11 +348,44 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge blue">${concluidas}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">⏳ <span>Pendientes</span></span>
-                            <span class="badge amber">${pendientes}</span>
+                            <span class="row-left"><button id="dash-actividades-pend-link" type="button" style="all:unset; cursor:pointer;">⏳ <span>Pendientes</span></button></span>
+                            <span class="badge amber" title="Abrir detalles">${pendientes}</span>
                         </div>
                     </div>
                 `;
+
+                // Modal handlers
+                const modal = document.getElementById('dash-modal');
+                const modalBody = document.getElementById('dash-modal-body');
+                const btnCerrar = document.getElementById('dash-modal-cerrar');
+                const openModal = () => { if (modal) modal.style.display = 'flex'; };
+                const closeModal = () => { if (modal) modal.style.display = 'none'; };
+                if (btnCerrar) btnCerrar.addEventListener('click', closeModal);
+                if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+                const btnPend = document.getElementById('dash-actividades-pend-link');
+                if (btnPend && modal && modalBody) {
+                    btnPend.addEventListener('click', () => {
+                        if (!topPend.length) {
+                            modalBody.innerHTML = '<div>No hay actividades pendientes.</div>';
+                            openModal();
+                            return;
+                        }
+                        const html = topPend.map(a => {
+                            const cliente = (a.cliente || '').toString();
+                            const area = (a.areaCliente || '').toString();
+                            const ubic = (a.ubicacion || '').toString();
+                            const equipo = (a.equipo || (Array.isArray(a.equipos) && a.equipos[0]) || '').toString();
+                            const inicio = (a.inicioServicio || '').toString();
+                            return `<div style="padding:0.5rem 0; border-bottom:1px solid #e5e7eb;">
+                                <div style="font-weight:600;">${cliente} · ${area} · ${ubic}</div>
+                                <div style="color:#4b5563; font-size:0.9rem;">Equipo: ${equipo} · Inicio: ${inicio}</div>
+                            </div>`;
+                        }).join('');
+                        modalBody.innerHTML = html;
+                        openModal();
+                    });
+                }
             } catch (e) {
                 console.error('Error al leer resumen de actividades para el dashboard', e);
                 spanActividades.textContent = 'Error';
