@@ -924,18 +924,29 @@
                         orderBy('inicioTs', 'desc'),
                         limit(1000)
                     );
-                    try { snap = await getDocsFromCache(qIdx); }
-                    catch { snap = await getDocs(qIdx); }
+                    try { snap = await getDocsFromCache(qIdx); } catch {}
+                    if (!snap || snap.empty) { snap = await getDocs(qIdx); }
+                    // Si sigue vacío (posible por falta de backfill), probar sin filtros por campos nuevos
+                    if (!snap || snap.empty) {
+                        const qTs = query(colRef, orderBy('inicioTs', 'desc'), limit(1000));
+                        try { snap = await getDocsFromCache(qTs); } catch {}
+                        if (!snap || snap.empty) { try { snap = await getDocs(qTs); } catch {} }
+                    }
+                    // Último recurso: colección completa para no dejar la UI vacía
+                    if (!snap || snap.empty) {
+                        try { snap = await getDocsFromCache(colRef); } catch {}
+                        if (!snap || snap.empty) { snap = await getDocs(colRef); }
+                    }
                 } catch (e) {
                     // Si no hay índices o campos aún, hacer fallback a orden por inicioTs con límite
                     try {
                         const qTs = query(colRef, orderBy('inicioTs', 'desc'), limit(1000));
-                        try { snap = await getDocsFromCache(qTs); }
-                        catch { snap = await getDocs(qTs); }
+                        try { snap = await getDocsFromCache(qTs); } catch {}
+                        if (!snap || snap.empty) { snap = await getDocs(qTs); }
                     } catch {
                         // Último recurso: colección completa (evitar si es grande)
-                        try { snap = await getDocsFromCache(colRef); }
-                        catch { snap = await getDocs(colRef); }
+                        try { snap = await getDocsFromCache(colRef); } catch {}
+                        if (!snap || snap.empty) { snap = await getDocs(colRef); }
                     }
                 }
                 listaActividad = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));

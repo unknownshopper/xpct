@@ -401,6 +401,27 @@ Notas:
 
 ## Próximos cambios sugeridos
 
+- **Pendientes próximos (enero 2026)**
+  - Índices y consultas selectivas (Firestore):
+    - Crear índice compuesto en `actividades`: `anioInicio ASC`, `inicioTs DESC` (principal), y evaluar: `equipoNorm ASC + inicioTs DESC`, `clienteNorm ASC + ubicNorm ASC + inicioTs DESC`.
+    - Actualizar vistas para usar `where/limit/orderBy` con paginación y evitar escaneos completos (actividadmin ya hace intento con fallback).
+  - Backfill de normalización (en curso):
+    - Campos en `actividades`: `equipoNorm`, `clienteNorm`, `areaNorm`, `ubicNorm`, `inicioTs`, `finTs`, `anioInicio`, `anioFin`.
+    - Pendiente ejecutar backfill equivalente en `pruebas` para mejorar matching y filtros (normalizar equipo/cliente/ubic/área y timestamps).
+  - Dashboard (reducción de lecturas):
+    - Mientras la cuota esté limitada, evitar agregaciones; cuando se restablezca, evaluar `getCountFromServer` solo 1 vez por sesión.
+    - Plan medio plazo: documento `stats/dashboard` precomputado (Cloud Function programada) para 1 sola lectura.
+  - Cache/Offline:
+    - Persistencia IndexedDB habilitada y lecturas cache-first en `actividadmin` y `dashboard` (ya aplicado).
+  - Períodos y consolidación:
+    - Usar `window.generarPeriodosMensuales(actividadId)` y el script de consolidación por grupo (maestra + archivado) para casos 2017 (ej.: PCT-CE-04, PCT-CA-10 en TERRA 8).
+  - Tipografías institucionales:
+    - Rutas de fuentes ajustadas a `xpct/fonts/*.OTF`. Convertir a `woff2/woff` y servir múltiples formatos para mejor desempeño.
+  - GitHub Pages:
+    - Validar que `config.local.js` de producción esté accesible (ya sirve 200). Si se requiere, fallback a config embebida para `*.github.io`.
+  - Prácticas seguras de cuota:
+    - Evitar escaneos/aggregations en primer paint; usar cache o placeholders y diferir operaciones costosas.
+
 - **Actividad**
   - Mostrar en la lista inferior de `actividad.html` los equipos que están en servicio con una leyenda clara en la columna de estado (por ejemplo: `EN SERVICIO (no disponible)`), en lugar de solo mostrar alertas.
   - Asegurar que la selección múltiple (pegar varios equipos) respete la lógica anterior y sea consistente entre equipos nuevos vs. ocupados.
