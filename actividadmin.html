@@ -293,6 +293,14 @@
     const db = window.db;
     const auth = window.auth;
 
+    // Habilitar persistencia offline (IndexedDB). Ignorar errores de multi-tab.
+    try {
+        const { enableIndexedDbPersistence } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        if (db) {
+            enableIndexedDbPersistence(db).catch(() => {});
+        }
+    } catch {}
+
     // Acceso por Custom Claims (Firebase): role === 'admin'
 
     const emailSpan = document.getElementById('nav-user-email');
@@ -833,10 +841,12 @@
             async function leerDesdeFirestore() {
                 try {
                     if (!window.db) return null;
-                    const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const { getFirestore, collection, getDocs, getDocsFromCache } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                     const db = getFirestore();
                     const colRef = collection(db, 'pruebas');
-                    const snap = await getDocs(colRef);
+                    let snap;
+                    try { snap = await getDocsFromCache(colRef); }
+                    catch { snap = await getDocs(colRef); }
                     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 } catch (e) {
                     console.warn('No se pudieron leer pruebas desde Firestore (actividadmin)', e);
@@ -898,10 +908,12 @@
             }
 
             try {
-                const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const { getFirestore, collection, getDocs, getDocsFromCache } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
-                const snap = await getDocs(colRef);
+                let snap;
+                try { snap = await getDocsFromCache(colRef); }
+                catch { snap = await getDocs(colRef); }
                 listaActividad = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             } catch (e) {
                 console.error('Error al cargar actividades desde Firestore (admin)', e);

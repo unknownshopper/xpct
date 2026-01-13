@@ -7,6 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!spanPruebas && !spanInspecciones && !spanInvre && !spanInvre2 && !spanActividades) return; // No estamos en index.html
 
+    // Habilitar persistencia offline si está disponible (no falla en multi-tab)
+    (async ()=>{
+        try {
+            const { enableIndexedDbPersistence } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            if (window.db) enableIndexedDbPersistence(window.db).catch(()=>{});
+        } catch {}
+    })();
+
     // Pruebas guardadas en Firestore (total y por vencer a 60/30/15 días)
     if (spanPruebas) {
         spanPruebas.textContent = 'Cargando...';
@@ -40,13 +48,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
-                const { getFirestore, collection, getDocs } = await import(
+                const { getFirestore, collection, getDocs, getDocsFromCache } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'pruebas');
-                const snap = await getDocs(colRef);
+                let snap;
+                try { snap = await getDocsFromCache(colRef); }
+                catch { snap = await getDocs(colRef); }
 
                 const hoy = new Date();
                 hoy.setHours(0, 0, 0, 0);
@@ -218,13 +228,15 @@ document.addEventListener('DOMContentLoaded', () => {
         (async () => {
             try {
                 // 1) Leer actividades desde Firestore para conocer el universo de actividades
-                const { getFirestore, collection, getDocs } = await import(
+                const { getFirestore, collection, getDocs, getDocsFromCache } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
-                const snap = await getDocs(colRef);
+                let snap;
+                try { snap = await getDocsFromCache(colRef); }
+                catch { snap = await getDocs(colRef); }
 
                 const actividadIds = new Set();
                 snap.forEach(doc => {
@@ -234,12 +246,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 2) Leer inspecciones desde Firestore (con fallback a localStorage)
                 let listaInspecciones = [];
                 try {
-                    const { collection: col, getDocs: getDocsInsp } = await import(
+                    const { collection: col, getDocs: getDocsInsp, getDocsFromCache: getDocsFromCacheInsp } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                     );
 
                     const colInsp = col(db, 'inspecciones');
-                    const snapInsp = await getDocsInsp(colInsp);
+                    let snapInsp;
+                    try { snapInsp = await getDocsFromCacheInsp(colInsp); }
+                    catch { snapInsp = await getDocsInsp(colInsp); }
                     listaInspecciones = snapInsp.docs.map(d => ({ id: d.id, ...d.data() }));
                 } catch {
                     // Si falla Firestore, usar localStorage como respaldo
@@ -294,13 +308,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
-                const { getFirestore, collection, getDocs } = await import(
+                const { getFirestore, collection, getDocs, getDocsFromCache } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
-                const snap = await getDocs(colRef);
+                let snap;
+                try { snap = await getDocsFromCache(colRef); }
+                catch { snap = await getDocs(colRef); }
 
                 let total = 0;
                 let concluidas = 0;
