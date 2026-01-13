@@ -915,7 +915,8 @@
 
                 // Intentar una consulta indexada: últimos 5 años por anioInicio e inicioTs, con límite razonable
                 const currentYear = (new Date()).getFullYear();
-                const minYear = currentYear - 5;
+                // Ampliar ventana a últimos 20 años para incluir históricos (2015–2017)
+                const minYear = currentYear - 20;
                 try {
                     const qIdx = query(
                         colRef,
