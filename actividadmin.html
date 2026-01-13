@@ -56,17 +56,51 @@
     <main class="actividad-page actividadlist-wrap">
         <!-- Tarjetas resumen -->
         <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
+            <!-- Tarjeta 1: resumen económico en columnas -->
             <div class="dash-card">
-                <div class="dash-card-label">Ingresos acumulados (visibles)</div>
-                <div class="dash-card-value" id="adm-total-ingresos">$0</div>
+                <div class="dash-card-label">Resumen económico (visibles)</div>
+                <div class="dash-stats">
+                    <div class="dash-stat-row">
+                        <span class="row-left">💰 <span>Ingresos acumulados</span></span>
+                        <span class="badge gray" id="adm-total-ingresos">$0</span>
+                    </div>
+                    <div class="dash-stat-row">
+                        <span class="row-left">📈 <span>Rentas acumuladas</span></span>
+                        <span class="badge blue" id="adm-total-rentas">$0</span>
+                    </div>
+                    <div class="dash-stat-row">
+                        <span class="row-left">🎟️ <span>Ticket promedio</span></span>
+                        <span class="badge amber" id="adm-ticket-promedio">$0</span>
+                    </div>
+                </div>
             </div>
+
+            <!-- Tarjeta 2: tabuladores de estado -->
             <div class="dash-card">
-                <div class="dash-card-label">Rentas acumuladas (visibles)</div>
-                <div class="dash-card-value" id="adm-total-rentas">$0</div>
+                <div class="dash-card-label">Estados de actividad (visibles)</div>
+                <div class="dash-stats">
+                    <div class="dash-stat-row">
+                        <span class="row-left">🟧 <span>Abierto</span></span>
+                        <span class="badge amber" id="adm-estado-abierto">0</span>
+                    </div>
+                    <div class="dash-stat-row">
+                        <span class="row-left">🟩 <span>Parcial</span></span>
+                        <span class="badge blue" id="adm-estado-parcial">0</span>
+                    </div>
+                    <div class="dash-stat-row">
+                        <span class="row-left">✅ <span>Final</span></span>
+                        <span class="badge gray" id="adm-estado-final">0</span>
+                    </div>
+                    
+                </div>
             </div>
+
+            <!-- Tarjeta 3: Cliente / Área con total de equipos visibles -->
             <div class="dash-card">
-                <div class="dash-card-label">Ticket promedio (visibles)</div>
-                <div class="dash-card-value" id="adm-ticket-promedio">$0</div>
+                <div class="dash-card-label">Cliente / Área (equipos visibles)</div>
+                <div class="dash-stats" id="adm-ca-list">
+                    <!-- Se llena desde renderTabla() -->
+                </div>
             </div>
         </section>
 
@@ -1032,6 +1066,10 @@
             const spanIngresos = document.getElementById('adm-total-ingresos');
             const spanRentas = document.getElementById('adm-total-rentas');
             const spanTicket = document.getElementById('adm-ticket-promedio');
+            const spanEstAbierto = document.getElementById('adm-estado-abierto');
+            const spanEstParcial = document.getElementById('adm-estado-parcial');
+            const spanEstFinal = document.getElementById('adm-estado-final');
+            const caList = document.getElementById('adm-ca-list');
 
             if (!tbody) return;
 
@@ -1046,6 +1084,10 @@
                 spanIngresos.textContent = '$0';
                 spanRentas.textContent = '$0';
                 spanTicket.textContent = '$0';
+                if (spanEstAbierto) spanEstAbierto.textContent = '0';
+                if (spanEstParcial) spanEstParcial.textContent = '0';
+                if (spanEstFinal) spanEstFinal.textContent = '0';
+                if (caList) caList.innerHTML = '';
                 return;
             }
 
@@ -1056,6 +1098,10 @@
             let sumaPrecios = 0;
             let cuentaPrecios = 0;
             let visibles = 0;
+            let contarAbierto = 0;
+            let contarParcial = 0;
+            let contarFinal = 0;
+            const equiposPorClienteArea = new Map(); // key: cliente||' - '|| area -> count equipos
 
             // Aplicar filtros por inicio de servicio, equipo, descripción, estado de actividad y estado de pruebas
             const listaFiltrada = listaBase.filter(reg => {
@@ -1213,6 +1259,12 @@
 
                 const termInput = termTexto || '';
 
+                // Contar estado a nivel de actividad base
+                {
+                    const finTxt = (reg.terminacionServicio || '').toString().trim();
+                    if (!finTxt) contarAbierto += 1; else if (reg.terminacionEsFinal) contarFinal += 1; else contarParcial += 1;
+                }
+
                 equiposArr.forEach(equipoNombre => {
                     const mapaDesc = (window.mapaDescripcionPorEquipoAdm || {});
                     const eqNorm = __normalizeEquipoAdm(equipoNombre);
@@ -1225,6 +1277,9 @@
                     }
 
                     visibles += 1;
+                    // Acumular por cliente/área el total de equipos visibles
+                    const key = `${cliente}|||${area}`;
+                    equiposPorClienteArea.set(key, (equiposPorClienteArea.get(key) || 0) + 1);
 
                     const ingresoEquipo = precioPorEquipo * (dias || 0);
                     totalIngresos += ingresoEquipo;
@@ -1366,6 +1421,19 @@
             spanIngresos.textContent = formatearMoneda(totalIngresos);
             spanRentas.textContent = formatearMoneda(totalRentas);
             spanTicket.textContent = cuentaPrecios ? formatearMoneda(sumaPrecios / cuentaPrecios) : '$0';
+            if (spanEstAbierto) spanEstAbierto.textContent = String(contarAbierto);
+            if (spanEstParcial) spanEstParcial.textContent = String(contarParcial);
+            if (spanEstFinal) spanEstFinal.textContent = String(contarFinal);
+
+            // Render Cliente / Área con totales
+            if (caList) {
+                const pares = Array.from(equiposPorClienteArea.entries())
+                    .map(([k,v])=>{ const [c,a] = k.split('|||'); return { cliente:c||'', area:a||'', total:v }; })
+                    .sort((x,y)=> (x.cliente||'').localeCompare(y.cliente||'') || (x.area||'').localeCompare(y.area||''));
+                caList.innerHTML = pares.map(p=>
+                    `<div class="dash-stat-row"><span class="row-left">${p.cliente} / ${p.area}</span><span class="badge gray">${p.total}</span></div>`
+                ).join('');
+            }
 
             // Autoformato dd/mm/aa y guardado automático en los inputs de inicio y terminación
 

@@ -48,56 +48,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
-                const { getFirestore, collection, getDocs, getDocsFromCache } = await import(
+                const { getFirestore, collection, getDocsFromCache, getCountFromServer } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'pruebas');
-                let snap;
-                try { snap = await getDocsFromCache(colRef); }
-                catch { snap = await getDocs(colRef); }
 
+                // 1) Total con agregación (ligero) + manejo de 429
+                let total = '—';
+                try {
+                    const agg = await getCountFromServer(colRef);
+                    total = agg.data().count;
+                } catch (err) {
+                    if (err && (err.code === 'resource-exhausted' || String(err.message||'').includes('429'))) {
+                        // fallback a caché para tener al menos algún número
+                        try {
+                            const snapCacheOnly = await getDocsFromCache(colRef);
+                            total = snapCacheOnly.size;
+                        } catch {}
+                    } else {
+                        throw err;
+                    }
+                }
+
+                // 2) Buckets y tipos desde caché únicamente (si no hay caché, mostramos —)
                 const hoy = new Date();
                 hoy.setHours(0, 0, 0, 0);
 
-                let total = 0;
-                let porVencer60 = 0; // 60–30
-                let porVencer30 = 0; // 30–15
-                let porVencer15 = 0; // 15–0
+                let porVencer60 = '—';
+                let porVencer30 = '—';
+                let porVencer15 = '—';
+                let totalAnual = '—';
+                let totalPostTrabajo = '—';
+                let totalReparacion = '—';
 
-                let totalAnual = 0;
-                let totalPostTrabajo = 0;
-                let totalReparacion = 0;
-
-                snap.forEach(doc => {
-                    total += 1;
-                    const data = doc.data() || {};
-                    const proximaStr = data.proxima || '';
-                    const periodoStr = (data.periodo || '').toString().trim().toUpperCase();
-
-                    if (periodoStr === 'ANUAL' || periodoStr === '') {
-                        totalAnual += 1;
-                    } else if (periodoStr === 'POST-TRABAJO') {
-                        totalPostTrabajo += 1;
-                    } else if (periodoStr === 'REPARACION') {
-                        totalReparacion += 1;
-                    }
-                    const dProx = parseProxima(proximaStr);
-                    if (!dProx) return;
-
-                    const diffMs = dProx.getTime() - hoy.getTime();
-                    let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
-                    if (dias < 0) return; // ya vencidas, no cuentan como "por vencer"
-
-                    if (dias >= 30 && dias <= 60) {
-                        porVencer60 += 1; // 60–30
-                    } else if (dias >= 15 && dias < 30) {
-                        porVencer30 += 1; // 30–15
-                    } else if (dias >= 0 && dias < 15) {
-                        porVencer15 += 1; // 15–0
-                    }
-                });
+                try {
+                    const snap = await getDocsFromCache(colRef);
+                    let pv60 = 0, pv30 = 0, pv15 = 0, tAn=0, tPT=0, tRep=0;
+                    snap.forEach(doc => {
+                        const data = doc.data() || {};
+                        const proximaStr = data.proxima || '';
+                        const periodoStr = (data.periodo || '').toString().trim().toUpperCase();
+                        if (periodoStr === 'ANUAL' || periodoStr === '') tAn += 1;
+                        else if (periodoStr === 'POST-TRABAJO') tPT += 1;
+                        else if (periodoStr === 'REPARACION') tRep += 1;
+                        const dProx = parseProxima(proximaStr);
+                        if (!dProx) return;
+                        const diffMs = dProx.getTime() - hoy.getTime();
+                        let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                        if (dias < 0) return;
+                        if (dias >= 30 && dias <= 60) pv60 += 1;
+                        else if (dias >= 15 && dias < 30) pv30 += 1;
+                        else if (dias >= 0 && dias < 15) pv15 += 1;
+                    });
+                    porVencer60 = pv60; porVencer30 = pv30; porVencer15 = pv15;
+                    totalAnual = tAn; totalPostTrabajo = tPT; totalReparacion = tRep;
+                } catch {}
 
                 spanPruebas.innerHTML = `
                     <div class="dash-stats" aria-label="Resumen de pruebas">
@@ -308,32 +315,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
-                const { getFirestore, collection, getDocs, getDocsFromCache } = await import(
+                const { getFirestore, collection, getDocsFromCache, getCountFromServer, where, query, getDocs } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
-                let snap;
-                try { snap = await getDocsFromCache(colRef); }
-                catch { snap = await getDocs(colRef); }
+                // Totales con agregación y manejo de 429
+                let total = '—';
+                let concluidas = '—';
+                try {
+                    const totalAgg = await getCountFromServer(colRef);
+                    total = totalAgg.data().count;
+                } catch (err) {
+                    if (err && (err.code === 'resource-exhausted' || String(err.message||'').includes('429'))) {
+                        try { const sc = await getDocsFromCache(colRef); total = sc.size; } catch {}
+                    } else { throw err; }
+                }
+                try {
+                    const qCon = query(colRef, where('terminacionEsFinal','==', true));
+                    const aggCon = await getCountFromServer(qCon);
+                    concluidas = aggCon.data().count;
+                } catch (err) {
+                    if (err && (err.code === 'resource-exhausted' || String(err.message||'').includes('429'))) {
+                        try {
+                            const sc = await getDocsFromCache(colRef);
+                            let c = 0; sc.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });
+                            concluidas = c;
+                        } catch {}
+                    } else { throw err; }
+                }
+                let pendientes = (typeof total==='number' && typeof concluidas==='number') ? (total - concluidas) : '—';
 
-                let total = 0;
-                let concluidas = 0;
-                let pendientes = 0;
+                // Top 2 pendientes desde caché únicamente
                 const pendientesItems = [];
-
-                snap.forEach(doc => {
-                    total += 1;
-                    const data = doc.data() || {};
-                    const esFinal = data.terminacionEsFinal === true;
-                    if (esFinal) {
-                        concluidas += 1;
-                    } else {
-                        pendientes += 1; // incluye abiertas y parciales
-                        pendientesItems.push({ id: doc.id, ...data });
-                    }
-                });
+                try {
+                    const sc = await getDocsFromCache(colRef);
+                    sc.forEach(doc=>{
+                        const data = doc.data()||{};
+                        if (data.terminacionEsFinal!==true) pendientesItems.push({ id: doc.id, ...data });
+                    });
+                } catch {}
 
                 // Ordenar pendientes por inicioServicio (más recientes primero)
                 const parseDdMmAa = (s) => {
