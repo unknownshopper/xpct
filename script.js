@@ -890,12 +890,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const ahora = serverTimestamp();
 
+            // Helpers locales para normalización y fechas
+            const rmAcc = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const upNoAcc = (s) => rmAcc(String(s || '').trim()).toUpperCase();
+            const normEq = (raw) => {
+                const t = upNoAcc(raw).replace(/[-\s]+/g, ' ');
+                const m = t.match(/^PCT\s*([A-Z]{2,3})\s*-?\s*0?(\d{1,2})$/)
+                    || t.match(/^PCT([A-Z]{2,3})0?(\d{1,2})$/)
+                    || t.match(/^PCT\s*-\s*([A-Z]{2,3})\s*-\s*0?(\d{1,2})$/)
+                    || t.match(/^([A-Z]{2,3})\s*-?\s*0?(\d{1,2})$/); // acepta CE-01 y lo sube a PCT-CE-01
+                if (m) return `PCT-${m[1]}-${m[2].padStart(2,'0')}`;
+                return upNoAcc(raw);
+            };
+            const parseDdMmAa = (s) => {
+                const str = (s || '').toString().trim();
+                const p = str.split('/');
+                if (p.length !== 3) return null;
+                const dd = parseInt(p[0],10), mm = parseInt(p[1],10), aa = parseInt(p[2],10);
+                if (!dd || !mm || isNaN(aa)) return null;
+                const yyyy = aa < 100 ? 2000 + aa : aa;
+                const d = new Date(yyyy, mm-1, dd);
+                return isNaN(d.getTime()) ? null : d;
+            };
+
             for (const eq of equiposSeleccionados) {
                 const osFinal = base.os; // ya validado requerido
                 const ocFinal = base.ordenSuministro; // ya validado requerido
 
                 const infoEq = infoPorEquipoAct[eq] || {};
                 const descripcion = infoEq.descripcion || '';
+
+                // Normalizados y timestamps para consultas indexadas
+                const eqNorm = normEq(eq);
+                const cliNorm = upNoAcc(base.cliente);
+                const areaNorm = upNoAcc(base.areaCliente);
+                const ubiNorm = upNoAcc(base.ubicacion);
+                const dInicio = parseDdMmAa(base.inicioServicio);
 
                 const registro = {
                     ...base,
@@ -904,6 +934,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     equipo: eq,
                     descripcion,
                     fechaRegistro: ahora,
+                    // campos normalizados
+                    equipoNorm: eqNorm,
+                    clienteNorm: cliNorm,
+                    areaNorm: areaNorm,
+                    ubicNorm: ubiNorm,
+                    // timestamps derivados
+                    ...(dInicio ? { inicioTs: dInicio.getTime(), anioInicio: dInicio.getFullYear() } : {}),
                 };
                 await addDoc(colRef, registro);
             }

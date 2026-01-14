@@ -403,25 +403,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const btnPend = document.getElementById('dash-actividades-pend-link');
                 if (btnPend && modal && modalBody) {
-                    btnPend.addEventListener('click', () => {
-                        if (!topPend.length) {
-                            modalBody.innerHTML = '<div>No hay actividades pendientes.</div>';
+                    btnPend.addEventListener('click', async () => {
+                        try {
+                            const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                            );
+                            const db2 = getFirestore();
+                            const col2 = collection(db2, 'actividades');
+                            let lista = [];
+                            try {
+                                const sc = await getDocsFromCache(col2);
+                                sc.forEach(d=>{ const data=d.data()||{}; if (data.terminacionEsFinal!==true) lista.push({ id:d.id, ...data }); });
+                            } catch {}
+                            // Intentar red para traer lista completa si la caché está incompleta
+                            try {
+                                const sr = await getDocs(col2);
+                                const tmp = [];
+                                sr.forEach(d=>{ const data=d.data()||{}; if (data.terminacionEsFinal!==true) tmp.push({ id:d.id, ...data }); });
+                                if (tmp.length) lista = tmp;
+                            } catch {}
+
+                            if (!lista.length) {
+                                modalBody.innerHTML = '<div>No hay actividades pendientes.</div>';
+                                openModal();
+                                return;
+                            }
+                            // Ordenar por inicio descendente
+                            const parseDdMmAa = (s) => {
+                                const str = (s || '').toString();
+                                const p = str.split('/');
+                                if (p.length !== 3) return null;
+                                const dd = parseInt(p[0], 10), mm = parseInt(p[1], 10), aa = parseInt(p[2], 10);
+                                if (!dd || !mm || isNaN(aa)) return null;
+                                const yyyy = aa < 100 ? 2000 + aa : aa;
+                                const d = new Date(yyyy, mm - 1, dd);
+                                return isNaN(d.getTime()) ? null : d;
+                            };
+                            lista.sort((a,b)=>{
+                                const da = parseDdMmAa(a.inicioServicio) || new Date(2000,0,1);
+                                const dbd = parseDdMmAa(b.inicioServicio) || new Date(2000,0,1);
+                                return dbd.getTime() - da.getTime();
+                            });
+
+                            const rows = lista.map(a => {
+                                const cliente = (a.cliente || '').toString();
+                                const area = (a.areaCliente || '').toString();
+                                const ubic = (a.ubicacion || '').toString();
+                                const equipo = (a.equipoNorm || a.equipo || (Array.isArray(a.equipos) && a.equipos[0]) || '').toString();
+                                const inicio = (a.inicioServicio || '').toString();
+                                return `<div style="padding:0.5rem 0; border-bottom:1px solid #e5e7eb;">
+                                    <div style=\"font-weight:600;\">${cliente} · ${area} · ${ubic}</div>
+                                    <div style=\"color:#4b5563; font-size:0.9rem;\">Equipo: ${equipo} · Inicio: ${inicio}</div>
+                                </div>`;
+                            }).join('');
+                            modalBody.innerHTML = `<div style="max-height:60vh; overflow:auto;">${rows}</div>`;
                             openModal();
-                            return;
+                        } catch (err) {
+                            modalBody.innerHTML = '<div>Error al cargar pendientes.</div>';
+                            openModal();
                         }
-                        const html = topPend.map(a => {
-                            const cliente = (a.cliente || '').toString();
-                            const area = (a.areaCliente || '').toString();
-                            const ubic = (a.ubicacion || '').toString();
-                            const equipo = (a.equipo || (Array.isArray(a.equipos) && a.equipos[0]) || '').toString();
-                            const inicio = (a.inicioServicio || '').toString();
-                            return `<div style="padding:0.5rem 0; border-bottom:1px solid #e5e7eb;">
-                                <div style="font-weight:600;">${cliente} · ${area} · ${ubic}</div>
-                                <div style="color:#4b5563; font-size:0.9rem;">Equipo: ${equipo} · Inicio: ${inicio}</div>
-                            </div>`;
-                        }).join('');
-                        modalBody.innerHTML = html;
-                        openModal();
                     });
                 }
             } catch (e) {

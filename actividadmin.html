@@ -959,18 +959,23 @@
                         orderBy('inicioTs', 'desc'),
                         limit(1000)
                     );
+                    // 1) Intentar desde caché para primera pintura rápida
                     try { snap = await getDocsFromCache(qIdx); } catch {}
-                    if (!snap || snap.empty) { snap = await getDocs(qIdx); }
+                    // 2) Siempre intentar una lectura de red para traer cambios recientes (nuevo registro en otra pestaña)
+                    try {
+                        const snapNet = await getDocs(qIdx);
+                        if (snapNet && !snapNet.empty) snap = snapNet;
+                    } catch {}
                     // Si sigue vacío (posible por falta de backfill), probar sin filtros por campos nuevos
                     if (!snap || snap.empty) {
                         const qTs = query(colRef, orderBy('inicioTs', 'desc'), limit(1000));
                         try { snap = await getDocsFromCache(qTs); } catch {}
-                        if (!snap || snap.empty) { try { snap = await getDocs(qTs); } catch {} }
+                        try { const net = await getDocs(qTs); if (net && !net.empty) snap = net; } catch {}
                     }
                     // Último recurso: colección completa para no dejar la UI vacía
                     if (!snap || snap.empty) {
                         try { snap = await getDocsFromCache(colRef); } catch {}
-                        if (!snap || snap.empty) { snap = await getDocs(colRef); }
+                        try { const net = await getDocs(colRef); if (net && !net.empty) snap = net; } catch {}
                     }
                 } catch (e) {
                     // Si no hay índices o campos aún, hacer fallback a orden por inicioTs con límite
