@@ -599,6 +599,17 @@
 
         window.currentUserEmail = email;
 
+        // Permisos por rol
+        const permitirEliminar = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+
+        // Ajustar encabezado: ocultar columna de selección si no se permite eliminar
+        try {
+            if (!permitirEliminar) {
+                const thSel = document.querySelector('#tabla-pruebas-listado thead th:first-child');
+                if (thSel) thSel.style.display = 'none';
+            }
+        } catch {}
+
         // Todos los roles autenticados pueden ver esta página; el UI ya se ajusta vía nav.js
         cargarPruebasDesdeFirestore();
     });
@@ -2238,9 +2249,13 @@
                 const celdaTecnico = esAdminOnly
                     ? `<input type="text" class="pl-tecnico" data-id="${reg.id || ''}" value="${(reg.tecnico || '').toString().replace(/"/g, '&quot;')}">`
                     : (reg.tecnico || '');
+                
+                const tdSelect = permitirEliminar
+                    ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type=\"checkbox\" class=\"prueba-select\" data-idx=\"${idx}\"></td>`
+                    : '';
 
                 fila.innerHTML = `
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${permitirEliminar ? `<input type="checkbox" class="prueba-select" data-idx="${idx}">` : ``}</td>
+                    ${tdSelect}
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
