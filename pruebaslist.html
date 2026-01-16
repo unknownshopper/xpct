@@ -263,6 +263,8 @@
                     <button id="btn-pruebas-import-csv" title="Importar formato_pruebas.csv" style="display:none;">Ingresar formato.csv</button>
                     <input id="input-delete-csv" type="file" accept=".csv" style="display:none;" />
                     <button id="btn-pruebas-delete-csv" title="Eliminar registros del CSV en Firestore" style="display:none;">Eliminar por CSV</button>
+                    <button id="btn-pruebas-refresh" title="Actualizar desde servidor">Actualizar</button>
+                    <button id="btn-pruebas-more" title="Cargar más resultados">Cargar más</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
@@ -610,6 +612,14 @@
             }
         } catch {}
 
+        // Ocultar panel de resumen costoso para capturista
+        try {
+            if (window.isCapturista) {
+                const dash = document.querySelector('.pruebas-dashboard');
+                if (dash) dash.style.display = 'none';
+            }
+        } catch {}
+
         // Todos los roles autenticados pueden ver esta página; el UI ya se ajusta vía nav.js
         cargarPruebasDesdeFirestore();
     });
@@ -734,6 +744,8 @@
         const chkSelectTodos = document.getElementById('pruebas-select-todos');
         const btnEliminar = document.getElementById('btn-pruebas-eliminar');
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
+        const btnRefresh = document.getElementById('btn-pruebas-refresh');
+        const btnMore = document.getElementById('btn-pruebas-more');
         const btnImportCsv = document.getElementById('btn-pruebas-import-csv');
         const inputImportCsv = document.getElementById('input-import-csv');
         const btnDeleteCsv = document.getElementById('btn-pruebas-delete-csv');
@@ -848,6 +860,20 @@
 
         if (!tbodyListado) { /* continuar para permitir acciones de importación */ }
 
+        // Botones de control de carga para limitar lecturas
+        if (btnRefresh) {
+            btnRefresh.addEventListener('click', async () => {
+                await leerPagina({ reset: true, forceNetwork: true });
+                render();
+            });
+        }
+        if (btnMore) {
+            btnMore.addEventListener('click', async () => {
+                await leerPagina({ reset: false, forceNetwork: false });
+                render();
+            });
+        }
+
         try {
             if (auth && auth.currentUser) {
                 await auth.currentUser.getIdToken(true);
@@ -855,6 +881,8 @@
         } catch {}
 
         let pruebas = [];
+        let _lastDoc = null;
+        const _pageLimit = 200;
         const claveLocal = 'pct_pruebas';
 
         // Inventario base desde invre.csv/invre2.csv para mostrar todos los equipos, incluso sin pruebas.
@@ -883,17 +911,43 @@
             }
         }
 
-        const desdeFs = await leerFirestore();
-        if (desdeFs && Array.isArray(desdeFs)) {
-            pruebas = desdeFs;
-        } else {
+        // Lectura paginada (orden por creadoEn desc). Cache primero; red solo bajo demanda.
+        async function leerPagina({ reset = false, forceNetwork = false } = {}) {
             try {
-                const crudo = JSON.parse(localStorage.getItem(claveLocal) || '[]');
-                if (Array.isArray(crudo)) pruebas = crudo;
-            } catch {
-                pruebas = [];
+                const { getFirestore, collection, getDocs, getDocsFromCache, query, orderBy, limit, startAfter } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const colRef = collection(db, 'pruebas');
+
+                if (reset) { _lastDoc = null; pruebas = []; }
+
+                let qBase = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
+                if (_lastDoc) qBase = query(colRef, orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+
+                let snap = null;
+                if (!forceNetwork) { try { snap = await getDocsFromCache(qBase); } catch {} }
+                if (!snap || snap.empty) { try { snap = await getDocs(qBase); } catch {} }
+                if (!snap || snap.empty) return;
+
+                const nuevos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                pruebas = pruebas.concat(nuevos);
+                _lastDoc = snap.docs[snap.docs.length - 1];
+                try { localStorage.setItem(claveLocal, JSON.stringify(pruebas)); } catch {}
+            } catch (e) {
+                console.error('Error al leer página de pruebas', e);
+                // Fallback a cache local completa solo en reset
+                if (reset) {
+                    try {
+                        const crudo = JSON.parse(localStorage.getItem(claveLocal) || '[]');
+                        if (Array.isArray(crudo)) pruebas = crudo;
+                    } catch { pruebas = []; }
+                }
             }
         }
+
+        // Cargar primera página desde cache; red solo al pulsar "Actualizar"
+        await leerPagina({ reset: true, forceNetwork: false });
 
         // Actualizar contadores de tipos (Anual, Post-trabajo, Reparación) con base en TODAS las pruebas (sin filtros)
         (function actualizarContadoresTiposLocal() {
