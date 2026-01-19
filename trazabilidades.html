@@ -75,12 +75,14 @@
                             Selecciona un equipo para ver su trazabilidad.
                         </p>
                     </div>
-                    <div style="display:flex; gap:0.25rem; font-size:0.75rem; flex-wrap:wrap;">
+                    <div style="display:flex; gap:0.25rem; font-size:0.75rem; flex-wrap:wrap; align-items:center;">
                         <button id="trz-modo-equipo" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #3b82f6; background:#3b82f6; color:white;">Por equipo</button>
                         <button id="trz-modo-os" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por OS</button>
                         <button id="trz-modo-cliente" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por cliente</button>
                         <button id="trz-modo-ubicacion" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por ubicación</button>
                         <button id="trz-modo-oc" type="button" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:white; color:#374151;">Por OC</button>
+                        <span style="width:1px; height:18px; background:#e5e7eb; margin:0 4px;"></span>
+                        <button id="trz-btn-migrar-os" type="button" class="nav-admin-only" title="Unificar OS por cliente+ubicación (continuidad)" style="padding:0.2rem 0.5rem; border-radius:0.25rem; border:1px solid #d1d5db; background:#fff; color:#374151; display:none;">Migrar OS por ubicación</button>
                     </div>
                 </div>
                 <div style="max-height:65vh; overflow:auto;" id="trz-lista-equipos-wrapper">
@@ -153,6 +155,107 @@
             return;
         }
 
+        // Migración: unificar OS por cliente+ubicación con sesiones continuas
+        window.migrarOsPorUbicacion = async function(lista) {
+            const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const dbLocal = getFirestore();
+
+            const up = (s) => (s || '').toString().trim().toUpperCase();
+            const grupos = new Map(); // key = cliente||ubicacion -> actividades[]
+            (Array.isArray(lista) ? lista : []).forEach(a => {
+                const cli = up(a.cliente);
+                const ubi = up(a.ubicacion);
+                if (!cli || !ubi) return;
+                const key = `${cli}||${ubi}`;
+                if (!grupos.has(key)) grupos.set(key, []);
+                grupos.get(key).push(a);
+            });
+
+            let cambios = 0;
+            const pendientes = [];
+
+            grupos.forEach((acts) => {
+                // Construir eventos (+1 inicio, -1 fin+1 día) para detectar sesiones continuas
+                const eventos = [];
+                const registros = [];
+                acts.forEach(a => {
+                    const di = parseFechaDdMmAa(a.inicioServicio || '');
+                    if (!di) return;
+                    const df = parseFechaDdMmAa(a.terminacionServicio || '');
+                    registros.push({ a, di, df });
+                    eventos.push({ t: di.getTime(), d: +1 });
+                    if (df) {
+                        const dfp = new Date(df.getTime());
+                        dfp.setDate(dfp.getDate() + 1);
+                        eventos.push({ t: dfp.getTime(), d: -1 });
+                    }
+                });
+                if (!eventos.length) return;
+
+                eventos.sort((x, y) => (x.t - y.t) || (x.d - y.d));
+                let c = 0, inicioMs = null;
+                const sesiones = [];
+                eventos.forEach(ev => {
+                    const prev = c;
+                    c += ev.d;
+                    if (prev === 0 && c > 0) {
+                        inicioMs = ev.t;
+                    } else if (prev > 0 && c === 0 && inicioMs != null) {
+                        sesiones.push({ inicioMs, finMs: ev.t });
+                        inicioMs = null;
+                    }
+                });
+                if (c > 0 && inicioMs != null) {
+                    // sesión abierta hasta hoy+1
+                    const hoy = new Date(); hoy.setHours(0,0,0,0);
+                    const dfp = new Date(hoy.getTime()); dfp.setDate(dfp.getDate()+1);
+                    sesiones.push({ inicioMs, finMs: dfp.getTime() });
+                }
+
+                // Determinar máximo consecutivo existente en el grupo
+                let maxConsec = 0;
+                acts.forEach(a => {
+                    const os = (a.os || '').toString().trim();
+                    const m = os.match(/^PCT-\d{2}-(\d{3})$/);
+                    if (m) { const n = parseInt(m[1], 10); if (!isNaN(n) && n > maxConsec) maxConsec = n; }
+                });
+
+                sesiones.sort((a, b) => a.inicioMs - b.inicioMs);
+                const osPorSesion = sesiones.map((s, idx) => {
+                    const yy = new Date(s.inicioMs).getFullYear() % 100;
+                    const consec = String(maxConsec + idx + 1).padStart(3, '0');
+                    return { ...s, os: `PCT-${String(yy).padStart(2,'0')}-${consec}` };
+                });
+
+                // Calcular updates
+                registros.forEach(({ a, di }) => {
+                    const ses = osPorSesion.find(s => di.getTime() >= s.inicioMs && di.getTime() < s.finMs);
+                    if (!ses) return;
+                    const nuevaOs = ses.os;
+                    const actual = (a.os || '').toString().trim();
+                    if (nuevaOs && nuevaOs !== actual) {
+                        pendientes.push({ id: a.id, os: nuevaOs, osPrev: actual });
+                    }
+                });
+            });
+
+            if (!pendientes.length) return { cambios: 0 };
+
+            // Aplicar en batches
+            let batch = writeBatch(dbLocal);
+            let count = 0;
+            for (const u of pendientes) {
+                const ref = doc(dbLocal, 'actividades', u.id);
+                batch.update(ref, { osPrev: u.osPrev || '', os: u.os });
+                count++;
+                cambios++;
+                if (count % 400 === 0) { await batch.commit(); batch = writeBatch(dbLocal); }
+            }
+            await batch.commit();
+
+            return { cambios };
+        }
+
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
@@ -164,6 +267,8 @@
         } catch {}
         const esAdmin = (role === 'admin');
         const esDirector = (role === 'director');
+        window.isAdmin = esAdmin;
+        window.isDirector = esDirector;
         if (!(esAdmin || esDirector)) {
             window.location.href = 'inspeccion.html';
             return;
@@ -218,6 +323,7 @@
         const btnModoCliente      = document.getElementById('trz-modo-cliente');
         const btnModoUbicacion    = document.getElementById('trz-modo-ubicacion');
         const btnModoOc           = document.getElementById('trz-modo-oc');
+        const btnMigrarOs         = document.getElementById('trz-btn-migrar-os');
         const tituloLista         = document.getElementById('trz-lista-titulo');
         const subtituloLista      = document.getElementById('trz-lista-subtitulo');
 
@@ -275,24 +381,24 @@
                 // Calcular OCs automáticas por PERÍODO (cliente+equipo+año de inicioPeriodo)
                 generarOcPorPeriodo();
 
-                // Calcular OS globales por actividad, agrupando por cliente+anio(inicioServicio)
+                // Calcular OS globales por actividad, agrupando por cliente+ubicacion+anio(inicioServicio)
                 osPorActividad = new Map();
-                const grupos = new Map(); // clave = cliente||YY -> [actividad]
+                const grupos = new Map(); // clave = cliente||UBICACION||YY -> [actividad]
 
                 listaActividades.forEach(act => {
                     const cli = (act.cliente || '').toString();
+                    const ubi = (act.ubicacion || '').toString();
                     const dIni = parseFechaDdMmAa((act.inicioServicio || '').toString());
-                    if (!cli || !dIni || isNaN(dIni.getTime())) return;
+                    if (!cli || !ubi || !dIni || isNaN(dIni.getTime())) return;
                     const yy = String(dIni.getFullYear()).slice(-2);
-                    const clave = `${cli}||${yy}`;
+                    const clave = `${cli}||${ubi}||${yy}`;
                     if (!grupos.has(clave)) grupos.set(clave, []);
                     grupos.get(clave).push({ act, fecha: dIni });
                 });
 
-                grupos.forEach((arr, clave) => {
+                grupos.forEach((arr) => {
                     arr.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-                    const partes = clave.split('||');
-                    const yy = partes[1] || '00';
+                    const yy = String(arr[0].fecha.getFullYear()).slice(-2);
                     let seq = 0;
                     arr.forEach(item => {
                         seq += 1;
@@ -315,6 +421,26 @@
             agruparUbicaciones();
             agruparOc();
             renderListaPrincipal();
+
+            // Mostrar botón de migración (admin/director) y enlazar acción
+            try {
+                if (btnMigrarOs && (window.isAdmin || window.isDirector)) {
+                    btnMigrarOs.style.display = 'inline-flex';
+                    btnMigrarOs.onclick = async () => {
+                        const totalActs = Array.isArray(listaActividades) ? listaActividades.length : 0;
+                        const ok = confirm(`Unificar OS por cliente+ubicación según sesiones continuas. Se evaluarán ${totalActs} actividades. ¿Continuar?`);
+                        if (!ok) return;
+                        try {
+                            const res = await migrarOsPorUbicacion(listaActividades);
+                            alert(`Migración completada. Cambios aplicados: ${res.cambios}.`);
+                            await cargarActividades();
+                        } catch (e) {
+                            console.error('Fallo migración OS', e);
+                            alert('No se pudo completar la migración. Revisa la consola.');
+                        }
+                    };
+                }
+            } catch {}
         }
 
         function agruparEquipos() {

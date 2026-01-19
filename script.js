@@ -603,6 +603,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const cliente = (document.getElementById('act-cliente') || {}).value || '';
         const areaCliente = (document.getElementById('act-area-cliente') || {}).value || '';
         const ubicacion = (document.getElementById('act-ubicacion') || {}).value || '';
+        const terceroPropiedad = (document.getElementById('act-tercero-propiedad') || {}).value || '';
+        const terceroDescripcion = (document.getElementById('act-tercero-descripcion') || {}).value || '';
         const os = (document.getElementById('act-os') || {}).value || '';
         const ordenSuministro = (document.getElementById('act-orden-suministro') || {}).value || '';
         const factura = (document.getElementById('act-factura') || {}).value || '';
@@ -619,6 +621,8 @@ document.addEventListener('DOMContentLoaded', () => {
             cliente,
             areaCliente,
             ubicacion,
+            terceroPropiedad,
+            terceroDescripcion,
             os,
             ordenSuministro,
             factura,
@@ -635,6 +639,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'act-cliente',
             'act-area-cliente',
             'act-ubicacion',
+            'act-tercero-propiedad',
+            'act-tercero-descripcion',
             'act-os',
             'act-orden-suministro',
             'act-factura',
@@ -660,8 +666,11 @@ document.addEventListener('DOMContentLoaded', () => {
         //  - PCT: prefijo fijo
         //  - YY: últimos 2 dígitos del año del inicio de servicio
         //  - XXX: consecutivo de 3 dígitos dentro de ese año
-        // El consecutivo se lleva por combinación (cliente, año),
-        // alineado con la lógica usada en trazabilidades.html.
+        // Regla de negocio: la OS es por cliente+ubicación y se mantiene idéntica aunque cruce de año.
+        // Implementación:
+        // 1) Si existe alguna actividad ABIERTA (sin terminación) con mismo cliente+ubicación, reutilizar su OS.
+        // 2) Si no existe abierta, generar una nueva OS tomando el consecutivo MAX para ese cliente+ubicación (sin importar año)
+        //    y aumentando +1. El prefijo usa YY del inicio actual, pero el consecutivo es global por cliente+ubicación.
 
         const partes = (inicioServicioTexto || '').split('/');
         if (partes.length !== 3) return '';
@@ -670,33 +679,48 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNaN(aa)) return '';
         const yy = String(aa).padStart(2, '0');
 
-        // Cliente actual del formulario
+        // Cliente y Ubicación actuales del formulario
         const clienteSel = (document.getElementById('act-cliente') || {}).value || '';
+        const ubicacionSel = (document.getElementById('act-ubicacion') || {}).value || '';
 
-        // Buscar OS existentes para misma combinación cliente+año
-        const prefijo = `PCT-${yy}-`;
-        const existentes = listaActividad
+        const cliKey = (clienteSel || '').toString().trim().toUpperCase();
+        const ubiKey = (ubicacionSel || '').toString().trim().toUpperCase();
+
+        // 1) Reutilizar OS abierta si existe
+        const abierta = listaActividad.find(reg => {
+            const cli = (reg.cliente || '').toString().trim().toUpperCase();
+            const ubi = (reg.ubicacion || '').toString().trim().toUpperCase();
+            const term = (reg.terminacionServicio || '').toString().trim();
+            const os = (reg.os || '').toString().trim();
+            return cli === cliKey && ubi === ubiKey && !term && !!os;
+        });
+        if (abierta && abierta.os) return abierta.os;
+
+        // 2) Generar nueva: tomar máximo consecutivo usado por cliente+ubicación, sin importar año
+        const existentesAll = listaActividad
             .filter(reg => {
-                const cli = (reg.cliente || '').toString();
-                const ini = (reg.inicioServicio || '').toString();
-                if (cli !== clienteSel) return false;
-                return ini.endsWith(`/${yy}`);
+                const cli = (reg.cliente || '').toString().trim().toUpperCase();
+                const ubi = (reg.ubicacion || '').toString().trim().toUpperCase();
+                return cli === cliKey && ubi === ubiKey && !!(reg.os || '').toString().trim();
             })
-            .map(reg => (reg.os || '').toString().trim())
-            .filter(os => os.startsWith(prefijo));
+            .map(reg => (reg.os || '').toString().trim());
 
-        // Obtener el mayor consecutivo usado hasta ahora para ese año
-        let maxConsec = 0;
-        existentes.forEach(os => {
-            const partesOs = os.split('-');
-            const ult = partesOs[2] || '';
-            const num = parseInt(ult, 10);
-            if (!isNaN(num) && num > maxConsec) maxConsec = num;
+        let maxConsecGlobal = 0;
+        existentesAll.forEach(os => {
+            // Espera formato PCT-YY-XXX
+            const m = os.match(/^PCT-\d{2}-(\d{3})$/);
+            if (!m) return;
+            const num = parseInt(m[1], 10);
+            if (!isNaN(num) && num > maxConsecGlobal) maxConsecGlobal = num;
         });
 
-        const siguiente = maxConsec + 1;
+        const siguiente = maxConsecGlobal + 1;
         const consecutivo = String(siguiente).padStart(3, '0');
-        return `PCT-${yy}-${consecutivo}`;
+        const prefijo = `PCT-${yy}-`;
+        const nuevaOs = `${prefijo}${consecutivo}`;
+        return nuevaOs;
+
+        // (bloque anterior reemplazado por lógica global por cliente+ubicación)
     }
 
     function generarOcAutomatica(equipo, inicioServicioTexto) {
@@ -750,9 +774,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Permitir registro sin equipo seleccionado cuando es TERCERO
+        const tipoUpper = ((selectTipo?.value || '')).toString().toUpperCase();
+        const esTerceroTipo = tipoUpper === 'TERCERO';
         if (!equiposSeleccionados.length) {
-            alert('Selecciona al menos un equipo / activo para la actividad.');
-            return;
+            if (esTerceroTipo) {
+                equiposSeleccionados = ['TERCERO'];
+            } else {
+                alert('Selecciona al menos un equipo / activo para la actividad.');
+                return;
+            }
         }
 
         const base = obtenerDatosBaseActividad();
@@ -824,8 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Validación estricta: no permitir guardar si faltan datos clave
         const faltantes = [];
-        const tipoUpper = (base.tipo || '').toString().toUpperCase();
-        const esTercero = tipoUpper === 'TERCERO';
+        const esTercero = esTerceroTipo;
         if (!base.tipo) faltantes.push('Tipo');
         if (!base.cliente) faltantes.push('Cliente');
         if (!base.areaCliente) faltantes.push('Área del cliente');
@@ -836,6 +866,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!base.ordenSuministro) faltantes.push('OC');
         if (!esTercero && !base.estCot) faltantes.push('Est-Cot');
         if (!esTercero && !base.factura) faltantes.push('Factura');
+        if (esTercero) {
+            if (!base.terceroPropiedad) faltantes.push('Propiedad (empresa del tercero)');
+            if (!base.terceroDescripcion) faltantes.push('Descripción (equipo de tercero)');
+        }
 
         if (faltantes.length) {
             alert('Completa los siguientes campos antes de guardar:\n\n- ' + faltantes.join('\n- '));
@@ -918,7 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ocFinal = base.ordenSuministro; // ya validado requerido
 
                 const infoEq = infoPorEquipoAct[eq] || {};
-                const descripcion = infoEq.descripcion || '';
+                const descripcion = esTercero ? (base.terceroDescripcion || '') : (infoEq.descripcion || '');
 
                 // Normalizados y timestamps para consultas indexadas
                 const eqNorm = normEq(eq);
@@ -1499,6 +1533,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function escapeHtml(str) {
+        const s = (str == null) ? '' : String(str);
+        return s
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function renderTabla() {
         const listaBase = Array.isArray(listaActividad) ? listaActividad : [];
         const filtro = (inputBuscar?.value || '').toLowerCase().trim();
@@ -1584,7 +1628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             equiposArr.forEach(equipoNombre => {
                 const eqMostrarFiltro = normalizeEquipoCode(equipoNombre);
                 const descFiltro = (reg.equipoDescripcion || descripcionBase || mapaDescripcionPorEquipoList[eqMostrarFiltro] || '');
-                const textoBuscar = `${cliente} ${area} ${ubicacion} ${eqMostrarFiltro} ${descFiltro} ${os} ${estCotVal}`.toLowerCase();
+                const textoBuscar = `${cliente} ${area} ${ubicacion} ${eqMostrarFiltro} ${descFiltro} ${os} ${estCotVal} ${reg.terceroPropiedad || ''} ${reg.terceroDescripcion || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 visibles += 1;
@@ -1638,6 +1682,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const esDirector = !!(window && window.isDirector);
                 const equipoMostrar = normalizeEquipoCode(equipoNombre);
                 const descEfectiva = (reg.equipoDescripcion || reg.descripcion || mapaDescripcionPorEquipoList[equipoMostrar] || '').toString();
+                const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO');
+                const terceroProp = (reg.terceroPropiedad || '').toString();
+                const terceroDesc = (reg.terceroDescripcion || '').toString();
+                const descCellHtml = esTerceroReg
+                    ? `${descEfectiva ? escapeHtml(descEfectiva) : ''}<div style="color:#6b7280; font-size:0.75rem; line-height:1.1; margin-top:2px;">Propiedad: ${escapeHtml(terceroProp)}${terceroDesc ? ` · ${escapeHtml(terceroDesc)}` : ''}</div>`
+                    : `${escapeHtml(descEfectiva)}`;
                 tr.innerHTML = `
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                         <input type="checkbox" class="actlist-select-fila" data-id="${id}">
@@ -1662,7 +1712,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.7rem; font-weight:600;">PARCIAL</span>';
                         })()}
                     </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descCellHtml}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                         <input type="text" class="actlist-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; width:80px; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" disabled>

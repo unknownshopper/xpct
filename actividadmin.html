@@ -1337,7 +1337,10 @@
                     const equipoMostrar = eqNorm || equipoNombre;
                     const descPersist = (reg.equipoDescripcion || '').toString();
                     const descEfectiva = descPersist || descripcionBase || mapaDesc[eqNorm] || '';
-                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoMostrar} ${descEfectiva} ${os} ${oc} ${estCot} ${factura}`.toLowerCase();
+                    const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO');
+                    const terceroProp = (reg.terceroPropiedad || '').toString();
+                    const terceroDesc = (reg.terceroDescripcion || '').toString();
+                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoMostrar} ${descEfectiva} ${os} ${oc} ${estCot} ${factura} ${terceroProp} ${terceroDesc}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
                     }
@@ -1418,6 +1421,10 @@
                                 ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.7rem; font-weight:600;">Vencida</span>'
                                 : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#4b5563; font-size:0.7rem; font-weight:600;">Sin prueba</span>';
 
+                    const descCellHtml = esTerceroReg
+                        ? `${descEfectiva ? descEfectiva : ''}<div style="color:#6b7280; font-size:0.75rem; line-height:1.1; margin-top:2px;">Propiedad: ${terceroProp}${terceroDesc ? ` · ${terceroDesc}` : ''}</div>`
+                        : `${descEfectiva}`;
+
                     tr.innerHTML = `
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                             <input type="checkbox" class="adm-select-fila" data-id="${id}" data-cliente="${cliente}" data-area="${area}" data-ubicacion="${ubicacion}">
@@ -1431,8 +1438,8 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; white-space:nowrap;">
                             ${badgePruebas}
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            ${descEfectiva}
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${descCellHtml}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:left;">
                             <input type="text" class="adm-input-inicio" data-id="${id}" value="${inicioTexto}" placeholder="dd/mm/aa" maxlength="8" style="font-size:0.8rem; width:80px;">

@@ -117,6 +117,15 @@
                         <input type="text" id="act-equipo" list="lista-equipos-actividad" placeholder="Equipo / Activo">
                         <datalist id="lista-equipos-actividad"></datalist>
                     </div>
+                    <div class="campo" id="act-tercero-propiedad-wrapper" style="display:none;">
+                        <label for="act-tercero-propiedad">Propiedad (empresa del tercero)</label>
+                        <input type="text" id="act-tercero-propiedad" placeholder="Empresa propietaria del equipo">
+                    </div>
+
+                    <div class="campo" id="act-tercero-descripcion-wrapper" style="display:none;">
+                        <label for="act-tercero-descripcion">Descripción (equipo de tercero)</label>
+                        <input type="text" id="act-tercero-descripcion" placeholder="Describe el equipo de tercero">
+                    </div>
                 </div>
 
                 <div class="actividad-form-section-title">Servicio y documentos</div>
@@ -272,5 +281,38 @@
     <script src="nav.js"></script>
     <script src="utils.js"></script>
     <script src="script.js"></script>
+    <script>
+    (function(){
+        function toggleTerceroDescripcion() {
+            var sel = document.getElementById('act-tipo');
+            var wrapDesc = document.getElementById('act-tercero-descripcion-wrapper');
+            var inputDesc = document.getElementById('act-tercero-descripcion');
+            var wrapProp = document.getElementById('act-tercero-propiedad-wrapper');
+            var inputProp = document.getElementById('act-tercero-propiedad');
+            var inputEquipo = document.getElementById('act-equipo');
+            if (!sel) return;
+            var val = (sel.value || '').toUpperCase();
+            var show = (val === 'TERCERO');
+            if (wrapDesc) wrapDesc.style.display = show ? '' : 'none';
+            if (wrapProp) wrapProp.style.display = show ? '' : 'none';
+            if (inputEquipo) {
+                inputEquipo.disabled = !!show;
+                if (show) inputEquipo.value = '';
+            }
+            if (!show) {
+                if (inputDesc) inputDesc.value = '';
+                if (inputProp) inputProp.value = '';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', function(){
+            var sel = document.getElementById('act-tipo');
+            if (sel) {
+                sel.addEventListener('change', toggleTerceroDescripcion);
+                // inicializar estado
+                toggleTerceroDescripcion();
+            }
+        });
+    })();
+    </script>
 </body>
 </html>
