@@ -450,3 +450,11 @@ Notas:
   - Registro de actividad.
   - Listado y administración de actividad.
   - Inspecciones vinculadas a esa actividad.
+
+
+ ## Objetivos de mañana 16 de enero 2026 (control de lecturas Firestore)
+Contenido:
+Verificar impacto de hotfixes en producción.
+Medir lecturas por hora/24h y descartar picos por cache+red y full-scan.
+Afinar parámetros (page size, ventana de años).
+Siguientes pasos: getCountFromServer/stats, paginación más fina, backfill final.

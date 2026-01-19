@@ -1649,6 +1649,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" ${(esAdmin || esDirector) ? '' : 'disabled'}>
                     </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoMostrar}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:center;">
+                        ${(() => {
+                            const finTxt = (reg.terminacionServicio || '').toString().trim();
+                            if (!finTxt) {
+                                return '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fff7ed; color:#9a3412; font-size:0.7rem; font-weight:600;">ABIERTO</span>';
+                            }
+                            const esFinal = !!reg.terminacionEsFinal;
+                            if (esFinal) {
+                                return '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.7rem; font-weight:600;">FINAL</span>';
+                            }
+                            return '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.7rem; font-weight:600;">PARCIAL</span>';
+                        })()}
+                    </td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${descEfectiva}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
@@ -1676,7 +1689,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="button" class="actlist-btn-editar" data-id="${id}" style="font-size:0.75rem; margin-right:0.25rem;">
                             Editar
                         </button>
-                        ${esAdmin ? `<button type="button" class="actlist-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">Eliminar</button>` : ''}
+                        ${(esAdmin || esDirector) ? `<button type="button" class="actlist-btn-eliminar" data-id="${id}" style="font-size:0.75rem; color:#b91c1c;">Eliminar</button>` : ''}
                     </td>
                 `;
                 // Atributos para abrir modal

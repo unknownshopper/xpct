@@ -765,8 +765,8 @@
             chkSelectTodos.closest('th').style.display = permitirEliminar ? '' : 'none';
         }
 
-        // Import CSV solo para admin
-        if (btnImportCsv) btnImportCsv.style.display = (window.isAdmin ? '' : 'none');
+        // Import CSV para admin o director
+        if (btnImportCsv) btnImportCsv.style.display = ((window.isAdmin || window.isDirector) ? '' : 'none');
         if (btnDeleteCsv) {
             const canDelCsv = (window.isAdmin || window.isDirector);
             if (canDelCsv) {
@@ -840,7 +840,7 @@
         if (btnImportDeleteExisting) {
             btnImportDeleteExisting.addEventListener('click', async () => {
                 if (!importRowsReady || !importRowsReady.length) { alert('No hay filas para procesar.'); return; }
-                if (!window.isAdmin) { alert('Se requiere rol admin para eliminar.'); return; }
+                if (!(window.isAdmin || window.isDirector)) { alert('Se requiere rol admin o director para eliminar.'); return; }
                 btnImportDeleteExisting.disabled = true;
                 try {
                     const res = await deleteExistingFromCsv(importRowsReady||[]);

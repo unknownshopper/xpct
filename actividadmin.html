@@ -59,18 +59,33 @@
             <!-- Tarjeta 1: resumen económico en columnas -->
             <div class="dash-card">
                 <div class="dash-card-label">Resumen económico (visibles)</div>
-                <div class="dash-stats">
-                    <div class="dash-stat-row">
-                        <span class="row-left">💰 <span>Ingresos acumulados</span></span>
-                        <span class="badge gray" id="adm-total-ingresos">$0</span>
+                <div style="display:flex; gap:0.5rem; align-items:flex-end; margin:0.35rem 0 0.5rem 0; flex-wrap:wrap;">
+                    <div style="display:flex; flex-direction:column;">
+                        <label for="adm-rango-inicio" style="font-size:0.72rem; color:#4b5563;">Rango ingresos: inicio (dd/mm/aa)</label>
+                        <input type="text" id="adm-rango-inicio" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
                     </div>
-                    <div class="dash-stat-row">
+                    <div style="display:flex; flex-direction:column;">
+                        <label for="adm-rango-fin" style="font-size:0.72rem; color:#4b5563;">Rango ingresos: fin (dd/mm/aa)</label>
+                        <input type="text" id="adm-rango-fin" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
+                    </div>
+                    <button id="adm-aplicar-rango" type="button" style="font-size:0.8rem; padding:0.3rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:6px; cursor:pointer;">Aplicar rango</button>
+                </div>
+                <div class="dash-stats">
+                    <div class="dash-stat-row" data-cat="CERRADOS" style="cursor:pointer;">
+                        <span class="row-left">💰 <span>Ingresos acumulados (cerrados)</span></span>
+                        <span class="badge gray" id="adm-total-cerrados">$0</span>
+                    </div>
+                    <div class="dash-stat-row" data-cat="ABIERTOS" style="cursor:pointer;">
+                        <span class="row-left">🟧 <span>Ingresos acumulados (abiertos)</span></span>
+                        <span class="badge amber" id="adm-total-abiertos">$0</span>
+                    </div>
+                    <div class="dash-stat-row" data-cat="PARCIALES" style="cursor:pointer;">
+                        <span class="row-left">🟩 <span>Ingresos acumulados (parciales)</span></span>
+                        <span class="badge blue" id="adm-total-parciales">$0</span>
+                    </div>
+                    <div class="dash-stat-row" data-cat="RENTAS" style="cursor:pointer;">
                         <span class="row-left">📈 <span>Rentas acumuladas</span></span>
                         <span class="badge blue" id="adm-total-rentas">$0</span>
-                    </div>
-                    <div class="dash-stat-row">
-                        <span class="row-left">🎟️ <span>Ticket promedio</span></span>
-                        <span class="badge amber" id="adm-ticket-promedio">$0</span>
                     </div>
                 </div>
             </div>
@@ -142,6 +157,24 @@
                         <input type="number" id="adm-lote-precio" min="0" step="1" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
                     </div>
                     <button type="button" id="adm-aplicar-precio-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar precio a selección</button>
+
+                    <div style="display:flex; flex-direction:column; margin-left:0.5rem;">
+                        <label for="adm-lote-os" style="font-size:0.75rem; color:#4b5563;">OS lote</label>
+                        <input type="text" id="adm-lote-os" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
+                    </div>
+                    <div style="display:flex; flex-direction:column;">
+                        <label for="adm-lote-oc" style="font-size:0.75rem; color:#4b5563;">OC lote</label>
+                        <input type="text" id="adm-lote-oc" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
+                    </div>
+                    <div style="display:flex; flex-direction:column;">
+                        <label for="adm-lote-estcot" style="font-size:0.75rem; color:#4b5563;">Est-Cot lote</label>
+                        <input type="text" id="adm-lote-estcot" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
+                    </div>
+                    <div style="display:flex; flex-direction:column;">
+                        <label for="adm-lote-factura" style="font-size:0.75rem; color:#4b5563;">Factura lote</label>
+                        <input type="text" id="adm-lote-factura" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
+                    </div>
+                    <button type="button" id="adm-aplicar-campos-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar campos a selección</button>
                 </div>
             </div>
             <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563; display:flex; gap:0.5rem; align-items:center;">
@@ -159,7 +192,7 @@
         <section id="adm-ayuda-panel" style="display:none; margin:0 0.75rem 0.75rem; padding:0.75rem 1rem; background:#ecfeff; border:1px solid #bae6fd; border-radius:0.5rem; font-size:0.85rem; color:#0f172a; max-width:1000px;">
             <h2 style="margin:0 0 0.4rem; font-size:0.95rem; font-weight:600;">Cómo usar esta vista de administración.</h2>
             <ol style="margin:0 0 0.5rem 1.25rem; padding:0; list-style:decimal;">
-                <li style="margin-bottom:0.25rem;">Arriba se muestran los totales de ingresos y ticket promedio de los registros visibles.</li>
+                <li style="margin-bottom:0.25rem;">Arriba se muestran los totales de ingresos de los registros visibles.</li>
                 <li style="margin-bottom:0.25rem;">Usa el buscador y los filtros de equipo / inicio para acotar los registros.</li>
                 <li style="margin-bottom:0.25rem;">Selecciona filas, áreas o ubicaciones completas con los checkboxes de la izquierda.</li>
                 <li style="margin-bottom:0.25rem;">Aplica fecha de terminación o precio en lote usando los controles de la barra superior.</li>
@@ -1060,15 +1093,44 @@
             const msgVacio = document.getElementById('adm-msg-vacio');
             const lblCont = document.getElementById('adm-contador');
             const inputBuscar = document.getElementById('adm-buscar');
-            const spanIngresos = document.getElementById('adm-total-ingresos');
+            const inpRangoIni = document.getElementById('adm-rango-inicio');
+            const inpRangoFin = document.getElementById('adm-rango-fin');
+            const spanCerrados = document.getElementById('adm-total-cerrados');
+            const spanAbiertos = document.getElementById('adm-total-abiertos');
+            const spanParciales = document.getElementById('adm-total-parciales');
             const spanRentas = document.getElementById('adm-total-rentas');
-            const spanTicket = document.getElementById('adm-ticket-promedio');
             const spanEstAbierto = document.getElementById('adm-estado-abierto');
             const spanEstParcial = document.getElementById('adm-estado-parcial');
             const spanEstFinal = document.getElementById('adm-estado-final');
             const caList = document.getElementById('adm-ca-list');
 
             if (!tbody) return;
+
+            // Formateo y wiring de rango de ingresos (una sola vez)
+            if (!window.__admRangoWired) {
+                const wireRango = (inp) => {
+                    if (!inp) return;
+                    inp.addEventListener('input', () => {
+                        const digits = (inp.value || '').replace(/[^0-9]/g, '').slice(0, 6);
+                        let out = '';
+                        if (digits.length <= 2) {
+                            out = digits;
+                        } else if (digits.length <= 4) {
+                            out = digits.slice(0,2) + '/' + digits.slice(2);
+                        } else {
+                            out = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4,6);
+                        }
+                        inp.value = out;
+                    });
+                    inp.addEventListener('blur', () => {
+                        // Recalcular al cerrar el campo
+                        renderTabla();
+                    });
+                };
+                wireRango(inpRangoIni);
+                wireRango(inpRangoFin);
+                window.__admRangoWired = true;
+            }
 
             const listaBase = Array.isArray(listaActividad) ? listaActividad : [];
             let filtro = (inputBuscar?.value || '').toLowerCase().trim();
@@ -1078,9 +1140,10 @@
             if (!listaBase.length) {
                 msgVacio.style.display = 'block';
                 lblCont.textContent = '0 registros';
-                spanIngresos.textContent = '$0';
-                spanRentas.textContent = '$0';
-                spanTicket.textContent = '$0';
+                if (spanCerrados) spanCerrados.textContent = '$0';
+                if (spanAbiertos) spanAbiertos.textContent = '$0';
+                if (spanParciales) spanParciales.textContent = '$0';
+                if (spanRentas) spanRentas.textContent = '$0';
                 if (spanEstAbierto) spanEstAbierto.textContent = '0';
                 if (spanEstParcial) spanEstParcial.textContent = '0';
                 if (spanEstFinal) spanEstFinal.textContent = '0';
@@ -1090,8 +1153,14 @@
 
             msgVacio.style.display = 'none';
 
-            let totalIngresos = 0;
+            let totalCerrados = 0;
+            let totalAbiertos = 0;
+            let totalParciales = 0;
             let totalRentas = 0;
+            const listAbiertos = [];
+            const listParciales = [];
+            const listCerrados = [];
+            const listRentas = [];
             let sumaPrecios = 0;
             let cuentaPrecios = 0;
             let visibles = 0;
@@ -1279,8 +1348,21 @@
                     equiposPorClienteArea.set(key, (equiposPorClienteArea.get(key) || 0) + 1);
 
                     const ingresoEquipo = precioPorEquipo * (dias || 0);
-                    totalIngresos += ingresoEquipo;
                     totalRentas += ingresoEquipo;
+
+                    // Clasificar por estado de actividad base (abierto/parcial/final)
+                    const finTxtBase = (reg.terminacionServicio || '').toString().trim();
+                    if (!finTxtBase) {
+                        totalAbiertos += ingresoEquipo;
+                        if (ingresoEquipo > 0) listAbiertos.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
+                    } else if (reg.terminacionEsFinal) {
+                        totalCerrados += ingresoEquipo;
+                        if (ingresoEquipo > 0) listCerrados.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
+                    } else {
+                        totalParciales += ingresoEquipo;
+                        if (ingresoEquipo > 0) listParciales.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
+                    }
+                    if (ingresoEquipo > 0) listRentas.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
 
                     if (precioPorEquipo > 0) {
                         sumaPrecios += precioPorEquipo;
@@ -1414,13 +1496,137 @@
                 });
             });
 
+            // Aplicar PRECIO en lote a selección (solo admin/director)
+            const btnAplicarPrecio = document.getElementById('adm-aplicar-precio-lote');
+            if (btnAplicarPrecio) {
+                btnAplicarPrecio.addEventListener('click', async () => {
+                    if (!(window.isAdmin || window.isDirector)) { alert('Solo admin o director pueden aplicar cambios en lote.'); return; }
+                    const valStr = (document.getElementById('adm-lote-precio')?.value || '').trim();
+                    if (valStr === '') { alert('Indica un precio para aplicar.'); return; }
+                    const valorNum = Number(valStr);
+                    if (!isFinite(valorNum) || valorNum < 0) { alert('Indica un precio válido (número no negativo).'); return; }
+
+                    const seleccionados = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
+                    if (!seleccionados.length) { alert('Selecciona al menos una fila.'); return; }
+
+                    try {
+                        const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        const db = getFirestore();
+                        let batch = writeBatch(db);
+                        let count = 0;
+                        for (const chk of seleccionados) {
+                            const id = chk.getAttribute('data-id');
+                            if (!id) continue;
+                            const ref = doc(db, 'actividades', id);
+                            batch.update(ref, { precio: valorNum });
+                            count++;
+                            if (count % 400 === 0) { await batch.commit(); batch = writeBatch(db); }
+                        }
+                        await batch.commit();
+
+                        // Actualizar modelo local
+                        seleccionados.forEach(chk => {
+                            const id = chk.getAttribute('data-id');
+                            const reg = listaActividad.find(r => r.id === id);
+                            if (reg) reg.precio = valorNum;
+                        });
+                        renderTabla();
+                    } catch (e) {
+                        console.error('Error aplicando precio en lote', e);
+                        alert('No se pudo aplicar el precio en lote. Intenta de nuevo.');
+                    }
+                });
+            }
+
+            // Aplicar OS/OC/Est-Cot/Factura en lote a selección (solo admin/director)
+            const btnAplicarCampos = document.getElementById('adm-aplicar-campos-lote');
+            if (btnAplicarCampos) {
+                btnAplicarCampos.addEventListener('click', async () => {
+                    if (!(window.isAdmin || window.isDirector)) { alert('Solo admin o director pueden aplicar cambios en lote.'); return; }
+                    const osVal = (document.getElementById('adm-lote-os')?.value || '').trim();
+                    const ocVal = (document.getElementById('adm-lote-oc')?.value || '').trim();
+                    const estCotVal = (document.getElementById('adm-lote-estcot')?.value || '').trim();
+                    const facturaVal = (document.getElementById('adm-lote-factura')?.value || '').trim();
+
+                    const updates = {};
+                    if (osVal !== '') updates.os = osVal;
+                    if (ocVal !== '') updates.ordenSuministro = ocVal;
+                    if (estCotVal !== '') updates.estCot = estCotVal;
+                    if (facturaVal !== '') updates.factura = facturaVal;
+
+                    if (!Object.keys(updates).length) { alert('Indica al menos un campo (OS, OC, Est-Cot o Factura) para aplicar.'); return; }
+
+                    const seleccionados = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
+                    if (!seleccionados.length) { alert('Selecciona al menos una fila.'); return; }
+
+                    try {
+                        const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        const db = getFirestore();
+                        let batch = writeBatch(db);
+                        let count = 0;
+                        for (const chk of seleccionados) {
+                            const id = chk.getAttribute('data-id');
+                            if (!id) continue;
+                            const ref = doc(db, 'actividades', id);
+                            batch.update(ref, updates);
+                            count++;
+                            if (count % 400 === 0) { await batch.commit(); batch = writeBatch(db); }
+                        }
+                        await batch.commit();
+
+                        // Actualizar modelo local
+                        seleccionados.forEach(chk => {
+                            const id = chk.getAttribute('data-id');
+                            const reg = listaActividad.find(r => r.id === id);
+                            if (!reg) return;
+                            if (updates.os !== undefined) reg.os = updates.os;
+                            if (updates.ordenSuministro !== undefined) reg.ordenSuministro = updates.ordenSuministro;
+                            if (updates.estCot !== undefined) reg.estCot = updates.estCot;
+                            if (updates.factura !== undefined) reg.factura = updates.factura;
+                        });
+
+                        renderTabla();
+                    } catch (e) {
+                        console.error('Error aplicando cambios en lote', e);
+                        alert('No se pudieron aplicar los cambios en lote. Intenta de nuevo.');
+                    }
+                });
+            }
+
             lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
-            spanIngresos.textContent = formatearMoneda(totalIngresos);
-            spanRentas.textContent = formatearMoneda(totalRentas);
-            spanTicket.textContent = cuentaPrecios ? formatearMoneda(sumaPrecios / cuentaPrecios) : '$0';
+            if (spanCerrados) spanCerrados.textContent = formatearMoneda(totalCerrados);
+            if (spanAbiertos) spanAbiertos.textContent = formatearMoneda(totalAbiertos);
+            if (spanParciales) spanParciales.textContent = formatearMoneda(totalParciales);
+            if (spanRentas) spanRentas.textContent = formatearMoneda(totalRentas);
             if (spanEstAbierto) spanEstAbierto.textContent = String(contarAbierto);
             if (spanEstParcial) spanEstParcial.textContent = String(contarParcial);
             if (spanEstFinal) spanEstFinal.textContent = String(contarFinal);
+
+            // Exponer últimas listas para el modal
+            window.__admLastLists = {
+                ABIERTOS: listAbiertos,
+                PARCIALES: listParciales,
+                CERRADOS: listCerrados,
+                RENTAS: listRentas,
+            };
+
+            // Wire botón aplicar rango (una vez)
+            if (!window.__admRangoBtnWired) {
+                const btnR = document.getElementById('adm-aplicar-rango');
+                if (btnR) btnR.addEventListener('click', () => renderTabla());
+                window.__admRangoBtnWired = true;
+            }
+
+            // Wire click en filas de resumen para abrir modal (una vez)
+            if (!window.__admResumenClicksWired) {
+                document.querySelectorAll('.dash-stats .dash-stat-row[data-cat]').forEach(row => {
+                    row.addEventListener('click', () => {
+                        const cat = row.getAttribute('data-cat');
+                        mostrarModalLista(cat);
+                    });
+                });
+                window.__admResumenClicksWired = true;
+            }
 
             // Render Cliente / Área con totales
             if (caList) {
@@ -1576,6 +1782,54 @@
 
                     regLocal.ordenSuministro = valor;
                     await actualizarActividadEnFirestore(id, { ordenSuministro: valor });
+                });
+            });
+
+            // Guardado automático en blur para OS
+            tbody.querySelectorAll('.adm-input-os').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+
+                    const valor = (input.value || '').trim();
+
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+
+                    regLocal.os = valor;
+                    await actualizarActividadEnFirestore(id, { os: valor });
+                });
+            });
+
+            // Guardado automático en blur para Est-Cot
+            tbody.querySelectorAll('.adm-input-estcot').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+
+                    const valor = (input.value || '').trim();
+
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+
+                    regLocal.estCot = valor;
+                    await actualizarActividadEnFirestore(id, { estCot: valor });
+                });
+            });
+
+            // Guardado automático en blur para Factura
+            tbody.querySelectorAll('.adm-input-factura').forEach(input => {
+                input.addEventListener('blur', async () => {
+                    const id = input.getAttribute('data-id');
+                    if (!id) return;
+
+                    const valor = (input.value || '').trim();
+
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (!regLocal) return;
+
+                    regLocal.factura = valor;
+                    await actualizarActividadEnFirestore(id, { factura: valor });
                 });
             });
 

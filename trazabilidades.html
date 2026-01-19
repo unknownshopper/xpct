@@ -142,7 +142,7 @@
     const db = window.db;
     const auth = window.auth;
 
-    // Acceso por Custom Claims (Firebase): role === 'admin'
+    // Acceso por Custom Claims (Firebase): admin o director
 
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
@@ -163,7 +163,8 @@
             role = tok?.claims?.role || null;
         } catch {}
         const esAdmin = (role === 'admin');
-        if (!esAdmin) {
+        const esDirector = (role === 'director');
+        if (!(esAdmin || esDirector)) {
             window.location.href = 'inspeccion.html';
             return;
         }

@@ -81,8 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isInspector = role === 'inspector';
                     const isCapturista = role === 'capturista';
 
-                    // Para director/inspector/capturista: ocultar actividadmin en la navegación
-                    if (isDirector || isInspector || isCapturista) {
+                    // Para inspector/capturista: ocultar actividadmin en la navegación
+                    if (isInspector || isCapturista) {
                         document.querySelectorAll('a[href*="actividadmin"]').forEach(a => {
                             const li = a.closest('li') || a;
                             li.style.display = 'none';
@@ -110,18 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Redirigir a directores si abren actividadmin.html directamente
-                    if (isDirector) {
-                        try {
-                            const here = (location.pathname || '').toLowerCase();
-                            if (here.includes('actividadmin.html')) {
-                                location.href = 'index.html';
-                            }
-                        } catch {}
-                    }
+                    // Directores pueden acceder a actividadmin; no redirigir
 
-                    // Ocultar elementos marcados como solo-admin para no-admins (si existen en el DOM)
-                    if (!isAdmin) {
+                    // Ocultar elementos marcados como solo-admin para quienes no sean admin ni director
+                    if (!(isAdmin || isDirector)) {
                         document.querySelectorAll('.admin-only, [data-admin-only="true"]').forEach(el => {
                             el.style.display = 'none';
                         });
