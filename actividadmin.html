@@ -181,6 +181,12 @@
                 <button id="adm-btn-actualizar" type="button" title="Actualizar desde servidor" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
                     Actualizar
                 </button>
+                <button id="adm-btn-restablecer" type="button" title="Borrar filtros" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
+                    Restablecer filtros
+                </button>
+                <button id="adm-btn-forzar-update" type="button" title="Forzar actualización del sitio" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#fff7ed; cursor:pointer;">
+                    Forzar actualización
+                </button>
                 <button id="adm-btn-ayuda" type="button" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
                     Ver ayuda
                 </button>
@@ -359,6 +365,7 @@
     <script type="module" src="firebase-init.js"></script>
     <script type="module">
     import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    const APP_VERSION = '2026-01-21-1';
 
     const db = window.db;
     const auth = window.auth;
@@ -442,6 +449,26 @@
         } catch (e) {
             console.warn('No se pudo cargar invre.csv para descripciones (admin)', e);
         }
+    })();
+
+    // Chequeo de versión para evitar caché viejo entre máquinas
+    (async () => {
+        try {
+            const prev = localStorage.getItem('appVersion');
+            if (prev !== APP_VERSION) {
+                localStorage.setItem('appVersion', APP_VERSION);
+                if (window.caches && caches.keys) {
+                    try {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(k => caches.delete(k).catch(() => {})));
+                    } catch {}
+                }
+                const url = new URL(window.location.href);
+                url.searchParams.set('v', APP_VERSION + '-' + Date.now());
+                window.location.replace(url.toString());
+                return;
+            }
+        } catch {}
     })();
 
     onAuthStateChanged(auth, async (user) => {
@@ -536,6 +563,37 @@
                 console.error('Error al marcar terminaciones parciales desde períodos', e);
             }
         }
+
+        // Utilidades UI: restablecer filtros visibles y forzar actualización manualmente
+        function __restablecerFiltros() {
+            const idsTexto = ['adm-buscar', 'adm-filtro-equipo', 'adm-filtro-descripcion', 'adm-filtro-inicio'];
+            const idsSelect = ['adm-filtro-estado', 'adm-filtro-pruebas', 'adm-filtro-pruebas-estado'];
+            idsTexto.forEach(id => { const el = document.getElementById(id); if (el) { el.value = ''; el.dispatchEvent(new Event('input')); } });
+            idsSelect.forEach(id => { const el = document.getElementById(id); if (el) { el.value = 'TODOS'; el.dispatchEvent(new Event('change')); } });
+            if (typeof window.__admRenderTabla === 'function') { try { window.__admRenderTabla(); } catch {} }
+        }
+
+        async function __forzarActualizacion() {
+            try {
+                if (window.caches && caches.keys) {
+                    try {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(k => caches.delete(k).catch(() => {})));
+                    } catch {}
+                }
+                try { sessionStorage.clear(); } catch {}
+                try { localStorage.setItem('appVersion', APP_VERSION); } catch {}
+            } finally {
+                const url = new URL(window.location.href);
+                url.searchParams.set('v', APP_VERSION + '-' + Date.now());
+                window.location.href = url.toString();
+            }
+        }
+
+        const btnReset = document.getElementById('adm-btn-restablecer');
+        if (btnReset) btnReset.addEventListener('click', __restablecerFiltros);
+        const btnForce = document.getElementById('adm-btn-forzar-update');
+        if (btnForce) btnForce.addEventListener('click', __forzarActualizacion);
 
         // Generar períodos mensuales entre inicioServicio y terminacionServicio para una actividad
         // Uso desde consola: generarPeriodosMensuales('<actividadId>')
