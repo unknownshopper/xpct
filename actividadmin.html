@@ -1039,46 +1039,59 @@
                 const { getFirestore, collection, getDocs, getDocsFromCache, query, where, orderBy, limit } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
-                let snap;
 
-                // Consulta indexada con ventana acotada y límite razonable
+                // Construir consultas (primaria y fallback)
                 const currentYear = (new Date()).getFullYear();
-                // Ventana: últimos 12 años
-                const minYear = currentYear - 12;
+                const minYear = currentYear - 12; // ventana: últimos 12 años
+                let qPrimaria = null;
+                let qFallback = null;
                 try {
-                    const qIdx = query(
+                    qPrimaria = query(
                         colRef,
                         where('anioInicio', '>=', minYear),
                         orderBy('anioInicio', 'asc'),
                         orderBy('inicioTs', 'desc'),
                         limit(300)
                     );
-                    // 1) Intentar desde caché para primera pintura rápida
-                    try { snap = await getDocsFromCache(qIdx); } catch {}
-                    // 2) Solo si la caché está vacía, hacer una lectura de red limitada
-                    if (!snap || snap.empty) {
-                        try {
-                            const snapNet = await getDocs(qIdx);
-                            if (snapNet && !snapNet.empty) snap = snapNet;
-                        } catch {}
-                    }
-                } catch (e) {
-                    // Fallback controlado: ordenar por inicioTs con límite, sin escanear colección completa
-                    try {
-                        const qTs = query(colRef, orderBy('inicioTs', 'desc'), limit(300));
-                        try { snap = await getDocsFromCache(qTs); } catch {}
-                        if (!snap || snap.empty) {
-                            try { snap = await getDocs(qTs); } catch {}
-                        }
-                    } catch {}
+                } catch {}
+                try {
+                    qFallback = query(colRef, orderBy('inicioTs', 'desc'), limit(300));
+                } catch {}
+
+                let snapCache = null;
+                let snapNet = null;
+
+                // 1) Pintar rápido desde caché si existe
+                try { if (qPrimaria) snapCache = await getDocsFromCache(qPrimaria); } catch {}
+                if ((!snapCache || snapCache.empty) && qFallback) {
+                    try { snapCache = await getDocsFromCache(qFallback); } catch {}
                 }
-                listaActividad = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (snapCache && !snapCache.empty) {
+                    listaActividad = snapCache.docs.map(d => ({ id: d.id, ...d.data() }));
+                    renderTabla();
+                }
+
+                // 2) Siempre intentar refresco de red y re-render si cambia
+                try { if (qPrimaria) snapNet = await getDocs(qPrimaria); } catch {}
+                if ((!snapNet || snapNet.empty) && qFallback) {
+                    try { snapNet = await getDocs(qFallback); } catch {}
+                }
+                if (snapNet && !snapNet.empty) {
+                    const nuevos = snapNet.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const prev = Array.isArray(listaActividad) ? listaActividad : [];
+                    const changed = (!prev.length) || prev.length !== nuevos.length || prev.some((r,i) => r.id !== nuevos[i]?.id);
+                    listaActividad = nuevos;
+                    if (changed) renderTabla();
+                } else if (!snapCache || snapCache.empty) {
+                    // No hubo datos ni en caché ni en red
+                    listaActividad = [];
+                    renderTabla();
+                }
             } catch (e) {
                 console.error('Error al cargar actividades desde Firestore (admin)', e);
                 listaActividad = [];
+                renderTabla();
             }
-
-            renderTabla();
         }
 
         async function actualizarActividadEnFirestore(id, cambios) {
