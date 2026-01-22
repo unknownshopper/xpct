@@ -147,8 +147,14 @@
                 <!-- Controles de edición en lote -->
                 <div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:flex-end;">
                     <div style="display:flex; flex-direction:column;">
-                        <label for="adm-lote-fecha" style="font-size:0.75rem; color:#4b5563;">Fecha term. lote (dd/mm/aa)</label>
-                        <input type="text" id="adm-lote-fecha" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
+                        <label for="adm-lote-fecha" style="font-size:0.75rem; color:#4b5563;">Fecha lote (dd/mm/aa)</label>
+                        <div style="display:flex; gap:0.25rem; align-items:center;">
+                            <input type="text" id="adm-lote-fecha" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
+                            <select id="adm-lote-tipo" title="Tipo de terminación" style="font-size:0.8rem; padding:0.2rem 0.35rem;">
+                                <option value="PARCIAL">PARCIAL</option>
+                                <option value="FINAL">FINAL</option>
+                            </select>
+                        </div>
                     </div>
                     <button type="button" id="adm-aplicar-fecha-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar fecha a selección</button>
 
@@ -1573,6 +1579,130 @@
                     tbody.appendChild(tr);
                 });
             });
+
+            const inputFechaLote = document.getElementById('adm-lote-fecha');
+            if (inputFechaLote) {
+                inputFechaLote.addEventListener('input', () => {
+                    inputFechaLote.value = formatearFechaDdMmAaInput(inputFechaLote.value);
+                });
+            }
+
+            const btnAplicarFecha = document.getElementById('adm-aplicar-fecha-lote');
+            if (btnAplicarFecha) {
+                btnAplicarFecha.addEventListener('click', async () => {
+                    if (!(window.isAdmin || window.isDirector)) { alert('Solo admin o director pueden aplicar cambios en lote.'); return; }
+                    const fechaStr = (document.getElementById('adm-lote-fecha')?.value || '').trim();
+                    const tipo = (document.getElementById('adm-lote-tipo')?.value || 'PARCIAL').toString().toUpperCase();
+                    if (!fechaStr) { alert('Indica una fecha (dd/mm/aa).'); return; }
+                    const d = parseFechaDdMmAa(fechaStr);
+                    if (!d) { alert('Formato de fecha inválido. Usa dd/mm/aa'); return; }
+
+                    const seleccionados = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
+                    if (!seleccionados.length) { alert('Selecciona al menos una fila.'); return; }
+
+                    try {
+                        const { getFirestore, doc, writeBatch, collection, query, where, getDocs, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        const db = getFirestore();
+                        let batch = writeBatch(db);
+                        let count = 0;
+                        const esFinal = (tipo === 'FINAL');
+                        for (const chk of seleccionados) {
+                            const id = chk.getAttribute('data-id');
+                            if (!id) continue;
+                            const ref = doc(db, 'actividades', id);
+                            batch.update(ref, { terminacionServicio: fechaStr, terminacionEsFinal: esFinal });
+                            count++;
+                            if (count % 400 === 0) { await batch.commit(); batch = writeBatch(db); }
+                        }
+                        await batch.commit();
+
+                        seleccionados.forEach(chk => {
+                            const id = chk.getAttribute('data-id');
+                            const reg = listaActividad.find(r => r.id === id);
+                            if (reg) { reg.terminacionServicio = fechaStr; reg.terminacionEsFinal = esFinal; }
+                        });
+
+                        // Crear o anexar períodos en actividadPeriodos para reflejar el parcial/final aplicado
+                        for (const chk of seleccionados) {
+                            const tr = chk.closest('tr');
+                            const id = chk.getAttribute('data-id');
+                            if (!id || !tr) continue;
+
+                            // Datos base
+                            const inicioServ = (tr.getAttribute('data-inicio') || '').toString();
+                            const tarifaDiaria = Number(tr.getAttribute('data-precioequipo') || 0) || 0;
+
+                            const dFin = parseFechaDdMmAa(fechaStr);
+                            if (!dFin) continue;
+
+                            // Validación para PARCIAL: cercano a fin de mes y no exceder ~35 días desde el último corte
+                            if (!esFinal) {
+                                const eom = new Date(dFin.getFullYear(), dFin.getMonth() + 1, 0);
+                                const diffEom = Math.abs((eom.getTime() - dFin.getTime()) / 86400000);
+                                if (diffEom > 3) {
+                                    console.warn('Fecha PARCIAL no cercana a fin de mes para actividad', id);
+                                }
+                            }
+
+                            // Leer períodos existentes
+                            const colPer = collection(db, 'actividadPeriodos');
+                            const qPer = query(colPer, where('actividadId', '==', id));
+                            const snapPer = await getDocs(qPer);
+                            const periodos = snapPer.docs.map(d => d.data() || {});
+
+                            // Determinar inicio del nuevo período
+                            let inicioPeriodoStr = inicioServ;
+                            if (periodos.length) {
+                                // Tomar el mayor finPeriodo existente
+                                const ult = periodos
+                                    .filter(p => (p.finPeriodo || '').toString().trim())
+                                    .sort((a,b) => {
+                                        const da = parseFechaDdMmAa(a.finPeriodo || '') || new Date(2000,0,1);
+                                        const dbb = parseFechaDdMmAa(b.finPeriodo || '') || new Date(2000,0,1);
+                                        return da.getTime() - dbb.getTime();
+                                    })
+                                    .pop();
+                                if (ult && (ult.finPeriodo || '').toString().trim()) {
+                                    const df = parseFechaDdMmAa(ult.finPeriodo || '');
+                                    if (df) { const next = new Date(df.getFullYear(), df.getMonth(), df.getDate()); next.setDate(next.getDate() + 1); inicioPeriodoStr = `${String(next.getDate()).padStart(2,'0')}/${String(next.getMonth()+1).padStart(2,'0')}/${String(next.getFullYear()%100).padStart(2,'0')}`; }
+                                }
+                            }
+
+                            const dIni = parseFechaDdMmAa(inicioPeriodoStr);
+                            if (!dIni) continue;
+                            // Validación de rango (no más de ~35 días)
+                            const diffDias = Math.floor((new Date(dFin.getFullYear(), dFin.getMonth(), dFin.getDate()) - new Date(dIni.getFullYear(), dIni.getMonth(), dIni.getDate())) / 86400000) + 1;
+                            if (!esFinal && diffDias > 35) {
+                                console.warn('Rango PARCIAL mayor a un mes para actividad', id);
+                            }
+
+                            const inicioOrdenable = new Date(dIni.getFullYear(), dIni.getMonth(), dIni.getDate()).getTime();
+                            const diasFact = diffDias > 0 ? diffDias : 0;
+                            const importe = diasFact && tarifaDiaria ? diasFact * tarifaDiaria : 0;
+
+                            await addDoc(colPer, {
+                                actividadId: id,
+                                inicioPeriodo: inicioPeriodoStr,
+                                finPeriodo: fechaStr,
+                                inicioPeriodoOrdenable: inicioOrdenable,
+                                diasFacturados: diasFact,
+                                tarifaDiaria,
+                                importe,
+                                tipoPeriodo: esFinal ? 'FINAL' : 'PARCIAL',
+                                factura: '',
+                                oc: '',
+                                observaciones: '',
+                                creadoEn: serverTimestamp(),
+                            });
+                        }
+
+                        renderTabla();
+                    } catch (e) {
+                        console.error('Error aplicando fecha en lote', e);
+                        alert('No se pudo aplicar la fecha en lote. Intenta de nuevo.');
+                    }
+                });
+            }
 
             // Aplicar PRECIO en lote a selección (solo admin/director)
             const btnAplicarPrecio = document.getElementById('adm-aplicar-precio-lote');

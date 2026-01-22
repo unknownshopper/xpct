@@ -241,7 +241,24 @@
       }
     }
 
-    function abrirModal(datos) {
+    async function abrirModal(datos) {
+      // Refrescar la actividad desde Firestore para reflejar cambios recientes (p.ej. terminación por lote)
+      try {
+        const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        if (datos && datos.id) {
+          const ref = doc(db, 'actividades', datos.id);
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            const act = snap.data() || {};
+            datos.inicioServicio = (act.inicioServicio || datos.inicioServicio || '');
+            datos.terminacionServicio = (act.terminacionServicio || datos.terminacionServicio || '');
+            datos.precioDiario = Number(act.precio || datos.precioDiario || 0);
+            datos.os = (act.os || datos.os || '');
+          }
+        }
+      } catch {}
+
       actividadActual = datos;
       const lineaCliente = `${datos.cliente || ''} / ${datos.area || ''} / ${datos.ubicacion || ''} / ${datos.equipo || ''}`;
       const lineaServicio = `OS: ${datos.os || ''}  |  Servicio: ${datos.inicioServicio || ''} ${datos.terminacionServicio ? '→ ' + datos.terminacionServicio : ''}`;
@@ -273,7 +290,7 @@
 
 
     // Abrir Tabulador al hacer clic en la fila de actividad (excepto en checkboxes, inputs y botón Eliminar)
-    tbodyActividad.addEventListener('click', (ev) => {
+    tbodyActividad.addEventListener('click', async (ev) => {
       const target = ev.target;
 
       // Ignorar clics en checkboxes, inputs y botón Eliminar (dejar que su propia lógica actúe)
@@ -300,7 +317,7 @@
       const inicioServicio = tr.getAttribute('data-inicio') || '';
       const terminacionServicio = tr.getAttribute('data-terminacion') || '';
 
-      abrirModal({ id, cliente, area, ubicacion, equipo, precioDiario, os, inicioServicio, terminacionServicio });
+      await abrirModal({ id, cliente, area, ubicacion, equipo, precioDiario, os, inicioServicio, terminacionServicio });
     });
 
     if (btnGuardar) {
