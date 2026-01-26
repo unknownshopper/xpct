@@ -122,79 +122,21 @@
         <!-- Filtro, edición en lote, filtros de estado, contador y ayuda -->
         <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
             <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
-                <input type="search" id="adm-buscar" placeholder="Buscar por cliente, equipo, OS, factura..." style="min-width: 260px;">
-
-                <div style="display:flex; flex-direction:column; font-size:0.75rem; color:#4b5563;">
-                    <label for="adm-filtro-estado">Estado actividad</label>
-                    <select id="adm-filtro-estado" style="font-size:0.8rem; padding:0.2rem 0.35rem; min-width:130px;">
-                        <option value="TODOS">Todos</option>
-                        <option value="ABIERTO">Solo abiertos</option>
-                        <option value="PARCIAL">Solo parciales</option>
-                        <option value="FINAL">Solo finales</option>
-                    </select>
-                </div>
-
-                <div style="display:flex; flex-direction:column; font-size:0.75rem; color:#4b5563;">
-                    <label for="adm-filtro-pruebas">Pruebas</label>
-                    <select id="adm-filtro-pruebas" style="font-size:0.8rem; padding:0.2rem 0.35rem; min-width:140px;">
-                        <option value="TODOS">Todas</option>
-                        <option value="VIGENTE">Solo vigente</option>
-                        <option value="VENCIDA">Solo vencida</option>
-                        <option value="SIN_PRUEBA">Solo sin prueba</option>
-                    </select>
-                </div>
-
-                <!-- Controles de edición en lote -->
-                <div style="display:flex; flex-wrap:wrap; gap:0.25rem; align-items:flex-end;">
-                    <div style="display:flex; flex-direction:column;">
-                        <label for="adm-lote-fecha" style="font-size:0.75rem; color:#4b5563;">Fecha lote (dd/mm/aa)</label>
-                        <div style="display:flex; gap:0.25rem; align-items:center;">
-                            <input type="text" id="adm-lote-fecha" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
-                            <select id="adm-lote-tipo" title="Tipo de terminación" style="font-size:0.8rem; padding:0.2rem 0.35rem;">
-                                <option value="PARCIAL">PARCIAL</option>
-                                <option value="FINAL">FINAL</option>
-                            </select>
-                        </div>
+                <div style="display:flex; flex-direction:column;">
+                    <label for="adm-lote-fecha" style="font-size:0.75rem; color:#4b5563;">Fecha lote (dd/mm/aa)</label>
+                    <div style="display:flex; gap:0.25rem; align-items:center;">
+                        <input type="text" id="adm-lote-fecha" placeholder="__/__/__" maxlength="8" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
+                        <select id="adm-lote-tipo" title="Tipo de terminación" style="font-size:0.8rem; padding:0.2rem 0.35rem;">
+                            <option value="PARCIAL">PARCIAL</option>
+                            <option value="FINAL">FINAL</option>
+                        </select>
+                        <button type="button" id="adm-aplicar-fecha-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar fecha a selección</button>
                     </div>
-                    <button type="button" id="adm-aplicar-fecha-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar fecha a selección</button>
-
-                    <div style="display:flex; flex-direction:column; margin-left:0.5rem;">
-                        <label for="adm-lote-precio" style="font-size:0.75rem; color:#4b5563;">Precio lote</label>
-                        <input type="number" id="adm-lote-precio" min="0" step="1" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:100px;">
-                    </div>
-                    <button type="button" id="adm-aplicar-precio-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar precio a selección</button>
-
-                    <div style="display:flex; flex-direction:column; margin-left:0.5rem;">
-                        <label for="adm-lote-os" style="font-size:0.75rem; color:#4b5563;">OS lote</label>
-                        <input type="text" id="adm-lote-os" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
-                    </div>
-                    <div style="display:flex; flex-direction:column;">
-                        <label for="adm-lote-oc" style="font-size:0.75rem; color:#4b5563;">OC lote</label>
-                        <input type="text" id="adm-lote-oc" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
-                    </div>
-                    <div style="display:flex; flex-direction:column;">
-                        <label for="adm-lote-estcot" style="font-size:0.75rem; color:#4b5563;">Est-Cot lote</label>
-                        <input type="text" id="adm-lote-estcot" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
-                    </div>
-                    <div style="display:flex; flex-direction:column;">
-                        <label for="adm-lote-factura" style="font-size:0.75rem; color:#4b5563;">Factura lote</label>
-                        <input type="text" id="adm-lote-factura" style="font-size:0.8rem; padding:0.2rem 0.35rem; width:110px;">
-                    </div>
-                    <button type="button" id="adm-aplicar-campos-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar campos a selección</button>
                 </div>
             </div>
             <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563; display:flex; gap:0.5rem; align-items:center;">
                 <button id="adm-btn-actualizar" type="button" title="Actualizar desde servidor" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
                     Actualizar
-                </button>
-                <button id="adm-btn-restablecer" type="button" title="Borrar filtros" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
-                    Restablecer filtros
-                </button>
-                <button id="adm-btn-forzar-update" type="button" title="Forzar actualización del sitio" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#fff7ed; cursor:pointer;">
-                    Forzar actualización
-                </button>
-                <button id="adm-btn-ayuda" type="button" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
-                    Ver ayuda
                 </button>
                 <span id="adm-contador">0 registros</span>
             </div>
@@ -240,40 +182,7 @@
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
                         </tr>
                     </thead>
-                    <thead>
-                        <tr style="background:#f9fafb;">
-                            <th></th>
-                            <th style="display:none;"></th>
-                            <th style="display:none;"></th>
-                            <th style="display:none;"></th>
-                            <th style="padding:0.2rem 0.4rem;">
-                                <input type="text" id="adm-filtro-equipo" placeholder="Filtrar equipo" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
-                            </th>
-                            <th style="padding:0.2rem 0.4rem;">
-                                <input type="text" id="adm-filtro-descripcion" placeholder="Filtrar descripción" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
-                            </th>
-                            <th style="padding:0.2rem 0.4rem;">
-                                <input type="text" id="adm-filtro-inicio" placeholder="Filtrar inicio (dd/mm/aa)" maxlength="8" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
-                            </th>
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th style="padding:0.2rem 0.4rem;">
-                                <select id="adm-filtro-pruebas-estado" style="width:100%; font-size:0.75rem; padding:0.15rem 0.3rem;">
-                                    <option value="TODOS">Todos</option>
-                                    <option value="VIGENTE">Vigente</option>
-                                    <option value="VENCIDA">Vencida</option>
-                                    <option value="SIN_PRUEBA">Sin prueba</option>
-                                </select>
-                            </th>
-                        </tr>
-                    </thead>
+                    
                     <tbody id="adm-tbody-actividad">
                     </tbody>
                 </table>
@@ -1454,9 +1363,10 @@
                         clienteActual = cliente;
                         areaActual = '';
                         const trGrupoCliente = document.createElement('tr');
+                        const etiquetaGrupo = esTerceroReg ? `TERCERO: ${terceroProp || clienteActual}` : `CLIENTE: ${clienteActual}`;
                         trGrupoCliente.innerHTML = `
                             <td colspan="15" style="padding:0.5rem 0.75rem; background:#111827; font-weight:700; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a; text-transform:uppercase; letter-spacing:0.03em;">
-                                CLIENTE: ${clienteActual}
+                                ${etiquetaGrupo}
                             </td>
                         `;
                         tbody.appendChild(trGrupoCliente);
@@ -1601,7 +1511,7 @@
                     if (!seleccionados.length) { alert('Selecciona al menos una fila.'); return; }
 
                     try {
-                        const { getFirestore, doc, writeBatch, collection, query, where, getDocs, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        const { getFirestore, doc, writeBatch, collection, query, where, getDocs, addDoc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                         const db = getFirestore();
                         let batch = writeBatch(db);
                         let count = 0;
@@ -1622,78 +1532,117 @@
                             if (reg) { reg.terminacionServicio = fechaStr; reg.terminacionEsFinal = esFinal; }
                         });
 
-                        // Crear o anexar períodos en actividadPeriodos para reflejar el parcial/final aplicado
+                        // Generar períodos intermedios según reglas: Halliburton -> día 25, otros -> fin de mes.
                         for (const chk of seleccionados) {
                             const tr = chk.closest('tr');
                             const id = chk.getAttribute('data-id');
                             if (!id || !tr) continue;
-
-                            // Datos base
-                            const inicioServ = (tr.getAttribute('data-inicio') || '').toString();
+                            const cliente = (tr.getAttribute('data-cliente') || '').toString().toUpperCase();
                             const tarifaDiaria = Number(tr.getAttribute('data-precioequipo') || 0) || 0;
 
-                            const dFin = parseFechaDdMmAa(fechaStr);
-                            if (!dFin) continue;
+                            const objetivoFin = parseFechaDdMmAa(fechaStr);
+                            if (!objetivoFin) continue;
 
-                            // Validación para PARCIAL: cercano a fin de mes y no exceder ~35 días desde el último corte
-                            if (!esFinal) {
-                                const eom = new Date(dFin.getFullYear(), dFin.getMonth() + 1, 0);
-                                const diffEom = Math.abs((eom.getTime() - dFin.getTime()) / 86400000);
-                                if (diffEom > 3) {
-                                    console.warn('Fecha PARCIAL no cercana a fin de mes para actividad', id);
-                                }
-                            }
-
-                            // Leer períodos existentes
                             const colPer = collection(db, 'actividadPeriodos');
                             const qPer = query(colPer, where('actividadId', '==', id));
                             const snapPer = await getDocs(qPer);
-                            const periodos = snapPer.docs.map(d => d.data() || {});
+                            const periodos = snapPer.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+                            const existente = new Set(periodos.map(p => `${(p.inicioPeriodo||'').trim()}|${(p.finPeriodo||'').trim()}`));
 
-                            // Determinar inicio del nuevo período
-                            let inicioPeriodoStr = inicioServ;
+                            function parseDdMmAa(str){ return parseFechaDdMmAa(str) || null; }
+                            function fmt(d){ const dd=String(d.getDate()).padStart(2,'0'); const mm=String(d.getMonth()+1).padStart(2,'0'); const aa=String(d.getFullYear()%100).padStart(2,'0'); return `${dd}/${mm}/${aa}`; }
+                            function eom(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+                            function day25(d){ return new Date(d.getFullYear(), d.getMonth(), 25); }
+                            function nextDay(d){ const n=new Date(d.getFullYear(), d.getMonth(), d.getDate()); n.setDate(n.getDate()+1); return n; }
+
+                            // Punto de inicio: día siguiente al último finPeriodo; si no hay, usar inicioServicio del <tr>
+                            let inicioStr = (tr.getAttribute('data-inicio') || '').toString();
                             if (periodos.length) {
-                                // Tomar el mayor finPeriodo existente
                                 const ult = periodos
                                     .filter(p => (p.finPeriodo || '').toString().trim())
                                     .sort((a,b) => {
-                                        const da = parseFechaDdMmAa(a.finPeriodo || '') || new Date(2000,0,1);
-                                        const dbb = parseFechaDdMmAa(b.finPeriodo || '') || new Date(2000,0,1);
+                                        const da = parseDdMmAa(a.finPeriodo || '') || new Date(2000,0,1);
+                                        const dbb = parseDdMmAa(b.finPeriodo || '') || new Date(2000,0,1);
                                         return da.getTime() - dbb.getTime();
                                     })
                                     .pop();
                                 if (ult && (ult.finPeriodo || '').toString().trim()) {
-                                    const df = parseFechaDdMmAa(ult.finPeriodo || '');
-                                    if (df) { const next = new Date(df.getFullYear(), df.getMonth(), df.getDate()); next.setDate(next.getDate() + 1); inicioPeriodoStr = `${String(next.getDate()).padStart(2,'0')}/${String(next.getMonth()+1).padStart(2,'0')}/${String(next.getFullYear()%100).padStart(2,'0')}`; }
+                                    const df = parseDdMmAa(ult.finPeriodo || '');
+                                    if (df) inicioStr = fmt(nextDay(df));
                                 }
                             }
 
-                            const dIni = parseFechaDdMmAa(inicioPeriodoStr);
-                            if (!dIni) continue;
-                            // Validación de rango (no más de ~35 días)
-                            const diffDias = Math.floor((new Date(dFin.getFullYear(), dFin.getMonth(), dFin.getDate()) - new Date(dIni.getFullYear(), dIni.getMonth(), dIni.getDate())) / 86400000) + 1;
-                            if (!esFinal && diffDias > 35) {
-                                console.warn('Rango PARCIAL mayor a un mes para actividad', id);
+                            let cursorIni = parseDdMmAa(inicioStr);
+                            if (!cursorIni) continue;
+
+                            const esHalliburton = cliente.includes('HALLIBURTON');
+                            const cortes = [];
+
+                            // Construir cortes mensuales intermedios hasta alcanzar objetivo
+                            while (cursorIni.getTime() <= objetivoFin.getTime()) {
+                                let corte;
+                                if (esHalliburton) {
+                                    const d25 = day25(cursorIni);
+                                    // si el 25 es anterior al inicio, usar 25 del mes siguiente
+                                    if (d25.getTime() < cursorIni.getTime()) {
+                                        const nextMonth = new Date(cursorIni.getFullYear(), cursorIni.getMonth()+1, 1);
+                                        corte = day25(nextMonth);
+                                    } else {
+                                        corte = d25;
+                                    }
+                                } else {
+                                    let end = eom(cursorIni);
+                                    if (end.getTime() < cursorIni.getTime()) {
+                                        end = eom(new Date(cursorIni.getFullYear(), cursorIni.getMonth()+1, 1));
+                                    }
+                                    corte = end;
+                                }
+
+                                // Si el corte supera el objetivoFinal, para PARCIAL dejamos el último corte exactamente en la fecha objetivo.
+                                // Para FINAL, generamos cortes parciales hasta el mes anterior y cerramos con FINAL al objetivo.
+                                const esUltimo = (corte.getTime() >= objetivoFin.getTime());
+                                const finPeriodo = esUltimo ? objetivoFin : corte;
+
+                                // Evitar períodos vacíos
+                                if (finPeriodo.getTime() >= cursorIni.getTime()) {
+                                    const dias = Math.floor((new Date(finPeriodo.getFullYear(), finPeriodo.getMonth(), finPeriodo.getDate()) - new Date(cursorIni.getFullYear(), cursorIni.getMonth(), cursorIni.getDate())) / 86400000) + 1;
+                                    const importe = (dias > 0 && tarifaDiaria) ? dias * tarifaDiaria : 0;
+                                    const inicioStrC = fmt(cursorIni);
+                                    const finStrC = fmt(finPeriodo);
+                                    const key = `${inicioStrC}|${finStrC}`;
+                                    if (!existente.has(key)) {
+                                        cortes.push({
+                                            inicioPeriodo: inicioStrC,
+                                            finPeriodo: finStrC,
+                                            inicioPeriodoOrdenable: new Date(cursorIni.getFullYear(), cursorIni.getMonth(), cursorIni.getDate()).getTime(),
+                                            diasFacturados: dias,
+                                            tarifaDiaria,
+                                            importe,
+                                            tipoPeriodo: (esUltimo && esFinal) ? 'FINAL' : 'PARCIAL',
+                                        });
+                                        existente.add(key);
+                                    }
+                                }
+
+                                if (esUltimo) break;
+                                // siguiente cursor es día siguiente al corte
+                                cursorIni = nextDay(corte);
                             }
 
-                            const inicioOrdenable = new Date(dIni.getFullYear(), dIni.getMonth(), dIni.getDate()).getTime();
-                            const diasFact = diffDias > 0 ? diffDias : 0;
-                            const importe = diasFact && tarifaDiaria ? diasFact * tarifaDiaria : 0;
-
-                            await addDoc(colPer, {
-                                actividadId: id,
-                                inicioPeriodo: inicioPeriodoStr,
-                                finPeriodo: fechaStr,
-                                inicioPeriodoOrdenable: inicioOrdenable,
-                                diasFacturados: diasFact,
-                                tarifaDiaria,
-                                importe,
-                                tipoPeriodo: esFinal ? 'FINAL' : 'PARCIAL',
-                                factura: '',
-                                oc: '',
-                                observaciones: '',
-                                creadoEn: serverTimestamp(),
-                            });
+                            // Escribir cortes calculados
+                            for (const c of cortes) {
+                                const inicioKey = (c.inicioPeriodo || '').replaceAll('/', '-');
+                                const finKey = (c.finPeriodo || '').replaceAll('/', '-');
+                                const periodId = `${id}__${inicioKey}__${finKey}`;
+                                await setDoc(doc(colPer, periodId), {
+                                    actividadId: id,
+                                    ...c,
+                                    factura: '',
+                                    oc: '',
+                                    observaciones: '',
+                                    creadoEn: serverTimestamp(),
+                                });
+                            }
                         }
 
                         renderTabla();

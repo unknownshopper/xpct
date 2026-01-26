@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let inventarioCargado = false;
     let formatosCargados = false;
     let guardandoInspeccion = false; // evita doble guardado
+    const fotosTomadas = {}; // idx -> { blob }
 
     const claveEstadoOverride = 'pct_invre_estado_override';
     let mapaEstadoOverride = {};
@@ -442,6 +443,30 @@ document.addEventListener('DOMContentLoaded', () => {
             return true;
         });
 
+        // Duplicar 'Área de sellado' -> 'Área de sellado A' y 'Área de sellado B' para productos aplicables (CA, CE, DSA, Brida de paso)
+        const productoStr = (get(idxProducto) || '').toString().toUpperCase();
+        const aplicaCaraAB = /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b/.test(productoStr);
+        const norm = (s) => (s || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+        const parametrosRender = (() => {
+            if (!aplicaCaraAB) return parametrosInspeccion.slice();
+            const out = [];
+            parametrosInspeccion.forEach(p => {
+                const np = norm(p);
+                if (np.startsWith('area de sellado')) {
+                    out.push('Área de sellado A');
+                    out.push('Área de sellado B');
+                } else {
+                    out.push(p);
+                }
+            });
+            return out;
+        })();
+
         // Diagnóstico: detectar parámetros sin match en danos.csv (normalizado)
         (function diagnosticarCoberturaDanos() {
             if (!Array.isArray(mapaDanos) || !mapaDanos.length) return;
@@ -451,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .replace(/[\u0300-\u036f]/g, '')
                 .trim();
             const faltantes = [];
-            parametrosInspeccion.forEach(p => {
+            parametrosRender.forEach(p => {
                 const np = normalize(p);
                 // Ignorar Fleje (sin catálogo por diseño)
                 if (np.includes('fleje')) return;
@@ -566,7 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
         }
 
-        const parametrosHtml = parametrosInspeccion.length
+        const parametrosHtml = parametrosRender.length
             ? `
                 <div class="parametros-inspeccion">
                     <h3>Parámetros de inspección (${reporte})</h3>
@@ -575,8 +600,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="col-nombre">Parámetro</div>
                             <div class="col-estado">Estado</div>
                             <div class="col-dano">Tipo de daño</div>
+                            <div class="col-evidencia">Evidencia</div>
                         </div>
-                        ${parametrosInspeccion.map((p, idx) => {
+                        ${parametrosRender.map((p, idx) => {
                             const baseNombre = (p || '').toLowerCase();
                             // Caso especial: Recubrimiento no lleva selector de daños, solo BUENO/MALO
                             if (baseNombre.includes('recubrimiento')) {
@@ -586,6 +612,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="col-estado">
                                     <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
                                     <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
+                                </div>
+                                <div class="col-dano" data-param-idx="${idx}" style="display:none;"></div>
+                                <div class="col-evidencia" data-param-idx="${idx}" style="display:none;">
+                                    <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" capture="environment" style="display:none;">
+                                    <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                 </div>
                             </div>
                         `;
@@ -604,6 +636,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                         ${tiposDano.map(op => op ? `<option value="${op}">${op}</option>` : '<option value="">Daños</option>').join('')}
                                     </select>
                                     <input type="text" name="param-${idx}-dano-otro" placeholder="Describa el hallazgo" style="display:none; margin-top:0.25rem; font-size:0.8rem; width:100%;" disabled>
+                                </div>
+                                <div class="col-evidencia" data-param-idx="${idx}" style="display:none;">
+                                    <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" capture="environment" style="display:none;">
+                                    <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                 </div>
                             </div>
                         `;
@@ -675,12 +712,16 @@ document.addEventListener('DOMContentLoaded', () => {
             ${parametrosHtml}
         `;
 
-        // Mostrar el selector de tipo de daño solo cuando el estado sea MALO
+        // Mostrar selector de daño y evidencia solo cuando el estado sea MALO
         detalleContenedor.querySelectorAll('.parametros-fila').forEach((filaHtml, idx) => {
             const radios = filaHtml.querySelectorAll(`input[name="param-${idx}-estado"]`);
             const colDano = filaHtml.querySelector('.col-dano');
             const selectDano = colDano ? colDano.querySelector('select') : null;
             const inputOtro = colDano ? colDano.querySelector(`input[name="param-${idx}-dano-otro"]`) : null;
+            const colEvid = filaHtml.querySelector('.col-evidencia');
+            const inputFoto = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto"]`) : null;
+            const btnTomar = colEvid ? colEvid.querySelector('.btn-tomar-foto') : null;
+            const imgPrev = document.getElementById(`preview-foto-${idx}`);
 
             const actualizarVisibilidadOtro = () => {
                 if (!selectDano || !inputOtro) return;
@@ -696,19 +737,21 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const actualizarVisibilidadDano = () => {
-                if (!colDano || !selectDano) return;
                 let estado = '';
-                radios.forEach(r => {
-                    if (r.checked) estado = r.value;
-                });
+                radios.forEach(r => { if (r.checked) estado = r.value; });
                 if (estado === 'MALO') {
-                    colDano.style.display = '';
+                    if (colDano) colDano.style.display = '';
                     if (selectDano) {
                         selectDano.disabled = false;
                         actualizarVisibilidadOtro();
                     }
+                    if (colEvid) {
+                        colEvid.style.display = '';
+                        if (inputFoto) inputFoto.disabled = false;
+                        if (btnTomar) btnTomar.disabled = false;
+                    }
                 } else {
-                    colDano.style.display = 'none';
+                    if (colDano) colDano.style.display = 'none';
                     if (selectDano) {
                         selectDano.disabled = true;
                         selectDano.value = '';
@@ -717,6 +760,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         inputOtro.style.display = 'none';
                         inputOtro.disabled = true;
                         inputOtro.value = '';
+                    }
+                    if (colEvid) {
+                        colEvid.style.display = 'none';
+                        if (inputFoto) { inputFoto.disabled = true; try { inputFoto.value = ''; } catch {} }
+                        if (btnTomar) btnTomar.disabled = true;
+                        if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+                        delete fotosTomadas[idx];
                     }
                 }
             };
@@ -730,7 +780,59 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             actualizarVisibilidadDano();
+
+            // Handler para tomar foto con cámara
+            if (btnTomar) {
+                btnTomar.addEventListener('click', async () => {
+                    try {
+                        await abrirCamaraParaIndice(idx, (blob) => {
+                            fotosTomadas[idx] = { blob };
+                            if (imgPrev) {
+                                imgPrev.src = URL.createObjectURL(blob);
+                                imgPrev.style.display = '';
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('No se pudo capturar foto', e);
+                    }
+                });
+            }
         });
+
+        // Función para abrir la cámara y capturar una foto
+        async function abrirCamaraParaIndice(idx, onCapture) {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('La cámara no está disponible en este dispositivo/navegador.');
+                throw new Error('getUserMedia no soportado');
+            }
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#fff;padding:12px;border-radius:10px;max-width:90vw;width:520px;';
+            const video = document.createElement('video');
+            video.autoplay = true; video.playsInline = true;
+            video.style.cssText = 'width:100%;border-radius:8px;background:#000;';
+            const ctrls = document.createElement('div');
+            ctrls.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:8px;';
+            const btnCancel = document.createElement('button'); btnCancel.textContent = 'Cancelar';
+            const btnSnap = document.createElement('button'); btnSnap.textContent = 'Capturar';
+            ctrls.appendChild(btnCancel); ctrls.appendChild(btnSnap);
+            box.appendChild(video); box.appendChild(ctrls); overlay.appendChild(box); document.body.appendChild(overlay);
+
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            video.srcObject = stream;
+            function stop() { try { stream.getTracks().forEach(t => t.stop()); } catch {}; document.body.removeChild(overlay); }
+            btnCancel.onclick = () => stop();
+            btnSnap.onclick = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => { if (blob) onCapture(blob); stop(); }, 'image/jpeg', 0.9);
+                } catch { stop(); }
+            };
+        }
 
         if (btnGuardar) btnGuardar.disabled = false;
 
@@ -740,6 +842,202 @@ document.addEventListener('DOMContentLoaded', () => {
 
     inputEquipo.addEventListener('change', actualizarDetalleDesdeInput);
     inputEquipo.addEventListener('blur', actualizarDetalleDesdeInput);
+
+    // Exportar ejemplo JPG del panel de detalle (sin guardar en base de datos)
+    const btnExportarJpg = document.getElementById('btn-exportar-jpg');
+    if (btnExportarJpg) {
+        btnExportarJpg.addEventListener('click', async () => {
+            try {
+                const equipoSel = (document.getElementById('equipo-input')?.value || '').trim();
+                if (!equipoSel) { alert('Selecciona un equipo antes de exportar.'); return; }
+                const tipoSelVal = (document.getElementById('inspeccion-tipo')?.value || '').trim();
+                if (!tipoSelVal) { alert('Selecciona el Tipo de inspección antes de exportar.'); return; }
+                const panel = document.getElementById('detalle-equipo-contenido');
+                if (!panel) return;
+                // Verificar que haya parámetros renderizados
+                if (!panel.querySelector('.parametros-inspeccion')) {
+                    alert('Primero genera la inspección del equipo (parámetros) para exportar el ejemplo.');
+                    return;
+                }
+                // Cargar html2canvas si no está presente
+                async function ensureHtml2Canvas() {
+                    if (window.html2canvas) return;
+                    await new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                        s.onload = resolve;
+                        s.onerror = reject;
+                        document.head.appendChild(s);
+                    });
+                }
+
+                await ensureHtml2Canvas();
+
+                // Construir un wrapper temporal con encabezado (usuario, fecha/hora, ubicación) + contenido de inspección
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'background:#ffffff; color:#111827; padding:16px; width:fit-content; max-width:100%';
+
+                const encabezado = document.createElement('div');
+                encabezado.style.cssText = 'font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; font-size:12px; margin-bottom:12px; border:1px solid #e5e7eb; border-radius:8px; padding:10px; background:#f9fafb;';
+
+                // Datos de encabezado
+                const ahora = new Date();
+                const dd = String(ahora.getDate()).padStart(2, '0');
+                const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                const yy = String(ahora.getFullYear()).slice(-2);
+                const HH = String(ahora.getHours()).padStart(2, '0');
+                const MM = String(ahora.getMinutes()).padStart(2, '0');
+                const fechaSafe = `${dd}-${mm}-${yy}`;
+                const horaSafe = `${HH}:${MM}`;
+                const equipo = equipoSel || 'SIN_EQUIPO';
+                const tipoInspeccionSel = (document.getElementById('inspeccion-tipo')?.value || '').toString();
+                let usuario = '';
+                try { usuario = (window.auth?.currentUser?.email || '').toLowerCase(); } catch {}
+
+                // Capturar geolocalización: esperar a que el usuario autorice o rechace
+                const gps = await (async () => {
+                    if (!navigator.geolocation) return 'Sin GPS';
+                    function toStr(pos) {
+                        const { latitude, longitude, accuracy } = pos.coords || {};
+                        return (latitude != null && longitude != null)
+                            ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}${accuracy?` (±${Math.round(accuracy)}m)`:''}`
+                            : 'Sin GPS';
+                    }
+                    const getPosition = () => new Promise(resolve => {
+                        navigator.geolocation.getCurrentPosition(
+                            (pos) => resolve(toStr(pos)),
+                            () => resolve('Sin GPS'),
+                            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                        );
+                    });
+                    try {
+                        if (navigator.permissions && navigator.permissions.query) {
+                            const status = await navigator.permissions.query({ name: 'geolocation' });
+                            if (status.state === 'denied') return 'Sin GPS';
+                            // 'granted' o 'prompt': esperar respuesta del usuario/OS
+                            return await getPosition();
+                        }
+                        return await getPosition();
+                    } catch {
+                        return await getPosition();
+                    }
+                })();
+
+                encabezado.innerHTML = `
+                    <div style="display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center;">
+                        <div><strong>Equipo:</strong> ${equipo}</div>
+                        ${tipoInspeccionSel ? `<div><strong>Tipo:</strong> ${tipoInspeccionSel}</div>` : ''}
+                        <div><strong>Fecha:</strong> ${dd}/${mm}/20${yy}</div>
+                        <div><strong>Hora:</strong> ${horaSafe} hrs</div>
+                        ${usuario ? `<div><strong>Usuario:</strong> ${usuario}</div>` : ''}
+                        <div><strong>Ubicación:</strong> ${gps}</div>
+                    </div>
+                `;
+
+                const contenidoClonado = panel.cloneNode(true);
+                contenidoClonado.style.backgroundColor = '#ffffff';
+                contenidoClonado.style.overflow = 'visible';
+
+                // Normalizar contenido para testimonio: mostrar estados/daños como texto y ocultar controles de evidencia
+                try {
+                    const filasOriginal = panel.querySelectorAll('.parametros-fila');
+                    const filasClon = contenidoClonado.querySelectorAll('.parametros-fila');
+                    // Quitar columna 'Evidencia' del header en el clon
+                    const headerClon = contenidoClonado.querySelector('.parametros-header');
+                    if (headerClon) {
+                        const evidHead = headerClon.querySelector('.col-evidencia');
+                        if (evidHead && evidHead.parentNode) evidHead.parentNode.removeChild(evidHead);
+                    }
+                    filasClon.forEach((filaC, i) => {
+                        const filaO = filasOriginal[i];
+                        if (!filaO) return;
+                        // Estado seleccionado
+                        const estadoSel = filaO.querySelector(`input[name="param-${i}-estado"]:checked`);
+                        const estadoVal = estadoSel ? String(estadoSel.value || '').toUpperCase() : '';
+                        const colEstadoC = filaC.querySelector('.col-estado');
+                        if (colEstadoC) {
+                            colEstadoC.innerHTML = estadoVal || '';
+                        }
+                        // Tipo de daño seleccionado y detalle 'OTRO'
+                        const selDanoO = filaO.querySelector(`select[name="param-${i}-dano"]`);
+                        const danoVal = selDanoO ? (selDanoO.value || '') : '';
+                        const inputOtroO = filaO.querySelector(`input[name="param-${i}-dano-otro"]`);
+                        const otroVal = inputOtroO ? (inputOtroO.value || '').trim() : '';
+                        const colDanoC = filaC.querySelector('.col-dano');
+                        if (colDanoC) {
+                            if (estadoVal === 'MALO') {
+                                const texto = (otroVal || danoVal || '').toString();
+                                colDanoC.style.display = '';
+                                colDanoC.innerHTML = texto ? texto : '';
+                            } else {
+                                colDanoC.style.display = 'none';
+                                colDanoC.innerHTML = '';
+                            }
+                        }
+                        // Eliminar columna evidencia y controles en el clon
+                        const colEvidC = filaC.querySelector('.col-evidencia');
+                        if (colEvidC && colEvidC.parentNode) {
+                            colEvidC.parentNode.removeChild(colEvidC);
+                        }
+
+                        // Insertar miniatura de evidencia si existe (solo si estado es MALO)
+                        if (estadoVal === 'MALO') {
+                            const blobCam = (typeof fotosTomadas !== 'undefined' && fotosTomadas[i] && fotosTomadas[i].blob) ? fotosTomadas[i].blob : null;
+                            const inputArchivo = filaO.querySelector(`input[name="param-${i}-foto"]`);
+                            const fileSel = inputArchivo && inputArchivo.files && inputArchivo.files[0] ? inputArchivo.files[0] : null;
+                            const fuente = blobCam || fileSel;
+                            if (fuente) {
+                                const url = URL.createObjectURL(fuente);
+                                const evidenciaDiv = document.createElement('div');
+                                evidenciaDiv.className = 'col-evidencia-print';
+                                evidenciaDiv.style.cssText = 'grid-column: 1 / -1; margin-top: 6px;';
+                                const img = document.createElement('img');
+                                img.src = url;
+                                img.alt = 'Evidencia';
+                                img.style.cssText = 'max-height:120px; border-radius:8px; border:1px solid #e5e7eb;';
+                                evidenciaDiv.appendChild(img);
+                                filaC.appendChild(evidenciaDiv);
+                                // Nota: no revocamos inmediatamente para no invalidar antes de html2canvas; el GC lo limpiará luego.
+                            }
+                        }
+                    });
+                } catch {}
+
+                wrapper.appendChild(encabezado);
+                wrapper.appendChild(contenidoClonado);
+
+                // Agregar el panel de 'Estado de pruebas' si existe y está visible
+                const panelEstado = document.getElementById('panel-estado-pruebas');
+                if (panelEstado && panelEstado.style.display !== 'none') {
+                    const estadoClonado = panelEstado.cloneNode(true);
+                    estadoClonado.style.marginTop = '12px';
+                    wrapper.appendChild(estadoClonado);
+                }
+                document.body.appendChild(wrapper);
+
+                const canvas = await window.html2canvas(wrapper, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                });
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+                // Limpiar wrapper temporal
+                document.body.removeChild(wrapper);
+
+                const fileName = `${equipo}-${fechaSafe}.jpg`;
+
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } catch (e) {
+                console.warn('No se pudo exportar el ejemplo JPG:', e);
+            }
+        });
+    }
 
     if (btnGuardar) {
         btnGuardar.addEventListener('click', async () => {
@@ -769,6 +1067,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const get = (idx) => (idx >= 0 && idx < fila.length ? fila[idx] : '');
 
             const parametrosCapturados = [];
+            const fotosParaSubir = [];
             const filas = document.querySelectorAll('.parametros-fila');
             filas.forEach((filaHtml, idx) => {
                 const nombre = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
@@ -778,7 +1077,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tipoDano = danoSelect ? danoSelect.value : '';
                 const inputOtro = filaHtml.querySelector(`input[name="param-${idx}-dano-otro"]`);
                 const detalleOtro = inputOtro ? (inputOtro.value || '').trim() : '';
-                parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro });
+                const inputFoto = filaHtml.querySelector(`input[name="param-${idx}-foto"]`);
+                let evidenciaNombre = '';
+                if (estado && estado.toUpperCase() === 'MALO') {
+                    const fotoBlob = (fotosTomadas[idx]?.blob) || (inputFoto && inputFoto.files && inputFoto.files[0]) || null;
+                    if (fotoBlob) {
+                        // Nombre de evidencia: EQUIPO+FECHA (DD-MM-YY)
+                        const ahora = new Date();
+                        const dd = String(ahora.getDate()).padStart(2, '0');
+                        const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                        const yy = String(ahora.getFullYear()).slice(-2);
+                        const fechaSafe = `${dd}-${mm}-${yy}`;
+                        const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
+                        evidenciaNombre = `${equipoId}-${fechaSafe}.jpg`;
+                        fotosParaSubir.push({ idx, nombre, file: fotoBlob, evidenciaNombre });
+                    }
+                }
+                parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro, hasEvidencia: !!evidenciaNombre, evidenciaNombre });
             });
 
             // Validaciones requeridas por parámetro
@@ -797,6 +1112,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (p.tipoDano.toUpperCase() === 'OTRO' && !p.detalleOtro) {
                         alert(`Describe el hallazgo en 'OTRO' para: ${p.nombre}`);
+                        guardandoInspeccion = false;
+                        return;
+                    }
+                    // Foto obligatoria cuando el parámetro es MALO
+                    const inputFoto = document.querySelector(`input[name="param-${i}-foto"]`);
+                    const tieneFoto = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
+                    if (!tieneFoto) {
+                        alert(`Adjunta fotografía de evidencia para: ${p.nombre}`);
                         guardandoInspeccion = false;
                         return;
                     }
@@ -936,6 +1259,50 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) {
                 console.warn('No se pudo guardar la inspección en Firestore, solo local:', e);
             }
+
+            // Carga opcional a Dropbox si hay configuración
+            (async () => {
+                try {
+                    const cfg = (window.dropboxConfig || {});
+                    const token = (cfg.accessToken || '').trim();
+                    const basePath = (cfg.basePath || '/inspecciones');
+                    if (!token) return;
+
+                    const ts = new Date();
+                    const y = ts.getFullYear();
+                    const m = String(ts.getMonth() + 1).padStart(2, '0');
+                    const d = String(ts.getDate()).padStart(2, '0');
+                    const hh = String(ts.getHours()).padStart(2, '0');
+                    const mmn = String(ts.getMinutes()).padStart(2, '0');
+                    const ss = String(ts.getSeconds()).padStart(2, '0');
+                    const stamp = `${y}${m}${d}-${hh}${mmn}${ss}`;
+
+                    const carpeta = `${basePath}/${registro.equipo || 'SIN_EQUIPO'}/${stamp}`;
+
+                    async function subirArchivo(ruta, blob) {
+                        const args = { path: ruta, mode: 'add', autorename: true, mute: false, strict_conflict: false };
+                        const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/octet-stream',
+                                'Dropbox-API-Arg': JSON.stringify(args),
+                            },
+                            body: blob,
+                        });
+                        if (!res.ok) throw new Error('Dropbox upload falló');
+                    }
+
+                    const jsonBlob = new Blob([JSON.stringify(registro, null, 2)], { type: 'application/json' });
+                    await subirArchivo(`${carpeta}/inspeccion.json`, jsonBlob);
+
+                    for (const f of fotosParaSubir) {
+                        await subirArchivo(`${carpeta}/${f.evidenciaNombre || ('foto-' + f.idx + '.jpg')}`, f.file);
+                    }
+                } catch (e) {
+                    console.warn('No se pudieron subir archivos a Dropbox (opcional):', e);
+                }
+            })();
 
             // Mensaje visible de confirmación en el panel de detalle
             const panelDetalle = document.getElementById('detalle-equipo');
