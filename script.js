@@ -257,6 +257,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnGuardar = document.getElementById('act-btn-guardar');
     const btnLimpiar = document.getElementById('act-btn-limpiar');
+    const btnClienteNuevo = document.getElementById('act-cliente-nuevo');
+    const inputCliente = document.getElementById('act-cliente');
 
     let headersAct = [];
     let filasAct = [];
@@ -549,10 +551,78 @@ document.addEventListener('DOMContentLoaded', () => {
         spanClientes.textContent = String(clientes.size || 0);
         spanEquipos.textContent = String(equipos.size || 0);
         spanPromDias.textContent = cuentaDias ? Math.round(sumaDias / cuentaDias) : 0;
+
+        try {
+            const datalist = document.getElementById('lista-clientes-actividad');
+            if (datalist) {
+                datalist.innerHTML = '';
+                const rmAcc = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const normCli = (s) => {
+                    const up = rmAcc(String(s || '').trim()).toUpperCase();
+                    const raw = up.replace(/[^A-Z]/g, '');
+                    if (
+                        raw.startsWith('HALLI') ||
+                        raw.includes('HALIBURT') ||
+                        raw.includes('HALLIBURT') ||
+                        raw.includes('HALIBURTO') ||
+                        raw.includes('HALLIBURTO') ||
+                        raw.includes('HALIBURON') ||
+                        raw.includes('HALLIBURON')
+                    ) {
+                        return 'HALLIBURTON';
+                    }
+                    if (
+                        raw.startsWith('SCHLUM') ||
+                        raw.includes('SCHLUMBERG') ||
+                        raw.includes('SLCHUL') ||
+                        raw.includes('SCHLUMBEGER') ||
+                        raw.includes('SCHLUMER')
+                    ) {
+                        return 'SCHLUMBERGER';
+                    }
+                    return up;
+                };
+                const unicos = new Set(
+                    Array.from(clientes)
+                        .map(c => normCli(c))
+                        .filter(c => !!c)
+                );
+                Array.from(unicos)
+                    .sort((a, b) => a.localeCompare(b))
+                    .forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c;
+                        datalist.appendChild(opt);
+                    });
+            }
+        } catch {}
     }
 
     // Cargar resumen inicial desde Firestore
     cargarActividadDesdeFirestore();
+
+    // Alta rápida de cliente desde botón "Nuevo"
+    if (btnClienteNuevo && inputCliente) {
+        btnClienteNuevo.addEventListener('click', () => {
+            const nombre = prompt('Nombre del nuevo cliente:');
+            if (!nombre) return;
+            const val = String(nombre).trim();
+            if (!val) return;
+            inputCliente.value = val;
+            // Agregar al datalist actual si no existe
+            try {
+                const datalist = document.getElementById('lista-clientes-actividad');
+                if (datalist) {
+                    const existe = Array.from(datalist.options).some(o => (o.value || '') === val);
+                    if (!existe) {
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        datalist.appendChild(opt);
+                    }
+                }
+            } catch {}
+        });
+    }
 
     // Máscara de fecha en actividad.html (campos dd/mm/aa, 6 dígitos)
     const inputFechaEmbarque = document.getElementById('act-fecha-embarque');
@@ -794,6 +864,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (base) {
             if (typeof base.cliente === 'string') {
                 base.cliente = upNoAcc(base.cliente);
+                const raw = base.cliente.replace(/[^A-Z]/g, '');
+                if (
+                    raw.startsWith('HALLI') ||
+                    raw.includes('HALIBURT') ||
+                    raw.includes('HALLIBURT') ||
+                    raw.includes('HALIBURTO') ||
+                    raw.includes('HALLIBURTO') ||
+                    raw.includes('HALIBURON') ||
+                    raw.includes('HALLIBURON')
+                ) {
+                    base.cliente = 'HALLIBURTON';
+                } else if (
+                    raw.startsWith('SCHLUM') ||
+                    raw.includes('SCHLUMBERG') ||
+                    raw.includes('SLCHUL') ||
+                    raw.includes('SCHLUMBEGER') ||
+                    raw.includes('SCHLUMER')
+                ) {
+                    base.cliente = 'SCHLUMBERGER';
+                }
                 const inpCli = document.getElementById('act-cliente');
                 if (inpCli) inpCli.value = base.cliente;
             }
@@ -1744,7 +1834,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 // Atributos para abrir modal
         tr.setAttribute('data-id', id);
-        tr.setAttribute('data-cliente', cliente);
+        // Normalizar cliente para atributos de la fila (listado)
+        const __normCliList = (s) => {
+            const rmAcc = (x) => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const up = rmAcc(String(s || '').trim()).toUpperCase();
+            const raw = up.replace(/[^A-Z]/g, '');
+            if (
+                raw.startsWith('HALLI') || raw.includes('HALIBURT') || raw.includes('HALLIBURT') ||
+                raw.includes('HALIBURTO') || raw.includes('HALLIBURTO') || raw.includes('HALIBURON') || raw.includes('HALLIBURON')
+            ) return 'HALLIBURTON';
+            if (
+                raw.startsWith('SCHLUM') || raw.includes('SCHLUMBERG') || raw.includes('SLCHUL') ||
+                raw.includes('SCHLUMBEGER') || raw.includes('SCHLUMER')
+            ) return 'SCHLUMBERGER';
+            return up;
+        };
+        tr.setAttribute('data-cliente', __normCliList(cliente));
         tr.setAttribute('data-area', area);
         tr.setAttribute('data-ubicacion', ubicacion);
         tr.setAttribute('data-equipo', equipoMostrar);
@@ -2082,7 +2187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return el ? el.value.trim() : '';
                 };
 
-                const nuevoCliente = getVal('.actlist-input-cliente');
+                let nuevoCliente = getVal('.actlist-input-cliente');
                 let nuevaArea = getVal('.actlist-input-area');
                 const nuevoInicio = getVal('.actlist-input-inicio');
                 const nuevaTerm = getVal('.actlist-input-term');
@@ -2102,9 +2207,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Normalizaciones (sin forzar MP5→GP5)
-                nuevoCliente = (nuevoCliente || '').toUpperCase();
-                nuevaArea = (nuevaArea || '').toUpperCase();
+                // Normalizaciones de cliente (incluye variantes Halliburton/Schlumberger) y área (MAYÚSCULAS)
+                const rmAcc = (x) => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const up = (x) => rmAcc(String(x || '').trim()).toUpperCase();
+                const raw = up(nuevoCliente).replace(/[^A-Z]/g, '');
+                if (
+                    raw.startsWith('HALLI') || raw.includes('HALIBURT') || raw.includes('HALLIBURT') ||
+                    raw.includes('HALIBURTO') || raw.includes('HALLIBURTO') || raw.includes('HALIBURON') || raw.includes('HALLIBURON')
+                ) {
+                    nuevoCliente = 'HALLIBURTON';
+                } else if (
+                    raw.startsWith('SCHLUM') || raw.includes('SCHLUMBERG') || raw.includes('SLCHUL') ||
+                    raw.includes('SCHLUMBEGER') || raw.includes('SCHLUMER')
+                ) {
+                    nuevoCliente = 'SCHLUMBERGER';
+                } else {
+                    nuevoCliente = up(nuevoCliente);
+                }
+                nuevaArea = up(nuevaArea);
 
                 const regLocal = listaOrdenada.find(r => r.id === id);
                 if (regLocal) {

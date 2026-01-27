@@ -99,7 +99,11 @@
 
                     <div class="campo">
                         <label for="act-cliente">Cliente</label>
-                        <input type="text" id="act-cliente" placeholder="Cliente">
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <input type="text" id="act-cliente" list="lista-clientes-actividad" placeholder="Cliente" style="flex:1 1 auto;">
+                            <button type="button" id="act-cliente-nuevo" style="flex:0 0 auto; font-size:0.8rem;">Nuevo</button>
+                        </div>
+                        <datalist id="lista-clientes-actividad"></datalist>
                     </div>
 
                     <div class="campo">

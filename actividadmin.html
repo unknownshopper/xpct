@@ -1119,6 +1119,21 @@
             }
 
             const listaBase = Array.isArray(listaActividad) ? listaActividad : [];
+            // Normalizador de cliente (dedupe variantes de Halliburton/Schlumberger)
+            const __normCliAdm = (s) => {
+                const rmAcc = (x) => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const up = rmAcc(String(s || '').trim()).toUpperCase();
+                const raw = up.replace(/[^A-Z]/g, '');
+                if (
+                    raw.startsWith('HALLI') || raw.includes('HALIBURT') || raw.includes('HALLIBURT') ||
+                    raw.includes('HALIBURTO') || raw.includes('HALLIBURTO') || raw.includes('HALIBURON') || raw.includes('HALLIBURON')
+                ) return 'HALLIBURTON';
+                if (
+                    raw.startsWith('SCHLUM') || raw.includes('SCHLUMBERG') || raw.includes('SLCHUL') ||
+                    raw.includes('SCHLUMBEGER') || raw.includes('SCHLUMER')
+                ) return 'SCHLUMBERGER';
+                return up;
+            };
             let filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
             tbody.innerHTML = '';
@@ -1257,8 +1272,8 @@
                     }
                 }
 
-                const ca = (a.cliente || '').toString().toUpperCase();
-                const cb = (b.cliente || '').toString().toUpperCase();
+                const ca = __normCliAdm(a.cliente || '');
+                const cb = __normCliAdm(b.cliente || '');
                 if (ca < cb) return -1;
                 if (ca > cb) return 1;
                 const aa = (a.areaCliente || '').toString().toUpperCase();
@@ -1279,6 +1294,7 @@
             listaOrdenada.forEach((reg) => {
                 const id = reg.id;
                 const cliente = reg.cliente || '';
+                const clienteNorm = __normCliAdm(cliente);
                 const area = reg.areaCliente || '';
                 const ubicacion = reg.ubicacion || '';
                 // Inicio y terminación se guardan como texto dd/mm/aa
@@ -1332,8 +1348,8 @@
                     }
 
                     visibles += 1;
-                    // Acumular por cliente/área el total de equipos visibles
-                    const key = `${cliente}|||${area}`;
+                    // Acumular por cliente/área el total de equipos visibles (cliente normalizado)
+                    const key = `${clienteNorm}|||${area}`;
                     equiposPorClienteArea.set(key, (equiposPorClienteArea.get(key) || 0) + 1);
 
                     const ingresoEquipo = precioPorEquipo * (dias || 0);
@@ -1359,8 +1375,8 @@
                     }
 
                     // Insertar encabezados de agrupación por cliente, área y ubicación cuando cambien
-                    if (cliente && cliente !== clienteActual) {
-                        clienteActual = cliente;
+                    if (clienteNorm && clienteNorm !== clienteActual) {
+                        clienteActual = clienteNorm;
                         areaActual = '';
                         const trGrupoCliente = document.createElement('tr');
                         const etiquetaGrupo = esTerceroReg ? `TERCERO: ${terceroProp || clienteActual}` : `CLIENTE: ${clienteActual}`;
@@ -1378,8 +1394,8 @@
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.innerHTML = `
                             <td colspan="15" style="padding:0.4rem 0.75rem; background:#e5e7eb; font-weight:600; font-size:0.85rem; color:#111827; border-bottom:1px solid #cbd5e1; display:flex; align-items:center; gap:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">
-                                <input type="checkbox" class="adm-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
-                                <span class="adm-area-title" data-cliente="${cliente}" data-area="${areaActual}" title="Click para renombrar área">Área: ${areaActual}</span>
+                                <input type="checkbox" class="adm-select-area" data-cliente="${clienteNorm}" data-area="${areaActual}" title="Seleccionar área completa">
+                                <span class="adm-area-title" data-cliente="${clienteNorm}" data-area="${areaActual}" title="Click para renombrar área">Área: ${areaActual}</span>
                             </td>
                         `;
                         tbody.appendChild(trGrupoArea);
@@ -1390,7 +1406,7 @@
                         const trGrupoUbic = document.createElement('tr');
                         trGrupoUbic.innerHTML = `
                             <td colspan="15" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; display:flex; align-items:center; gap:0.5rem;">
-                                <input type="checkbox" class="adm-select-ubic" data-cliente="${cliente}" data-area="${areaActual}" data-ubicacion="${ubicacionActual}" title="Seleccionar ubicación completa">
+                                <input type="checkbox" class="adm-select-ubic" data-cliente="${clienteNorm}" data-area="${areaActual}" data-ubicacion="${ubicacionActual}" title="Seleccionar ubicación completa">
                                 <span>Ubicación: ${ubicacionActual}</span>
                             </td>
                         `;
@@ -1477,7 +1493,7 @@
 
                     // Guardar datos necesarios para el tabulador en el <tr>, para abrirlo al hacer clic en la fila
                     tr.setAttribute('data-id', id);
-                    tr.setAttribute('data-cliente', cliente);
+                    tr.setAttribute('data-cliente', clienteNorm);
                     tr.setAttribute('data-area', area);
                     tr.setAttribute('data-ubicacion', ubicacion);
                     tr.setAttribute('data-equipo', equipoNombre);

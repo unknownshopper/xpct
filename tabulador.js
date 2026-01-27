@@ -73,6 +73,29 @@
       });
     }
 
+    function esHalliburton() {
+      const c = (actividadActual && actividadActual.cliente) ? String(actividadActual.cliente).toUpperCase() : '';
+      return c === 'HALLIBURTON';
+    }
+
+    function sugerirFinCorte25(desdeStr) {
+      if (!esHalliburton()) return;
+      if (!inputFin) return;
+      const dIni = desdeStr ? parseFechaDdMmAa(desdeStr) : null;
+      if (!dIni) return;
+      const y = dIni.getUTCFullYear();
+      const m = dIni.getUTCMonth();
+      const dia = dIni.getUTCDate();
+      let fin;
+      if (dia <= 25) {
+        fin = new Date(Date.UTC(y, m, 25));
+      } else {
+        fin = new Date(Date.UTC(y, m + 1, 25));
+      }
+      inputFin.value = formatearFechaDdMmAa(fin);
+      recalcularPeriodo();
+    }
+
     if (inputInicio && inputFin && inputTarifa) {
       // Formateo automático de fechas mientras se escribe
       formatearInputFechaDdMmAa(inputInicio);
@@ -82,6 +105,14 @@
         inputInicio.addEventListener(ev, recalcularPeriodo);
         inputFin.addEventListener(ev, recalcularPeriodo);
         inputTarifa.addEventListener(ev, recalcularPeriodo);
+      });
+
+      // Sugerir fecha de fin al corte 25 para HALLIBURTON cuando cambie inicio
+      inputInicio.addEventListener('change', () => {
+        if (!inputInicio) return;
+        if (esHalliburton() && (!inputFin.value || inputFin.value.length < 6)) {
+          sugerirFinCorte25(inputInicio.value.trim());
+        }
       });
     }
 
@@ -276,6 +307,11 @@
 
       recalcularPeriodo();
 
+      // Si es HALLIBURTON y no hay fin definido, sugerir corte al 25
+      if (esHalliburton() && inputInicio && inputFin && !inputFin.value) {
+        sugerirFinCorte25(inputInicio.value.trim());
+      }
+
       modal.style.display = 'flex';
 
       inicializarPeriodosSiNecesario(datos);
@@ -403,6 +439,11 @@
             if (inputFactura) inputFactura.value = '';
             if (inputOc) inputOc.value = '';
             if (inputObs) inputObs.value = '';
+
+            // Si es HALLIBURTON, sugerir el próximo fin al 25 correspondiente
+            if (esHalliburton()) {
+              sugerirFinCorte25(inputInicio.value.trim());
+            }
           }
         } catch (e) {
           console.error('Error al guardar período de actividad', e);
