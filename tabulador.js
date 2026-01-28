@@ -153,12 +153,23 @@
     function renderTablaPeriodos(periodos) {
       modalTbody.innerHTML = '';
       if (!periodos.length) return;
+      let totalDias = 0;
       periodos.forEach((p) => {
+        const di = p.inicioPeriodo ? parseFechaDdMmAa(p.inicioPeriodo) : null;
+        const df = p.finPeriodo ? parseFechaDdMmAa(p.finPeriodo) : null;
+        let diasCalc = 0;
+        if (di && df) {
+          const diffMs = df.getTime() - di.getTime();
+          const diffDias = Math.floor(diffMs / 86400000);
+          if (diffDias >= 0) diasCalc = diffDias + 1;
+        }
+        const diasMostrar = Number(p.diasFacturados || 0) || diasCalc || 0;
+        totalDias += diasMostrar;
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.inicioPeriodo || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.finPeriodo || ''}</td>
-          <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${p.diasFacturados || ''}</td>
+          <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${diasMostrar || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${p.tarifaDiaria || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${p.importe || ''}</td>
           <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.tipoPeriodo || ''}</td>
@@ -171,6 +182,15 @@
         `;
         modalTbody.appendChild(tr);
       });
+
+      // Fila de totales
+      const trTot = document.createElement('tr');
+      trTot.innerHTML = `
+        <td style="padding:0.35rem; border-top:2px solid #e5e7eb; font-weight:700;" colspan="2">TOTAL</td>
+        <td style="padding:0.35rem; border-top:2px solid #e5e7eb; text-align:right; font-weight:700;">${totalDias || ''}</td>
+        <td style="padding:0.35rem; border-top:2px solid #e5e7eb;" colspan="7"></td>
+      `;
+      modalTbody.appendChild(trTot);
 
       modalTbody.querySelectorAll('.adm-per-eliminar').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -273,7 +293,7 @@
     }
 
     async function abrirModal(datos) {
-      // Refrescar la actividad desde Firestore para reflejar cambios recientes (p.ej. terminación por lote)
+      // Refrescar la actividad desde Firestore para reflejar cambios recientes
       try {
         const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
         const db = getFirestore();
@@ -291,13 +311,16 @@
       } catch {}
 
       actividadActual = datos;
+
+      const periodos = await cargarPeriodosActividad(datos.id);
+      const ultimo = periodos && periodos.length ? periodos[periodos.length - 1] : null;
+      const finMostrar = (ultimo && ultimo.finPeriodo) ? ultimo.finPeriodo : (datos.terminacionServicio || '');
+
       const lineaCliente = `${datos.cliente || ''} / ${datos.area || ''} / ${datos.ubicacion || ''} / ${datos.equipo || ''}`;
-      const lineaServicio = `OS: ${datos.os || ''}  |  Servicio: ${datos.inicioServicio || ''} ${datos.terminacionServicio ? '→ ' + datos.terminacionServicio : ''}`;
+      const lineaServicio = `OS: ${datos.os || ''}  |  Servicio: ${datos.inicioServicio || ''} ${finMostrar ? '→ ' + finMostrar : ''}`;
       modalHeader.textContent = `${lineaCliente}  —  ${lineaServicio}`;
 
-      // Prefill del nuevo período con las fechas del servicio por defecto
-      if (inputInicio) inputInicio.value = datos.inicioServicio || '';
-      if (inputFin) inputFin.value = datos.terminacionServicio || '';
+      // Prefill: si hay períodos, NO usar terminacionServicio; sugerir continuidad
       if (inputTarifa) inputTarifa.value = datos.precioDiario || '';
       if (inputDias) inputDias.value = '';
       if (inputImporte) inputImporte.value = '';
@@ -305,16 +328,31 @@
       if (inputOc) inputOc.value = '';
       if (inputObs) inputObs.value = '';
 
-      recalcularPeriodo();
-
-      // Si es HALLIBURTON y no hay fin definido, sugerir corte al 25
-      if (esHalliburton() && inputInicio && inputFin && !inputFin.value) {
-        sugerirFinCorte25(inputInicio.value.trim());
+      if (periodos && periodos.length) {
+        renderTablaPeriodos(periodos);
+        if (inputInicio) {
+          if (ultimo && ultimo.finPeriodo && (ultimo.tipoPeriodo || '') !== 'FINAL') {
+            const dFin = parseFechaDdMmAa(ultimo.finPeriodo);
+            if (dFin) {
+              dFin.setUTCDate(dFin.getUTCDate() + 1);
+              inputInicio.value = formatearFechaDdMmAa(dFin);
+            } else {
+              inputInicio.value = datos.inicioServicio || '';
+            }
+          } else {
+            inputInicio.value = datos.inicioServicio || '';
+          }
+        }
+        if (inputFin) inputFin.value = '';
+      } else {
+        if (inputInicio) inputInicio.value = datos.inicioServicio || '';
+        if (inputFin) inputFin.value = datos.terminacionServicio || '';
+        await inicializarPeriodosSiNecesario(datos);
       }
 
-      modal.style.display = 'flex';
+      recalcularPeriodo();
 
-      inicializarPeriodosSiNecesario(datos);
+      modal.style.display = 'flex';
     }
 
     function formatearFechaDdMmAa(date) {
