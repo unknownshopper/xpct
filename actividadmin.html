@@ -1019,7 +1019,8 @@
                     const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                     const db = getFirestore();
                     const snap = await getDocs(collection(db, 'actividadPeriodos'));
-                    const mapa = new Map();
+                    // 1) Agrupar períodos por actividad para evaluar conflicto por orden cronológico (Firestore no garantiza orden)
+                    const porAct = new Map();
                     snap.forEach(docu => {
                         const p = docu.data() || {};
                         const actId = (p.actividadId || '').toString();
@@ -1027,37 +1028,68 @@
                         const inicio = (p.inicioPeriodo || '').toString();
                         const fin = (p.finPeriodo || '').toString();
                         const tipo = (p.tipoPeriodo || '').toString().toUpperCase();
-                        // Recalcular días desde inicio/fin (UTC inclusivo) para evitar arrastre de días erróneos
-                        let diasCalc = 0;
-                        const dIni = inicio ? parseFechaDdMmAa(inicio) : null;
-                        const dFin = fin ? parseFechaDdMmAa(fin) : null;
-                        if (dIni && dFin) {
-                            const diffMs = dFin.getTime() - dIni.getTime();
-                            const diffDias = Math.floor(diffMs / 86400000);
-                            if (diffDias >= 0) diasCalc = diffDias + 1;
-                        }
-                        const dias = diasCalc || (Number(p.diasFacturados || 0) || 0);
-                        const dFin2 = dFin;
-                        const prev = mapa.get(actId) || { diasTotal: 0, ultimoFin: '', ultimoTipo: '', ultimoFinTs: -1, ultimoInicio: '', conflictoFinalIntermedio: false, vioFinal: false };
-                        prev.diasTotal += dias;
-                        const ts = dFin2 ? dFin2.getTime() : -1;
-                        // Si aparece un FINAL antes del último período, marcar conflicto
-                        if (tipo === 'FINAL') {
-                            // Si ya existe un período más nuevo, este FINAL es intermedio
-                            if (prev.ultimoFinTs > ts) prev.conflictoFinalIntermedio = true;
-                            prev.vioFinal = true;
-                        } else {
-                            // Si ya vimos un FINAL y luego llega un NO-FINAL, hay períodos después del FINAL
-                            if (prev.vioFinal) prev.conflictoFinalIntermedio = true;
-                        }
-                        if (ts > prev.ultimoFinTs) {
-                            prev.ultimoFinTs = ts;
-                            prev.ultimoFin = fin;
-                            prev.ultimoTipo = tipo;
-                            prev.ultimoInicio = inicio;
-                        }
-                        mapa.set(actId, prev);
+                        porAct.set(actId, (porAct.get(actId) || []).concat([{ inicio, fin, tipo, diasFacturados: Number(p.diasFacturados || 0) || 0 }]));
                     });
+
+                    // 2) Construir resumen por actividad
+                    const mapa = new Map();
+                    for (const [actId, lista] of porAct.entries()) {
+                        // Ordenar por fin (y luego inicio) en UTC
+                        lista.sort((a, b) => {
+                            const afi = a.fin ? parseFechaDdMmAa(a.fin) : null;
+                            const bfi = b.fin ? parseFechaDdMmAa(b.fin) : null;
+                            const ats = afi ? afi.getTime() : -1;
+                            const bts = bfi ? bfi.getTime() : -1;
+                            if (ats !== bts) return ats - bts;
+                            const aii = a.inicio ? parseFechaDdMmAa(a.inicio) : null;
+                            const bii = b.inicio ? parseFechaDdMmAa(b.inicio) : null;
+                            const ais = aii ? aii.getTime() : -1;
+                            const bis = bii ? bii.getTime() : -1;
+                            return ais - bis;
+                        });
+
+                        let diasTotal = 0;
+                        let ultimoFin = '';
+                        let ultimoTipo = '';
+                        let ultimoFinTs = -1;
+                        let ultimoInicio = '';
+                        let vioFinal = false;
+                        let conflictoFinalIntermedio = false;
+
+                        for (let i = 0; i < lista.length; i++) {
+                            const p = lista[i];
+                            // Recalcular días desde inicio/fin (UTC inclusivo)
+                            let diasCalc = 0;
+                            const dIni = p.inicio ? parseFechaDdMmAa(p.inicio) : null;
+                            const dFin = p.fin ? parseFechaDdMmAa(p.fin) : null;
+                            if (dIni && dFin) {
+                                const diffMs = dFin.getTime() - dIni.getTime();
+                                const diffDias = Math.floor(diffMs / 86400000);
+                                if (diffDias >= 0) diasCalc = diffDias + 1;
+                            }
+                            const dias = diasCalc || p.diasFacturados || 0;
+                            diasTotal += dias;
+
+                            const ts = dFin ? dFin.getTime() : -1;
+                            if (ts > ultimoFinTs) {
+                                ultimoFinTs = ts;
+                                ultimoFin = p.fin;
+                                ultimoTipo = p.tipo;
+                                ultimoInicio = p.inicio;
+                            }
+
+                            // Conflicto real: existe un FINAL y luego aparece cualquier otro período después.
+                            if (p.tipo === 'FINAL') {
+                                // si no es el último elemento, entonces hay algo después
+                                if (i < lista.length - 1) conflictoFinalIntermedio = true;
+                                vioFinal = true;
+                            } else {
+                                if (vioFinal) conflictoFinalIntermedio = true;
+                            }
+                        }
+
+                        mapa.set(actId, { diasTotal, ultimoFin, ultimoTipo, ultimoFinTs, ultimoInicio, conflictoFinalIntermedio });
+                    }
                     window.__admPeriodosPorActividad = mapa;
                     return mapa;
                 } catch (e) {
