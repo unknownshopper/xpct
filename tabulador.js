@@ -16,6 +16,8 @@
     const inputFactura = document.getElementById('adm-per-factura');
     const inputOc = document.getElementById('adm-per-oc');
     const inputObs = document.getElementById('adm-per-obs');
+    const btnGenerar = document.getElementById('adm-per-generar');
+    const btnLimpiar = document.getElementById('adm-per-limpiar');
     const btnGuardar = document.getElementById('adm-per-guardar');
     const btnCerrar = document.getElementById('adm-tabulador-cerrar');
     const btnImprimir = document.getElementById('adm-tabulador-imprimir');
@@ -73,6 +75,18 @@
       });
     }
 
+    if (btnLimpiar) {
+      btnLimpiar.addEventListener('click', async () => {
+        await limpiarTabuladorActual();
+      });
+    }
+
+    if (btnGenerar) {
+      btnGenerar.addEventListener('click', async () => {
+        await generarPeriodosEntreFechas();
+      });
+    }
+
     function esHalliburton() {
       const c = (actividadActual && actividadActual.cliente) ? String(actividadActual.cliente).toUpperCase() : '';
       return c === 'HALLIBURTON';
@@ -81,6 +95,7 @@
     function sugerirFinCorte25(desdeStr) {
       if (!esHalliburton()) return;
       if (!inputFin) return;
+      if ((inputFin.value || '').trim().length >= 6) return;
       const dIni = desdeStr ? parseFechaDdMmAa(desdeStr) : null;
       if (!dIni) return;
       const y = dIni.getUTCFullYear();
@@ -109,6 +124,14 @@
 
       // Sugerir fecha de fin al corte 25 para HALLIBURTON cuando cambie inicio
       inputInicio.addEventListener('change', () => {
+        if (!inputInicio) return;
+        if (esHalliburton() && (!inputFin.value || inputFin.value.length < 6)) {
+          sugerirFinCorte25(inputInicio.value.trim());
+        }
+      });
+
+      // Con Tab/blur el evento change no siempre dispara; reforzar sugerencia al salir del campo.
+      inputInicio.addEventListener('blur', () => {
         if (!inputInicio) return;
         if (esHalliburton() && (!inputFin.value || inputFin.value.length < 6)) {
           sugerirFinCorte25(inputInicio.value.trim());
@@ -147,6 +170,176 @@
       } catch (e) {
         console.error('Error al cargar períodos de actividad', e);
         return [];
+      }
+    }
+
+    function finMesUtc(d) {
+      // d es Date UTC
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+    }
+
+    function fechaMax(a, b) {
+      return (a.getTime() >= b.getTime()) ? a : b;
+    }
+
+    function fechaMin(a, b) {
+      return (a.getTime() <= b.getTime()) ? a : b;
+    }
+
+    function diffDiasInclusivoUtc(dIni, dFin) {
+      const ms = dFin.getTime() - dIni.getTime();
+      const dd = Math.floor(ms / 86400000);
+      return dd >= 0 ? (dd + 1) : 0;
+    }
+
+    function construirCortesHalliburton(dIni, dFin) {
+      // Cortes al 25: primer fin = 25 del mes (si día<=25) o 25 del mes siguiente
+      const segmentos = [];
+      let curIni = new Date(Date.UTC(dIni.getUTCFullYear(), dIni.getUTCMonth(), dIni.getUTCDate()));
+      const finGlobal = new Date(Date.UTC(dFin.getUTCFullYear(), dFin.getUTCMonth(), dFin.getUTCDate()));
+      while (curIni.getTime() <= finGlobal.getTime()) {
+        const y = curIni.getUTCFullYear();
+        const m = curIni.getUTCMonth();
+        const dia = curIni.getUTCDate();
+        let curFin;
+        if (dia <= 25) curFin = new Date(Date.UTC(y, m, 25));
+        else curFin = new Date(Date.UTC(y, m + 1, 25));
+        curFin = fechaMin(curFin, finGlobal);
+        segmentos.push({ inicio: curIni, fin: curFin });
+        // siguiente inicio = día siguiente
+        const next = new Date(curFin.getTime());
+        next.setUTCDate(next.getUTCDate() + 1);
+        curIni = next;
+      }
+      return segmentos;
+    }
+
+    function construirCortesFinMes(dIni, dFin) {
+      const segmentos = [];
+      let curIni = new Date(Date.UTC(dIni.getUTCFullYear(), dIni.getUTCMonth(), dIni.getUTCDate()));
+      const finGlobal = new Date(Date.UTC(dFin.getUTCFullYear(), dFin.getUTCMonth(), dFin.getUTCDate()));
+      while (curIni.getTime() <= finGlobal.getTime()) {
+        let curFin = finMesUtc(curIni);
+        curFin = fechaMin(curFin, finGlobal);
+        segmentos.push({ inicio: curIni, fin: curFin });
+        const next = new Date(curFin.getTime());
+        next.setUTCDate(next.getUTCDate() + 1);
+        curIni = next;
+      }
+      return segmentos;
+    }
+
+    async function limpiarTabuladorActual() {
+      if (!actividadActual || !actividadActual.id) return;
+      const existentes = await cargarPeriodosActividad(actividadActual.id);
+      if (!existentes.length) {
+        renderTablaPeriodos([]);
+        return;
+      }
+      const ok = confirm(`¿Eliminar TODOS los períodos del tabulador?\nActividad: ${actividadActual.os || actividadActual.id}\nPeríodos: ${existentes.length}`);
+      if (!ok) return;
+      try {
+        const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        const batch = writeBatch(db);
+        existentes.forEach(p => {
+          if (!p.id) return;
+          batch.delete(doc(db, 'actividadPeriodos', p.id));
+        });
+        await batch.commit();
+        renderTablaPeriodos([]);
+      } catch (e) {
+        console.error('Error al limpiar tabulador', e);
+        alert('No se pudo limpiar el tabulador. Revisa la consola.');
+      }
+    }
+
+    async function generarPeriodosEntreFechas() {
+      if (!actividadActual || !actividadActual.id) {
+        alert('No hay actividad seleccionada.');
+        return;
+      }
+      const iniStr = (inputInicio ? inputInicio.value.trim() : '');
+      const finStr = (inputFin ? inputFin.value.trim() : '');
+      const tipoSel = (inputTipo ? inputTipo.value : 'PARCIAL') || 'PARCIAL';
+      const tarifa = Number(inputTarifa ? inputTarifa.value || 0 : 0);
+      const dIni = iniStr ? parseFechaDdMmAa(iniStr) : null;
+      const dFin = finStr ? parseFechaDdMmAa(finStr) : null;
+      if (!dIni || !dFin) {
+        alert('Inicio y fin son obligatorios para generar períodos.');
+        return;
+      }
+      if (dFin < dIni) {
+        alert('La fecha fin no puede ser anterior a la fecha inicio.');
+        return;
+      }
+
+      const existentes = await cargarPeriodosActividad(actividadActual.id);
+      if (existentes.length) {
+        const ok = confirm(`Ya existen ${existentes.length} períodos en este tabulador.\nPara generar de nuevo, primero usa "Limpiar tabulador".\n¿Continuar de todos modos (NO recomendando)?`);
+        if (!ok) return;
+      }
+
+      const segs = esHalliburton()
+        ? construirCortesHalliburton(dIni, dFin)
+        : construirCortesFinMes(dIni, dFin);
+
+      if (!segs.length) {
+        alert('No se pudieron generar períodos con esas fechas.');
+        return;
+      }
+
+      const ok2 = confirm(`Se generarán ${segs.length} períodos entre ${iniStr} y ${finStr}.\nCliente: ${actividadActual.cliente || ''}\n¿Continuar?`);
+      if (!ok2) return;
+
+      try {
+        const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        const col = collection(db, 'actividadPeriodos');
+
+        // Crear uno por uno para mantener compatibilidad (writeBatch tiene límite 500)
+        for (let i = 0; i < segs.length; i++) {
+          const s = segs[i];
+          const inicioTxt = formatearFechaDdMmAa(s.inicio);
+          const finTxt = formatearFechaDdMmAa(s.fin);
+          const dias = diffDiasInclusivoUtc(s.inicio, s.fin);
+          const importe = dias && tarifa ? dias * tarifa : 0;
+          const tipoPeriodo = (tipoSel === 'FINAL' && i === segs.length - 1) ? 'FINAL' : 'PARCIAL';
+          await addDoc(col, {
+            actividadId: actividadActual.id,
+            inicioPeriodo: inicioTxt,
+            finPeriodo: finTxt,
+            inicioPeriodoOrdenable: s.inicio.getTime(),
+            diasFacturados: dias,
+            tarifaDiaria: tarifa,
+            importe,
+            tipoPeriodo,
+            factura: '',
+            oc: '',
+            observaciones: '',
+            creadoEn: serverTimestamp(),
+          });
+        }
+
+        const periodosNuevos = await cargarPeriodosActividad(actividadActual.id);
+        renderTablaPeriodos(periodosNuevos);
+
+        // Preparar captura siguiente
+        if (inputInicio && inputFin) {
+          const ult = periodosNuevos && periodosNuevos.length ? periodosNuevos[periodosNuevos.length - 1] : null;
+          if (ult && ult.finPeriodo && (ult.tipoPeriodo || '') !== 'FINAL') {
+            const dUlt = parseFechaDdMmAa(ult.finPeriodo);
+            if (dUlt) {
+              dUlt.setUTCDate(dUlt.getUTCDate() + 1);
+              inputInicio.value = formatearFechaDdMmAa(dUlt);
+            }
+            inputFin.value = '';
+          }
+        }
+        recalcularPeriodo();
+      } catch (e) {
+        console.error('Error al generar períodos', e);
+        alert('No se pudieron generar períodos. Revisa la consola.');
       }
     }
 
