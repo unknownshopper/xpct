@@ -871,6 +871,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
+                async function ensureJsPDF() {
+                    if (window.jspdf && window.jspdf.jsPDF) return;
+                    await new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+                        s.onload = resolve;
+                        s.onerror = reject;
+                        document.head.appendChild(s);
+                    });
+                }
+
                 await ensureHtml2Canvas();
 
                 // Construir un wrapper temporal con encabezado (usuario, fecha/hora, ubicación) + contenido de inspección
@@ -1025,14 +1036,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Limpiar wrapper temporal
                 document.body.removeChild(wrapper);
 
-                const fileName = `${equipo}-${fechaSafe}.jpg`;
+                await ensureJsPDF();
 
-                const a = document.createElement('a');
-                a.href = dataUrl;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                const fileName = `${equipo}-${fechaSafe}.pdf`;
+
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+                const pageWidthMm = pdf.internal.pageSize.getWidth();
+                const pageHeightMm = pdf.internal.pageSize.getHeight();
+
+                const marginMm = 10;
+                const usableWidthMm = pageWidthMm - marginMm * 2;
+                const usableHeightMm = pageHeightMm - marginMm * 2;
+
+                const pxPerMm = canvas.width / usableWidthMm;
+                const pageHeightPx = Math.floor(usableHeightMm * pxPerMm);
+
+                let yPx = 0;
+                while (yPx < canvas.height) {
+                    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - yPx);
+                    const pageCanvas = document.createElement('canvas');
+                    pageCanvas.width = canvas.width;
+                    pageCanvas.height = sliceHeightPx;
+                    const pageCtx = pageCanvas.getContext('2d');
+                    pageCtx.fillStyle = '#ffffff';
+                    pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                    pageCtx.drawImage(canvas, 0, yPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+                    const pageDataUrl = pageCanvas.toDataURL('image/jpeg', 0.92);
+                    const imgHeightMm = (sliceHeightPx / pxPerMm);
+
+                    if (yPx > 0) pdf.addPage();
+                    pdf.addImage(pageDataUrl, 'JPEG', marginMm, marginMm, usableWidthMm, imgHeightMm);
+
+                    yPx += sliceHeightPx;
+                }
+
+                pdf.save(fileName);
             } catch (e) {
                 console.warn('No se pudo exportar el ejemplo JPG:', e);
             }
