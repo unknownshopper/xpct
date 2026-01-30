@@ -206,6 +206,9 @@
                 }
             });
 
+            // 2) Leer actividades desde Firestore (si el rol lo permite)
+            let actividadesPermitidas = true;
+
             // 5.1) Admin asigna Tipo de inspección cuando falta
             tbody.querySelectorAll('.insp-select-tipo').forEach(sel => {
                 sel.addEventListener('change', async () => {
@@ -227,20 +230,46 @@
             });
 
             // 2) Leer actividades desde Firestore
+            // Nota: supervisor no tiene permisos de lectura sobre 'actividades' por Firestore Rules.
             let actividades = [];
-            try {
-                const { getFirestore, collection, getDocs } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
+            if (window.isSupervisor) {
+                actividadesPermitidas = false;
+            } else {
+                try {
+                    const { getFirestore, collection, getDocs } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
 
-                const db = getFirestore();
-                const colRef = collection(db, 'actividades');
-                const snap = await getDocs(colRef);
+                    const db = getFirestore();
+                    const colRef = collection(db, 'actividades');
+                    const snap = await getDocs(colRef);
 
-                actividades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } catch (e) {
-                console.error('Error al leer actividades para inspectlist', e);
-                actividades = [];
+                    actividades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                } catch (e) {
+                    const msgErr = String(e?.message || '').toLowerCase();
+                    const code = (e && e.code) ? String(e.code) : '';
+                    const isPerm = code === 'permission-denied' || msgErr.includes('missing or insufficient permissions') || msgErr.includes('permission-denied');
+                    if (isPerm) {
+                        actividadesPermitidas = false;
+                    } else {
+                        console.error('Error al leer actividades para inspectlist', e);
+                    }
+                    actividades = [];
+                }
+            }
+
+            // Si no se permite leer actividades (ej. supervisor), construir el listado solo con inspecciones.
+            // En este modo no es posible mostrar "pendientes" porque depende de la lista de actividades.
+            if (!actividadesPermitidas && inspecciones.length) {
+                actividades = inspecciones.map(insp => ({
+                    id: insp.actividadId || insp.id,
+                    cliente: insp.cliente || '',
+                    areaCliente: insp.areaCliente || '',
+                    ubicacion: insp.ubicacion || '',
+                    equipo: insp.equipo || '',
+                    fechaRegistro: insp.fecha || '',
+                    inspectorAsignado: insp.inspectorAsignado || ''
+                }));
             }
 
             if (!actividades.length && !inspecciones.length) {
@@ -267,6 +296,11 @@
                 let clienteActual = '';
                 let areaActual = '';
                 let lugarActual = '';
+
+                // Si no hay permisos de leer actividades, solo mostramos realizadas (las inspecciones existentes)
+                if (!actividadesPermitidas && !esRealizadas) {
+                    return;
+                }
 
                 actividades.forEach(act => {
                     const insp = act.id ? inspeccionPorActividad.get(act.id) : null;

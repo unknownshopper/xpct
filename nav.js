@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Navbar en dashboard (index): solo para supervisor
                     if (currentPage === 'index.html') {
                         const navToggle = document.querySelector('.nav-toggle');
-                        if (isSupervisor) {
+                        if (isAdmin || isDirector || isSupervisor) {
                             navMain.style.display = '';
                             if (navToggle) navToggle.style.display = '';
                         } else {
