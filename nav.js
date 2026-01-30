@@ -24,13 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const currentPage = currentPageKey();
-    // En index.html solo se muestra para supervisor (se valida tras leer custom claims)
-    const shouldShowNav = allowedNavPages.has(currentPage);
-    if (!shouldShowNav) {
-        navMain.style.display = 'none';
+    function setNavVisible(visible) {
+        navMain.style.display = visible ? '' : 'none';
         const navToggle = document.querySelector('.nav-toggle');
-        if (navToggle) navToggle.style.display = 'none';
+        if (navToggle) navToggle.style.display = visible ? '' : 'none';
     }
+
+    // Default: mostrar navbar solo en páginas específicas (el rol puede ampliar esto)
+    setNavVisible(allowedNavPages.has(currentPage));
 
     // Asegurar que todos los dropdowns inicien colapsados
     navMain.querySelectorAll('.nav-item-has-dropdown').forEach(el => {
@@ -112,17 +113,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isInspector = role === 'inspector';
                     const isCapturista = role === 'capturista';
 
-                    // Navbar en dashboard (index): solo para supervisor
-                    if (currentPage === 'index.html') {
-                        const navToggle = document.querySelector('.nav-toggle');
-                        if (isAdmin || isDirector || isSupervisor) {
-                            navMain.style.display = '';
-                            if (navToggle) navToggle.style.display = '';
-                        } else {
-                            navMain.style.display = 'none';
-                            if (navToggle) navToggle.style.display = 'none';
-                        }
-                    }
+                    // Navbar: admin/director lo ven en todas las páginas.
+                    // Supervisor: lo ve en index y en páginas permitidas (pruebas/inspecciones).
+                    // Otros roles: solo en páginas permitidas.
+                    const shouldShowByRole =
+                        isAdmin ||
+                        isDirector ||
+                        (isSupervisor && currentPage === 'index.html') ||
+                        allowedNavPages.has(currentPage);
+                    setNavVisible(shouldShowByRole);
 
                     // Supervisor: solo ver Pruebas e Inspecciones (ocultar Actividad y rutas relacionadas)
                     if (isSupervisor) {
