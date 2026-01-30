@@ -99,13 +99,10 @@
         </div>
 
         <section class="dashboard-links">
-            <a href="actividad.html" class="dash-link">Registrar nueva actividad</a>
-            <a href="actividadlist.html" class="dash-link">Ver listado de actividades</a>
             <a href="pruebas.html" class="dash-link">Registrar nueva prueba</a>
             <a href="pruebaslist.html" class="dash-link">Ver listado de pruebas</a>
             <a href="inspeccion.html" class="dash-link">Ir a inspecciones</a>
             <a href="inspectlist.html" class="dash-link">Ver listado de inspecciones</a>
-            <button id="btn-email-test" type="button" class="dash-link">Enviar correo de prueba</button>
             
             
         </section>
@@ -120,8 +117,6 @@
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
-
-    
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.href = 'login.html';
@@ -139,20 +134,14 @@
             window.isDirector = role === 'director';
             window.isSupervisor = role === 'supervisor';
 
-            if (role === 'admin' || role === 'director' || role === 'supervisor') {
-                // Puede permanecer en dashboard (index.html)
+            if (role) {
+                // Al ingresar al sistema debe permanecer en dashboard (index.html)
                 return;
-            } else if (role === 'inspector') {
-                window.location.href = 'inspeccion.html';
-                return;
-            } else if (role === 'capturista') {
-                window.location.href = 'pruebas.html';
-                return;
-            } else {
-                // Sin rol asignado
-                await signOut(auth);
-                window.location.href = 'login.html';
             }
+
+            // Sin rol asignado
+            await signOut(auth);
+            window.location.href = 'login.html';
         } catch (e) {
             console.error(e);
         }
@@ -164,25 +153,6 @@
                 await signOut(auth);
             } finally {
                 window.location.href = 'login.html';
-            }
-        });
-    }
-
-    // Botón: enviar correo de prueba (usa backend local en dev y same-origin en prod)
-    const btnEmailTest = document.getElementById('btn-email-test');
-    if (btnEmailTest) {
-        btnEmailTest.addEventListener('click', async () => {
-            btnEmailTest.disabled = true;
-            try {
-                const isDev = location.port === '2200' || ['localhost','127.0.0.1','0.0.0.0'].includes(location.hostname);
-                const base = isDev ? 'http://localhost:8080' : '';
-                const resp = await fetch(`${base}/api/send-alerts?test=true`, { method: 'POST' });
-                const data = await resp.json().catch(() => ({}));
-                alert(resp.ok ? 'Correo de prueba enviado' : `Fallo al enviar: ${data.error || resp.status}`);
-            } catch (e) {
-                alert('Error de red al invocar el backend');
-            } finally {
-                btnEmailTest.disabled = false;
             }
         });
     }

@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const agg = await getCountFromServer(colRef);
                     total = agg.data().count;
                 } catch (err) {
-                    if (err && (err.code === 'resource-exhausted' || String(err.message||'').includes('429'))) {
+                    if (err && (err.code === 'resource-exhausted' || err.code === 'permission-denied' || String(err.message||'').includes('429'))) {
                         // fallback a caché para tener al menos algún número
                         try {
                             const snapCacheOnly = await getDocsFromCache(colRef);
@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const totalAgg = await getCountFromServer(colRef);
                     total = totalAgg.data().count;
                 } catch (err) {
-                    if (err && (err.code === 'resource-exhausted' || String(err.message||'').includes('429'))) {
+                    if (err && (err.code === 'resource-exhausted' || err.code === 'permission-denied' || String(err.message||'').includes('429'))) {
                         try { const sc = await getDocsFromCache(colRef); total = sc.size; } catch {}
                     } else { throw err; }
                 }
@@ -337,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const aggCon = await getCountFromServer(qCon);
                     concluidas = aggCon.data().count;
                 } catch (err) {
-                    if (err && (err.code === 'resource-exhausted' || String(err.message||'').includes('429'))) {
+                    if (err && (err.code === 'resource-exhausted' || err.code === 'permission-denied' || String(err.message||'').includes('429'))) {
                         try {
                             const sc = await getDocsFromCache(colRef);
                             let c = 0; sc.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });

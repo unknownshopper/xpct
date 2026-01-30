@@ -122,12 +122,13 @@
             window.userRole = role;
             window.isAdmin = role === 'admin';
             window.isDirector = role === 'director';
+            window.isSupervisor = role === 'supervisor';
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
             window.currentUserEmail = email;
 
-            // Acceso: admin, director, inspector, capturista
-            if (!(window.isAdmin || window.isDirector || window.isInspector || window.isCapturista)) {
+            // Acceso: admin, director, supervisor, inspector, capturista
+            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista)) {
                 window.location.href = 'login.html';
                 return;
             }

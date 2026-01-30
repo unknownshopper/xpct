@@ -771,10 +771,15 @@
         } catch {}
         window.isAdmin = (role === 'admin');
         window.isDirector = (role === 'director');
+        window.isSupervisor = (role === 'supervisor');
 
         // Permitir acceso a admins y directores
         if (!(window.isAdmin || window.isDirector)) {
-            window.location.href = 'inspeccion.html';
+            if (window.isSupervisor) {
+                window.location.href = 'index.html';
+            } else {
+                window.location.href = 'inspeccion.html';
+            }
             return;
         }
 

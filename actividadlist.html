@@ -208,11 +208,14 @@
             window.isDirector = role === 'director';
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
+            window.isSupervisor = role === 'supervisor';
 
             // Acceso: admin y director. Inspectores a inspeccion.html; otros a login.
             if (!(window.isAdmin || window.isDirector)) {
                 if (window.isInspector) {
                     window.location.href = 'inspeccion.html';
+                } else if (window.isSupervisor) {
+                    window.location.href = 'index.html';
                 } else {
                     window.location.href = 'login.html';
                 }

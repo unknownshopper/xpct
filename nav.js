@@ -2,6 +2,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const navMain = document.querySelector('.nav-main');
     if (!navMain) return;
 
+    // Mostrar navbar solo en páginas específicas
+    const allowedNavPages = new Set([
+        'pruebas.html',
+        'pruebaslist.html',
+        'inspeccion.html',
+        'inspectlist.html'
+    ]);
+
+    function currentPageKey() {
+        const parts = (location.pathname || '')
+            .toLowerCase()
+            .split('/')
+            .filter(Boolean);
+        const last = parts.length ? parts[parts.length - 1] : '';
+        // Soportar raíz "/" como index
+        if (!last) return 'index.html';
+        // Soportar rutas tipo /pruebas (sin .html)
+        if (!last.includes('.')) return `${last}.html`;
+        return last;
+    }
+
+    const currentPage = currentPageKey();
+    // En index.html solo se muestra para supervisor (se valida tras leer custom claims)
+    const shouldShowNav = allowedNavPages.has(currentPage);
+    if (!shouldShowNav) {
+        navMain.style.display = 'none';
+        const navToggle = document.querySelector('.nav-toggle');
+        if (navToggle) navToggle.style.display = 'none';
+    }
+
     // Asegurar que todos los dropdowns inicien colapsados
     navMain.querySelectorAll('.nav-item-has-dropdown').forEach(el => {
         el.classList.remove('is-open');
@@ -78,8 +108,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const isAdmin = role === 'admin';
                     const isDirector = role === 'director';
+                    const isSupervisor = role === 'supervisor';
                     const isInspector = role === 'inspector';
                     const isCapturista = role === 'capturista';
+
+                    // Navbar en dashboard (index): solo para supervisor
+                    if (currentPage === 'index.html') {
+                        const navToggle = document.querySelector('.nav-toggle');
+                        if (isSupervisor) {
+                            navMain.style.display = '';
+                            if (navToggle) navToggle.style.display = '';
+                        } else {
+                            navMain.style.display = 'none';
+                            if (navToggle) navToggle.style.display = 'none';
+                        }
+                    }
+
+                    // Supervisor: solo ver Pruebas e Inspecciones (ocultar Actividad y rutas relacionadas)
+                    if (isSupervisor) {
+                        // Ocultar el item superior de Actividad y su dropdown
+                        document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown').forEach(li => {
+                            const anchor = li.querySelector(':scope > a');
+                            if (!anchor) return;
+                            const text = (anchor.textContent || '').trim().toLowerCase();
+                            if (text.includes('actividad')) {
+                                li.style.display = 'none';
+                            }
+                        });
+
+                        // Ocultar enlaces sueltos a páginas de actividad si existieran en otros lugares del menú
+                        document.querySelectorAll(
+                            'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="trazabilidades.html"]'
+                        ).forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = 'none';
+                        });
+
+                        // En dashboard: ocultar la tarjeta de actividades
+                        if (currentPage === 'index.html') {
+                            const actValue = document.getElementById('dash-actividades');
+                            const card = actValue ? actValue.closest('.dash-card') : null;
+                            if (card) card.style.display = 'none';
+                        }
+                    }
 
                     // Para inspector/capturista: ocultar actividadmin en la navegación
                     if (isInspector || isCapturista) {

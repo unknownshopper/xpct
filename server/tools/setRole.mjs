@@ -52,7 +52,7 @@ function ensureAdmin() {
 
 function usage() {
   console.log('Usage: node tools/setRole.mjs <email> <role>');
-  console.log('Roles: admin | director | inspector | capturista | none');
+  console.log('Roles: admin | director | supervisor | inspector | capturista | none');
 }
 
 async function main() {
@@ -63,7 +63,7 @@ async function main() {
   }
   const email = String(emailArg).trim().toLowerCase();
   const role = String(roleArg).trim().toLowerCase();
-  const allowed = new Set(['admin', 'director', 'inspector', 'capturista', 'none']);
+  const allowed = new Set(['admin', 'director', 'supervisor', 'inspector', 'capturista', 'none']);
   if (!allowed.has(role)) {
     console.error('Invalid role. Allowed:', Array.from(allowed).join(', '));
     process.exit(1);

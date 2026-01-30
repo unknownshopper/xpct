@@ -267,10 +267,15 @@
         } catch {}
         const esAdmin = (role === 'admin');
         const esDirector = (role === 'director');
+        const esSupervisor = (role === 'supervisor');
         window.isAdmin = esAdmin;
         window.isDirector = esDirector;
         if (!(esAdmin || esDirector)) {
-            window.location.href = 'inspeccion.html';
+            if (esSupervisor) {
+                window.location.href = 'index.html';
+            } else {
+                window.location.href = 'inspeccion.html';
+            }
             return;
         }
 
