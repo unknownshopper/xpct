@@ -886,10 +886,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Construir un wrapper temporal con encabezado (usuario, fecha/hora, ubicación) + contenido de inspección
                 const wrapper = document.createElement('div');
-                wrapper.style.cssText = 'background:#ffffff; color:#111827; padding:16px; width:fit-content; max-width:100%';
+                wrapper.style.cssText = 'background:#ffffff; color:#111827; padding:24px; width:794px; max-width:100%; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;';
+
+                const logoWrap = document.createElement('div');
+                logoWrap.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:10px;';
+                const logo = document.createElement('img');
+                logo.src = 'img/logopctch.png';
+                logo.alt = 'PCT';
+                logo.style.cssText = 'height:40px; width:auto; display:block;';
+                logo.crossOrigin = 'anonymous';
+                logoWrap.appendChild(logo);
+
+                const headerRight = document.createElement('div');
+                headerRight.style.cssText = 'text-align:right; line-height:1.2;';
+                headerRight.innerHTML = `
+                    <div style="font-weight:700; font-size:14px; letter-spacing:0.2px;">PCT</div>
+                    <div style="font-size:11px; color:#6b7280;">Reporte de inspección</div>
+                `;
+                logoWrap.appendChild(headerRight);
+                wrapper.appendChild(logoWrap);
+
+                const titleBar = document.createElement('div');
+                titleBar.style.cssText = 'border-top:2px solid #111827; border-bottom:1px solid #e5e7eb; padding:10px 0; margin-bottom:12px;';
+                titleBar.innerHTML = `
+                    <div style="font-size:16px; font-weight:800;">REPORTE DE INSPECCIÓN</div>
+                    <div style="font-size:12px; color:#4b5563; margin-top:2px;">Formato de evidencia y control de condición del equipo</div>
+                `;
+                wrapper.appendChild(titleBar);
+
+                await new Promise((resolve) => {
+                    try {
+                        if (logo.complete) { resolve(); return; }
+                        logo.onload = () => resolve();
+                        logo.onerror = () => resolve();
+                    } catch {
+                        resolve();
+                    }
+                });
 
                 const encabezado = document.createElement('div');
-                encabezado.style.cssText = 'font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; font-size:12px; margin-bottom:12px; border:1px solid #e5e7eb; border-radius:8px; padding:10px; background:#f9fafb;';
+                encabezado.style.cssText = 'font-size:12px; margin-bottom:12px; border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#f9fafb;';
 
                 // Datos de encabezado
                 const ahora = new Date();
@@ -904,6 +940,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tipoInspeccionSel = (document.getElementById('inspeccion-tipo')?.value || '').toString();
                 let usuario = '';
                 try { usuario = (window.auth?.currentUser?.email || '').toLowerCase(); } catch {}
+
+                // Calcular resultado (sin guardar): si existe al menos un parámetro en MALO => NO APROBADA
+                let totalParametros = 0;
+                let totalMalos = 0;
+                const listaMalos = [];
+                try {
+                    const filasO = panel.querySelectorAll('.parametros-fila');
+                    totalParametros = filasO.length;
+                    filasO.forEach((fila, i) => {
+                        const nombre = fila.querySelector('.col-nombre')?.textContent?.trim() || `Parámetro ${i + 1}`;
+                        const sel = fila.querySelector(`input[name="param-${i}-estado"]:checked`);
+                        const estado = sel ? String(sel.value || '').toUpperCase() : '';
+                        if (estado === 'MALO') {
+                            totalMalos += 1;
+                            listaMalos.push(nombre);
+                        }
+                    });
+                } catch {}
+                const resultadoInspeccion = totalMalos > 0 ? 'NO APROBADA' : 'APROBADA';
+                const colorResultado = totalMalos > 0 ? '#b91c1c' : '#166534';
+                const bgResultado = totalMalos > 0 ? '#fef2f2' : '#ecfdf5';
 
                 // Capturar geolocalización: esperar a que el usuario autorice o rechace
                 const gps = await (async () => {
@@ -935,13 +992,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 })();
 
                 encabezado.innerHTML = `
-                    <div style="display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center;">
-                        <div><strong>Equipo:</strong> ${equipo}</div>
-                        ${tipoInspeccionSel ? `<div><strong>Tipo:</strong> ${tipoInspeccionSel}</div>` : ''}
-                        <div><strong>Fecha:</strong> ${dd}/${mm}/20${yy}</div>
-                        <div><strong>Hora:</strong> ${horaSafe} hrs</div>
-                        ${usuario ? `<div><strong>Usuario:</strong> ${usuario}</div>` : ''}
-                        <div><strong>Ubicación:</strong> ${gps}</div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px 16px; align-items:start;">
+                        <div>
+                            <div style="margin-bottom:8px;">
+                                <span style="display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid #e5e7eb; background:${bgResultado}; color:${colorResultado}; font-weight:800; letter-spacing:0.2px;">
+                                    RESULTADO: ${resultadoInspeccion}
+                                </span>
+                            </div>
+                            <div style="margin-bottom:4px;"><strong>Equipo:</strong> ${equipo}</div>
+                            ${tipoInspeccionSel ? `<div style="margin-bottom:4px;"><strong>Tipo de inspección:</strong> ${tipoInspeccionSel}</div>` : ''}
+                            <div><strong>Ubicación:</strong> ${gps}</div>
+                            <div style="margin-top:8px; color:#6b7280; font-size:11px; line-height:1.35;">
+                                <strong>Criterio:</strong> Si existe al menos 1 parámetro en <strong>MALO</strong>, la inspección se considera <strong>NO APROBADA</strong>.
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="margin-bottom:4px;"><strong>Fecha:</strong> ${dd}/${mm}/20${yy}</div>
+                            <div style="margin-bottom:4px;"><strong>Hora:</strong> ${horaSafe} hrs</div>
+                            ${usuario ? `<div><strong>Usuario:</strong> ${usuario}</div>` : ''}
+                            <div style="margin-top:8px; font-size:11px; color:#4b5563;">
+                                <div><strong>Parámetros:</strong> ${totalParametros}</div>
+                                <div><strong>En MALO:</strong> ${totalMalos}</div>
+                                ${totalMalos > 0 ? `<div style="margin-top:4px; color:#991b1b;"><strong>Hallazgos:</strong> ${listaMalos.slice(0, 6).join(', ')}${listaMalos.length > 6 ? '…' : ''}</div>` : ''}
+                            </div>
+                        </div>
                     </div>
                 `;
 
@@ -1026,6 +1100,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 document.body.appendChild(wrapper);
 
+                // Preparar rangos (en px CSS) de elementos que NO deben cortarse entre páginas
+                // Nota: html2canvas escala el canvas; convertimos estos rangos a px del canvas después de capturar.
+                const wrapperWidthCss = wrapper.offsetWidth || 1;
+                const avoidRangesCss = (() => {
+                    try {
+                        const wrapRect = wrapper.getBoundingClientRect();
+                        const selectors = [
+                            '.parametros-header',
+                            '.parametros-fila',
+                            '.col-evidencia-print',
+                            '.col-evidencia-print img',
+                            'h3',
+                            '#panel-estado-pruebas',
+                            'img'
+                        ];
+                        const nodes = wrapper.querySelectorAll(selectors.join(','));
+                        const ranges = [];
+                        nodes.forEach((el) => {
+                            const r = el.getBoundingClientRect();
+                            const start = Math.max(0, r.top - wrapRect.top);
+                            const end = Math.max(0, r.bottom - wrapRect.top);
+                            const h = end - start;
+                            // Ignorar rangos demasiado pequeños para no generar ruido
+                            if (h >= 24) ranges.push({ start, end });
+                        });
+                        ranges.sort((a, b) => a.start - b.start);
+                        // Merge de rangos superpuestos
+                        const merged = [];
+                        for (const rg of ranges) {
+                            const last = merged[merged.length - 1];
+                            if (!last || rg.start > last.end) {
+                                merged.push({ start: rg.start, end: rg.end });
+                            } else {
+                                last.end = Math.max(last.end, rg.end);
+                            }
+                        }
+                        return merged;
+                    } catch {
+                        return [];
+                    }
+                })();
+
                 const canvas = await window.html2canvas(wrapper, {
                     backgroundColor: '#ffffff',
                     scale: 2,
@@ -1048,14 +1164,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const marginMm = 10;
                 const usableWidthMm = pageWidthMm - marginMm * 2;
-                const usableHeightMm = pageHeightMm - marginMm * 2;
+                const footerReserveMm = 10;
+                const usableHeightMm = pageHeightMm - marginMm * 2 - footerReserveMm;
 
                 const pxPerMm = canvas.width / usableWidthMm;
                 const pageHeightPx = Math.floor(usableHeightMm * pxPerMm);
 
+                const totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx));
+
+                const scaleFactor = canvas.width / wrapperWidthCss;
+                const avoidRanges = avoidRangesCss.map(r => ({
+                    start: Math.floor(r.start * scaleFactor),
+                    end: Math.ceil(r.end * scaleFactor)
+                }));
+
+                function nextSafeBreak(yStart, yTarget) {
+                    const minSlice = Math.max(220, Math.floor(pageHeightPx * 0.25));
+                    const target = Math.min(yTarget, canvas.height);
+                    if (!avoidRanges.length) return target;
+
+                    // Si el target cae dentro de un rango a evitar, intentar romper antes (inicio del rango)
+                    // o después (fin del rango) si el inicio queda demasiado cerca del comienzo de página.
+                    for (const rg of avoidRanges) {
+                        if (rg.start < target && rg.end > target) {
+                            const before = rg.start;
+                            const after = rg.end;
+
+                            // Nunca permitir un slice mayor que la altura de página.
+                            // Si el bloque completo no cabe, forzar el corte ANTES del bloque para no partirlo.
+                            if (after - yStart > pageHeightPx) {
+                                if (before > yStart) return before;
+                                return target;
+                            }
+
+                            if (before - yStart >= minSlice) return before;
+                            // Aunque quede poco espacio, preferimos cortar antes para evitar que el bloque se "coma" la página
+                            if (before > yStart) return before;
+                            if (after - yStart >= minSlice) return Math.min(after, canvas.height);
+                            return target;
+                        }
+                    }
+
+                    // Si no cae dentro, también evitamos romper justo encima de un bloque grande:
+                    // buscar el siguiente bloque que empieza poco antes del target y empujarlo a la siguiente página.
+                    const threshold = Math.floor(pageHeightPx * 0.12);
+                    for (const rg of avoidRanges) {
+                        if (rg.start >= yStart && rg.start <= target && (target - rg.start) <= threshold) {
+                            if (rg.start - yStart >= minSlice) return rg.start;
+                        }
+                    }
+
+                    return target;
+                }
+
                 let yPx = 0;
+                let pageIndex = 0;
                 while (yPx < canvas.height) {
-                    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - yPx);
+                    pageIndex += 1;
+                    const yTarget = yPx + pageHeightPx;
+                    let yEnd = nextSafeBreak(yPx, yTarget);
+                    if (yEnd <= yPx) yEnd = Math.min(yTarget, canvas.height);
+                    // Asegurar que el corte nunca exceda el alto útil de página
+                    yEnd = Math.min(yEnd, yPx + pageHeightPx, canvas.height);
+                    const sliceHeightPx = Math.min(yEnd - yPx, canvas.height - yPx);
                     const pageCanvas = document.createElement('canvas');
                     pageCanvas.width = canvas.width;
                     pageCanvas.height = sliceHeightPx;
@@ -1070,12 +1241,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (yPx > 0) pdf.addPage();
                     pdf.addImage(pageDataUrl, 'JPEG', marginMm, marginMm, usableWidthMm, imgHeightMm);
 
+                    // Footer: línea + texto + paginación
+                    try {
+                        const footerY = pageHeightMm - 6;
+                        pdf.setDrawColor(229, 231, 235);
+                        pdf.line(marginMm, footerY - 3, pageWidthMm - marginMm, footerY - 3);
+
+                        pdf.setFontSize(9);
+                        pdf.setTextColor(107, 114, 128);
+                        pdf.text('PCT | Reporte de inspección', marginMm, footerY);
+
+                        const pageLabel = `Página ${pageIndex} de ${totalPages}`;
+                        const pageLabelW = pdf.getTextWidth(pageLabel);
+                        pdf.text(pageLabel, pageWidthMm - marginMm - pageLabelW, footerY);
+                    } catch {}
+
                     yPx += sliceHeightPx;
                 }
 
                 pdf.save(fileName);
             } catch (e) {
-                console.warn('No se pudo exportar el ejemplo JPG:', e);
+                console.warn('No se pudo exportar el PDF:', e);
             }
         });
     }
