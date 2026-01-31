@@ -265,6 +265,7 @@
                     <button id="btn-pruebas-delete-csv" title="Eliminar registros del CSV en Firestore" style="display:none;">Eliminar por CSV</button>
                     <button id="btn-pruebas-refresh" title="Actualizar desde servidor">Actualizar</button>
                     <button id="btn-pruebas-more" title="Cargar más resultados">Cargar más</button>
+                    <button id="btn-pruebas-ver-todas" title="Cargar todas las pruebas (bajo demanda)">Ver todas</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
@@ -644,6 +645,7 @@
         const lblAnual = document.getElementById('pruebas-contador-anual');
         const lblPT = document.getElementById('pruebas-contador-pt');
         const lblRep = document.getElementById('pruebas-contador-rep');
+        const btnVerTodas = document.getElementById('btn-pruebas-ver-todas');
 
         const tbodyResumen = document.getElementById('tbody-pruebas-resumen');
         const msgResumen = document.getElementById('mensaje-sin-pruebas-resumen');
@@ -884,6 +886,8 @@
         let _lastDoc = null;
         const _pageLimit = 200;
         const claveLocal = 'pct_pruebas';
+        let _totalServer = null;
+        let _isLoadingAll = false;
 
         // Inventario base desde invre.csv/invre2.csv para mostrar todos los equipos, incluso sin pruebas.
         let equiposInventario = new Set();
@@ -908,6 +912,20 @@
             } catch (e) {
                 console.error('Error al leer pruebas desde Firestore, se usará localStorage como respaldo', e);
                 return null;
+            }
+        }
+
+        async function leerTotalServidor() {
+            try {
+                const { getFirestore, collection, getCountFromServer } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const colRef = collection(db, 'pruebas');
+                const agg = await getCountFromServer(colRef);
+                _totalServer = agg.data().count;
+            } catch (e) {
+                _totalServer = null;
             }
         }
 
@@ -948,6 +966,39 @@
 
         // Cargar primera página desde cache; red solo al pulsar "Actualizar"
         await leerPagina({ reset: true, forceNetwork: false });
+
+        // Leer total real desde servidor (para mostrar "Mostrando X de Y")
+        await leerTotalServidor();
+
+        async function cargarTodas() {
+            if (_isLoadingAll) return;
+            if (_totalServer == null) {
+                alert('No se pudo obtener el total del servidor. Intenta de nuevo.');
+                return;
+            }
+            const faltan = Math.max(0, _totalServer - (pruebas?.length || 0));
+            if (!faltan) return;
+            const okGo = window.confirm(`Esto cargará todas las pruebas (${_totalServer}). Faltan ${faltan}. Puede tardar y consumir cuota. ¿Deseas continuar?`);
+            if (!okGo) return;
+
+            _isLoadingAll = true;
+            try {
+                if (btnVerTodas) btnVerTodas.disabled = true;
+                while (_lastDoc && (pruebas.length < _totalServer)) {
+                    await leerPagina({ reset: false, forceNetwork: true });
+                    render();
+                }
+            } finally {
+                _isLoadingAll = false;
+                if (btnVerTodas) btnVerTodas.disabled = false;
+            }
+        }
+
+        if (btnVerTodas) {
+            btnVerTodas.addEventListener('click', async () => {
+                await cargarTodas();
+            });
+        }
 
         // Actualizar contadores de tipos (Anual, Post-trabajo, Reparación) con base en TODAS las pruebas (sin filtros)
         (function actualizarContadoresTiposLocal() {
@@ -2343,7 +2394,10 @@
             if (!cntHist && msgListado) msgListado.style.display = 'block';
             if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
             if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
-            if (lblHist) lblHist.textContent = `${totalHistorico} en histórico`;
+            if (lblHist) {
+                if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
+                else lblHist.textContent = `${totalHistorico} en histórico`;
+            }
 
             const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
             const lblAlert0 = document.getElementById('pruebas-alert-0');

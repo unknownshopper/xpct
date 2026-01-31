@@ -106,6 +106,10 @@
                         <span class="row-left">✅ <span>Final</span></span>
                         <span class="badge gray" id="adm-estado-final">0</span>
                     </div>
+                    <div class="dash-stat-row">
+                        <span class="row-left">⚠️ <span>Conflicto</span></span>
+                        <span class="badge amber" id="adm-estado-conflicto">0</span>
+                    </div>
                     
                 </div>
             </div>
@@ -1374,6 +1378,7 @@
             const spanEstAbierto = document.getElementById('adm-estado-abierto');
             const spanEstParcial = document.getElementById('adm-estado-parcial');
             const spanEstFinal = document.getElementById('adm-estado-final');
+            const spanEstConflicto = document.getElementById('adm-estado-conflicto');
             const caList = document.getElementById('adm-ca-list');
 
             if (!tbody) return;
@@ -1447,6 +1452,7 @@
                 if (spanEstAbierto) spanEstAbierto.textContent = '0';
                 if (spanEstParcial) spanEstParcial.textContent = '0';
                 if (spanEstFinal) spanEstFinal.textContent = '0';
+                if (spanEstConflicto) spanEstConflicto.textContent = '0';
                 if (caList) caList.innerHTML = '';
                 return;
             }
@@ -1467,6 +1473,7 @@
             let contarAbierto = 0;
             let contarParcial = 0;
             let contarFinal = 0;
+            let contarConflicto = 0;
             const equiposPorClienteArea = new Map(); // key: cliente||' - '|| area -> count equipos
 
             // Aplicar filtros por inicio de servicio, equipo, descripción, estado de actividad y estado de pruebas
@@ -1641,6 +1648,7 @@
                     const finTxt = (termTexto || '').toString().trim();
                     const esFinal = infoPer?.ultimoTipo ? (infoPer.ultimoTipo === 'FINAL') : (reg.terminacionEsFinal === true);
                     if (!finTxt) contarAbierto += 1; else if (esFinal) contarFinal += 1; else contarParcial += 1;
+                    if (infoPer && infoPer.conflictoFinalIntermedio) contarConflicto += 1;
                 }
 
                 equiposArr.forEach(equipoNombre => {
@@ -2086,6 +2094,7 @@
             if (spanEstAbierto) spanEstAbierto.textContent = String(contarAbierto);
             if (spanEstParcial) spanEstParcial.textContent = String(contarParcial);
             if (spanEstFinal) spanEstFinal.textContent = String(contarFinal);
+            if (spanEstConflicto) spanEstConflicto.textContent = String(contarConflicto);
 
             // Exponer últimas listas para el modal
             window.__admLastLists = {
