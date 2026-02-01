@@ -715,6 +715,13 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             await addDoc(collection(window.db, 'pruebas'), datos);
+            try {
+                if (typeof window.pctAudit === 'function') {
+                    const equipo = (registro && (registro.equipo || registro.equipoId || registro.activo) ? String(registro.equipo || registro.equipoId || registro.activo) : '').trim();
+                    const prueba = (registro && (registro.prueba || registro.pruebaTipo) ? String(registro.prueba || registro.pruebaTipo) : '').trim();
+                    await window.pctAudit('pruebas_create', { equipo, prueba });
+                }
+            } catch {}
             console.log('Prueba guardada en Firestore');
         } catch (e) {
             console.error('Error al guardar prueba en Firestore', e);

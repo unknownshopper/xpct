@@ -243,9 +243,19 @@
                         const db = getFirestore();
                         if (inspId) {
                             await updateDoc(doc(db, 'inspecciones', inspId), { tipoInspeccion: nuevo });
+                            try {
+                                if (typeof window.pctAudit === 'function') {
+                                    await window.pctAudit('inspecciones_update_tipo', { inspId, tipoInspeccion: nuevo }, { throttleKey: `inspecciones_update_tipo_${inspId}` });
+                                }
+                            } catch {}
                         } else {
                             // Para pendientes (sin inspección guardada aún), guardar el tipo en la actividad
                             await updateDoc(doc(db, 'actividades', actividadId), { tipoInspeccion: nuevo });
+                            try {
+                                if (typeof window.pctAudit === 'function') {
+                                    await window.pctAudit('actividades_update_tipo_inspeccion', { actividadId, tipoInspeccion: nuevo }, { throttleKey: `actividades_update_tipo_${actividadId}` });
+                                }
+                            } catch {}
                         }
                         // refrescar lista
                         cargarDatos();
@@ -523,6 +533,11 @@
                         const db = getFirestore();
                         const ref = doc(db, 'actividades', actividadId);
                         await updateDoc(ref, { inspectorAsignado: nuevo });
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('actividades_assign_inspector', { actividadId, inspectorAsignado: nuevo }, { throttleKey: `actividades_assign_inspector_${actividadId}` });
+                            }
+                        } catch {}
                     } catch (e) {
                         console.error('No se pudo actualizar la asignación de inspector', e);
                     }
@@ -547,9 +562,15 @@
                         const ref = doc(db, 'actividades', actividadId);
                         await updateDoc(ref, { inspectorAsignado: email });
 
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('actividades_take_inspector', { actividadId, inspectorAsignado: email }, { throttleKey: `actividades_take_inspector_${actividadId}` });
+                            }
+                        } catch {}
+
                         cargarDatos();
                     } catch (e) {
-                        console.error('No se pudo reclamar la inspección', e);
+                        console.error('No se pudo tomar la inspección', e);
                     }
                 });
             });
@@ -585,6 +606,11 @@
                             const snap = await getDocs(q);
                             const ops = snap.docs.map(d => deleteDoc(doc(db, 'inspecciones', d.id)));
                             await Promise.all(ops);
+                            try {
+                                if (typeof window.pctAudit === 'function') {
+                                    await window.pctAudit('inspecciones_delete_by_actividad', { actividadId, count: ops.length }, { throttleKey: `inspecciones_delete_by_actividad_${actividadId}` });
+                                }
+                            } catch {}
                         } catch (e) {
                             console.error('No se pudo eliminar la inspección en Firestore', e);
                         }

@@ -303,6 +303,11 @@
           const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
           const db = getFirestore();
           await updateDoc(doc(db, 'actividades', actividadId), { cliente: String(nuevoCliente || '').trim() });
+          try {
+            if (typeof window.pctAudit === 'function') {
+              await window.pctAudit('actividadmin_actividades_update_cliente', { actividadId, cliente: String(nuevoCliente || '').trim() }, { throttleKey: `actividadmin_update_cliente_${actividadId}` });
+            }
+          } catch {}
           return true;
         } catch (e) {
           alert('No se pudo guardar el cliente: ' + (e?.message || e));
@@ -364,6 +369,11 @@
           }
         }
         alert(`Cliente actualizado. Éxitos: ${ok}, Fallos: ${fail}`);
+        try {
+          if (typeof window.pctAudit === 'function') {
+            await window.pctAudit('actividadmin_bulk_update_cliente', { count: ok, cliente: nuevo }, { throttleKey: `actividadmin_bulk_update_cliente_${String(nuevo || '').trim()}` });
+          }
+        } catch {}
       }
 
       tbody.addEventListener('dblclick', async (ev) => {
@@ -448,6 +458,11 @@
             }
           }
           alert(`Cliente actualizado. Éxitos: ${ok}, Fallos: ${fail}`);
+          try {
+            if (typeof window.pctAudit === 'function') {
+              await window.pctAudit('actividadmin_bulk_update_cliente', { count: ok, cliente: nuevo }, { throttleKey: `actividadmin_bulk_update_cliente_${String(nuevo || '').trim()}` });
+            }
+          } catch {}
         } catch (e) {
           alert('No se pudo aplicar el cambio: ' + (e?.message||e));
         }
@@ -663,219 +678,13 @@
                 }
 
                 console.log(`Marcado de terminaciones parciales completado. Actividades actualizadas: ${actualizados}`);
+                try {
+                    if (typeof window.pctAudit === 'function') {
+                        await window.pctAudit('actividadmin_terminacion_parcial_desde_periodos', { count: actualizados }, { throttleKey: 'actividadmin_terminacion_parcial_desde_periodos' });
+                    }
+                } catch {}
             } catch (e) {
                 console.error('Error al marcar terminaciones parciales desde períodos', e);
-            }
-        }
-
-        // Utilidades UI: restablecer filtros visibles y forzar actualización manualmente
-        function __restablecerFiltros() {
-            const idsTexto = ['adm-buscar', 'adm-filtro-equipo', 'adm-filtro-descripcion', 'adm-filtro-inicio'];
-            const idsSelect = ['adm-filtro-estado', 'adm-filtro-pruebas', 'adm-filtro-pruebas-estado'];
-            idsTexto.forEach(id => { const el = document.getElementById(id); if (el) { el.value = ''; el.dispatchEvent(new Event('input')); } });
-            idsSelect.forEach(id => { const el = document.getElementById(id); if (el) { el.value = 'TODOS'; el.dispatchEvent(new Event('change')); } });
-            if (typeof window.__admRenderTabla === 'function') { try { window.__admRenderTabla(); } catch {} }
-        }
-
-        async function __forzarActualizacion() {
-            try {
-                if (window.caches && caches.keys) {
-                    try {
-                        const keys = await caches.keys();
-                        await Promise.all(keys.map(k => caches.delete(k).catch(() => {})));
-                    } catch {}
-                }
-                try { sessionStorage.clear(); } catch {}
-                try { localStorage.setItem('appVersion', APP_VERSION); } catch {}
-            } finally {
-                const url = new URL(window.location.href);
-                url.searchParams.set('v', APP_VERSION + '-' + Date.now());
-                window.location.href = url.toString();
-            }
-        }
-
-        const btnReset = document.getElementById('adm-btn-restablecer');
-        if (btnReset) btnReset.addEventListener('click', __restablecerFiltros);
-        const btnForce = document.getElementById('adm-btn-forzar-update');
-        if (btnForce) btnForce.addEventListener('click', __forzarActualizacion);
-
-        // Generar períodos mensuales entre inicioServicio y terminacionServicio para una actividad
-        // Uso desde consola: generarPeriodosMensuales('<actividadId>')
-        async function generarPeriodosMensuales(actividadId) {
-            if (!actividadId) { console.warn('Proporciona actividadId'); return; }
-            try {
-                const { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-                const db = getFirestore();
-                const ref = doc(db, 'actividades', actividadId);
-                const snap = await getDoc(ref);
-                if (!snap.exists()) { console.warn('Actividad no encontrada'); return; }
-                const act = snap.data() || {};
-                const iniStr = (act.inicioServicio || '').toString().trim();
-                const finStr = (act.terminacionServicio || '').toString().trim();
-                if (!iniStr || !finStr) { console.warn('La actividad necesita inicioServicio y terminacionServicio'); return; }
-
-                const dIni = parseFechaDdMmAa(iniStr);
-                const dFin = parseFechaDdMmAa(finStr);
-                if (!dIni || !dFin) { console.warn('Fechas inválidas en la actividad'); return; }
-                if (dFin < dIni) { console.warn('terminacionServicio es anterior a inicioServicio'); return; }
-
-                // No duplicar si ya hay periodos
-                const colPer = collection(db, 'actividadPeriodos');
-                const qPer = query(colPer, where('actividadId', '==', actividadId));
-                const snapPer = await getDocs(qPer);
-                if (!snapPer.empty) { console.warn('La actividad ya tiene períodos; abortando para evitar duplicados'); return; }
-
-                function finDeMes(d) { return new Date(d.getFullYear(), d.getMonth()+1, 0); }
-                function siguienteDia(d) { const n = new Date(d.getFullYear(), d.getMonth(), d.getDate()); n.setDate(n.getDate()+1); return n; }
-                function fmt(d) { const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const aa = String(d.getFullYear()%100).padStart(2,'0'); return `${dd}/${mm}/${aa}`; }
-                function diasIncl(d1,d2){ const t = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime() - new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime(); return Math.floor(t/86400000)+1; }
-
-                const periodos = [];
-                let curIni = new Date(dIni.getFullYear(), dIni.getMonth(), dIni.getDate());
-                while (true) {
-                    let curFin = finDeMes(curIni);
-                    if (curFin > dFin) curFin = dFin;
-                    const esFinal = curFin.getTime() === dFin.getTime();
-                    periodos.push({ inicio: new Date(curIni), fin: new Date(curFin), tipo: esFinal ? 'FINAL' : 'PARCIAL' });
-                    if (esFinal) break;
-                    curIni = siguienteDia(curFin);
-                }
-
-                for (const p of periodos) {
-                    await addDoc(colPer, {
-                        actividadId,
-                        inicioPeriodo: fmt(p.inicio),
-                        finPeriodo: fmt(p.fin),
-                        inicioPeriodoOrdenable: new Date(p.inicio.getFullYear(), p.inicio.getMonth(), p.inicio.getDate()).getTime(),
-                        diasFacturados: diasIncl(p.inicio, p.fin),
-                        tarifaDiaria: 0,
-                        importe: 0,
-                        tipoPeriodo: p.tipo,
-                        factura: '',
-                        oc: '',
-                        observaciones: '',
-                        creadoEn: serverTimestamp(),
-                    });
-                }
-
-                // Alinear flags de la actividad
-                await updateDoc(ref, { terminacionEsFinal: true });
-                console.log(`Generados ${periodos.length} períodos para actividad ${actividadId}`);
-            } catch (e) {
-                console.error('Error generando períodos mensuales', e);
-            }
-        }
-        const email = (user.email || '').toLowerCase();
-        if (emailSpan) emailSpan.textContent = email;
-
-        let role = null;
-        try {
-            const tok = await user.getIdTokenResult(true);
-            role = tok?.claims?.role || null;
-        } catch {}
-        window.isAdmin = (role === 'admin');
-        window.isDirector = (role === 'director');
-        window.isSupervisor = (role === 'supervisor');
-
-        // Permitir acceso a admins y directores
-        if (!(window.isAdmin || window.isDirector)) {
-            if (window.isSupervisor) {
-                window.location.href = 'index.html';
-            } else {
-                window.location.href = 'inspeccion.html';
-            }
-            return;
-        }
-
-        // Migración de OS existentes al nuevo formato PCT-YY-XXX
-        // Regla:
-        //  - Para cada actividad con inicioServicio válido (dd/mm/aa), se toma YY del año.
-        //  - Dentro de cada año, se asignan consecutivos 001, 002, 003... en orden de inicioServicio.
-        //  - OS resultante: PCT-YY-XXX
-        // Uso: abrir consola en actividadmin.html y ejecutar:
-        //   migrarOsFormatoNuevo()
-        async function migrarOsFormatoNuevo() {
-            if (!window.db) {
-                console.warn('Firestore (window.db) no está disponible para migrar OS');
-                return;
-            }
-
-            try {
-                const { getFirestore, collection, getDocs, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-                const db = getFirestore();
-
-                // Parser local de fecha dd/mm/aa a Date (año base 2000+aa)
-                function parseFechaDdMmAaLocal(fechaTexto) {
-                    if (!fechaTexto) return null;
-                    const partes = fechaTexto.split('/');
-                    if (partes.length !== 3) return null;
-                    const dd = parseInt(partes[0], 10);
-                    const mm = parseInt(partes[1], 10);
-                    const aa = parseInt(partes[2], 10);
-                    if (!dd || !mm || isNaN(aa)) return null;
-                    const yyyy = 2000 + aa;
-                    const d = new Date(yyyy, mm - 1, dd);
-                    if (isNaN(d.getTime())) return null;
-                    return d;
-                }
-
-                const colAct = collection(db, 'actividades');
-                const snapAct = await getDocs(colAct);
-
-                const actividades = snapAct.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
-                if (!actividades.length) {
-                    console.log('No hay actividades para migrar OS.');
-                    return;
-                }
-
-                // Agrupar por combinación cliente+ubicacion+año (YY) tomada de inicioServicio (dd/mm/aa)
-                const porClave = new Map(); // clave = cliente|ubicacion|YY -> array de actividades
-                actividades.forEach(act => {
-                    const ini = (act.inicioServicio || '').toString();
-                    const dIni = parseFechaDdMmAaLocal(ini);
-                    if (!dIni) return;
-
-                    const yy = String(dIni.getFullYear()).slice(-2);
-                    const cli = (act.cliente || '').toString();
-                    const ubi = (act.ubicacion || '').toString();
-                    if (!cli || !ubi) return;
-
-                    const clave = `${cli}||${ubi}||${yy}`;
-
-                    if (!porClave.has(clave)) porClave.set(clave, []);
-                    porClave.get(clave).push(act);
-                });
-
-                let totalActualizadas = 0;
-
-                for (const [clave, lista] of porClave.entries()) {
-                    const partesClave = clave.split('||');
-                    const yy = partesClave[2] || '';
-
-                    // Ordenar por fecha de inicio dentro de la combinación para asignar consecutivos estables
-                    lista.sort((a, b) => {
-                        const da = parseFechaDdMmAaLocal(a.inicioServicio || '') || new Date(2000, 0, 1);
-                        const dbDate = parseFechaDdMmAaLocal(b.inicioServicio || '') || new Date(2000, 0, 1);
-                        return da.getTime() - dbDate.getTime();
-                    });
-
-                    let consec = 0;
-                    for (const act of lista) {
-                        consec += 1;
-                        const consecutivo = String(consec).padStart(3, '0');
-                        const nuevaOs = `PCT-${yy}-${consecutivo}`;
-
-                        // Solo actualizar si cambia, para minimizar escrituras
-                        if ((act.os || '').toString().trim() === nuevaOs) continue;
-
-                        await updateDoc(doc(db, 'actividades', act.id), { os: nuevaOs });
-                        totalActualizadas += 1;
-                    }
-                }
-
-                console.log(`Migración de OS completada. Actividades actualizadas: ${totalActualizadas}`);
-            } catch (e) {
-                console.error('Error al migrar OS a formato nuevo', e);
             }
         }
 
@@ -934,6 +743,11 @@
                 }
 
                 console.log(`Marcado de terminaciones definitivas completado. Actividades actualizadas: ${actualizados}`);
+                try {
+                    if (typeof window.pctAudit === 'function') {
+                        await window.pctAudit('actividadmin_marcar_terminacion_final', { count: actualizados }, { throttleKey: 'actividadmin_marcar_terminacion_final' });
+                    }
+                } catch {}
             } catch (e) {
                 console.error('Error al marcar terminaciones finales desde períodos', e);
             }
@@ -1310,6 +1124,11 @@
                 const db = getFirestore();
                 const ref = doc(db, 'actividades', id);
                 await updateDoc(ref, cambios);
+                try {
+                    if (typeof window.pctAudit === 'function') {
+                        await window.pctAudit('actividadmin_update_actividad', { actividadId: id, fields: Object.keys(cambios || {}) }, { throttleKey: `actividadmin_update_actividad_${id}` });
+                    }
+                } catch {}
             } catch (e) {
                 console.error('Error al actualizar actividad en Firestore', e);
             }
@@ -1358,7 +1177,11 @@
                 }
 
                 console.log(`Migración completa. Documentos origen eliminados: ${migrados}`);
-                await cargarActividadDesdeFirestore();
+                try {
+                    if (typeof window.pctAudit === 'function') {
+                        await window.pctAudit('actividadmin_migracion_actividades', { count: migrados }, { throttleKey: 'actividadmin_migracion_actividades' });
+                    }
+                } catch {}
             } catch (e) {
                 console.error('Error durante la migración de actividades multi-equipo', e);
             }
@@ -1421,7 +1244,7 @@
                 ) return 'HALLIBURTON';
                 if (
                     raw.startsWith('SCHLUM') || raw.includes('SCHLUMBERG') || raw.includes('SLCHUL') ||
-                    raw.includes('SCHLUMBEGER') || raw.includes('SCHLUMER')
+                    raw.includes('SCHLUMBERGER') || raw.includes('SCHLUMER')
                 ) return 'SCHLUMBERGER';
                 return up;
             };
@@ -1979,12 +1802,16 @@
                                     creadoEn: serverTimestamp(),
                                 });
                             }
-                        }
 
-                        renderTabla();
+                            try {
+                                if (typeof window.pctAudit === 'function') {
+                                    await window.pctAudit('actividadmin_generar_periodos_por_terminacion', { actividadId: id, count: cortes.length, terminacionServicio: fechaStr, terminacionEsFinal: esFinal }, { throttleKey: `actividadmin_generar_periodos_por_terminacion_${id}_${fechaStr}` });
+                                }
+                            } catch {}
+                        }
                     } catch (e) {
-                        console.error('Error aplicando fecha en lote', e);
-                        alert('No se pudo aplicar la fecha en lote. Intenta de nuevo.');
+                        console.error('Error aplicando terminación en lote', e);
+                        alert('No se pudo aplicar la terminación en lote. Intenta de nuevo.');
                     }
                 });
             }
@@ -2023,6 +1850,12 @@
                             const reg = listaActividad.find(r => r.id === id);
                             if (reg) reg.precio = valorNum;
                         });
+
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('actividadmin_bulk_update_precio', { count, precio: valorNum }, { throttleKey: `actividadmin_bulk_update_precio_${valorNum}` });
+                            }
+                        } catch {}
                         renderTabla();
                     } catch (e) {
                         console.error('Error aplicando precio en lote', e);
@@ -2339,6 +2172,12 @@
                         const db = getFirestore();
                         const ref = doc(db, 'actividades', id);
                         await deleteDoc(ref);
+
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('actividadmin_delete_actividad', { actividadId: id }, { throttleKey: `actividadmin_delete_actividad_${id}` });
+                            }
+                        } catch {}
 
                         listaActividad = listaActividad.filter(r => r.id !== id);
                         renderTabla();

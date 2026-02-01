@@ -67,6 +67,50 @@ document.addEventListener('DOMContentLoaded', () => {
             const { getAuth, onAuthStateChanged, setPersistence, browserSessionPersistence, signOut } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
             const auth = getAuth();
 
+            async function writeAudit(action, extra) {
+                try {
+                    const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const db = getFirestore();
+                    const u = auth.currentUser;
+                    const email = (u && u.email ? String(u.email) : '').toLowerCase();
+                    const uid = u && u.uid ? String(u.uid) : '';
+                    await addDoc(collection(db, 'audit_logs'), {
+                        at: serverTimestamp(),
+                        action: String(action || ''),
+                        page: (location.pathname || '').toString(),
+                        email,
+                        uid,
+                        ua: (navigator.userAgent || '').toString(),
+                        ...(extra && typeof extra === 'object' ? extra : {})
+                    });
+                } catch {}
+            }
+
+            window.pctAudit = window.pctAudit || (async (action, extra, opts) => {
+                try {
+                    const o = (opts && typeof opts === 'object') ? opts : {};
+                    const throttleMs = Number(o.throttleMs || 2500);
+                    const keyRaw = String(o.throttleKey || `${String(action || '')}|${String(location.pathname || '')}`);
+                    const key = `pct_audit_throttle_${keyRaw}`;
+                    const now = Date.now();
+                    try {
+                        const prev = Number(sessionStorage.getItem(key) || '0');
+                        if (!isNaN(prev) && prev > 0 && (now - prev) < throttleMs) return;
+                        sessionStorage.setItem(key, String(now));
+                    } catch {}
+                    await writeAudit(action, extra);
+                } catch {}
+            });
+
+            function auditOnce(key, action, extra) {
+                try {
+                    const k = `pct_audit_${key}`;
+                    if (sessionStorage.getItem(k) === '1') return;
+                    sessionStorage.setItem(k, '1');
+                    writeAudit(action, extra);
+                } catch {}
+            }
+
             // Limitar persistencia a la sesión del navegador (logout al cerrar navegador)
             try { await setPersistence(auth, browserSessionPersistence); } catch {}
 
@@ -96,6 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
             onAuthStateChanged(auth, async (user) => {
                 if (!user) return;
                 ensureLoginStartStamp();
+
+                auditOnce(`login_${(user.uid || '').toString().slice(0, 8)}`, 'login', null);
+                auditOnce(`pv_${currentPage}_${(user.uid || '').toString().slice(0, 8)}`, 'page_view', { currentPage });
+
                 // Expiración absoluta
                 try {
                     if (Date.now() - loginStartMs() > ABSOLUTE_MS) {

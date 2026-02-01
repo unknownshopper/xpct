@@ -2143,6 +2143,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                     const db = getFirestore();
                     await updateDoc(doc(db, 'actividades', id), { areaCliente: nuevaArea });
+                    try {
+                        if (typeof window.pctAudit === 'function') {
+                            await window.pctAudit('actividades_update_area', { actividadId: id, areaCliente: nuevaArea }, { throttleKey: `actividades_update_area_${id}` });
+                        }
+                    } catch {}
                 } catch (e) {
                     console.error('Error al actualizar área (blur)', e);
                 }

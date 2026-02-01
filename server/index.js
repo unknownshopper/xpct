@@ -45,6 +45,37 @@ function ensureAdmin() {
   }
 }
 
+async function verifyFirebaseIdToken(req) {
+  const authHeader = String(req.headers.authorization || '').trim();
+  const m = authHeader.match(/^Bearer\s+(.+)$/i);
+  const token = m ? m[1] : '';
+  if (!token) {
+    const e = new Error('missing_token');
+    e.code = 'missing_token';
+    throw e;
+  }
+  ensureAdmin();
+  return admin.auth().verifyIdToken(token);
+}
+
+function requireAdminEmail(emailLower) {
+  const expected = (emailLower || '').toLowerCase().trim();
+  return async (req, res, next) => {
+    try {
+      const decoded = await verifyFirebaseIdToken(req);
+      const actual = String(decoded.email || '').toLowerCase().trim();
+      if (!actual || actual !== expected) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
+      req.user = decoded;
+      next();
+    } catch (e) {
+      const code = e && e.code ? e.code : 'unauthorized';
+      res.status(401).json({ error: 'unauthorized', code });
+    }
+  };
+}
+
 async function queryUltimasAnuales() {
   const db = admin.firestore();
   const snap = await db.collection('pruebas').get();
@@ -288,6 +319,34 @@ app.post('/api/send-alerts', async (req, res) => {
     res.json(out);
   } catch (e) {
     res.status(500).json({ error: 'send_failed', detail: String(e && e.message ? e.message : e) });
+  }
+});
+
+// Audit log (admin-only)
+app.get('/api/audit', requireAdminEmail('the@unknownshoppers.com'), async (req, res) => {
+  try {
+    ensureAdmin();
+    const db = admin.firestore();
+    const limitN = Math.min(Math.max(parseInt(String(req.query.limit || '200'), 10) || 200, 1), 500);
+    const startAfterMs = parseInt(String(req.query.startAfterMs || ''), 10);
+    const email = String(req.query.email || '').trim().toLowerCase();
+
+    let q = db.collection('audit_logs');
+    if (email) q = q.where('email', '==', email);
+    q = q.orderBy('at', 'desc').limit(limitN);
+    if (!Number.isNaN(startAfterMs) && startAfterMs > 0) {
+      q = q.startAfter(admin.firestore.Timestamp.fromMillis(startAfterMs));
+    }
+
+    const snap = await q.get();
+    const items = snap.docs.map(d => {
+      const data = d.data() || {};
+      const atMs = data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : null;
+      return { id: d.id, ...data, atMs };
+    });
+    res.json({ ok: true, items });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'audit_failed', detail: String(e && e.message ? e.message : e) });
   }
 });
 

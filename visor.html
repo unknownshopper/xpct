@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor de auditoría</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+                <li><a href="visor.html" class="active">Auditoría</a></li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 1rem;">
+        <h1 style="margin: 0.5rem 0 1rem;">Visor de auditoría</h1>
+
+        <section class="card-prueba" style="margin-bottom: 1rem;">
+            <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+                <div class="campo" style="flex:1; min-width:260px;">
+                    <label for="f-email">Filtrar por correo (exacto)</label>
+                    <input id="f-email" type="text" placeholder="usuario@dominio" />
+                </div>
+                <div class="campo">
+                    <button id="btn-recargar" style="height:40px; padding: 0 14px;">Recargar</button>
+                </div>
+            </div>
+            <p id="estado" style="margin:0.5rem 0 0; font-size:0.9rem; color:#374151;"></p>
+        </section>
+
+        <section class="card-prueba">
+            <div style="overflow:auto;">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Fecha</th>
+                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Correo</th>
+                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Acción</th>
+                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Página</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const ADMIN_EMAIL = 'the@unknownshoppers.com';
+    const auth = window.auth;
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+    const btnRecargar = document.getElementById('btn-recargar');
+    const inpEmail = document.getElementById('f-email');
+    const tbody = document.getElementById('tbody');
+    const estado = document.getElementById('estado');
+
+    function fmtDate(ms) {
+        try {
+            const d = new Date(ms);
+            if (isNaN(d.getTime())) return '';
+            const dd = String(d.getDate()).padStart(2,'0');
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            const yyyy = d.getFullYear();
+            const hh = String(d.getHours()).padStart(2,'0');
+            const mi = String(d.getMinutes()).padStart(2,'0');
+            const ss = String(d.getSeconds()).padStart(2,'0');
+            return `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+        } catch { return ''; }
+    }
+
+    function render(items) {
+        tbody.innerHTML = '';
+        (items || []).forEach(it => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${fmtDate(it.atMs || 0)}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9;">${(it.email || '')}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9;">${(it.action || '')}</td>
+                <td style="padding:8px; border-bottom:1px solid #f1f5f9;">${(it.page || '')}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function cargar() {
+        estado.textContent = 'Cargando...';
+        try {
+            const db = getFirestore();
+            const emailFiltro = (inpEmail.value || '').trim().toLowerCase();
+            let q = query(collection(db, 'audit_logs'), orderBy('at', 'desc'), limit(250));
+            if (emailFiltro) {
+                q = query(collection(db, 'audit_logs'), where('email', '==', emailFiltro), orderBy('at', 'desc'), limit(250));
+            }
+            const snap = await getDocs(q);
+            const items = snap.docs.map(d => {
+                const data = d.data() || {};
+                const atMs = data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : 0;
+                return { id: d.id, ...data, atMs };
+            });
+            render(items);
+            estado.textContent = `Registros: ${items.length}`;
+        } catch (e) {
+            console.error(e);
+            estado.textContent = 'No se pudo cargar. Revisa consola y permisos de Firestore.';
+        }
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            window.location.href = 'login.html';
+            return;
+        }
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        if (email !== ADMIN_EMAIL) {
+            window.location.href = 'index.html';
+            return;
+        }
+        await cargar();
+    });
+
+    if (btnRecargar) btnRecargar.addEventListener('click', cargar);
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'login.html';
+            }
+        });
+    }
+    </script>
+
+    <script src="nav.js"></script>
+</body>
+</html>

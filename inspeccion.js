@@ -1483,6 +1483,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     creadoEn: serverTimestamp(),
                 };
                 await addDoc(colRef, payload);
+                try {
+                    if (typeof window.pctAudit === 'function') {
+                        const equipo = (registro && registro.equipo ? String(registro.equipo) : '').trim();
+                        const actividadId = (registro && registro.actividadId ? String(registro.actividadId) : '').trim();
+                        await window.pctAudit('inspecciones_create', { equipo, actividadId });
+                    }
+                } catch {}
             } catch (e) {
                 console.warn('No se pudo guardar la inspección en Firestore, solo local:', e);
             }
