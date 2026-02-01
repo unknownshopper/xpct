@@ -98,6 +98,9 @@
     const tbody = document.getElementById('tbody');
     const estado = document.getElementById('estado');
 
+    let allItems = [];
+    let filterTimer = null;
+
     function fmtDate(ms) {
         try {
             const d = new Date(ms);
@@ -126,23 +129,28 @@
         });
     }
 
+    function applyFilter() {
+        const q = (inpEmail.value || '').trim().toLowerCase();
+        const filtered = q
+            ? (allItems || []).filter(it => String(it.email || '').toLowerCase().includes(q))
+            : (allItems || []);
+        render(filtered);
+        estado.textContent = `Registros: ${filtered.length}`;
+    }
+
     async function cargar() {
         estado.textContent = 'Cargando...';
         try {
             const db = getFirestore();
-            const emailFiltro = (inpEmail.value || '').trim().toLowerCase();
-            let q = query(collection(db, 'audit_logs'), orderBy('at', 'desc'), limit(250));
-            if (emailFiltro) {
-                q = query(collection(db, 'audit_logs'), where('email', '==', emailFiltro), orderBy('at', 'desc'), limit(250));
-            }
+            const q = query(collection(db, 'audit_logs'), orderBy('at', 'desc'), limit(250));
             const snap = await getDocs(q);
             const items = snap.docs.map(d => {
                 const data = d.data() || {};
                 const atMs = data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : 0;
                 return { id: d.id, ...data, atMs };
             });
-            render(items);
-            estado.textContent = `Registros: ${items.length}`;
+            allItems = items;
+            applyFilter();
         } catch (e) {
             console.error(e);
             estado.textContent = 'No se pudo cargar. Revisa consola y permisos de Firestore.';
@@ -165,6 +173,13 @@
     });
 
     if (btnRecargar) btnRecargar.addEventListener('click', cargar);
+
+    if (inpEmail) {
+        inpEmail.addEventListener('input', () => {
+            try { if (filterTimer) clearTimeout(filterTimer); } catch {}
+            filterTimer = setTimeout(applyFilter, 200);
+        });
+    }
 
     if (btnLogout) {
         btnLogout.addEventListener('click', async () => {

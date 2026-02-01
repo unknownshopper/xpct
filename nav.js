@@ -111,10 +111,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch {}
             }
 
-            // Limitar persistencia a la sesión del navegador (logout al cerrar navegador)
-            try { await setPersistence(auth, browserSessionPersistence); } catch {}
+            // Persistencia según preferencia de login
+            // - 'local'   => recordar sesión en este equipo
+            // - 'session' => sesión solo en esta pestaña/navegador
+            let persistPref = 'session';
+            try { persistPref = String(localStorage.getItem('pct_auth_persist') || 'session'); } catch {}
+            try {
+                await setPersistence(auth, persistPref === 'local' ? browserLocalPersistence : browserSessionPersistence);
+            } catch {}
 
             // Auto sign-out por inactividad y por duración absoluta de sesión
+            // Nota: solo aplica cuando el usuario NO seleccionó "Recordarme".
             const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
             const ABSOLUTE_MS   = 1  * 60 * 60 * 1000; // 1 hora
 
@@ -146,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Expiración absoluta
                 try {
-                    if (Date.now() - loginStartMs() > ABSOLUTE_MS) {
+                    if (persistPref !== 'local' && (Date.now() - loginStartMs() > ABSOLUTE_MS)) {
                         await signOut(auth);
                         return;
                     }

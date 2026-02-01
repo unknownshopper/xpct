@@ -19,6 +19,16 @@
       #btn-login:disabled { background:#e5e7eb; color:#9ca3af; cursor:not-allowed; }
       .login-logo { display:flex; justify-content:center; margin-bottom:6px; }
       .login-logo img { height:40px; width:auto; }
+
+      .remember-row { margin-top:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .remember-text { font-size:13px; color:#374151; line-height:1.2; }
+      .toggle { position:relative; display:inline-flex; align-items:center; cursor:pointer; user-select:none; }
+      .toggle input { position:absolute; opacity:0; width:1px; height:1px; }
+      .toggle-track { width:44px; height:24px; background:#e5e7eb; border-radius:999px; border:1px solid #d1d5db; transition:background 160ms ease, border-color 160ms ease; box-shadow: inset 0 1px 2px rgba(0,0,0,0.06); }
+      .toggle-thumb { position:absolute; left:2px; top:2px; width:20px; height:20px; border-radius:999px; background:#ffffff; box-shadow:0 2px 6px rgba(0,0,0,0.18); transition:transform 160ms ease; }
+      .toggle input:checked + .toggle-track { background:#2563eb; border-color:#2563eb; }
+      .toggle input:checked + .toggle-track .toggle-thumb { transform:translateX(20px); }
+      .toggle input:focus-visible + .toggle-track { outline:3px solid rgba(37,99,235,0.25); outline-offset:2px; }
     </style>
 </head>
 <body>
@@ -44,6 +54,13 @@
         <div class="campo">
             <button id="btn-login" style="margin-top:0.5rem; width:100%;">Entrar</button>
         </div>
+        <div class="remember-row">
+            <div class="remember-text">Recordarme en este equipo</div>
+            <label class="toggle" for="login-remember">
+                <input type="checkbox" id="login-remember" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+        </div>
         <p id="login-mensaje" style="font-size:0.85rem; color:#b91c1c; margin-top:0.25rem;"></p>
     </section>
 </main>
@@ -52,7 +69,7 @@
 <script src="config.local.js"></script>
 <script type="module" src="firebase-init.js"></script>
 <script type="module">
-import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { onAuthStateChanged, signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const auth = window.auth;
 
@@ -98,6 +115,15 @@ const inputEmail = document.getElementById("login-email");
 const inputPass = document.getElementById("login-password");
 const msg = document.getElementById("login-mensaje");
 const btnTogglePass = document.getElementById('btn-toggle-pass');
+const chkRemember = document.getElementById('login-remember');
+
+// Prefill de correo y preferencia (NO se guarda contraseña)
+try {
+    const savedEmail = String(localStorage.getItem('pct_saved_email') || '').trim();
+    const persist = String(localStorage.getItem('pct_auth_persist') || 'session');
+    if (savedEmail && inputEmail) inputEmail.value = savedEmail;
+    if (chkRemember) chkRemember.checked = persist === 'local';
+} catch {}
 
 // Mostrar/ocultar contraseña
 if (btnTogglePass) {
@@ -122,6 +148,18 @@ btn.addEventListener("click", async () => {
     btn.textContent = "Entrando...";
 
     try {
+        // Persistencia según preferencia (Recordarme = local)
+        const remember = !!(chkRemember && chkRemember.checked);
+        try {
+            await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+            localStorage.setItem('pct_auth_persist', remember ? 'local' : 'session');
+            if (remember) {
+                localStorage.setItem('pct_saved_email', email);
+            } else {
+                localStorage.removeItem('pct_saved_email');
+            }
+        } catch {}
+
         await signInWithEmailAndPassword(auth, email, password);
         // onAuthStateChanged hará la redirección
     } catch (e) {
