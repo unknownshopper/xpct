@@ -88,6 +88,13 @@ onAuthStateChanged(auth, async (user) => {
             // Sin rol asignado: mostrar mensaje y reintentar refrescar claims unos segundos
             const msg = document.getElementById('login-mensaje');
             if (msg) msg.textContent = 'Tu cuenta no tiene rol asignado aún. Intentando actualizar permisos...';
+            try {
+                const btn = document.getElementById('btn-login');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Entrar';
+                }
+            } catch {}
             let tries = 0;
             const timer = setInterval(async () => {
                 tries += 1;
@@ -103,6 +110,13 @@ onAuthStateChanged(auth, async (user) => {
                 if (tries >= 10) {
                     clearInterval(timer);
                     if (msg) msg.textContent = 'Tu cuenta no tiene rol asignado. Contacta al administrador.';
+                    try {
+                        const btn = document.getElementById('btn-login');
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.textContent = 'Entrar';
+                        }
+                    } catch {}
                 }
             }, 3000);
         }
