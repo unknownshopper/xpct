@@ -596,6 +596,11 @@
             return;
         }
 
+        try {
+            const email = (user.email || '').toString().toLowerCase();
+            if (emailSpan) emailSpan.textContent = email;
+        } catch {}
+
         // Migración opcional: marcar terminaciones PARCIALES a partir de los períodos de facturación.
         // Uso sugerido: abrir consola en actividadmin.html y ejecutar
         //   marcarTerminacionesParcialesDesdePeriodos()
@@ -757,9 +762,17 @@
         window.migrarActividadesMultiEquipo = migrarActividadesMultiEquipo;
         window.marcarTerminacionesFinalesDesdePeriodos = marcarTerminacionesFinalesDesdePeriodos;
         window.marcarTerminacionesParcialesDesdePeriodos = marcarTerminacionesParcialesDesdePeriodos;
-        window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
+        try {
+            if (typeof migrarOsFormatoNuevo === 'function') {
+                window.migrarOsFormatoNuevo = migrarOsFormatoNuevo;
+            }
+        } catch {}
         // Exponer generador de períodos mensuales
-        window.generarPeriodosMensuales = generarPeriodosMensuales;
+        try {
+            if (typeof generarPeriodosMensuales === 'function') {
+                window.generarPeriodosMensuales = generarPeriodosMensuales;
+            }
+        } catch {}
         // El render se expondrá desde el IIFE principal para evitar referencias fuera de su ámbito
     });
 
