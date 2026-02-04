@@ -338,6 +338,11 @@
                         No hay pruebas registradas todavía.
                     </p>
                 </div>
+                <div id="pruebas-load-more" style="display:flex; gap:0.5rem; justify-content:center; align-items:center; margin-top:0.75rem; flex-wrap:wrap;">
+                    <button id="btn-pruebas-more-200" type="button">Ver más 200</button>
+                    <button id="btn-pruebas-more-500" type="button">Ver más 500</button>
+                    <button id="btn-pruebas-more-all" type="button">Ver todas</button>
+                </div>
             </section>
         </section>
 
@@ -419,8 +424,10 @@
                             equipo: reg.equipo,
                             numeroSerie: reg.serial || reg.numeroSerie,
                             periodo: reg.periodo,
+                            prueba: reg.prueba,
                             fechaRealizacion: reg.fechaRealizacion,
                             noReporte: reg.noReporte,
+                            area: reg.area,
                         });
                         if (kR) existentesRelax.set(kR, reg);
                     });
@@ -433,8 +440,24 @@
                     if (!rows.length) { alert('Primero selecciona el CSV para diagnosticar.'); return; }
                     const candidatos = [];
                     rows.forEach(r => {
-                        const kStrict = composeKey(r);
-                        const kRelax = composeKeyRelaxed(r);
+                        const kStrict = composeKey({
+                            equipo: r.equipo,
+                            numeroSerie: r.serial,
+                            periodo: r.periodo,
+                            prueba: r.prueba,
+                            fechaRealizacion: r.fechaRealizacion,
+                            noReporte: r.noReporte,
+                            area: r.area,
+                        });
+                        const kRelax = composeKeyRelaxed({
+                            equipo: r.equipo,
+                            numeroSerie: r.serial,
+                            periodo: r.periodo,
+                            prueba: r.prueba,
+                            fechaRealizacion: r.fechaRealizacion,
+                            noReporte: r.noReporte,
+                            area: r.area,
+                        });
                         if (!exSetStrict.has(kStrict) && existentesRelax.has(kRelax)) {
                             const reg = existentesRelax.get(kRelax);
                             candidatos.push({ kStrict, kRelax, noReporteCsv: r.noReporte, noReporteExist: reg && reg.noReporte });
@@ -477,8 +500,10 @@
                             equipo: r.equipo,
                             numeroSerie: r.serial,
                             periodo: r.periodo,
+                            prueba: r.prueba,
                             fechaRealizacion: r.fechaRealizacion,
                             noReporte: r.noReporte,
+                            area: r.area,
                         });
                         if (k) csvKeys.add(k);
                     });
@@ -524,8 +549,10 @@
                             equipo: r.equipo,
                             numeroSerie: r.serial,
                             periodo: r.periodo,
+                            prueba: r.prueba,
                             fechaRealizacion: r.fechaRealizacion,
                             noReporte: r.noReporte,
+                            area: r.area,
                         });
                         if (k) {
                             csvKeys.add(k);
@@ -712,6 +739,16 @@
         const chip0 = document.getElementById('chip-0');
         let filtroRango = null; // 'gt60' | '60' | '30' | '15' | '0' | null
 
+        // Habilitar persistencia offline si está disponible (no falla en multi-tab)
+        (async ()=>{
+            try {
+                const { enableIndexedDbPersistence } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                if (window.db) enableIndexedDbPersistence(window.db).catch(()=>{});
+            } catch {}
+        })();
+
+        try { console.debug('cargarPruebasDesdeFirestore: init'); } catch {}
+
         // Filtro por periodo (ANUAL / POST-TRABAJO / REPARACION)
         let filtroPeriodo = null; // null = todos, 'ANUAL' | 'POST-TRABAJO' | 'REPARACION'
         function actualizarChipsPeriodoActivos() {
@@ -768,6 +805,10 @@
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
         const btnRefresh = document.getElementById('btn-pruebas-refresh');
         const btnMore = document.getElementById('btn-pruebas-more');
+        const btnMore200Bottom = document.getElementById('btn-pruebas-more-200');
+        const btnMore500Bottom = document.getElementById('btn-pruebas-more-500');
+        const btnMoreAllBottom = document.getElementById('btn-pruebas-more-all');
+        const bottomLoadWrap = document.getElementById('pruebas-load-more');
         const btnImportCsv = document.getElementById('btn-pruebas-import-csv');
         const inputImportCsv = document.getElementById('input-import-csv');
         const btnDeleteCsv = document.getElementById('btn-pruebas-delete-csv');
@@ -908,6 +949,7 @@
         const claveLocal = 'pct_pruebas';
         let _totalServer = null;
         let _isLoadingAll = false;
+        let _isLoadingMore = false;
 
         // Inventario base desde invre.csv/invre2.csv para mostrar todos los equipos, incluso sin pruebas.
         let equiposInventario = new Set();
@@ -937,6 +979,31 @@
 
         async function leerTotalServidor() {
             try {
+                // Cooldown para evitar 429 por agregación (getCountFromServer) en Firestore.
+                // Si se excede cuota, esperamos un tiempo antes de reintentar.
+                try {
+                    const until = Number(localStorage.getItem('pct_pruebas_count_cooldown_until') || '0');
+                    if (until && !isNaN(until) && Date.now() < until) {
+                        const cached = Number(localStorage.getItem('pct_pruebas_total_cached') || '0');
+                        _totalServer = (cached && !isNaN(cached) && cached > 0) ? cached : null;
+                        if (_totalServer == null) {
+                            try {
+                                const { getFirestore, collection, getDocsFromCache } = await import(
+                                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                                );
+                                const db = getFirestore();
+                                const colRef = collection(db, 'pruebas');
+                                const snapCacheOnly = await getDocsFromCache(colRef);
+                                const approx = snapCacheOnly.size;
+                                if (typeof approx === 'number' && isFinite(approx) && approx > 0) {
+                                    _totalServer = approx;
+                                    try { localStorage.setItem('pct_pruebas_total_cached', String(approx)); } catch {}
+                                }
+                            } catch {}
+                        }
+                        return;
+                    }
+                } catch {}
                 const { getFirestore, collection, getCountFromServer } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -944,8 +1011,46 @@
                 const colRef = collection(db, 'pruebas');
                 const agg = await getCountFromServer(colRef);
                 _totalServer = agg.data().count;
+                try {
+                    if (typeof _totalServer === 'number' && isFinite(_totalServer) && _totalServer > 0) {
+                        localStorage.setItem('pct_pruebas_total_cached', String(_totalServer));
+                    }
+                } catch {}
             } catch (e) {
-                _totalServer = null;
+                const cached = (() => {
+                    try {
+                        const v = Number(localStorage.getItem('pct_pruebas_total_cached') || '0');
+                        return (v && !isNaN(v) && v > 0) ? v : null;
+                    } catch { return null; }
+                })();
+                _totalServer = cached;
+                const code = (e && (e.code || (e.name && String(e.name)))) ? String(e.code || e.name) : '';
+                const msg = (e && e.message) ? String(e.message) : '';
+                const is429 = code.includes('resource-exhausted') || /429/.test(msg) || /Too Many Requests/i.test(msg);
+                if (is429) {
+                    try {
+                        const minutes = 15;
+                        localStorage.setItem('pct_pruebas_count_cooldown_until', String(Date.now() + minutes * 60 * 1000));
+                    } catch {}
+                    console.warn('Firestore rate limit: se omite conteo total temporalmente (cooldown).');
+                }
+
+                // Si no tenemos cached total, intentar obtener un aproximado desde caché local (sin agregación).
+                if (_totalServer == null) {
+                    try {
+                        const { getFirestore, collection, getDocsFromCache } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        const colRef = collection(db, 'pruebas');
+                        const snapCacheOnly = await getDocsFromCache(colRef);
+                        const approx = snapCacheOnly.size;
+                        if (typeof approx === 'number' && isFinite(approx) && approx > 0) {
+                            _totalServer = approx;
+                            try { localStorage.setItem('pct_pruebas_total_cached', String(approx)); } catch {}
+                        }
+                    } catch {}
+                }
             }
         }
 
@@ -964,11 +1069,40 @@
                 if (_lastDoc) qBase = query(colRef, orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
 
                 let snap = null;
-                if (!forceNetwork) { try { snap = await getDocsFromCache(qBase); } catch {} }
-                if (!snap || snap.empty) { try { snap = await getDocs(qBase); } catch {} }
-                if (!snap || snap.empty) return;
+                let cacheErr = null;
+                let netErr = null;
+                if (!forceNetwork) {
+                    try { snap = await getDocsFromCache(qBase); }
+                    catch (e) { cacheErr = e; }
+                }
+                if (!snap || snap.empty) {
+                    try { snap = await getDocs(qBase); }
+                    catch (e) { netErr = e; }
+                }
+                if (!snap || snap.empty) {
+                    // Fallback: hay datasets antiguos sin "creadoEn" o casos donde la ordenación no regresa docs.
+                    try {
+                        const qFallback = query(colRef, limit(_pageLimit));
+                        snap = forceNetwork ? await getDocs(qFallback) : (await getDocsFromCache(qFallback).catch(() => null)) || (await getDocs(qFallback));
+                    } catch {}
+                }
+
+                if (!snap || snap.empty) {
+                    if (cacheErr || netErr) {
+                        console.error('No se pudo cargar la página de pruebas (cache/network)', { cacheErr, netErr });
+                    }
+                    try {
+                        const msgListado = document.getElementById('mensaje-sin-pruebas-listado');
+                        if (msgListado) {
+                            msgListado.style.display = 'block';
+                            msgListado.textContent = 'No se pudieron cargar datos de Firestore. Verifica tu sesión/permisos o intenta "Actualizar".';
+                        }
+                    } catch {}
+                    return;
+                }
 
                 const nuevos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                try { console.debug('Pruebas: página cargada', { count: nuevos.length, reset, forceNetwork }); } catch {}
                 pruebas = pruebas.concat(nuevos);
                 _lastDoc = snap.docs[snap.docs.length - 1];
                 try { localStorage.setItem(claveLocal, JSON.stringify(pruebas)); } catch {}
@@ -984,11 +1118,24 @@
             }
         }
 
-        // Cargar primera página desde cache; red solo al pulsar "Actualizar"
-        await leerPagina({ reset: true, forceNetwork: false });
+        // Cargar primera página: primero cache, luego red si está vacío.
+        try {
+            await leerPagina({ reset: true, forceNetwork: false });
+            if (!pruebas || !pruebas.length) {
+                await leerPagina({ reset: true, forceNetwork: true });
+            }
+        } catch (e) {
+            console.error('Fallo al cargar pruebas (inicio)', e);
+        }
 
         // Leer total real desde servidor (para mostrar "Mostrando X de Y")
         await leerTotalServidor();
+
+        // Reconstruir llaves tras carga inicial
+        try { buildExistingKeys(); } catch {}
+
+        // Render inicial
+        try { render(); } catch {}
 
         async function cargarTodas() {
             if (_isLoadingAll) return;
@@ -1016,6 +1163,47 @@
 
         if (btnVerTodas) {
             btnVerTodas.addEventListener('click', async () => {
+                await cargarTodas();
+            });
+        }
+
+        async function cargarMasCantidad(target) {
+            if (_isLoadingAll || _isLoadingMore) return;
+            if (!_lastDoc) return;
+            const prevLen = pruebas.length;
+            _isLoadingMore = true;
+            try {
+                if (btnMore200Bottom) btnMore200Bottom.disabled = true;
+                if (btnMore500Bottom) btnMore500Bottom.disabled = true;
+                if (btnMoreAllBottom) btnMoreAllBottom.disabled = true;
+                const maxIters = Math.max(1, Math.ceil((target || 200) / 200));
+                for (let i = 0; i < maxIters; i++) {
+                    if (!_lastDoc) break;
+                    await leerPagina({ reset: false, forceNetwork: false });
+                    if (_totalServer != null && pruebas.length >= _totalServer) break;
+                    if (pruebas.length - prevLen >= target) break;
+                }
+            } finally {
+                _isLoadingMore = false;
+                render();
+                if (btnMore200Bottom) btnMore200Bottom.disabled = false;
+                if (btnMore500Bottom) btnMore500Bottom.disabled = false;
+                if (btnMoreAllBottom) btnMoreAllBottom.disabled = false;
+            }
+        }
+
+        if (btnMore200Bottom) {
+            btnMore200Bottom.addEventListener('click', async () => {
+                await cargarMasCantidad(200);
+            });
+        }
+        if (btnMore500Bottom) {
+            btnMore500Bottom.addEventListener('click', async () => {
+                await cargarMasCantidad(500);
+            });
+        }
+        if (btnMoreAllBottom) {
+            btnMoreAllBottom.addEventListener('click', async () => {
                 await cargarTodas();
             });
         }
@@ -1144,31 +1332,34 @@
             const equipo = (r.equipo||'').trim().toUpperCase();
             const numeroSerie = (r.numeroSerie||r.serial||'').trim().toUpperCase();
             const periodo = (r.periodo||'').trim().toUpperCase();
+            const prueba = (r.prueba||'').trim().toUpperCase();
             const fechaRealizacion = (r.fechaRealizacion||'').trim();
             const noReporte = (r.noReporte||'').trim().toUpperCase();
-            return `${equipo}__${numeroSerie}__${periodo}__${fechaRealizacion}__${noReporte}`;
+            const area = (r.area||r.areaPrueba||'').trim().toUpperCase();
+            if (!equipo || !numeroSerie || !periodo || !prueba || !fechaRealizacion || !noReporte || !area) return '';
+            return `${equipo}__${numeroSerie}__${periodo}__${prueba}__${fechaRealizacion}__${noReporte}__${area}`;
         }
 
-        try { window.composeKey = composeKey; } catch {}
-
-        // Llave "relajada": normaliza puntuación en noReporte y colapsa guiones/espacios
-        function normalizeReportId(id) {
-            const s = String(id||'').toUpperCase().normalize('NFKC');
-            // Sustituye cualquier carácter no [A-Z0-9-] por '-'
-            let t = s.replace(/[^A-Z0-9-]+/g, '-');
-            // Colapsa guiones múltiples
+        function normalizeNoReporte(s) {
+            let t = String(s || '').trim().toUpperCase();
+            t = t.replace(/\s+/g, '');
+            t = t.replace(/[^A-Z0-9-]/g, '');
             t = t.replace(/-+/g, '-');
-            // Trim guiones en extremos
             t = t.replace(/^-/, '').replace(/-$/, '');
             return t;
         }
+
         function composeKeyRelaxed(r) {
             const equipo = (r.equipo||'').trim().toUpperCase();
             const numeroSerie = (r.numeroSerie||r.serial||'').trim().toUpperCase();
             const periodo = (r.periodo||'').trim().toUpperCase();
-            const fechaRealizacion = (r.fechaRealizacion||'').trim(); // ya viene normalizada dd/mm/aaaa
-            const noReporte = normalizeReportId(r.noReporte||'');
-            return `${equipo}__${numeroSerie}__${periodo}__${fechaRealizacion}__${noReporte}`;
+            const prueba = (r.prueba||'').trim().toUpperCase();
+            const fechaRealizacion = (r.fechaRealizacion||'').trim();
+            let noReporte = (r.noReporte||'').trim().toUpperCase();
+            const area = (r.area||r.areaPrueba||'').trim().toUpperCase();
+            if (!equipo || !numeroSerie || !periodo || !prueba || !fechaRealizacion || !noReporte || !area) return '';
+            noReporte = normalizeNoReporte(noReporte);
+            return `${equipo}__${numeroSerie}__${periodo}__${prueba}__${fechaRealizacion}__${noReporte}__${area}`;
         }
         try { window.composeKeyRelaxed = composeKeyRelaxed; } catch {}
 
@@ -1179,8 +1370,10 @@
                     equipo: reg.equipo,
                     numeroSerie: reg.serial || reg.numeroSerie,
                     periodo: reg.periodo,
+                    prueba: reg.prueba,
                     fechaRealizacion: reg.fechaRealizacion,
                     noReporte: reg.noReporte,
+                    area: reg.area,
                 });
                 if (k) existingKeys.add(k);
             });
@@ -1439,7 +1632,7 @@
 
         async function doImportToFirestore(rows, { overwrite } = { overwrite: false }) {
             const { getFirestore, collection, addDoc, updateDoc, doc, getDocs, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-            const db = getFirestore(app);
+            const db = (window && window.db) ? window.db : getFirestore();
             let ok = 0, updated = 0, skipped = 0, failed = 0;
             let mapFs = null;
             if (overwrite) {
@@ -1452,8 +1645,10 @@
                         equipo: data.equipo,
                         numeroSerie: data.serial || data.numeroSerie,
                         periodo: data.periodo,
+                        prueba: data.prueba,
                         fechaRealizacion: data.fechaRealizacion,
                         noReporte: data.noReporte,
+                        area: data.area,
                     });
                     if (k) mapFs.set(k, d.id);
                 });
@@ -1463,8 +1658,10 @@
                     equipo: r.equipo,
                     numeroSerie: r.serial,
                     periodo: r.periodo,
+                    prueba: r.prueba,
                     fechaRealizacion: r.fechaRealizacion,
                     noReporte: r.noReporte,
+                    area: r.area,
                 });
                 if (!overwrite && existingKeys.has(k)) { skipped++; continue; }
                 const payload = {
@@ -2435,6 +2632,14 @@
                 if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
                 else lblHist.textContent = `${totalHistorico} en histórico`;
             }
+
+            try {
+                const hasMore = !!_lastDoc && (typeof _totalServer !== 'number' || (pruebas && pruebas.length < _totalServer));
+                if (bottomLoadWrap) bottomLoadWrap.style.display = hasMore ? 'flex' : 'none';
+                if (btnMoreAllBottom) btnMoreAllBottom.disabled = !hasMore || _isLoadingAll || _isLoadingMore;
+                if (btnMore200Bottom) btnMore200Bottom.disabled = !hasMore || _isLoadingAll || _isLoadingMore;
+                if (btnMore500Bottom) btnMore500Bottom.disabled = !hasMore || _isLoadingAll || _isLoadingMore;
+            } catch {}
 
             const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
             const lblAlert0 = document.getElementById('pruebas-alert-0');

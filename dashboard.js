@@ -72,6 +72,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                try {
+                    const n = (typeof total === 'number') ? total : parseInt(String(total || '').trim(), 10);
+                    if (typeof n === 'number' && isFinite(n) && n >= 0) {
+                        localStorage.setItem('pct_pruebas_total_cached', String(n));
+                    }
+                } catch {}
+
                 // 2) Buckets y tipos desde caché únicamente (si no hay caché, mostramos —)
                 const hoy = new Date();
                 hoy.setHours(0, 0, 0, 0);
