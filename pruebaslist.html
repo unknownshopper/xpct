@@ -974,6 +974,12 @@
         let _paginationMode = 'creadoEn';
         let _loadedIds = new Set();
 
+        // Exponer dataset para diagnóstico en consola
+        try {
+            window.pctGetPruebas = () => (Array.isArray(pruebas) ? pruebas : []);
+            window.pruebas = window.pctGetPruebas();
+        } catch {}
+
         // Inventario base desde invre.csv/invre2.csv para mostrar todos los equipos, incluso sin pruebas.
         let equiposInventario = new Set();
         let descripcionPorEquipoInv = {};
@@ -1101,6 +1107,7 @@
                     pruebas = [];
                     _paginationMode = 'creadoEn';
                     _loadedIds = new Set();
+                    try { window.pruebas = window.pctGetPruebas(); } catch {}
                 }
 
                 let qBase;
@@ -1162,6 +1169,7 @@
                 pruebas = pruebas.concat(nuevos);
                 _lastDoc = snap.docs[snap.docs.length - 1];
                 try { localStorage.setItem(claveLocal, JSON.stringify(pruebas)); } catch {}
+                try { window.pruebas = window.pctGetPruebas(); } catch {}
                 return nuevos.length;
             } catch (e) {
                 console.error('Error al leer página de pruebas', e);
@@ -1171,6 +1179,7 @@
                         const crudo = JSON.parse(localStorage.getItem(claveLocal) || '[]');
                         if (Array.isArray(crudo)) pruebas = crudo;
                     } catch { pruebas = []; }
+                    try { window.pruebas = window.pctGetPruebas(); } catch {}
                 }
                 return 0;
             }
@@ -1194,6 +1203,7 @@
 
         // Render inicial
         try { render(); } catch {}
+        try { window.pruebas = window.pctGetPruebas(); } catch {}
 
         // Auto-completar el resumen al entrar (carga completa en segundo plano)
         try {
@@ -1235,6 +1245,7 @@
                             _totalServer = pruebas.length;
                         }
                     } catch {}
+                    try { window.pruebas = window.pctGetPruebas(); } catch {}
                     try { buildExistingKeys(); } catch {}
                     try { actualizarContadoresTiposLocal(pruebas); } catch {}
                     try { render(); } catch {}
@@ -1721,6 +1732,30 @@
 
         function req(val) { return val !== undefined && val !== null && String(val).trim() !== ''; }
         function isValidPeriodo(p) { const v = String(p||'').toUpperCase(); return v==='ANUAL' || v==='POST-TRABAJO' || v==='REPARACION'; }
+        function normalizaPrueba(p) {
+            try {
+                const v = String(p || '').toUpperCase().trim();
+                if (!v) return '';
+                // Normalizar variantes comunes a un valor canónico
+                // Ej: "VT / PT / MT" , "VT/PT/MT" , "VT-PT-MT" => "VT/PT/MT"
+                const compact = v.replace(/\s+/g, '');
+                if (compact === 'VT/PT/MT' || compact === 'VT/PT/MT,' || compact === 'VT/PT/MT;') return 'VT/PT/MT';
+                if (compact === 'VT/PT/MT'.replace(/\//g,'') ) return 'VT/PT/MT';
+                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
+                if (compact === 'VT/PT/MT' || compact === 'VT/PT/MT') return 'VT/PT/MT';
+                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
+                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
+                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
+                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
+                // Detección por contenido para cadena con separadores
+                if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) {
+                    return 'VT/PT/MT';
+                }
+                return v;
+            } catch {
+                return String(p || '').toUpperCase().trim();
+            }
+        }
         function isValidResultado(r) {
             const v = String(r||'').toUpperCase();
             return v==='ACEPTADA' || v==='APROBADA' || v==='APROBADO' || v==='RECHAZADA' || v==='N/A';
@@ -1805,7 +1840,8 @@
                 if (!isValidEjecucion(rec.ejecucion)) errors.push(`L${n}: ejecucion inválida (INTERNO|INTERNA|EXTERNO|EXTERNA)`);
                 // Relajar: si ejecucion=EXTERNO sin emisor, marcar warning y permitir la fila
                 if (normalizaEjecucion(rec.ejecucion||'')==='EXTERNO' && !req(rec.emisor)) warnings.push(`L${n}: emisor ausente con ejecucion=EXTERNO (se permitirá la carga)`);
-                if (['VT','PT','MT'].includes(String(rec.prueba||'').toUpperCase()) && !req(rec.pruebaDetalle)) errors.push(`L${n}: pruebaDetalle requerido para VT/PT/MT`);
+                const pruebaNormTmp = normalizaPrueba(rec.prueba || '');
+                const requiereDetalleVpm = (pruebaNormTmp === 'VT' || pruebaNormTmp === 'PT' || pruebaNormTmp === 'MT' || pruebaNormTmp === 'VT/PT/MT');
 
                 // Inventario
                 if (equiposInventario && equiposInventario.size && !equiposInventario.has(rec.equipo)) {
@@ -1845,8 +1881,9 @@
                             : (rec.descripcion || '');
 
                     // Resolver área: CSV -> inventario (invre2) por equipo/serial+tipo -> previo por equipo -> previo por serial
-                    let tipoKey = String(rec.prueba||'').toUpperCase();
-                    if (tipoKey === 'VT' || tipoKey === 'PT' || tipoKey === 'MT') {
+                    let tipoKey = normalizaPrueba(rec.prueba || '');
+                    // En invre2 el tipo suele venir como "VT / PT / MT" (con espacios)
+                    if (tipoKey === 'VT' || tipoKey === 'PT' || tipoKey === 'MT' || tipoKey === 'VT/PT/MT') {
                         tipoKey = 'VT / PT / MT';
                     }
                     const areaInv = (areaPorEquipoPruebaInv && areaPorEquipoPruebaInv[`${eqKey}::${tipoKey}`])
@@ -1859,12 +1896,21 @@
                         warnings.push(`L${n}: área de inspección no encontrada (equipo/serial/tipo sin coincidencia en invre2 y sin antecedente)`);
                     }
 
+                    // Normalizar pruebaDetalle para VT/PT/MT: si viene vacío, autocompletar con el área.
+                    // Esto evita rechazar CSVs donde el detalle no está separado, pero sí hay área.
+                    let pruebaDetalleNorm = (rec.pruebaDetalle || '').toString().trim();
+                    if (requiereDetalleVpm && !pruebaDetalleNorm) {
+                        pruebaDetalleNorm = (rec.areaPrueba || areaResolved || '').toString().trim();
+                        if (pruebaDetalleNorm) warnings.push(`L${n}: pruebaDetalle ausente para VT/PT/MT; se usará área "${pruebaDetalleNorm}"`);
+                        else warnings.push(`L${n}: pruebaDetalle ausente para VT/PT/MT y no hay área; se permitirá vacío`);
+                    }
+
                     valids.push({
                         cliente: rec.cliente,
                         equipo: rec.equipo,
                         serial: rec.numeroSerie,
                         periodo,
-                        prueba: rec.prueba.toUpperCase(),
+                        prueba: normalizaPrueba(rec.prueba || ''),
                         fechaRealizacion: formatDDMMAAAA(f),
                         noReporte: rec.noReporte,
                         resultado: normalizaResultado(rec.resultado),
@@ -1872,7 +1918,7 @@
                         emisor,
                         producto,
                         descripcion,
-                        pruebaDetalle: rec.pruebaDetalle || '',
+                        pruebaDetalle: pruebaDetalleNorm || '',
                         observaciones: rec.observaciones || '',
                         ubicacion: rec.ubicacion || '',
                         area: areaResolved,
@@ -1958,6 +2004,10 @@
             const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const db = (window && window.db) ? window.db : getFirestore();
             let ok = 0, updated = 0, skipped = 0, failed = 0;
+            let importBatchId = '';
+            try {
+                importBatchId = `pruebas_${new Date().toISOString()}_${Math.random().toString(36).slice(2, 8)}`;
+            } catch { importBatchId = `pruebas_${Date.now()}`; }
             for (const r of rows) {
                 const k = composeKey({
                     equipo: r.equipo,
@@ -1989,6 +2039,8 @@
                     area: r.area || '',
                     tecnico: r.tecnico,
                     creadoEn: serverTimestamp(),
+                    importBatchId,
+                    importedAt: serverTimestamp(),
                 };
                 if (r.periodo === 'ANUAL' && r.proxima) payload.proxima = r.proxima;
                 try {
@@ -2003,6 +2055,9 @@
                     console.error('Error insertando fila import', e);
                 }
             }
+            try {
+                if (ok > 0 && importBatchId) localStorage.setItem('pct_pruebas_last_import_batch_id', String(importBatchId));
+            } catch {}
             return { ok, updated, skipped, failed };
         }
 
@@ -2550,6 +2605,20 @@
                 utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
             };
 
+            let _lastImportBatchId = '';
+            try { _lastImportBatchId = String(localStorage.getItem('pct_pruebas_last_import_batch_id') || ''); } catch {}
+
+            function isScopedIndicator(reg) {
+                if (!_lastImportBatchId) return true;
+                const cat = categoriaPrueba(reg);
+                if (cat === 'lt') return true;
+                if (cat === 'vpm' || cat === 'utt') {
+                    const bid = (reg && reg.importBatchId) ? String(reg.importBatchId) : '';
+                    return bid === _lastImportBatchId;
+                }
+                return false;
+            }
+
             // Post-trabajo y Reparación distribuidos por buckets según fecha de realización (antigüedad)
             const pt = {
                 lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
@@ -2569,6 +2638,7 @@
                 if (periodo && periodo !== 'ANUAL') return;
                 const cat = categoriaPrueba(reg);
                 if (!cat) return;
+                if (!isScopedIndicator(reg)) return;
                 const prox = parseProxima(reg.proxima || '') || (reg._clasif?.proxima || null);
                 if (!prox) return;
                 const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
@@ -2773,7 +2843,8 @@
 
                 // Contar alertas por PRUEBA (no por equipo), solo vigentes; rangos: 60–31, 30–16, 15–1
                 // esAnualReg ya calculado arriba
-                if (esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 1) {
+                const scopedForIndicators = isScopedIndicator(reg);
+                if (scopedForIndicators && esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 1) {
                     if (diasNum >= 31 && diasNum <= 60) {
                         cntChip60 += 1;
                     } else if (diasNum >= 16 && diasNum <= 30) {
@@ -2782,10 +2853,10 @@
                         cntChip15 += 1;
                     }
                 }
-                if (esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum > 60) {
+                if (scopedForIndicators && esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum > 60) {
                     cntChipGT60 += 1;
                 }
-                if (esAnualReg && estado === 'VENCIDA') {
+                if (scopedForIndicators && esAnualReg && estado === 'VENCIDA') {
                     cntChip0 += 1;
                 }
 
@@ -2811,10 +2882,10 @@
                 // Contadores alineados al dashboard (después de calcular diasNum):
                 // - "Por realizar" = pruebas ANUALES vigentes cuyo dProx está entre 0 y 60 días (suma de 60–30, 30–15, 15–0)
                 // - "Vencidas" = pruebas ANUALES con próxima ya pasada (estado VENCIDA)
-                if (esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 0 && diasNum <= 60) {
+                if (scopedForIndicators && esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 0 && diasNum <= 60) {
                     cntPend += 1;
                 }
-                if (esAnualReg && estado === 'VENCIDA') {
+                if (scopedForIndicators && esAnualReg && estado === 'VENCIDA') {
                     cntVenc += 1;
                 }
 

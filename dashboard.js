@@ -35,7 +35,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function getCachedNumber(key) {
         try {
-            const n = Number(localStorage.getItem(key) || '');
+            const raw = localStorage.getItem(key);
+            if (raw == null) return null;
+            const s = String(raw).trim();
+            if (!s) return null;
+            const n = Number(s);
             return Number.isFinite(n) ? n : null;
         } catch { return null; }
     }
@@ -71,6 +75,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 return d;
             }
 
+        async function getSnapPreferCacheThenNetwork(colRef) {
+            try {
+                const sc = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).getDocsFromCache(colRef);
+                if (sc && typeof sc.size === 'number' && sc.size > 0) return sc;
+            } catch {}
+            try {
+                const sr = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).getDocs(colRef);
+                return sr;
+            } catch {}
+            return null;
+        }
+
             const d = new Date(s);
             if (isNaN(d.getTime())) return null;
             d.setHours(0, 0, 0, 0);
@@ -79,49 +95,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
-                const { getFirestore, collection, getDocsFromCache, getCountFromServer } = await import(
+                const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'pruebas');
 
-                // 1) Total con agregación (ligero) + manejo de 429
+                // 1) Total sin agregación (evita 429 RunAggregationQuery)
                 let total = '—';
                 const cdKey = 'pct_dash_pruebas_count_cooldown_until';
                 const cacheKey = 'pct_pruebas_total_cached';
                 try {
-                    const until = getCooldownUntil(cdKey);
-                    if (until && Date.now() < until) {
-                        const cached = getCachedNumber(cacheKey);
-                        if (cached != null) total = cached;
-                        else {
-                            try {
-                                const snapCacheOnly = await getDocsFromCache(colRef);
-                                total = snapCacheOnly.size;
-                                setCachedNumber(cacheKey, total);
-                            } catch {}
-                        }
-                    } else {
-                        const agg = await getCountFromServer(colRef);
-                        total = agg.data().count;
-                        setCachedNumber(cacheKey, total);
+                    // Si ya hay un total cacheado, úsalo siempre.
+                    const cached = getCachedNumber(cacheKey);
+                    if (cached != null) total = cached;
+                    else {
+                        try {
+                            const snapCacheOnly = await getDocsFromCache(colRef);
+                            total = snapCacheOnly.size;
+                            setCachedNumber(cacheKey, total);
+                        } catch {}
                     }
                 } catch (err) {
-                    if (isRateLimitErr(err)) {
-                        setCooldown(cdKey);
-                        const cached = getCachedNumber(cacheKey);
-                        if (cached != null) total = cached;
-                        else {
-                            try {
-                                const snapCacheOnly = await getDocsFromCache(colRef);
-                                total = snapCacheOnly.size;
-                                setCachedNumber(cacheKey, total);
-                            } catch {}
-                        }
-                    } else {
-                        throw err;
-                    }
+                    // No se debería llegar aquí, pero mantenemos fallback silencioso.
+                    try { setCooldown(cdKey); } catch {}
                 }
 
                 try { setCachedNumber(cacheKey, total); } catch {}
@@ -138,7 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 let totalReparacion = '—';
 
                 try {
-                    const snap = await getDocsFromCache(colRef);
+                    let snap = await getDocsFromCache(colRef);
+                    if (snap && typeof snap.size === 'number' && snap.size === 0) {
+                        try { snap = await getDocs(colRef); } catch {}
+                    }
                     let pv60 = 0, pv30 = 0, pv15 = 0, tAn=0, tPT=0, tRep=0;
                     snap.forEach(doc => {
                         const data = doc.data() || {};
@@ -296,8 +297,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
                 let snap;
-                try { snap = await getDocsFromCache(colRef); }
-                catch { snap = await getDocs(colRef); }
+                try {
+                    snap = await getDocsFromCache(colRef);
+                    if (snap && typeof snap.size === 'number' && snap.size === 0) {
+                        try { snap = await getDocs(colRef); } catch {}
+                    }
+                } catch {
+                    snap = await getDocs(colRef);
+                }
 
                 const actividadIds = new Set();
                 snap.forEach(doc => {
@@ -369,69 +376,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
-                const { getFirestore, collection, getDocsFromCache, getCountFromServer, where, query, getDocs } = await import(
+                const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
-                // Totales con agregación y manejo de 429
+                // Totales sin agregación (evita 429 RunAggregationQuery)
                 let total = '—';
                 let concluidas = '—';
                 const cdKeyTot = 'pct_dash_actividades_count_cooldown_until';
                 const cacheKeyTot = 'pct_actividades_total_cached';
                 try {
-                    const until = getCooldownUntil(cdKeyTot);
-                    if (until && Date.now() < until) {
-                        const cached = getCachedNumber(cacheKeyTot);
-                        if (cached != null) total = cached;
-                        else {
-                            try { const sc = await getDocsFromCache(colRef); total = sc.size; setCachedNumber(cacheKeyTot, total); } catch {}
-                        }
-                    } else {
-                        const totalAgg = await getCountFromServer(colRef);
-                        total = totalAgg.data().count;
-                        setCachedNumber(cacheKeyTot, total);
+                    const cached = getCachedNumber(cacheKeyTot);
+                    if (cached != null) total = cached;
+                    else {
+                        try {
+                            let sc = await getDocsFromCache(colRef);
+                            if (sc && typeof sc.size === 'number' && sc.size === 0) {
+                                try { sc = await getDocs(colRef); } catch {}
+                            }
+                            if (sc && typeof sc.size === 'number') {
+                                total = sc.size;
+                                setCachedNumber(cacheKeyTot, total);
+                            }
+                        } catch {}
                     }
                 } catch (err) {
-                    if (isRateLimitErr(err)) {
-                        setCooldown(cdKeyTot);
-                        const cached = getCachedNumber(cacheKeyTot);
-                        if (cached != null) total = cached;
-                        else {
-                            try { const sc = await getDocsFromCache(colRef); total = sc.size; setCachedNumber(cacheKeyTot, total); } catch {}
-                        }
-                    } else { throw err; }
+                    try { setCooldown(cdKeyTot); } catch {}
                 }
+                // Concluidas desde caché (sin agregación)
                 try {
-                    const qCon = query(colRef, where('terminacionEsFinal','==', true));
-                    const cdKeyCon = 'pct_dash_actividades_concluidas_cooldown_until';
                     const cacheKeyCon = 'pct_actividades_concluidas_cached';
-                    const until = getCooldownUntil(cdKeyCon);
-                    if (until && Date.now() < until) {
-                        const cached = getCachedNumber(cacheKeyCon);
-                        if (cached != null) concluidas = cached;
-                        else {
-                            const sc = await getDocsFromCache(colRef);
-                            let c = 0; sc.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });
-                            concluidas = c;
-                            setCachedNumber(cacheKeyCon, concluidas);
+                    const cachedCon = getCachedNumber(cacheKeyCon);
+                    if (cachedCon != null) concluidas = cachedCon;
+                    else {
+                        let sc = await getDocsFromCache(colRef);
+                        if (sc && typeof sc.size === 'number' && sc.size === 0) {
+                            try { sc = await getDocs(colRef); } catch {}
                         }
-                    } else {
-                        const aggCon = await getCountFromServer(qCon);
-                        concluidas = aggCon.data().count;
+                        let c = 0; sc.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });
+                        concluidas = c;
                         setCachedNumber(cacheKeyCon, concluidas);
                     }
-                } catch (err) {
-                    if (isRateLimitErr(err)) {
-                        setCooldown('pct_dash_actividades_concluidas_cooldown_until');
-                        try {
-                            const sc = await getDocsFromCache(colRef);
-                            let c = 0; sc.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });
-                            concluidas = c;
-                            setCachedNumber('pct_actividades_concluidas_cached', concluidas);
-                        } catch {}
-                    } else { throw err; }
+                } catch {
+                    // Si no hay caché, intentar red (sin agregación) para no dejar en blanco.
+                    try {
+                        const sr = await getDocs(colRef);
+                        let c = 0; sr.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });
+                        concluidas = c;
+                        setCachedNumber('pct_actividades_concluidas_cached', concluidas);
+                        if (typeof total !== 'number') {
+                            try { total = sr.size; setCachedNumber('pct_actividades_total_cached', total); } catch {}
+                        }
+                    } catch {}
                 }
                 let pendientes = (typeof total==='number' && typeof concluidas==='number') ? (total - concluidas) : '—';
 
