@@ -10,10 +10,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Habilitar persistencia offline si está disponible (no falla en multi-tab)
     (async ()=>{
         try {
-            const { enableIndexedDbPersistence } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-            if (window.db) enableIndexedDbPersistence(window.db).catch(()=>{});
+            // enableIndexedDbPersistence() muestra advertencia de deprecación en Firestore 10.x.
+            // Se omite para evitar ruido en consola; Firestore seguirá usando caché en memoria.
         } catch {}
     })();
+
+    const COOLDOWN_MS = 15 * 60 * 1000;
+    function isRateLimitErr(err) {
+        try {
+            if (!err) return false;
+            if (err.code === 'resource-exhausted') return true;
+            const msg = String(err.message || '').toLowerCase();
+            return msg.includes('429') || msg.includes('too many') || msg.includes('resource-exhausted');
+        } catch { return false; }
+    }
+    function getCooldownUntil(key) {
+        try {
+            const v = Number(localStorage.getItem(key) || '0');
+            return Number.isFinite(v) ? v : 0;
+        } catch { return 0; }
+    }
+    function setCooldown(key) {
+        try { localStorage.setItem(key, String(Date.now() + COOLDOWN_MS)); } catch {}
+    }
+    function getCachedNumber(key) {
+        try {
+            const n = Number(localStorage.getItem(key) || '');
+            return Number.isFinite(n) ? n : null;
+        } catch { return null; }
+    }
+    function setCachedNumber(key, val) {
+        try {
+            const n = (typeof val === 'number') ? val : Number(val);
+            if (Number.isFinite(n) && n >= 0) localStorage.setItem(key, String(n));
+        } catch {}
+    }
 
     // Pruebas guardadas en Firestore (total y por vencer a 60/30/15 días)
     if (spanPruebas) {
@@ -57,27 +88,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 1) Total con agregación (ligero) + manejo de 429
                 let total = '—';
+                const cdKey = 'pct_dash_pruebas_count_cooldown_until';
+                const cacheKey = 'pct_pruebas_total_cached';
                 try {
-                    const agg = await getCountFromServer(colRef);
-                    total = agg.data().count;
+                    const until = getCooldownUntil(cdKey);
+                    if (until && Date.now() < until) {
+                        const cached = getCachedNumber(cacheKey);
+                        if (cached != null) total = cached;
+                        else {
+                            try {
+                                const snapCacheOnly = await getDocsFromCache(colRef);
+                                total = snapCacheOnly.size;
+                                setCachedNumber(cacheKey, total);
+                            } catch {}
+                        }
+                    } else {
+                        const agg = await getCountFromServer(colRef);
+                        total = agg.data().count;
+                        setCachedNumber(cacheKey, total);
+                    }
                 } catch (err) {
-                    if (err && (err.code === 'resource-exhausted' || err.code === 'permission-denied' || String(err.message||'').includes('429'))) {
-                        // fallback a caché para tener al menos algún número
-                        try {
-                            const snapCacheOnly = await getDocsFromCache(colRef);
-                            total = snapCacheOnly.size;
-                        } catch {}
+                    if (isRateLimitErr(err)) {
+                        setCooldown(cdKey);
+                        const cached = getCachedNumber(cacheKey);
+                        if (cached != null) total = cached;
+                        else {
+                            try {
+                                const snapCacheOnly = await getDocsFromCache(colRef);
+                                total = snapCacheOnly.size;
+                                setCachedNumber(cacheKey, total);
+                            } catch {}
+                        }
                     } else {
                         throw err;
                     }
                 }
 
-                try {
-                    const n = (typeof total === 'number') ? total : parseInt(String(total || '').trim(), 10);
-                    if (typeof n === 'number' && isFinite(n) && n >= 0) {
-                        localStorage.setItem('pct_pruebas_total_cached', String(n));
-                    }
-                } catch {}
+                try { setCachedNumber(cacheKey, total); } catch {}
 
                 // 2) Buckets y tipos desde caché únicamente (si no hay caché, mostramos —)
                 const hoy = new Date();
@@ -331,24 +378,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Totales con agregación y manejo de 429
                 let total = '—';
                 let concluidas = '—';
+                const cdKeyTot = 'pct_dash_actividades_count_cooldown_until';
+                const cacheKeyTot = 'pct_actividades_total_cached';
                 try {
-                    const totalAgg = await getCountFromServer(colRef);
-                    total = totalAgg.data().count;
+                    const until = getCooldownUntil(cdKeyTot);
+                    if (until && Date.now() < until) {
+                        const cached = getCachedNumber(cacheKeyTot);
+                        if (cached != null) total = cached;
+                        else {
+                            try { const sc = await getDocsFromCache(colRef); total = sc.size; setCachedNumber(cacheKeyTot, total); } catch {}
+                        }
+                    } else {
+                        const totalAgg = await getCountFromServer(colRef);
+                        total = totalAgg.data().count;
+                        setCachedNumber(cacheKeyTot, total);
+                    }
                 } catch (err) {
-                    if (err && (err.code === 'resource-exhausted' || err.code === 'permission-denied' || String(err.message||'').includes('429'))) {
-                        try { const sc = await getDocsFromCache(colRef); total = sc.size; } catch {}
+                    if (isRateLimitErr(err)) {
+                        setCooldown(cdKeyTot);
+                        const cached = getCachedNumber(cacheKeyTot);
+                        if (cached != null) total = cached;
+                        else {
+                            try { const sc = await getDocsFromCache(colRef); total = sc.size; setCachedNumber(cacheKeyTot, total); } catch {}
+                        }
                     } else { throw err; }
                 }
                 try {
                     const qCon = query(colRef, where('terminacionEsFinal','==', true));
-                    const aggCon = await getCountFromServer(qCon);
-                    concluidas = aggCon.data().count;
+                    const cdKeyCon = 'pct_dash_actividades_concluidas_cooldown_until';
+                    const cacheKeyCon = 'pct_actividades_concluidas_cached';
+                    const until = getCooldownUntil(cdKeyCon);
+                    if (until && Date.now() < until) {
+                        const cached = getCachedNumber(cacheKeyCon);
+                        if (cached != null) concluidas = cached;
+                        else {
+                            const sc = await getDocsFromCache(colRef);
+                            let c = 0; sc.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });
+                            concluidas = c;
+                            setCachedNumber(cacheKeyCon, concluidas);
+                        }
+                    } else {
+                        const aggCon = await getCountFromServer(qCon);
+                        concluidas = aggCon.data().count;
+                        setCachedNumber(cacheKeyCon, concluidas);
+                    }
                 } catch (err) {
-                    if (err && (err.code === 'resource-exhausted' || err.code === 'permission-denied' || String(err.message||'').includes('429'))) {
+                    if (isRateLimitErr(err)) {
+                        setCooldown('pct_dash_actividades_concluidas_cooldown_until');
                         try {
                             const sc = await getDocsFromCache(colRef);
                             let c = 0; sc.forEach(d=>{ if ((d.data()||{}).terminacionEsFinal===true) c++; });
                             concluidas = c;
+                            setCachedNumber('pct_actividades_concluidas_cached', concluidas);
                         } catch {}
                     } else { throw err; }
                 }

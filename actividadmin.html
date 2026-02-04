@@ -491,10 +491,8 @@
 
     // Habilitar persistencia offline (IndexedDB). Ignorar errores de multi-tab.
     try {
-        const { enableIndexedDbPersistence } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        if (db) {
-            enableIndexedDbPersistence(db).catch(() => {});
-        }
+        // enableIndexedDbPersistence() muestra advertencia de deprecación en Firestore 10.x.
+        // Se omite para evitar ruido en consola; Firestore seguirá usando caché en memoria.
     } catch {}
 
     // Acceso por Custom Claims (Firebase): role === 'admin'

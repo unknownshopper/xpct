@@ -762,8 +762,8 @@
         // Habilitar persistencia offline si está disponible (no falla en multi-tab)
         (async ()=>{
             try {
-                const { enableIndexedDbPersistence } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-                if (window.db) enableIndexedDbPersistence(window.db).catch(()=>{});
+                // enableIndexedDbPersistence() muestra advertencia de deprecación en Firestore 10.x.
+                // Se omite para evitar ruido en consola; Firestore seguirá usando caché en memoria.
             } catch {}
         })();
 
@@ -1002,6 +1002,16 @@
 
         async function leerTotalServidor() {
             try {
+                // Si ya hay un total cacheado, usarlo y NO disparar agregación.
+                // Esto evita el spam de 429 (RunAggregationQuery) en consola.
+                try {
+                    const cachedNow = Number(localStorage.getItem('pct_pruebas_total_cached') || '0');
+                    if (cachedNow && !isNaN(cachedNow) && cachedNow > 0) {
+                        _totalServer = cachedNow;
+                        return;
+                    }
+                } catch {}
+
                 // Cooldown para evitar 429 por agregación (getCountFromServer) en Firestore.
                 // Si se excede cuota, esperamos un tiempo antes de reintentar.
                 try {
@@ -1136,7 +1146,7 @@
                             msgListado.textContent = 'No se pudieron cargar datos de Firestore. Verifica tu sesión/permisos o intenta "Actualizar".';
                         }
                     } catch {}
-                    return;
+                    return 0;
                 }
 
                 const nuevos = snap.docs
@@ -1152,6 +1162,7 @@
                 pruebas = pruebas.concat(nuevos);
                 _lastDoc = snap.docs[snap.docs.length - 1];
                 try { localStorage.setItem(claveLocal, JSON.stringify(pruebas)); } catch {}
+                return nuevos.length;
             } catch (e) {
                 console.error('Error al leer página de pruebas', e);
                 // Fallback a cache local completa solo en reset
@@ -1161,6 +1172,7 @@
                         if (Array.isArray(crudo)) pruebas = crudo;
                     } catch { pruebas = []; }
                 }
+                return 0;
             }
         }
 
@@ -1182,6 +1194,53 @@
 
         // Render inicial
         try { render(); } catch {}
+
+        // Auto-completar el resumen al entrar (carga completa en segundo plano)
+        try {
+            setTimeout(async () => {
+                if (_csvPreviewActive) return;
+                if (_isLoadingAll || _isLoadingMore) return;
+                if (!_lastDoc) {
+                    try {
+                        if (Array.isArray(pruebas) && pruebas.length) {
+                            localStorage.setItem('pct_pruebas_total_cached', String(pruebas.length));
+                            _totalServer = pruebas.length;
+                        }
+                    } catch {}
+                    return;
+                }
+
+                _isLoadingAll = true;
+                try {
+                    if (lblResumenParcial) lblResumenParcial.textContent = `Cargando resumen completo...`;
+                    let safety = 0;
+                    while (_lastDoc && safety < 300) {
+                        safety += 1;
+                        const added = await leerPagina({ reset: false, forceNetwork: false });
+                        if (!added) {
+                            const addedNet = await leerPagina({ reset: false, forceNetwork: true });
+                            if (!addedNet) break;
+                        }
+                        if (safety % 3 === 0) {
+                            try { buildExistingKeys(); } catch {}
+                            try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                            render();
+                        }
+                    }
+                } finally {
+                    _isLoadingAll = false;
+                    try {
+                        if (Array.isArray(pruebas) && pruebas.length) {
+                            localStorage.setItem('pct_pruebas_total_cached', String(pruebas.length));
+                            _totalServer = pruebas.length;
+                        }
+                    } catch {}
+                    try { buildExistingKeys(); } catch {}
+                    try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                    try { render(); } catch {}
+                }
+            }, 50);
+        } catch {}
 
         async function cargarTodas() {
             if (_isLoadingAll) return;
