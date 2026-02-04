@@ -493,6 +493,10 @@
         if (btnDiagnoseExistingOnly) {
             btnDiagnoseExistingOnly.addEventListener('click', () => {
                 try {
+                    const keyFn = (window && typeof window.composeKey === 'function')
+                        ? window.composeKey
+                        : (typeof composeKey === 'function' ? composeKey : null);
+                    if (!keyFn) throw new Error('composeKey is not defined');
                     if (window.buildExistingKeys) window.buildExistingKeys();
                     let rows = (window.getImportRowsReady && window.getImportRowsReady()) || [];
                     if (!rows.length && (window.getLastCsvText && window.getLastCsvText())) {
@@ -502,7 +506,7 @@
                     if (!rows.length) { alert('Primero selecciona el CSV para diagnosticar.'); return; }
                     const csvKeys = new Set();
                     rows.forEach(r => {
-                        const k = composeKey({
+                        const k = keyFn({
                             equipo: r.equipo,
                             numeroSerie: r.serial,
                             periodo: r.periodo,
@@ -539,6 +543,10 @@
         if (btnSummarySets) {
             btnSummarySets.addEventListener('click', () => {
                 try {
+                    const keyFn = (window && typeof window.composeKey === 'function')
+                        ? window.composeKey
+                        : (typeof composeKey === 'function' ? composeKey : null);
+                    if (!keyFn) throw new Error('composeKey is not defined');
                     if (window.buildExistingKeys) window.buildExistingKeys();
                     const exSet = (window.getExistingKeysSet && window.getExistingKeysSet()) || existingKeys || new Set();
                     const existingCount = exSet.size;
@@ -551,7 +559,7 @@
                     const csvKeys = new Set();
                     const keyFreq = new Map();
                     rows.forEach(r => {
-                        const k = composeKey({
+                        const k = keyFn({
                             equipo: r.equipo,
                             numeroSerie: r.serial,
                             periodo: r.periodo,
@@ -739,6 +747,9 @@
 
         const lblResumenParcial = document.getElementById('pruebas-resumen-parcial');
         const btnCompletarResumen = document.getElementById('btn-pruebas-completar-resumen');
+
+        let _csvPreviewActive = false;
+        let _csvPreviewRows = [];
 
         // Chips de filtro por rango de días
         const chipGT60 = document.getElementById('chip-gt60');
@@ -960,6 +971,9 @@
         let _isLoadingAll = false;
         let _isLoadingMore = false;
 
+        let _paginationMode = 'creadoEn';
+        let _loadedIds = new Set();
+
         // Inventario base desde invre.csv/invre2.csv para mostrar todos los equipos, incluso sin pruebas.
         let equiposInventario = new Set();
         let descripcionPorEquipoInv = {};
@@ -1066,16 +1080,27 @@
         // Lectura paginada (orden por creadoEn desc). Cache primero; red solo bajo demanda.
         async function leerPagina({ reset = false, forceNetwork = false } = {}) {
             try {
-                const { getFirestore, collection, getDocs, getDocsFromCache, query, orderBy, limit, startAfter } = await import(
+                const { getFirestore, collection, getDocs, getDocsFromCache, query, orderBy, limit, startAfter, documentId } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const db = getFirestore();
                 const colRef = collection(db, 'pruebas');
 
-                if (reset) { _lastDoc = null; pruebas = []; }
+                if (reset) {
+                    _lastDoc = null;
+                    pruebas = [];
+                    _paginationMode = 'creadoEn';
+                    _loadedIds = new Set();
+                }
 
-                let qBase = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
-                if (_lastDoc) qBase = query(colRef, orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+                let qBase;
+                if (_paginationMode === 'docId') {
+                    qBase = query(colRef, orderBy(documentId()), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit));
+                } else {
+                    qBase = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+                }
 
                 let snap = null;
                 let cacheErr = null;
@@ -1090,8 +1115,12 @@
                 }
                 if (!snap || snap.empty) {
                     // Fallback: hay datasets antiguos sin "creadoEn" o casos donde la ordenación no regresa docs.
+                    // Usar una paginación estable por documentId para poder recorrer TODA la colección.
                     try {
-                        const qFallback = query(colRef, limit(_pageLimit));
+                        _paginationMode = 'docId';
+                        const qFallback = _lastDoc
+                            ? query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit))
+                            : query(colRef, orderBy(documentId()), limit(_pageLimit));
                         snap = forceNetwork ? await getDocs(qFallback) : (await getDocsFromCache(qFallback).catch(() => null)) || (await getDocs(qFallback));
                     } catch {}
                 }
@@ -1110,7 +1139,15 @@
                     return;
                 }
 
-                const nuevos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const nuevos = snap.docs
+                    .filter(d => {
+                        const id = d && d.id ? String(d.id) : '';
+                        if (!id) return false;
+                        if (_loadedIds.has(id)) return false;
+                        _loadedIds.add(id);
+                        return true;
+                    })
+                    .map(d => ({ id: d.id, ...d.data() }));
                 try { console.debug('Pruebas: página cargada', { count: nuevos.length, reset, forceNetwork }); } catch {}
                 pruebas = pruebas.concat(nuevos);
                 _lastDoc = snap.docs[snap.docs.length - 1];
@@ -1167,6 +1204,14 @@
             } finally {
                 _isLoadingAll = false;
                 if (btnVerTodas) btnVerTodas.disabled = false;
+                // Si ya cargamos todo, fijar cache total para que en el siguiente reload no dependa de aggregation (429)
+                try {
+                    if (Array.isArray(pruebas) && pruebas.length) {
+                        localStorage.setItem('pct_pruebas_total_cached', String(pruebas.length));
+                        _totalServer = pruebas.length;
+                        try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                    }
+                } catch {}
             }
         }
 
@@ -1200,6 +1245,15 @@
                 }
             } finally {
                 _isLoadingMore = false;
+                // Si se cargaron más registros que el total cacheado, elevar el total para evitar X>N
+                try {
+                    const loaded = Array.isArray(pruebas) ? pruebas.length : 0;
+                    if (loaded && (typeof _totalServer !== 'number' || _totalServer < loaded)) {
+                        _totalServer = loaded;
+                        try { localStorage.setItem('pct_pruebas_total_cached', String(loaded)); } catch {}
+                    }
+                } catch {}
+                try { actualizarContadoresTiposLocal(pruebas); } catch {}
                 render();
                 if (btnMore200Bottom) btnMore200Bottom.disabled = false;
                 if (btnMore500Bottom) btnMore500Bottom.disabled = false;
@@ -1224,11 +1278,11 @@
         }
 
         // Actualizar contadores de tipos (Anual, Post-trabajo, Reparación) con base en TODAS las pruebas (sin filtros)
-        (function actualizarContadoresTiposLocal() {
-            if (!Array.isArray(pruebas)) return;
+        function actualizarContadoresTiposLocal(list) {
+            const arr = Array.isArray(list) ? list : [];
             let cAnual = 0, cPT = 0, cRep = 0;
-            pruebas.forEach(reg => {
-                const p = (reg && reg.periodo ? String(reg.periodo) : '').trim().toUpperCase();
+            arr.forEach(reg => {
+                const p = (reg.periodo || '').toString().trim().toUpperCase();
                 if (p === 'POST-TRABAJO') cPT += 1;
                 else if (p === 'REPARACION') cRep += 1;
                 else cAnual += 1; // incluye vacío como ANUAL (compat)
@@ -1236,7 +1290,184 @@
             if (lblAnual) lblAnual.textContent = `Anual: ${cAnual}`;
             if (lblPT) lblPT.textContent = `Post-trabajo: ${cPT}`;
             if (lblRep) lblRep.textContent = `Reparación: ${cRep}`;
-        })();
+        }
+        actualizarContadoresTiposLocal(pruebas);
+
+        function aplicarConteosDesdeCsvPreview(rows) {
+            const arr = Array.isArray(rows) ? rows : [];
+            _csvPreviewActive = true;
+            _csvPreviewRows = arr;
+
+            actualizarContadoresTiposLocal(arr);
+
+            const hoy = hoySinHora();
+            let cntPend = 0;
+            let cntVenc = 0;
+            const totalHistorico = arr.length;
+
+            // Contadores por tipo y bucket (mismos buckets del Resumen de estado)
+            const cont = {
+                lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+            };
+
+            function categoriaPruebaPreview(reg) {
+                const p = ((reg.prueba || reg.pruebaTipo || '') + '').toUpperCase();
+                if (!p) return null;
+                if (p.includes('UTT')) return 'utt';
+                if (p.includes('LT')) return 'lt';
+                if (p.includes('VT') || p.includes('PT') || p.includes('MT')) return 'vpm';
+                return null;
+            }
+
+            const anualPorEquipo = new Map();
+            arr.forEach(reg => {
+                const eq = (reg.equipo || '').toString();
+                if (!eq) return;
+                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+                if (periodo && periodo !== 'ANUAL') return;
+                const fr = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
+                const actual = anualPorEquipo.get(eq);
+                if (!actual || fr.getTime() > actual._fechaRealDate.getTime()) {
+                    anualPorEquipo.set(eq, { ...reg, _fechaRealDate: fr, _clasif: clasificarPrueba(reg) });
+                }
+            });
+
+            // Contadores tipo dashboard
+            arr.forEach(reg => {
+                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                if (!esAnualReg) return;
+                const clasif = clasificarPrueba(reg);
+                const estado = clasif ? clasif.estado : 'SIN_FECHA';
+                if (estado === 'VENCIDA') { cntVenc += 1; return; }
+                if (estado !== 'VIGENTE') return;
+                const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
+                if (!prox) return;
+                const diasNum = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                if (!isNaN(diasNum) && diasNum >= 0 && diasNum <= 60) cntPend += 1;
+            });
+
+            // Chips superiores por rango (mismos criterios que render(): solo ANUAL)
+            let cntChipGT60 = 0;
+            let cntChip60 = 0;
+            let cntChip30 = 0;
+            let cntChip15 = 0;
+            let cntChip0 = 0;
+            arr.forEach(reg => {
+                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                if (!esAnualReg) return;
+                const clasif = clasificarPrueba(reg);
+                const estado = clasif ? clasif.estado : 'SIN_FECHA';
+                if (estado === 'VENCIDA') { cntChip0 += 1; return; }
+                if (estado !== 'VIGENTE') return;
+                const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
+                if (!prox) return;
+                const diasNum = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                if (isNaN(diasNum)) return;
+                if (diasNum > 60) cntChipGT60 += 1;
+                else if (diasNum >= 31 && diasNum <= 60) cntChip60 += 1;
+                else if (diasNum >= 16 && diasNum <= 30) cntChip30 += 1;
+                else if (diasNum >= 1 && diasNum <= 15) cntChip15 += 1;
+            });
+
+            try {
+                const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
+                const lblAlert0 = document.getElementById('pruebas-alert-0');
+                if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
+                if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
+                if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
+                if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
+                if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
+            } catch {}
+
+            // Pintar tabla informativa (Resumen de estado) para ANUAL
+            arr.forEach(reg => {
+                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                if (!esAnualReg) return;
+                const cat = categoriaPruebaPreview(reg);
+                if (!cat) return;
+                const clasif = clasificarPrueba(reg);
+                const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
+                if (!prox) return;
+                const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                if (isNaN(dias)) return;
+                if (dias <= 0) { cont[cat].d0 += 1; return; }
+                if (dias > 60) cont[cat].gt60 += 1;
+                else if (dias >= 31) cont[cat].d60 += 1;
+                else if (dias >= 16) cont[cat].d30 += 1;
+                else if (dias >= 1) cont[cat].d15 += 1;
+            });
+
+            try {
+                if (inf.lt.gt60) inf.lt.gt60.textContent = String(cont.lt.gt60);
+                if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
+                if (inf.lt.d30)  inf.lt.d30.textContent  = String(cont.lt.d30);
+                if (inf.lt.d15)  inf.lt.d15.textContent  = String(cont.lt.d15);
+                if (inf.lt.d0)   inf.lt.d0.textContent   = String(cont.lt.d0);
+
+                if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(cont.vpm.gt60);
+                if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(cont.vpm.d60);
+                if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(cont.vpm.d30);
+                if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(cont.vpm.d15);
+                if (inf.vpm.d0)   inf.vpm.d0.textContent   = String(cont.vpm.d0);
+
+                if (inf.utt.gt60) inf.utt.gt60.textContent = String(cont.utt.gt60);
+                if (inf.utt.d60)  inf.utt.d60.textContent  = String(cont.utt.d60);
+                if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
+                if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
+                if (inf.utt.d0)   inf.utt.d0.textContent   = String(cont.utt.d0);
+            } catch {}
+
+            if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
+            if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
+            if (lblHist) lblHist.textContent = `${totalHistorico} en histórico`;
+
+            if (lblResumenParcial) lblResumenParcial.textContent = `Resumen basado en CSV (${totalHistorico})`;
+            if (btnCompletarResumen) btnCompletarResumen.style.display = 'none';
+
+            // Resumen por equipo basado solo en CSV (equipos presentes)
+            try {
+                if (lblResVig && lblResVenc && lblResSin) {
+                    const equipos = Array.from(anualPorEquipo.keys());
+                    let cntEquiposVig = 0;
+                    let cntEquiposVenc = 0;
+                    let cntEquiposSin = 0;
+                    let cntEquiposPorCaducar = 0;
+                    equipos.forEach(eq => {
+                        const reg = anualPorEquipo.get(eq) || null;
+                        const estado = reg ? (reg._clasif && reg._clasif.estado ? reg._clasif.estado : 'SIN_FECHA') : 'SIN_PRUEBA';
+                        if (estado === 'VIGENTE') {
+                            cntEquiposVig += 1;
+                            const dProx = parseProxima(reg ? (reg.proxima || '') : '');
+                            if (dProx) {
+                                const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                                if (dias >= 0 && dias <= 60) cntEquiposPorCaducar += 1;
+                            }
+                        } else if (estado === 'VENCIDA') {
+                            cntEquiposVenc += 1;
+                        } else {
+                            cntEquiposSin += 1;
+                        }
+                    });
+                    lblResVig.textContent = String(cntEquiposVig);
+                    lblResVenc.textContent = String(cntEquiposVenc);
+                    lblResSin.textContent = String(cntEquiposSin);
+                    if (lblResPorCad) lblResPorCad.textContent = String(cntEquiposPorCaducar);
+                    if (lblResCaducadas) lblResCaducadas.textContent = String(cntEquiposVenc);
+                }
+            } catch {}
+        }
+
+        function limpiarConteosCsvPreview() {
+            _csvPreviewActive = false;
+            _csvPreviewRows = [];
+            actualizarContadoresTiposLocal(pruebas);
+            render();
+        }
 
         async function cargarInventarioDesdeCsv() {
             try {
@@ -1354,6 +1585,7 @@
             if (!equipo || !numeroSerie || !periodo || !prueba || !fechaRealizacion || !noReporte || !area) return '';
             return `${equipo}__${numeroSerie}__${periodo}__${prueba}__${fechaRealizacion}__${noReporte}__${area}`;
         }
+        try { window.composeKey = composeKey; } catch {}
 
         function normalizeNoReporte(s) {
             let t = String(s || '').trim().toUpperCase();
@@ -1777,6 +2009,7 @@
                     importRowsReady = res.valids;
                     window.__lastValidationResult = res;
                     renderImportPreview(res);
+                    try { aplicarConteosDesdeCsvPreview(importRowsReady || []); } catch {}
                 } catch (e) {
                     alert('No se pudo leer el archivo CSV');
                     setProcessingGuard(false);
@@ -1834,12 +2067,54 @@
                 if (!window.isAdmin) return;
                 btnImportConfirm.disabled = true;
                 try {
+                    // Salir del modo vista previa CSV: después de importar, el origen de verdad es Firestore
+                    try {
+                        _csvPreviewActive = false;
+                        _csvPreviewRows = [];
+                    } catch {}
+
                     const res = await doImportToFirestore(importRowsReady||[]);
                     importSummary.innerHTML += ` — Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
                     // Recargar listado
                     const desdeFs2 = await leerFirestore();
                     if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
                     buildExistingKeys();
+
+                    // Refrescar conteo cacheado para evitar que se quede en 1685 bajo 429/cooldown
+                    // Cuando solo hay 200 cargadas, el conteo real cargado no sirve; usar incremento por importación.
+                    try {
+                        const prevCached = parseInt(String(localStorage.getItem('pct_pruebas_total_cached') || ''), 10);
+                        const okImported = Number(res && res.ok ? res.ok : 0);
+                        const loadedCount = (existingKeys && typeof existingKeys.size === 'number' && existingKeys.size > 0)
+                            ? existingKeys.size
+                            : (Array.isArray(pruebas) ? pruebas.length : 0);
+                        let nextCached = 0;
+                        if (Number.isFinite(prevCached) && prevCached > 0 && Number.isFinite(okImported) && okImported > 0) {
+                            nextCached = prevCached + okImported;
+                        } else {
+                            nextCached = Math.max((Number.isFinite(prevCached) ? prevCached : 0), loadedCount);
+                        }
+                        if (nextCached > 0) {
+                            localStorage.setItem('pct_pruebas_total_cached', String(nextCached));
+                            _totalServer = nextCached;
+                        }
+                    } catch {}
+
+                    // Cerrar/limpiar vista previa CSV para evitar que el UI siga mostrando conteos del CSV
+                    try {
+                        if (importPreview) importPreview.style.display = 'none';
+                        if (importWarnings) importWarnings.innerHTML = '';
+                        if (importErrors) importErrors.innerHTML = '';
+                        if (btnImportConfirm) btnImportConfirm.style.display = 'none';
+                        if (btnImportDeleteExisting) btnImportDeleteExisting.style.display = 'none';
+                        if (btnImportCancel) btnImportCancel.style.display = 'none';
+                        importRowsReady = [];
+                        lastCsvText = '';
+                        if (inputImportCsv) inputImportCsv.value = '';
+                    } catch {}
+
+                    // Forzar refresco de chips de tipo con base en Firestore ya recargado
+                    try { actualizarContadoresTiposLocal(pruebas); } catch {}
                     render();
                 } finally {
                     btnImportConfirm.disabled = false;
@@ -1855,6 +2130,7 @@
                 if (importErrors) importErrors.innerHTML = '';
                 importRowsReady = [];
                 if (inputImportCsv) inputImportCsv.value = '';
+                try { limpiarConteosCsvPreview(); } catch {}
             });
         }
 
@@ -2261,23 +2537,25 @@
 
             // Pintar tabla informativa (solo conteo ANUAL por rango)
             try {
-                if (inf.lt.gt60) inf.lt.gt60.textContent = String(cont.lt.gt60);
-                if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
-                if (inf.lt.d30)  inf.lt.d30.textContent  = String(cont.lt.d30);
-                if (inf.lt.d15)  inf.lt.d15.textContent  = String(cont.lt.d15);
-                if (inf.lt.d0)   inf.lt.d0.textContent   = String(cont.lt.d0);
+                if (!_csvPreviewActive) {
+                    if (inf.lt.gt60) inf.lt.gt60.textContent = String(cont.lt.gt60);
+                    if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
+                    if (inf.lt.d30)  inf.lt.d30.textContent  = String(cont.lt.d30);
+                    if (inf.lt.d15)  inf.lt.d15.textContent  = String(cont.lt.d15);
+                    if (inf.lt.d0)   inf.lt.d0.textContent   = String(cont.lt.d0);
 
-                if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(cont.vpm.gt60);
-                if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(cont.vpm.d60);
-                if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(cont.vpm.d30);
-                if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(cont.vpm.d15);
-                if (inf.vpm.d0)   inf.vpm.d0.textContent   = String(cont.vpm.d0);
+                    if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(cont.vpm.gt60);
+                    if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(cont.vpm.d60);
+                    if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(cont.vpm.d30);
+                    if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(cont.vpm.d15);
+                    if (inf.vpm.d0)   inf.vpm.d0.textContent   = String(cont.vpm.d0);
 
-                if (inf.utt.gt60) inf.utt.gt60.textContent = String(cont.utt.gt60);
-                if (inf.utt.d60)  inf.utt.d60.textContent  = String(cont.utt.d60);
-                if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
-                if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
-                if (inf.utt.d0)   inf.utt.d0.textContent   = String(cont.utt.d0);
+                    if (inf.utt.gt60) inf.utt.gt60.textContent = String(cont.utt.gt60);
+                    if (inf.utt.d60)  inf.utt.d60.textContent  = String(cont.utt.d60);
+                    if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
+                    if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
+                    if (inf.utt.d0)   inf.utt.d0.textContent   = String(cont.utt.d0);
+                }
             } catch {}
 
             // Resumen por equipo (última ANUAL) incluyendo equipos sin ANUAL (desde inventario)
@@ -2591,23 +2869,27 @@
             });
 
             if (!cntHist && msgListado) msgListado.style.display = 'block';
-            if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
-            if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
-            if (lblHist) {
-                if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
-                else lblHist.textContent = `${totalHistorico} en histórico`;
+            if (!_csvPreviewActive) {
+                if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
+                if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
+                if (lblHist) {
+                    if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
+                    else lblHist.textContent = `${totalHistorico} en histórico`;
+                }
             }
 
             try {
-                if (lblResumenParcial) {
-                    if (typeof _totalServer === 'number' && _totalServer > 0) {
-                        lblResumenParcial.textContent = `Resumen basado en ${totalHistorico} de ${_totalServer}`;
-                    } else {
-                        lblResumenParcial.textContent = `Resumen basado en ${totalHistorico}`;
+                if (!_csvPreviewActive) {
+                    if (lblResumenParcial) {
+                        if (typeof _totalServer === 'number' && _totalServer > 0) {
+                            lblResumenParcial.textContent = `Resumen basado en ${totalHistorico} de ${_totalServer}`;
+                        } else {
+                            lblResumenParcial.textContent = `Resumen basado en ${totalHistorico}`;
+                        }
                     }
+                    const isPartial = (typeof _totalServer === 'number' && _totalServer > 0 && (pruebas && pruebas.length < _totalServer));
+                    if (btnCompletarResumen) btnCompletarResumen.style.display = (isPartial && !_isLoadingAll) ? '' : 'none';
                 }
-                const isPartial = (typeof _totalServer === 'number' && _totalServer > 0 && (pruebas && pruebas.length < _totalServer));
-                if (btnCompletarResumen) btnCompletarResumen.style.display = (isPartial && !_isLoadingAll) ? '' : 'none';
             } catch {}
 
             try {
@@ -2620,11 +2902,13 @@
 
             const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
             const lblAlert0 = document.getElementById('pruebas-alert-0');
-            if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
-            if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
-            if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
-            if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
-            if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
+            if (!_csvPreviewActive) {
+                if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
+                if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
+                if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
+                if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
+                if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
+            }
 
             // Reiniciar checkbox de selección global
             if (chkSelectTodos) chkSelectTodos.checked = false;
