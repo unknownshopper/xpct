@@ -154,7 +154,13 @@
         </section>
 
         <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
-            <h2 style="margin-bottom:0.75rem;">Resumen de estado</h2>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                <h2 style="margin:0;">Resumen de estado</h2>
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                    <span id="pruebas-resumen-parcial" style="font-size:0.85rem; color:#6b7280;"></span>
+                    <button id="btn-pruebas-completar-resumen" type="button" style="display:none;">Completar resumen</button>
+                </div>
+            </div>
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
                 <div class="dash-card" style="display:none;">
                     <div class="dash-card-label">Equipos con pruebas vigentes</div>
@@ -731,6 +737,9 @@
         const lblAlert30 = document.getElementById('pruebas-alert-30');
         const lblAlert15 = document.getElementById('pruebas-alert-15');
 
+        const lblResumenParcial = document.getElementById('pruebas-resumen-parcial');
+        const btnCompletarResumen = document.getElementById('btn-pruebas-completar-resumen');
+
         // Chips de filtro por rango de días
         const chipGT60 = document.getElementById('chip-gt60');
         const chip60 = document.getElementById('chip-60');
@@ -1163,6 +1172,12 @@
 
         if (btnVerTodas) {
             btnVerTodas.addEventListener('click', async () => {
+                await cargarTodas();
+            });
+        }
+
+        if (btnCompletarResumen) {
+            btnCompletarResumen.addEventListener('click', async () => {
                 await cargarTodas();
             });
         }
@@ -1628,31 +1643,30 @@
             if (btnImportCancel) btnImportCancel.style.display = '';
             const note = document.getElementById('import-note');
             if (note) note.style.display = hasErrors ? '' : 'none';
+
+            // Modo evento: nunca sobrescribe, solo inserta eventos nuevos.
+            try {
+                const chkOv = document.getElementById('chk-import-overwrite');
+                const chkAuto = document.getElementById('chk-auto-import');
+                if (chkOv) {
+                    chkOv.checked = false;
+                    chkOv.disabled = true;
+                    const lbl = chkOv.closest('label');
+                    if (lbl) lbl.style.display = 'none';
+                }
+                if (chkAuto) {
+                    chkAuto.checked = false;
+                    chkAuto.disabled = true;
+                    const lbl2 = chkAuto.closest('label');
+                    if (lbl2) lbl2.style.display = 'none';
+                }
+            } catch {}
         }
 
-        async function doImportToFirestore(rows, { overwrite } = { overwrite: false }) {
-            const { getFirestore, collection, addDoc, updateDoc, doc, getDocs, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        async function doImportToFirestore(rows) {
+            const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const db = (window && window.db) ? window.db : getFirestore();
             let ok = 0, updated = 0, skipped = 0, failed = 0;
-            let mapFs = null;
-            if (overwrite) {
-                // Construir mapa key->docId actual para poder actualizar
-                const snap = await getDocs(collection(db, 'pruebas'));
-                mapFs = new Map();
-                snap.docs.forEach(d => {
-                    const data = d.data();
-                    const k = composeKey({
-                        equipo: data.equipo,
-                        numeroSerie: data.serial || data.numeroSerie,
-                        periodo: data.periodo,
-                        prueba: data.prueba,
-                        fechaRealizacion: data.fechaRealizacion,
-                        noReporte: data.noReporte,
-                        area: data.area,
-                    });
-                    if (k) mapFs.set(k, d.id);
-                });
-            }
             for (const r of rows) {
                 const k = composeKey({
                     equipo: r.equipo,
@@ -1663,7 +1677,8 @@
                     noReporte: r.noReporte,
                     area: r.area,
                 });
-                if (!overwrite && existingKeys.has(k)) { skipped++; continue; }
+                // Modo evento: si ya existe la misma llave del evento, se omite.
+                if (existingKeys.has(k)) { skipped++; continue; }
                 const payload = {
                     cliente: r.cliente,
                     equipo: r.equipo,
@@ -1686,43 +1701,15 @@
                 };
                 if (r.periodo === 'ANUAL' && r.proxima) payload.proxima = r.proxima;
                 try {
-                    if (overwrite && mapFs && mapFs.has(k)) {
-                        const id = mapFs.get(k);
-                        // Evitar sobreescribir con cadenas vacías en actualización
-                        const payloadUpdate = Object.fromEntries(
-                            Object.entries(payload).filter(([_, v]) => v !== '' && v !== undefined && v !== null)
-                        );
-                        try {
-                            if (Object.keys(payloadUpdate).length === 0) {
-                                // Si no hay nada que actualizar, considerar como omitido
-                                skipped++;
-                            } else {
-                                await updateDoc(doc(db, 'pruebas', id), payloadUpdate);
-                                existingKeys.add(k);
-                                updated++;
-                            }
-                        } catch (eUpdate) {
-                            // Si el doc no existe (ej. quedó eliminado), crearlo en su lugar
-                            const msg = (eUpdate && eUpdate.message) || '';
-                            if (/No document to update/i.test(msg) || (eUpdate && eUpdate.code === 'not-found')) {
-                                await addDoc(collection(db, 'pruebas'), payload);
-                                existingKeys.add(k);
-                                ok++;
-                            } else {
-                                throw eUpdate;
-                            }
-                        }
-                    } else {
-                        await addDoc(collection(db, 'pruebas'), payload);
-                        existingKeys.add(k);
-                        ok++;
-                    }
+                    await addDoc(collection(db, 'pruebas'), payload);
+                    existingKeys.add(k);
+                    ok++;
                     if (((ok + updated) % 50) === 0 && importSummary) {
                         importSummary.innerHTML = `Importando... <strong>${ok + updated}</strong> / ${rows.length}`;
                     }
                 } catch (e) {
-                    console.error('Error insertando fila import', e);
                     failed++;
+                    console.error('Error insertando fila import', e);
                 }
             }
             return { ok, updated, skipped, failed };
@@ -1741,8 +1728,10 @@
                     equipo: data.equipo,
                     numeroSerie: data.serial || data.numeroSerie,
                     periodo: data.periodo,
+                    prueba: data.prueba,
                     fechaRealizacion: data.fechaRealizacion,
                     noReporte: data.noReporte,
+                    area: data.area,
                 });
                 if (k) mapFs.set(k, d.id);
             });
@@ -1754,8 +1743,10 @@
                     equipo: r.equipo,
                     numeroSerie: r.serial,
                     periodo: r.periodo,
+                    prueba: r.prueba,
                     fechaRealizacion: r.fechaRealizacion,
                     noReporte: r.noReporte,
+                    area: r.area,
                 });
                 const id = mapFs.get(k);
                 if (!id) { delMiss++; continue; }
@@ -1786,32 +1777,6 @@
                     importRowsReady = res.valids;
                     window.__lastValidationResult = res;
                     renderImportPreview(res);
-
-                    // Menos clics: auto-importar solo si el usuario lo marcó explícitamente
-                    const hasErrors = (res.errors && res.errors.length > 0);
-                    const chkAuto = document.getElementById('chk-auto-import');
-                    const wantAuto = !!(chkAuto && chkAuto.checked);
-                    if (window.isAdmin && wantAuto && !hasErrors && importRowsReady.length) {
-                        // Confirmación previa
-                        const okGo = window.confirm('Se iniciará la IMPORTACIÓN en modo sobrescribir. Este proceso no tiene vuelta atrás y no debes cerrar ni recargar la página hasta que termine. ¿Deseas continuar?');
-                        if (!okGo) return;
-                        // Mostrar feedback antes de arrancar y proteger navegación
-                        if (importSummary) importSummary.innerHTML = `Importando... <strong>0</strong> / ${importRowsReady.length}`;
-                        setProcessingGuard(true);
-                        const autoRes = await doImportToFirestore(importRowsReady, { overwrite: true });
-                        if (importSummary) {
-                            importSummary.innerHTML = `Importados: <strong>${autoRes.ok}</strong>, Actualizados: <strong>${autoRes.updated}</strong>, Omitidos: ${autoRes.skipped}, Fallidos: ${autoRes.failed}`;
-                        }
-                        // Recargar listado
-                        const desdeFs2 = await leerFirestore();
-                        if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
-                        buildExistingKeys();
-                        render();
-                        // Ocultar preview tras importación automática
-                        if (importPreview) importPreview.style.display = 'none';
-                        if (inputImportCsv) inputImportCsv.value = '';
-                        setProcessingGuard(false);
-                    }
                 } catch (e) {
                     alert('No se pudo leer el archivo CSV');
                     setProcessingGuard(false);
@@ -1841,8 +1806,10 @@
                             equipo: r.equipo,
                             numeroSerie: r.serial,
                             periodo: r.periodo,
+                            prueba: r.prueba,
                             fechaRealizacion: r.fechaRealizacion,
                             noReporte: r.noReporte,
+                            area: r.area,
                         });
                         if (k) csvKeys.add(k);
                     });
@@ -1867,9 +1834,7 @@
                 if (!window.isAdmin) return;
                 btnImportConfirm.disabled = true;
                 try {
-                    const chk = document.getElementById('chk-import-overwrite');
-                    const overwrite = !!(chk && chk.checked);
-                    const res = await doImportToFirestore(importRowsReady||[], { overwrite });
+                    const res = await doImportToFirestore(importRowsReady||[]);
                     importSummary.innerHTML += ` — Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
                     // Recargar listado
                     const desdeFs2 = await leerFirestore();
@@ -2632,6 +2597,18 @@
                 if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
                 else lblHist.textContent = `${totalHistorico} en histórico`;
             }
+
+            try {
+                if (lblResumenParcial) {
+                    if (typeof _totalServer === 'number' && _totalServer > 0) {
+                        lblResumenParcial.textContent = `Resumen basado en ${totalHistorico} de ${_totalServer}`;
+                    } else {
+                        lblResumenParcial.textContent = `Resumen basado en ${totalHistorico}`;
+                    }
+                }
+                const isPartial = (typeof _totalServer === 'number' && _totalServer > 0 && (pruebas && pruebas.length < _totalServer));
+                if (btnCompletarResumen) btnCompletarResumen.style.display = (isPartial && !_isLoadingAll) ? '' : 'none';
+            } catch {}
 
             try {
                 const hasMore = !!_lastDoc && (typeof _totalServer !== 'number' || (pruebas && pruebas.length < _totalServer));
