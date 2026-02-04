@@ -1202,9 +1202,26 @@
 
         function req(val) { return val !== undefined && val !== null && String(val).trim() !== ''; }
         function isValidPeriodo(p) { const v = String(p||'').toUpperCase(); return v==='ANUAL' || v==='POST-TRABAJO' || v==='REPARACION'; }
-        function isValidResultado(r) { const v = String(r||'').toUpperCase(); return v==='ACEPTADA' || v==='APROBADA' || v==='RECHAZADA' || v==='N/A'; }
-        function normalizaResultado(r) { const v = String(r||'').toUpperCase(); if (v==='APROBADA') return 'ACEPTADA'; return v; }
-        function isValidEjecucion(e) { if (!e) return true; const v = String(e||'').toUpperCase(); return v==='INTERNO' || v==='EXTERNO'; }
+        function isValidResultado(r) {
+            const v = String(r||'').toUpperCase();
+            return v==='ACEPTADA' || v==='APROBADA' || v==='APROBADO' || v==='RECHAZADA' || v==='N/A';
+        }
+        function normalizaResultado(r) {
+            const v = String(r||'').toUpperCase();
+            if (v==='APROBADA' || v==='APROBADO') return 'ACEPTADA';
+            return v;
+        }
+        function normalizaEjecucion(e) {
+            const v = String(e||'').toUpperCase();
+            if (v==='EXTERNA') return 'EXTERNO';
+            if (v==='INTERNA') return 'INTERNO';
+            return v;
+        }
+        function isValidEjecucion(e) {
+            if (!e) return true;
+            const v = normalizaEjecucion(e);
+            return v==='INTERNO' || v==='EXTERNO';
+        }
         function parseFechaDDMMAAAA(s) {
             const t = String(s||'').trim();
             // Acepta dd/mm/aa o dd/mm/aaaa
@@ -1268,7 +1285,7 @@
                 if (!req(rec.resultado) || !isValidResultado(rec.resultado)) errors.push(`L${n}: resultado inválido (APROBADA|RECHAZADA|N/A)`);
                 if (!isValidEjecucion(rec.ejecucion)) errors.push(`L${n}: ejecucion inválida (INTERNO|EXTERNO)`);
                 // Relajar: si ejecucion=EXTERNO sin emisor, marcar warning y permitir la fila
-                if (String(rec.ejecucion||'').toUpperCase()==='EXTERNO' && !req(rec.emisor)) warnings.push(`L${n}: emisor ausente con ejecucion=EXTERNO (se permitirá la carga)`);
+                if (normalizaEjecucion(rec.ejecucion||'')==='EXTERNO' && !req(rec.emisor)) warnings.push(`L${n}: emisor ausente con ejecucion=EXTERNO (se permitirá la carga)`);
                 if (['VT','PT','MT'].includes(String(rec.prueba||'').toUpperCase()) && !req(rec.pruebaDetalle)) errors.push(`L${n}: pruebaDetalle requerido para VT/PT/MT`);
 
                 // Inventario
@@ -1332,7 +1349,7 @@
                         fechaRealizacion: formatDDMMAAAA(f),
                         noReporte: rec.noReporte,
                         resultado: normalizaResultado(rec.resultado),
-                        ejecucion: String(rec.ejecucion||'').toUpperCase(),
+                        ejecucion: normalizaEjecucion(rec.ejecucion||''),
                         emisor,
                         producto,
                         descripcion,
