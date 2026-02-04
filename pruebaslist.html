@@ -352,6 +352,26 @@
     import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const auth = window.auth;
+    const APP_VERSION = '2026-02-04-1';
+
+    (async () => {
+        try {
+            const prev = localStorage.getItem('appVersion_pruebaslist');
+            if (prev !== APP_VERSION) {
+                localStorage.setItem('appVersion_pruebaslist', APP_VERSION);
+                if (window.caches && caches.keys) {
+                    try {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(k => caches.delete(k).catch(() => {})));
+                    } catch {}
+                }
+                const url = new URL(window.location.href);
+                url.searchParams.set('v', APP_VERSION + '-' + Date.now());
+                window.location.replace(url.toString());
+                return;
+            }
+        } catch {}
+    })();
 
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
@@ -1282,8 +1302,8 @@
                 const f = parseFechaDDMMAAAA(rec.fechaRealizacion);
                 if (!req(rec.fechaRealizacion) || !f) errors.push(`L${n}: fechaRealizacion inválida (dd/mm/aa o dd/mm/aaaa)`);
                 if (!req(rec.noReporte)) errors.push(`L${n}: noReporte requerido`);
-                if (!req(rec.resultado) || !isValidResultado(rec.resultado)) errors.push(`L${n}: resultado inválido (APROBADA|RECHAZADA|N/A)`);
-                if (!isValidEjecucion(rec.ejecucion)) errors.push(`L${n}: ejecucion inválida (INTERNO|EXTERNO)`);
+                if (!req(rec.resultado) || !isValidResultado(rec.resultado)) errors.push(`L${n}: resultado inválido (APROBADA|APROBADO|RECHAZADA|N/A)`);
+                if (!isValidEjecucion(rec.ejecucion)) errors.push(`L${n}: ejecucion inválida (INTERNO|INTERNA|EXTERNO|EXTERNA)`);
                 // Relajar: si ejecucion=EXTERNO sin emisor, marcar warning y permitir la fila
                 if (normalizaEjecucion(rec.ejecucion||'')==='EXTERNO' && !req(rec.emisor)) warnings.push(`L${n}: emisor ausente con ejecucion=EXTERNO (se permitirá la carga)`);
                 if (['VT','PT','MT'].includes(String(rec.prueba||'').toUpperCase()) && !req(rec.pruebaDetalle)) errors.push(`L${n}: pruebaDetalle requerido para VT/PT/MT`);
