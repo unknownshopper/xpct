@@ -129,6 +129,104 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
 
 Pendiente/Nota: Se reforzará la validación para que la confirmación de importación exija “cero errores” en la vista previa. Mientras tanto, la importación confirma únicamente los registros válidos y omite filas con errores.
 
+---
+
+## Plan para mañana (Feb 2026) — corregir conteos de VPM/UTT vs CSV maestro
+
+### Contexto
+
+- Se generó un CSV maestro en `docs/unifi.csv` (fuente de verdad) con conteos ANUAL esperados:
+  - `VPM = 1446`
+  - `UTT = 709`
+  - `LT = 631`
+- Firestore (`pruebas`) tiene registros extra (históricos) que inflan el resumen en `pruebaslist.html`.
+- La cuota de Firestore estaba devolviendo `RESOURCE_EXHAUSTED`, por lo que la reconciliación se debe ejecutar cuando se libere la cuota.
+
+### Herramienta
+
+- Script: `server/tools/reconcilePruebas.mjs`
+  - Modo `dry-run`: calcula cuántos docs sobran en Firestore vs `docs/unifi.csv`.
+  - Modo `--apply`: elimina extras por lotes (batch) con paginación y backoff.
+  - Flags importantes:
+    - `--keep-lt`: no elimina LT aunque no esté en CSV.
+    - `--only-vpm-utt`: solo considera eliminación para VPM/UTT.
+
+### Pasos (mañana)
+
+1) **Esperar recuperación de cuota**
+
+- Si vuelve a aparecer `RESOURCE_EXHAUSTED`, esperar y reintentar más tarde.
+
+2) **Dry-run (no borra nada)**
+
+```bash
+cd server
+node tools/reconcilePruebas.mjs --dry-run --keep-lt --only-vpm-utt --page-size 100 --sleep-ms 1500 --sample 20
+```
+
+- Confirmar que imprima `--- Reconciliación ---` y revisar:
+  - `extra breakdown` (especialmente `vpm` y `utt`).
+
+3) **Borrado gradual (seguro)**
+
+- Primero 50:
+
+```bash
+cd server
+node tools/reconcilePruebas.mjs --apply --keep-lt --only-vpm-utt --page-size 100 --sleep-ms 1500 --limit 50
+```
+
+- Si todo OK, subir a 500:
+
+```bash
+cd server
+node tools/reconcilePruebas.mjs --apply --keep-lt --only-vpm-utt --page-size 100 --sleep-ms 1500 --limit 500
+```
+
+- Finalmente sin `--limit` para completar:
+
+```bash
+cd server
+node tools/reconcilePruebas.mjs --apply --keep-lt --only-vpm-utt --page-size 100 --sleep-ms 1500
+```
+
+4) **Validación en UI**
+
+- Abrir `pruebaslist.html` y validar que el “Resumen de estado” (ANUAL, Vigencia > 60 días) se alinee con el CSV maestro:
+  - `VT/PT/MT` cerca de `1446`
+  - `UTT` cerca de `709`
+
+5) **Validación en Terminal (referencia)**
+
+- Verificación rápida de conteos del CSV maestro:
+
+```bash
+node - <<'NODE'
+const fs = require('fs');
+const text = fs.readFileSync('docs/unifi.csv','utf8');
+const lines = text.split(/\r?\n/).filter(Boolean);
+const header = lines[0].split(',').map(s=>s.trim());
+const idx = Object.fromEntries(header.map((h,i)=>[h,i]));
+function get(cols, name){ return (cols[idx[name]]||'').trim(); }
+function norm(s){ return String(s||'').trim().toUpperCase(); }
+function cat(prueba){
+  const p = norm(prueba);
+  if (p.includes('UTT')) return 'UTT';
+  if (p.includes('LT')) return 'LT';
+  if (p.includes('VT') || p.includes('PT') || p.includes('MT')) return 'VPM';
+  return 'OTRO';
+}
+let anual = { LT:0, VPM:0, UTT:0, OTRO:0 };
+for (const line of lines.slice(1)) {
+  const cols = line.split(',');
+  const periodo = norm(get(cols,'periodo'));
+  if (periodo && periodo !== 'ANUAL') continue;
+  anual[cat(get(cols,'prueba'))]++;
+}
+console.log('ANUAL totals en unifi.csv:', anual);
+NODE
+```
+
 #### Notas de importación CSV (enero 2026)
 
 - Duplicado detectado en `docs/inyeccion.csv` (causa de 848 llaves únicas):

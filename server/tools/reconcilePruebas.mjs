@@ -15,6 +15,8 @@ function parseArgs(argv) {
     noRepPrefix: '',
     pageSize: 400,
     sleepMs: 250,
+    applyDedupe: false,
+    dedupeOnly: false,
     limit: 0,
     sample: 20,
   };
@@ -29,6 +31,8 @@ function parseArgs(argv) {
     else if (a === '--norep-prefix') args.noRepPrefix = String(argv[++i] || '');
     else if (a === '--page-size') args.pageSize = Math.max(50, Math.min(1000, Number(argv[++i] || '400') || 400));
     else if (a === '--sleep-ms') args.sleepMs = Math.max(0, Number(argv[++i] || '250') || 250);
+    else if (a === '--apply-dedupe') args.applyDedupe = true;
+    else if (a === '--dedupe-only') args.dedupeOnly = true;
     else if (a === '--limit') args.limit = Number(argv[++i] || '0') || 0;
     else if (a === '--sample') args.sample = Number(argv[++i] || '20') || 20;
   }
@@ -149,6 +153,25 @@ function upperBoundPrefix(prefix) {
   return s.slice(0, -1) + String.fromCharCode(last + 1);
 }
 
+function tsToMillis(v) {
+  try {
+    if (!v) return 0;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    if (typeof v === 'string') {
+      const d = new Date(v);
+      const ms = d.getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    if (typeof v.toDate === 'function') {
+      const d = v.toDate();
+      const ms = d && typeof d.getTime === 'function' ? d.getTime() : 0;
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    if (typeof v.seconds === 'number') return Math.round(v.seconds * 1000);
+  } catch {}
+  return 0;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -203,6 +226,9 @@ async function main() {
   const extras = [];
   const counts = { kept: 0, extra: 0, extra_lt: 0, extra_vpm: 0, extra_utt: 0, extra_other: 0 };
 
+  // Detectar duplicados en Firestore por llave compuesta (mismo k)
+  const keyToDocs = new Map();
+
   let readDocs = 0;
   let last = null;
   let done = false;
@@ -249,6 +275,19 @@ async function main() {
       const area = d.area || d.areaPrueba || '';
 
       const k = buildKeyFromFields({ equipo, serial, periodo, prueba, fechaRealizacion: fr, noReporte: nr, area });
+
+      // Registrar para detectar duplicados (independiente de si es extra o no)
+      if (k) {
+        const arr = keyToDocs.get(k) || [];
+        arr.push({
+          id: doc.id,
+          cat: categoriaFromPrueba(prueba),
+          importedAtMs: tsToMillis(d.importedAt),
+          creadoEnMs: tsToMillis(d.creadoEn),
+        });
+        keyToDocs.set(k, arr);
+      }
+
       if (csvKeys.has(k)) {
         counts.kept++;
         continue;
@@ -286,6 +325,27 @@ async function main() {
 
   console.log('Firestore docs leídos:', readDocs);
 
+  // Resumen de duplicados
+  let dupKeys = 0;
+  let dupDocs = 0;
+  const dupSamples = [];
+  for (const [k, arr] of keyToDocs.entries()) {
+    if (!arr || arr.length <= 1) continue;
+    dupKeys++;
+    dupDocs += (arr.length - 1);
+    if (dupSamples.length < (args.sample || 20)) {
+      dupSamples.push({ key: k, n: arr.length, ids: arr.slice(0, 5).map(x => x.id).join(',') });
+    }
+  }
+
+  console.log('--- Duplicados por llave (Firestore) ---');
+  console.log('dupKeys:', dupKeys);
+  console.log('dupDocs (excedentes):', dupDocs);
+  if (dupSamples.length) {
+    console.log('sample dup keys:');
+    console.table(dupSamples);
+  }
+
   // Normalización de salida: keepLt/onlyVpmUtt son filtros de eliminación, no de lectura.
   // Si quieres leer TODO Firestore, no uses --norep-prefix ni --only-vpm-utt.
 
@@ -307,8 +367,57 @@ async function main() {
   }
 
   if (!args.apply) {
-    console.log('DRY-RUN: no se eliminó nada. Usa --apply para borrar.');
-    return;
+    if (!args.applyDedupe) {
+      console.log('DRY-RUN: no se eliminó nada. Usa --apply para borrar extras o --apply-dedupe para deduplicar.');
+    }
+    if (args.dedupeOnly && !args.applyDedupe) {
+      console.log('DEDUPE-ONLY: solo reporte de duplicados (sin borrar).');
+    }
+    if (!args.applyDedupe) return;
+  }
+
+  // Deduplicación (opcional): borrar excedentes por llave, conservando 1 (el más nuevo)
+  if (args.applyDedupe) {
+    const toDelete = [];
+    for (const [, arr] of keyToDocs.entries()) {
+      if (!arr || arr.length <= 1) continue;
+      // Respetar filtros de eliminación
+      const filtered = arr.filter(x => {
+        if (args.keepLt && x.cat === 'lt') return false;
+        if (args.onlyVpmUtt && !(x.cat === 'vpm' || x.cat === 'utt')) return false;
+        return true;
+      });
+      if (filtered.length <= 1) continue;
+
+      const sorted = filtered.slice().sort((a, b) => {
+        const ta = a.importedAtMs || a.creadoEnMs || 0;
+        const tb = b.importedAtMs || b.creadoEnMs || 0;
+        return tb - ta; // más nuevo primero
+      });
+      sorted.slice(1).forEach(x => toDelete.push(x.id));
+    }
+
+    console.log('apply-dedupe candidates:', toDelete.length);
+    if (!toDelete.length) {
+      console.log('Nada que deduplicar.');
+    } else {
+      const cap = args.limit && args.limit > 0 ? Math.min(args.limit, toDelete.length) : toDelete.length;
+      console.log(`Aplicando deduplicación: ${cap} deletes (batch <= 450)`);
+      let deleted = 0;
+      const chunkSize = 450;
+      for (let i = 0; i < cap; i += chunkSize) {
+        const slice = toDelete.slice(i, i + chunkSize);
+        const batch = db.batch();
+        slice.forEach((id) => batch.delete(db.collection('pruebas').doc(id)));
+        await batch.commit();
+        deleted += slice.length;
+        console.log('dedupe deleted:', deleted);
+        if (args.sleepMs) await sleep(args.sleepMs);
+      }
+      console.log('DEDUPE DONE. deleted:', deleted);
+    }
+
+    if (args.dedupeOnly) return;
   }
 
   if (!extras.length) {
