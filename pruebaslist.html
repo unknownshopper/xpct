@@ -155,12 +155,34 @@
 
         <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
             <div style="display:flex; align-items:baseline; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem;">
-                <h2 style="margin:0;">Resumen de estado</h2>
+                <h2 style="margin:0;">Resumen de estado Pruebas Anuales</h2>
                 <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
                     <span id="pruebas-resumen-parcial" style="font-size:0.85rem; color:#6b7280;"></span>
                     <button id="btn-pruebas-completar-resumen" type="button" style="display:none;">Completar resumen</button>
                 </div>
             </div>
+            <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
+                <div class="dash-card">
+                    <div class="dash-card-label">Equipos probados 100%</div>
+                    <div class="dash-card-value" id="pruebas-equipos-100">0</div>
+                    <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">ANUAL + VT/PT/MT + UTT</div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-label">Equipos probados parcialmente</div>
+                    <div class="dash-card-value" id="pruebas-equipos-parcial">0</div>
+                    <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">Con pruebas, incompleto</div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-label">Equipos sin pruebas</div>
+                    <div class="dash-card-value" id="pruebas-equipos-sin">0</div>
+                    <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">Sin registros en historial</div>
+                    <div style="font-size:0.8rem; color:#6b7280; margin-top:0.15rem; line-height:1.2;">WIP: <strong id="pruebas-equipos-sin-wip">0</strong></div>
+                </div>
+            </section>
+            <div style="font-size:0.85rem; color:#6b7280; margin-top:-0.25rem; margin-bottom:0.75rem;">
+                Total equipos base (inventario): <strong id="pruebas-equipos-total">0</strong>
+            </div>
+
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
                 <div class="dash-card" style="display:none;">
                     <div class="dash-card-label">Equipos con pruebas vigentes</div>
@@ -326,7 +348,7 @@
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Periodo</th>
                                 <th style="text-align:left; padding:0.4rem;">Estado</th>
-                                <th style="text-align:left; padding:0.4rem;">Días para próxima</th>
+                                <th style="text-align:left; padding:0.4rem;">Días para próxima Prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Equipo</th>
                                 <th style="text-align:left; padding:0.4rem;">Producto</th>
                                 <th style="text-align:left; padding:0.4rem;">Descripción</th>
@@ -716,6 +738,10 @@
         const lblResPorCad = document.getElementById('pruebas-resumen-porcaducar');
         const lblResCaducadas = document.getElementById('pruebas-resumen-caducadas');
 
+        const cardEq100 = document.getElementById('pruebas-equipos-100');
+        const cardEqPar = document.getElementById('pruebas-equipos-parcial');
+        const cardEqSin = document.getElementById('pruebas-equipos-sin');
+
         // Celdas de la tabla informativa
         const inf = {
             lt: {
@@ -771,6 +797,9 @@
 
         // Filtro por periodo (ANUAL / POST-TRABAJO / REPARACION)
         let filtroPeriodo = null; // null = todos, 'ANUAL' | 'POST-TRABAJO' | 'REPARACION'
+
+        // Filtro por cobertura de equipos (para la tabla de resumen por equipo)
+        let filtroCobertura = null; // null | '100' | 'parcial' | 'sin'
         function actualizarChipsPeriodoActivos() {
             const activeStyle = (el, color) => {
                 if (!el) return;
@@ -816,6 +845,34 @@
                 setFiltroPeriodo((filtroPeriodo === 'REPARACION') ? null : 'REPARACION');
             });
         }
+
+        function setFiltroCobertura(nuevo) {
+            filtroCobertura = nuevo;
+            try {
+                const n100 = cardEq100 ? cardEq100.closest('.dash-card') : null;
+                const npar = cardEqPar ? cardEqPar.closest('.dash-card') : null;
+                const nsin = cardEqSin ? cardEqSin.closest('.dash-card') : null;
+                const setActive = (node, active) => {
+                    if (!node) return;
+                    node.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
+                    node.style.fontWeight = active ? '700' : '';
+                    node.style.cursor = 'pointer';
+                };
+                setActive(n100, nuevo === '100');
+                setActive(npar, nuevo === 'parcial');
+                setActive(nsin, nuevo === 'sin');
+            } catch {}
+            render();
+        }
+
+        try {
+            const n100 = cardEq100 ? cardEq100.closest('.dash-card') : null;
+            const npar = cardEqPar ? cardEqPar.closest('.dash-card') : null;
+            const nsin = cardEqSin ? cardEqSin.closest('.dash-card') : null;
+            if (n100) n100.addEventListener('click', () => setFiltroCobertura((filtroCobertura === '100') ? null : '100'));
+            if (npar) npar.addEventListener('click', () => setFiltroCobertura((filtroCobertura === 'parcial') ? null : 'parcial'));
+            if (nsin) nsin.addEventListener('click', () => setFiltroCobertura((filtroCobertura === 'sin') ? null : 'sin'));
+        } catch {}
 
         const detallePanel = document.getElementById('detalle-prueba');
         const detalleContenido = document.getElementById('detalle-prueba-contenido');
@@ -986,6 +1043,7 @@
         let productoPorEquipoInv = {};
         let descripcionPorSerialInv = {};
         let productoPorSerialInv = {};
+        let edoPorEquipoInv = {};
         // Áreas por equipo/serial y tipo de prueba (derivadas de invre2.csv)
         let areaPorEquipoPruebaInv = {};
         let areaPorSerialPruebaInv = {};
@@ -1553,6 +1611,7 @@
                 const idxSerial = headers.indexOf('SERIAL');
                 const idxDesc = headers.indexOf('DESCRIPCION');
                 const idxProd = headers.indexOf('PRODUCTO');
+                const idxEdo = headers.indexOf('EDO');
                 if (idxEquipo < 0) return;
 
                 const setEq = new Set();
@@ -1560,12 +1619,17 @@
                 const mapaProd = {};
                 const mapaDescSerial = {};
                 const mapaProdSerial = {};
+                const mapaEdo = {};
 
                 rows.forEach(cols => {
                     let eq = (cols[idxEquipo] || '').toString().trim().toUpperCase();
                     const serial = ((idxSerial>=0 ? cols[idxSerial] : '') || '').toString().trim().toUpperCase();
                     if (!eq) return;
                     setEq.add(eq);
+                    if (idxEdo >= 0) {
+                        const edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
+                        if (edo && !mapaEdo[eq]) mapaEdo[eq] = edo;
+                    }
                     if (idxDesc >= 0) {
                         const desc = (cols[idxDesc] || '').toString().trim();
                         if (desc && !mapaDesc[eq]) mapaDesc[eq] = desc;
@@ -1632,6 +1696,7 @@
                 productoPorEquipoInv = mapaProd;
                 descripcionPorSerialInv = mapaDescSerial;
                 productoPorSerialInv = mapaProdSerial;
+                edoPorEquipoInv = mapaEdo;
             } catch (e) {
                 console.warn('No se pudo cargar invre.csv para resumen de pruebas', e);
             }
@@ -2515,10 +2580,13 @@
         }
 
         function clasificarPrueba(reg) {
+            const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+            // POST-TRABAJO y REPARACION son solo histórico: no deben definir ni usar proxima.
+            if (periodo && periodo !== 'ANUAL') return { estado: 'SIN_FECHA', proxima: null };
+
             let proxima = parseProxima(reg.proxima || '');
             // Si no hay 'proxima' pero es ANUAL, intentar derivarla de fechaRealizacion + 12 meses
             if (!proxima) {
-                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
                 const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
                 // Backward compat: sin periodo => tratar como ANUAL
                 if ((periodo === 'ANUAL' || !periodo) && fr) {
@@ -2588,6 +2656,67 @@
                 }
             });
 
+            // Visualizador de cobertura por equipo (inventario como base):
+            // 100%: ANUAL + VT/PT/MT + UTT por equipo (se ignoran Post-trabajo/Reparación para completar cobertura)
+            try {
+                const lbl100 = document.getElementById('pruebas-equipos-100');
+                const lblPar = document.getElementById('pruebas-equipos-parcial');
+                const lblSin = document.getElementById('pruebas-equipos-sin');
+                const lblSinWip = document.getElementById('pruebas-equipos-sin-wip');
+                const lblTot = document.getElementById('pruebas-equipos-total');
+
+                const equiposBase = (equiposInventario && equiposInventario.size)
+                    ? Array.from(equiposInventario)
+                    : Array.from(new Set([...(pruebas || []).map(r => (r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+
+                const equiposConAlgo = new Set();
+                const equiposConVpm = new Set();
+                const equiposConUtt = new Set();
+                (pruebas || []).forEach(r => {
+                    const eq = (r && r.equipo) ? String(r.equipo) : '';
+                    if (eq) equiposConAlgo.add(eq);
+
+                    const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
+                    const esHistorico = (periodo === 'POST-TRABAJO' || periodo === 'REPARACION');
+                    if (esHistorico) return;
+
+                    const p = ((r && (r.prueba || r.pruebaTipo)) ? String(r.prueba || r.pruebaTipo) : '').toUpperCase();
+                    if (p.includes('UTT')) equiposConUtt.add(eq);
+                    if (p.includes('VT') || p.includes('PT') || p.includes('MT')) equiposConVpm.add(eq);
+                });
+                const equiposConAnual = new Set(Array.from(anualPorEquipo.keys()));
+
+                let c100 = 0;
+                let cPar = 0;
+                let cSin = 0;
+                let cSinWip = 0;
+
+                window._equiposCobertura = window._equiposCobertura || {};
+
+                equiposBase.forEach(eq => {
+                    const hasAny = equiposConAlgo.has(eq);
+                    const hasAnual = equiposConAnual.has(eq);
+                    const hasVpm = equiposConVpm.has(eq);
+                    const hasUtt = equiposConUtt.has(eq);
+                    const is100 = !!(hasAnual && hasVpm && hasUtt);
+                    const cat = (!hasAny) ? 'sin' : (is100 ? '100' : 'parcial');
+                    window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasVpm, hasUtt };
+                    if (cat === '100') c100 += 1;
+                    else if (cat === 'parcial') cPar += 1;
+                    else {
+                        cSin += 1;
+                        const edo = (edoPorEquipoInv && edoPorEquipoInv[eq]) ? String(edoPorEquipoInv[eq]).toUpperCase() : '';
+                        if (edo === 'WIP') cSinWip += 1;
+                    }
+                });
+
+                if (lbl100) lbl100.textContent = String(c100);
+                if (lblPar) lblPar.textContent = String(cPar);
+                if (lblSin) lblSin.textContent = String(cSin);
+                if (lblSinWip) lblSinWip.textContent = String(cSinWip);
+                if (lblTot) lblTot.textContent = String(equiposBase.length);
+            } catch {}
+
             // Construir referencia de categoría por registro (LT, VT/PT/MT, UTT)
             function categoriaPrueba(reg) {
                 const p = ((reg.prueba || reg.pruebaTipo || '') + '').toUpperCase();
@@ -2639,7 +2768,18 @@
                 const cat = categoriaPrueba(reg);
                 if (!cat) return;
                 if (!isScopedIndicator(reg)) return;
-                const prox = parseProxima(reg.proxima || '') || (reg._clasif?.proxima || null);
+                let prox = parseProxima(reg.proxima || '');
+                // Si no hay 'proxima' pero es ANUAL, intentar derivarla de fechaRealizacion + 12 meses
+                if (!prox) {
+                    const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
+                    // Backward compat: sin periodo => tratar como ANUAL
+                    if ((periodo === 'ANUAL' || !periodo) && fr) {
+                        const d = new Date(fr);
+                        d.setFullYear(d.getFullYear() + 1);
+                        d.setHours(0,0,0,0);
+                        if (!isNaN(d.getTime())) prox = d;
+                    }
+                }
                 if (!prox) return;
                 const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
                 if (isNaN(dias)) return;
@@ -2691,7 +2831,7 @@
             if (tbodyResumen && lblResVig && lblResVenc && lblResSin) {
                 const listaEquiposBase = equiposInventario && equiposInventario.size
                     ? Array.from(equiposInventario)
-                    : Array.from(anualPorEquipo.keys());
+                    : Array.from(new Set([...(pruebas || []).map(r => (r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
 
                 if (!listaEquiposBase.length && msgResumen) {
                     msgResumen.style.display = 'block';
@@ -2702,7 +2842,14 @@
                 let cntEquiposSin = 0;
                 let cntEquiposPorCaducar = 0;
 
-                listaEquiposBase.sort((a, b) => a.localeCompare(b)).forEach(eq => {
+                const listaEquiposFiltrada = listaEquiposBase.filter(eq => {
+                    if (!filtroCobertura) return true;
+                    const cov = (window._equiposCobertura && window._equiposCobertura[eq]) ? window._equiposCobertura[eq] : null;
+                    const cat = cov ? cov.cat : 'sin';
+                    return cat === filtroCobertura;
+                });
+
+                listaEquiposFiltrada.sort((a, b) => a.localeCompare(b)).forEach(eq => {
                     const reg = anualPorEquipo.get(eq) || null;
                     const estado = reg ? reg._clasif.estado : 'SIN_PRUEBA';
 
@@ -2807,20 +2954,27 @@
                 const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
+                // Filtro por cobertura (100/parcial/sin) aplicado al listado grande por equipo
+                if (filtroCobertura) {
+                    const eqK = (reg.equipo || '').toString();
+                    const cov = (window._equiposCobertura && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
+                    const cat = cov ? cov.cat : 'sin';
+                    if (cat !== filtroCobertura) return;
+                }
+
                 const clasifOriginal = clasificarPrueba(reg);
                 const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
                 const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
-                const refAnual = !esAnualReg ? (anualPorEquipo.get((reg.equipo || '').toString()) || null) : null;
-                const clasifRef = refAnual ? (refAnual._clasif || clasificarPrueba(refAnual)) : null;
+                const esHistoricoReg = (periodoReg === 'POST-TRABAJO' || periodoReg === 'REPARACION');
 
-                // Mostrar estado/próxima basado en ANUAL de referencia para Post/Reparación
-                const estado = (!esAnualReg && clasifRef) ? (clasifRef.estado || 'SIN_FECHA') : (clasifOriginal ? clasifOriginal.estado : 'SIN_FECHA');
-                const proximaBase = (!esAnualReg && clasifRef && clasifRef.proxima)
-                    ? clasifRef.proxima
+                // Post-trabajo y Reparación son históricos: no muestran próxima ni contador, y no heredan vigencia.
+                const estado = esHistoricoReg
+                    ? 'HISTORICO'
+                    : (clasifOriginal ? (clasifOriginal.estado || 'SIN_FECHA') : 'SIN_FECHA');
+                const proximaBase = esHistoricoReg
+                    ? null
                     : (clasifOriginal && clasifOriginal.proxima) ? clasifOriginal.proxima : null;
-                const proximaStr = proximaBase
-                    ? ( (!esAnualReg && refAnual && refAnual.proxima) ? String(refAnual.proxima) : formateaDDMMAA(proximaBase) )
-                    : '';
+                const proximaStr = proximaBase ? formateaDDMMAA(proximaBase) : '';
 
                 const fila = document.createElement('tr');
 
@@ -2893,8 +3047,10 @@
                 const resultadoStr = (reg.resultado || '').toString().trim().toUpperCase();
                 let badgeEstado;
 
+                if (estado === 'HISTORICO') {
+                    badgeEstado = '<span title="Registro histórico (Post-trabajo/Reparación): no define próxima prueba" style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Histórico</span>';
                 // Prioridad visual: resultado RECHAZADA => Inoperable
-                if (resultadoStr === 'RECHAZADA') {
+                } else if (resultadoStr === 'RECHAZADA') {
                     badgeEstado = '<span title="Resultado RECHAZADA: equipo inoperable" style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Inoperable</span>';
                 } else if (estado === 'VENCIDA') {
                     badgeEstado = '<span title="Prueba vencida: la próxima fecha ya pasó" style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>';
@@ -3170,16 +3326,25 @@
         async function actualizarCampoPeriodo(id, nuevoValor) {
             if (!id) return;
             try {
-                const { getFirestore, doc, updateDoc } = await import(
+                const { getFirestore, doc, updateDoc, deleteField } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const db = getFirestore(app);
                 const ref = doc(db, 'pruebas', id);
-                await updateDoc(ref, { periodo: nuevoValor || '' });
+
+                const payload = { periodo: nuevoValor || '' };
+                if (nuevoValor && nuevoValor !== 'ANUAL') {
+                    payload.proxima = deleteField();
+                }
+                await updateDoc(ref, payload);
 
                 pruebas = pruebas.map(reg => {
                     if (reg && reg.id === id) {
-                        return { ...reg, periodo: nuevoValor || '' };
+                        const next = { ...reg, periodo: nuevoValor || '' };
+                        if (nuevoValor && nuevoValor !== 'ANUAL') {
+                            try { delete next.proxima; } catch {}
+                        }
+                        return next;
                     }
                     return reg;
                 });

@@ -148,6 +148,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (periodoStr === 'ANUAL' || periodoStr === '') tAn += 1;
                         else if (periodoStr === 'POST-TRABAJO') tPT += 1;
                         else if (periodoStr === 'REPARACION') tRep += 1;
+
+                        // Rangos de vencimiento: solo aplican a ANUAL (evita contaminar con proxima residual en otros periodos)
+                        if (!(periodoStr === 'ANUAL' || periodoStr === '')) return;
                         const dProx = parseProxima(proximaStr);
                         if (!dProx) return;
                         const diffMs = dProx.getTime() - hoy.getTime();
@@ -209,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const listaInsp = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
             if (Array.isArray(listaInsp)) {
                 listaInsp.forEach(reg => {
-                    const equipo = (reg && reg.equipo) ? String(reg.equipo).trim() : '';
+                    const equipo = (reg && reg.equipo) ? String(reg.equipo).trim().toUpperCase() : '';
                     const parametros = (reg && Array.isArray(reg.parametros)) ? reg.parametros : [];
                     if (!equipo || !parametros.length) return;
 
@@ -226,10 +229,42 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('No se pudo interpretar pct_inspecciones para fuera de servicio', e);
         }
 
-        // 2) Contar equipos por estado (ON / OFF / WIP) en invre.csv y cruzar ON con "fuera de servicio"
-        fetch('docs/invre.csv')
-            .then(r => (r.ok ? r.text() : ''))
-            .then(t => {
+        // 2) Contar equipos por estado (ON / OFF / WIP) en invre.csv.
+        // Regla adicional: si un equipo está en WIP pero ya tiene al menos 1 prueba en Firestore,
+        // se reclasifica como ON en el dashboard.
+        (async () => {
+            let equiposConPruebas = new Set();
+            let serialesConPruebas = new Set();
+            try {
+                const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const colPr = collection(db, 'pruebas');
+                let snapPr;
+                try {
+                    snapPr = await getDocsFromCache(colPr);
+                    if (snapPr && typeof snapPr.size === 'number' && snapPr.size === 0) {
+                        try { snapPr = await getDocs(colPr); } catch {}
+                    }
+                } catch {
+                    try { snapPr = await getDocs(colPr); } catch {}
+                }
+                if (snapPr) {
+                    snapPr.forEach(d => {
+                        const data = d.data() || {};
+                        const eq = (data.equipo || '').toString().trim().toUpperCase();
+                        if (eq) equiposConPruebas.add(eq);
+
+                        const sn = (data.serial || data.numeroSerie || '').toString().trim().toUpperCase();
+                        if (sn) serialesConPruebas.add(sn);
+                    });
+                }
+            } catch {}
+
+            try {
+                const r = await fetch('docs/invre.csv');
+                const t = r.ok ? await r.text() : '';
                 if (!t) return;
 
                 const lineas = t.split(/\r?\n/).filter(l => l.trim() !== '');
@@ -239,10 +274,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // En invre.csv la columna de estado se llama "EDO"
                 const idxEstado = headersLocal.indexOf('EDO');
                 const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
+                const idxSerial = headersLocal.indexOf('SERIAL');
 
                 let onCount = 0;
                 let offCount = 0;
                 let wipCount = 0;
+                let wipConPruebas = 0;
                 let fueraServicioCount = 0;
 
                 lineas.slice(1).forEach(linea => {
@@ -252,18 +289,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     const valor = (cols[idxEstado] || '').trim().toUpperCase();
                     if (!valor) return;
 
-                    const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '').trim() : '';
+                    const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '').trim().toUpperCase() : '';
+                    const serial = idxSerial >= 0 ? (cols[idxSerial] || '').trim().toUpperCase() : '';
 
                     if (valor === 'ON') {
                         onCount += 1;
-                        // Equipo ON que tiene alguna inspección con parámetro MALO
                         if (equipo && equiposFueraServicio.has(equipo)) {
                             fueraServicioCount += 1;
                         }
                     } else if (valor === 'OFF') {
                         offCount += 1;
                     } else if (valor === 'WIP') {
-                        wipCount += 1;
+                        const tienePrueba = (equipo && equiposConPruebas.has(equipo)) || (serial && serialesConPruebas.has(serial));
+                        if (tienePrueba) {
+                            onCount += 1;
+                            wipConPruebas += 1;
+                            if (equipo && equiposFueraServicio.has(equipo)) {
+                                fueraServicioCount += 1;
+                            }
+                        } else {
+                            wipCount += 1;
+                        }
                     }
                 });
 
@@ -272,13 +318,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         ON: <strong>${onCount}</strong><br>
                         OFF: <strong>${offCount}</strong><br>
                         WIP: <strong>${wipCount}</strong><br>
+                        <span style="color:#6b7280;">WIP con pruebas: <strong>${wipConPruebas}</strong></span><br>
                         Fuera de servicio: <strong>${fueraServicioCount}</strong>
                     </div>
                 `;
-            })
-            .catch(() => {
+            } catch {
                 elEquiposInvre.textContent = '--';
-            });
+            }
+        })();
     }
 
     // Inspecciones: mostrar en la tarjeta tanto las pendientes (por realizar) como las realizadas

@@ -1,0 +1,11 @@
+{
+  "invrePath": "/Users/albertogarcia/Sista/xpct/docs/invre.csv",
+  "firestoreDocsScanned": 3115,
+  "wipCount": 322,
+  "matchEquipoExact": 0,
+  "matchSerialExact": 0,
+  "matchEquipoNormOnly": 0,
+  "matchSerialNormOnly": 0,
+  "noMatch": 322,
+  "outCsv": "/Users/albertogarcia/Sista/xpct/wip_mismatch_report_2026-02-05.csv"
+}
