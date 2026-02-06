@@ -1623,7 +1623,7 @@
                 const mapaEdo = {};
 
                 rows.forEach(cols => {
-                    let eq = (cols[idxEquipo] || '').toString().trim().toUpperCase();
+                    let eq = normEquipoKey((cols[idxEquipo] || '').toString());
                     const serial = ((idxSerial>=0 ? cols[idxSerial] : '') || '').toString().trim().toUpperCase();
                     if (!eq) return;
                     setEq.add(eq);
@@ -1660,7 +1660,7 @@
                         const idxArea2 = (idxAcero2 >= 0) ? (idxAcero2 + 3) : -1;      // Área inspección (e.g., CAVIDAD, CARA, PARED)
                         if (idxEquipo2 >= 0 && rows2.length) {
                             rows2.forEach(cols2 => {
-                                let eq2 = (cols2[idxEquipo2] || '').toString().trim().toUpperCase();
+                                let eq2 = normEquipoKey((cols2[idxEquipo2] || '').toString());
                                 const serial2 = ((idxSerial2>=0 ? cols2[idxSerial2] : '') || '').toString().trim().toUpperCase();
                                 if (!eq2) return;
                                 setEq.add(eq2);
@@ -2603,6 +2603,14 @@
             return { estado: 'VIGENTE', proxima };
         }
 
+        function normEquipoKey(v) {
+            let t = (v || '').toString();
+            t = t.replace(/\u00A0/g, ' ');
+            t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+            t = t.trim().toUpperCase();
+            return t;
+        }
+
         function render() {
             const filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
@@ -2646,7 +2654,7 @@
             // Construir referencia: última ANUAL por equipo
             const anualPorEquipo = new Map();
             enriquecidas.forEach(reg => {
-                const eq = (reg.equipo || '').toString();
+                const eq = normEquipoKey(reg.equipo);
                 if (!eq) return;
                 const periodo = (reg.periodo || '').toString().trim().toUpperCase();
                 // Backward compat: registros sin periodo se consideran ANUAL
@@ -2668,13 +2676,13 @@
 
                 const equiposBase = (equiposInventario && equiposInventario.size)
                     ? Array.from(equiposInventario)
-                    : Array.from(new Set([...(pruebas || []).map(r => (r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+                    : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
 
                 const equiposConAlgo = new Set();
                 const equiposConVpm = new Set();
                 const equiposConUtt = new Set();
                 (pruebas || []).forEach(r => {
-                    const eq = (r && r.equipo) ? String(r.equipo) : '';
+                    const eq = normEquipoKey((r && r.equipo) ? String(r.equipo) : '');
                     if (eq) equiposConAlgo.add(eq);
 
                     const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
@@ -2832,7 +2840,7 @@
             if (tbodyResumen && lblResVig && lblResVenc && lblResSin) {
                 const listaEquiposBase = equiposInventario && equiposInventario.size
                     ? Array.from(equiposInventario)
-                    : Array.from(new Set([...(pruebas || []).map(r => (r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+                    : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
 
                 if (!listaEquiposBase.length && msgResumen) {
                     msgResumen.style.display = 'block';
@@ -2951,16 +2959,115 @@
 
             const filasVisibles = [];
 
+            if (filtroCobertura === 'sin') {
+                const histByEq = {};
+                try {
+                    (pruebas || []).forEach(r => {
+                        const eqK = normEquipoKey(r && r.equipo ? String(r.equipo) : '');
+                        if (!eqK) return;
+                        const per = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
+                        if (per !== 'POST-TRABAJO' && per !== 'REPARACION') return;
+                        histByEq[eqK] = histByEq[eqK] || { pt: 0, rep: 0 };
+                        if (per === 'POST-TRABAJO') histByEq[eqK].pt += 1;
+                        else if (per === 'REPARACION') histByEq[eqK].rep += 1;
+                    });
+                } catch {}
+
+                let equiposSin = [];
+                try {
+                    const base = (equiposInventario && equiposInventario.size)
+                        ? Array.from(equiposInventario)
+                        : Object.keys(window._equiposCobertura || {});
+                    equiposSin = base
+                        .map(eq => normEquipoKey(eq))
+                        .filter(Boolean)
+                        .filter(eqK => {
+                            const cov = (window._equiposCobertura && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
+                            return cov && cov.cat === 'sin';
+                        });
+                } catch { equiposSin = []; }
+
+                const vistos = new Set();
+                equiposSin
+                    .filter(eqK => {
+                        if (vistos.has(eqK)) return false;
+                        vistos.add(eqK);
+                        return true;
+                    })
+                    .sort((a, b) => a.localeCompare(b))
+                    .forEach(eqK => {
+                        const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : '';
+                        const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : '';
+                        const textoBuscarEq = `${eqK} ${prod} ${desc}`.toLowerCase();
+                        if (filtro && !textoBuscarEq.includes(filtro)) return;
+
+                        const edo = (edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).toUpperCase() : '';
+                        const isWip = (edo === 'WIP');
+                        const hb = histByEq[eqK] || { pt: 0, rep: 0 };
+                        const hasHist = !!((hb.pt || 0) > 0 || (hb.rep || 0) > 0);
+
+                        const fila = document.createElement('tr');
+                        const tdSelect = permitirEliminar
+                            ? '<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" disabled></td>'
+                            : '';
+                        const badgeSin = '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin prueba</span>';
+                        const badgeWip = isWip
+                            ? '<span style="margin-left:0.35rem; padding:0.1rem 0.5rem; border-radius:999px; background:#fef3c7; color:#92400e; font-size:0.75rem;">WIP</span>'
+                            : '';
+                        const histParts = [];
+                        if ((hb.pt || 0) > 0) histParts.push(`Post-trab: ${hb.pt}`);
+                        if ((hb.rep || 0) > 0) histParts.push(`Reparación: ${hb.rep}`);
+                        const badgeHist = hasHist
+                            ? `<span title="Registros históricos existentes" style="margin-left:0.35rem; padding:0.1rem 0.5rem; border-radius:999px; background:#e0f2fe; color:#075985; font-size:0.75rem;">Histórico (${histParts.join(', ')})</span>`
+                            : '';
+                        const badgeEstado = `${badgeSin}${badgeWip}${badgeHist}`;
+                        fila.innerHTML = `
+                            ${tdSelect}
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                        `;
+                        tbodyListado.appendChild(fila);
+                        cntHist += 1;
+                    });
+
+                if (msgListado) msgListado.style.display = (cntHist ? 'none' : 'block');
+                if (!_csvPreviewActive) {
+                    if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
+                    if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
+                    if (lblHist) {
+                        if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
+                        else lblHist.textContent = `${totalHistorico} en histórico`;
+                    }
+                }
+                tbodyListado._filasVisibles = [];
+                return;
+            }
+
             listaOrdenada.forEach(reg => {
                 const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 // Filtro por cobertura (100/parcial/sin) aplicado al listado grande por equipo
                 if (filtroCobertura) {
-                    const eqK = (reg.equipo || '').toString();
+                    // Nota: la categoría 'sin' significa equipos del inventario sin NINGÚN registro.
+                    // Por definición, no existen filas en el listado grande para esos equipos.
+                    if (filtroCobertura === 'sin') return;
+                    const eqK = normEquipoKey(reg.equipo);
                     const cov = (window._equiposCobertura && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
-                    const cat = cov ? cov.cat : 'sin';
-                    if (cat !== filtroCobertura) return;
+                    if (!cov) return;
+                    if (cov.cat !== filtroCobertura) return;
                 }
 
                 const clasifOriginal = clasificarPrueba(reg);
