@@ -3006,9 +3006,30 @@
                         const hb = histByEq[eqK] || { pt: 0, rep: 0 };
                         const hasHist = !!((hb.pt || 0) > 0 || (hb.rep || 0) > 0);
 
+                        const idx = filasVisibles.length;
+                        filasVisibles.push({
+                            id: '',
+                            equipo: eqK,
+                            producto: prod,
+                            descripcion: desc,
+                            periodo: '',
+                            fechaRealizacion: '',
+                            proxima: '',
+                            prueba: '',
+                            area: '',
+                            noReporte: '',
+                            resultado: '',
+                            emisor: '',
+                            tecnico: '',
+                            _placeholder: true,
+                            _wip: isWip,
+                            _histPt: hb.pt || 0,
+                            _histRep: hb.rep || 0,
+                        });
+
                         const fila = document.createElement('tr');
                         const tdSelect = permitirEliminar
-                            ? '<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" disabled></td>'
+                            ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}"></td>`
                             : '';
                         const badgeSin = '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin prueba</span>';
                         const badgeWip = isWip
@@ -3051,7 +3072,7 @@
                         else lblHist.textContent = `${totalHistorico} en histórico`;
                     }
                 }
-                tbodyListado._filasVisibles = [];
+                tbodyListado._filasVisibles = filasVisibles;
                 return;
             }
 
