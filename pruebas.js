@@ -8,6 +8,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const datalistSeriales = document.getElementById('lista-seriales-pruebas');
     if (!inputEquipo || !datalistEquipos) return; // No estamos en pruebas.html
 
+    try {
+        const q = new URLSearchParams(window.location.search || '');
+        const equipoQ = (q.get('equipo') || '').trim();
+        const serialQ = (q.get('serial') || '').trim();
+        const prodQ = (q.get('producto') || '').trim();
+        const descQ = (q.get('descripcion') || '').trim();
+        const periodoQ = (q.get('periodo') || '').trim().toUpperCase();
+
+        if (equipoQ) inputEquipo.value = equipoQ;
+        if (serialQ && inputSerial) inputSerial.value = serialQ;
+
+        const prodEl = document.getElementById('inv-producto');
+        if (prodEl && prodQ) prodEl.value = prodQ;
+        const descEl = document.getElementById('inv-descripcion');
+        if (descEl && descQ) descEl.value = descQ;
+
+        const periodoEl = document.getElementById('inv-periodo');
+        if (periodoEl && periodoQ) {
+            const allowed = new Set(['ANUAL', 'POST-TRABAJO', 'REPARACION']);
+            if (allowed.has(periodoQ)) periodoEl.value = periodoQ;
+        }
+
+        let tries = 0;
+        const maxTries = 12;
+        const tick = () => {
+            tries += 1;
+            try {
+                if (equipoQ) {
+                    if (inputEquipo.value !== equipoQ) inputEquipo.value = equipoQ;
+                    inputEquipo.dispatchEvent(new Event('change'));
+                }
+                if (serialQ && inputSerial) {
+                    if (inputSerial.value !== serialQ) inputSerial.value = serialQ;
+                    inputSerial.dispatchEvent(new Event('change'));
+                }
+                if (periodoEl && periodoQ) {
+                    periodoEl.dispatchEvent(new Event('change'));
+                }
+            } catch {}
+
+            const prodNow = (document.getElementById('inv-producto')?.value || '').trim();
+            if (prodNow || tries >= maxTries) return;
+            setTimeout(tick, 250);
+        };
+        setTimeout(tick, 50);
+    } catch {}
+
     let filasInv = [];
     let headersInv = [];
     let idxInvEquipo = -1;

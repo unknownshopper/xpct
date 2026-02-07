@@ -3059,6 +3059,23 @@
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                         `;
+
+                        fila.style.cursor = 'pointer';
+                        fila.addEventListener('dblclick', (e) => {
+                            try {
+                                const target = e && e.target;
+                                if (target && target.closest && target.closest('input, select, button, a, label')) return;
+                            } catch {}
+                            try {
+                                const params = new URLSearchParams();
+                                if (eqK) params.set('equipo', eqK);
+                                if (prod) params.set('producto', prod);
+                                if (desc) params.set('descripcion', desc);
+                                params.set('periodo', 'ANUAL');
+                                window.open(`pruebas.html?${params.toString()}`, '_blank');
+                            } catch {}
+                        });
+
                         tbodyListado.appendChild(fila);
                         cntHist += 1;
                     });
