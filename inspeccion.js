@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const detalleContenedor = document.getElementById('detalle-equipo-contenido');
     const btnGuardar = document.getElementById('btn-guardar-inspeccion');
 
+    let isViewMode = false;
+    try {
+        const paramsUrl = new URLSearchParams(window.location.search || '');
+        isViewMode = (paramsUrl.get('view') || '').trim() === '1';
+    } catch {}
+
     if (!inputEquipo || !datalistEquipos || !detalleContenedor) {
         // No estamos en inspeccion.html
         return;
@@ -47,6 +53,116 @@ document.addEventListener('DOMContentLoaded', () => {
             return await getPosition();
         } catch {
             return 'Sin GPS';
+        }
+    }
+
+    async function aplicarInspeccionExistenteSoloLectura() {
+        try {
+            if (!isViewMode) return;
+
+            const paramsUrl = new URLSearchParams(window.location.search || '');
+            const inspIdUrl = (paramsUrl.get('inspId') || '').trim();
+            const actividadIdUrl = (paramsUrl.get('actividadId') || '').trim();
+            if (!inspIdUrl && !actividadIdUrl) return;
+
+            const esperar = async (cond, msTotal = 6000, paso = 120) => {
+                const t0 = Date.now();
+                while (Date.now() - t0 < msTotal) {
+                    try {
+                        if (cond()) return true;
+                    } catch {}
+                    await new Promise(r => setTimeout(r, paso));
+                }
+                return false;
+            };
+            await esperar(() => inventarioCargado && formatosCargados);
+
+            const { getFirestore, doc, getDoc, collection, query, where, getDocs, limit } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
+
+            let insp = null;
+            if (inspIdUrl) {
+                const ref = doc(db, 'inspecciones', inspIdUrl);
+                const snap = await getDoc(ref);
+                if (snap.exists()) insp = { id: snap.id, ...snap.data() };
+            }
+            if (!insp && actividadIdUrl) {
+                const colRef = collection(db, 'inspecciones');
+                const q = query(colRef, where('actividadId', '==', actividadIdUrl), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const d = snap.docs[0];
+                    insp = { id: d.id, ...d.data() };
+                }
+            }
+            if (!insp) return;
+
+            const equipo = (insp.equipo || '').toString().trim();
+            if (equipo) {
+                inputEquipo.value = equipo;
+                actualizarDetalleDesdeInput();
+            }
+
+            try {
+                const selTipo = document.getElementById('inspeccion-tipo');
+                if (selTipo && insp.tipoInspeccion) {
+                    selTipo.value = String(insp.tipoInspeccion).trim();
+                    selTipo.dispatchEvent(new Event('change'));
+                }
+            } catch {}
+
+            await esperar(() => {
+                const panel = document.getElementById('detalle-equipo-contenido');
+                return !!(panel && panel.querySelector('.parametros-inspeccion'));
+            });
+
+            try {
+                const params = Array.isArray(insp.parametros) ? insp.parametros : [];
+                params.forEach((p, idx) => {
+                    const estado = (p && p.estado) ? String(p.estado) : '';
+                    const tipoDano = (p && p.tipoDano) ? String(p.tipoDano) : '';
+                    const detalleOtro = (p && p.detalleOtro) ? String(p.detalleOtro) : '';
+                    const selEstado = document.querySelector(`select[name="param-${idx}-estado"]`);
+                    if (selEstado && estado) {
+                        selEstado.value = estado;
+                        selEstado.dispatchEvent(new Event('change'));
+                    }
+                    const selTipo = document.querySelector(`select[name="param-${idx}-tipo-dano"]`);
+                    if (selTipo && tipoDano) {
+                        selTipo.value = tipoDano;
+                        selTipo.dispatchEvent(new Event('change'));
+                    }
+                    const inpOtro = document.querySelector(`input[name="param-${idx}-detalle-otro"]`);
+                    if (inpOtro && detalleOtro) {
+                        inpOtro.value = detalleOtro;
+                        inpOtro.dispatchEvent(new Event('input'));
+                    }
+                });
+            } catch {}
+
+            // Deshabilitar edición, permitir exportación
+            try {
+                if (btnGuardar) {
+                    btnGuardar.disabled = true;
+                    btnGuardar.style.display = 'none';
+                }
+                try { inputEquipo.disabled = true; } catch {}
+                const selTipo = document.getElementById('inspeccion-tipo');
+                if (selTipo) selTipo.disabled = true;
+
+                const panel = document.getElementById('detalle-equipo-contenido');
+                if (panel) {
+                    panel.querySelectorAll('input, select, textarea, button').forEach(el => {
+                        const id = el.id || '';
+                        if (id === 'btn-exportar-jpg') return;
+                        el.disabled = true;
+                    });
+                }
+            } catch {}
+        } catch (e) {
+            console.warn('No se pudo aplicar modo solo lectura', e);
         }
     }
 
@@ -315,6 +431,117 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function aplicarInspeccionExistenteAutoPdf() {
+        try {
+            const paramsUrl = new URLSearchParams(window.location.search || '');
+            const autoPdf = (paramsUrl.get('autoPdf') || '').trim();
+            if (autoPdf !== '1') return;
+
+            const autoClose = (paramsUrl.get('autoClose') || '').trim();
+
+            // Esperar a que inventario y formatos estén listos para que se rendericen los parámetros
+            const esperar = async (cond, msTotal = 6000, paso = 120) => {
+                const t0 = Date.now();
+                while (Date.now() - t0 < msTotal) {
+                    try {
+                        if (cond()) return true;
+                    } catch {}
+                    await new Promise(r => setTimeout(r, paso));
+                }
+                return false;
+            };
+
+            await esperar(() => inventarioCargado && formatosCargados);
+
+            const inspIdUrl = (paramsUrl.get('inspId') || '').trim();
+            const actividadIdUrl = (paramsUrl.get('actividadId') || '').trim();
+            if (!inspIdUrl && !actividadIdUrl) return;
+
+            const { getFirestore, doc, getDoc, collection, query, where, getDocs, limit } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
+
+            let insp = null;
+            if (inspIdUrl) {
+                const ref = doc(db, 'inspecciones', inspIdUrl);
+                const snap = await getDoc(ref);
+                if (snap.exists()) insp = { id: snap.id, ...snap.data() };
+            }
+
+            if (!insp && actividadIdUrl) {
+                const colRef = collection(db, 'inspecciones');
+                const q = query(colRef, where('actividadId', '==', actividadIdUrl), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const d = snap.docs[0];
+                    insp = { id: d.id, ...d.data() };
+                }
+            }
+
+            if (!insp) return;
+
+            // Asegurar que el equipo esté seleccionado y renderizado
+            const equipo = (insp.equipo || '').toString().trim();
+            if (equipo) {
+                inputEquipo.value = equipo;
+                actualizarDetalleDesdeInput();
+            }
+
+            // Aplicar tipo de inspección si existe
+            try {
+                const selTipo = document.getElementById('inspeccion-tipo');
+                if (selTipo && insp.tipoInspeccion) {
+                    selTipo.value = String(insp.tipoInspeccion).trim();
+                    selTipo.dispatchEvent(new Event('change'));
+                }
+            } catch {}
+
+            await esperar(() => {
+                const panel = document.getElementById('detalle-equipo-contenido');
+                return !!(panel && panel.querySelector('.parametros-inspeccion'));
+            });
+
+            // Rellenar estados guardados
+            try {
+                const params = Array.isArray(insp.parametros) ? insp.parametros : [];
+                params.forEach((p, idx) => {
+                    const estado = (p && p.estado) ? String(p.estado) : '';
+                    const tipoDano = (p && p.tipoDano) ? String(p.tipoDano) : '';
+                    const detalleOtro = (p && p.detalleOtro) ? String(p.detalleOtro) : '';
+                    const selEstado = document.querySelector(`select[name="param-${idx}-estado"]`);
+                    if (selEstado && estado) {
+                        selEstado.value = estado;
+                        selEstado.dispatchEvent(new Event('change'));
+                    }
+                    const selTipo = document.querySelector(`select[name="param-${idx}-tipo-dano"]`);
+                    if (selTipo && tipoDano) {
+                        selTipo.value = tipoDano;
+                        selTipo.dispatchEvent(new Event('change'));
+                    }
+                    const inpOtro = document.querySelector(`input[name="param-${idx}-detalle-otro"]`);
+                    if (inpOtro && detalleOtro) {
+                        inpOtro.value = detalleOtro;
+                        inpOtro.dispatchEvent(new Event('input'));
+                    }
+                });
+            } catch {}
+
+            // Disparar exportación PDF automática
+            await new Promise(r => setTimeout(r, 250));
+            const btnPdf = document.getElementById('btn-exportar-jpg');
+            if (btnPdf) btnPdf.click();
+
+            // Intentar cerrar la pestaña solo si se solicita explícitamente (puede cancelar la descarga en Safari/iPad)
+            if (autoClose === '1') {
+                await new Promise(r => setTimeout(r, 8000));
+                try { window.close(); } catch {}
+            }
+        } catch (e) {
+            console.warn('No se pudo ejecutar autoPdf', e);
+        }
+    }
+
     // Cargar inventario de equipos
     fetch('docs/invre.csv')
         .then(response => {
@@ -355,10 +582,14 @@ document.addEventListener('DOMContentLoaded', () => {
             inventarioCargado = true;
             // Intentar inicializar desde actividadId si aplica
             inicializarDesdeActividadUrl();
+            // Intentar auto-PDF si viene en la URL (usa la inspección existente)
+            aplicarInspeccionExistenteAutoPdf();
+            // Solo lectura (si viene view=1)
+            aplicarInspeccionExistenteSoloLectura();
         })
         .catch(err => {
             console.error(err);
-            detalleContenedor.innerHTML = '<p>No se pudo cargar el inventario de equipos.</p>';
+            alert('Error al cargar el inventario.');
         });
 
     // Cargar formatos de inspección
@@ -393,6 +624,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     formatosPorCodigo[formatoActual].push(nombre);
                 }
             });
+
+            formatosCargados = true;
+            // Intentar auto-PDF si viene en la URL (por si el inventario ya cargó antes)
+            aplicarInspeccionExistenteAutoPdf();
+            // Solo lectura (si viene view=1)
+            aplicarInspeccionExistenteSoloLectura();
         })
         .catch(err => {
             console.error(err);
@@ -952,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Construir un wrapper temporal con encabezado (usuario, fecha/hora, ubicación) + contenido de inspección
                 const wrapper = document.createElement('div');
-                wrapper.style.cssText = 'background:#ffffff; color:#111827; padding:24px; width:794px; max-width:100%; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;';
+                wrapper.style.cssText = 'background:#ffffff; color:#111827; padding:24px; width:794px; min-width:794px; max-width:none; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;';
 
                 const logoWrap = document.createElement('div');
                 logoWrap.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:10px;';
@@ -1308,7 +1545,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     yPx += sliceHeightPx;
                 }
 
-                pdf.save(fileName);
+                // En iframe (embedded) algunos navegadores bloquean descargas directas.
+                // Mandar el PDF al contenedor para que descargue en la ventana principal.
+                try {
+                    const paramsUrl = new URLSearchParams(window.location.search || '');
+                    const embedded = (paramsUrl.get('embedded') || '').trim();
+                    if (embedded === '1' && window.parent && window.parent !== window) {
+                        const blob = pdf.output('blob');
+                        const buf = await blob.arrayBuffer();
+                        window.parent.postMessage(
+                            { type: 'pct_pdf_blob', kind: 'inspeccion', fileName, data: buf },
+                            '*',
+                            [buf]
+                        );
+                    } else {
+                        pdf.save(fileName);
+                    }
+                } catch (e) {
+                    // Fallback: intentar descarga normal
+                    try { pdf.save(fileName); } catch {}
+                }
             } catch (e) {
                 console.warn('No se pudo exportar el PDF:', e);
             }
@@ -1317,6 +1573,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnGuardar) {
         btnGuardar.addEventListener('click', async () => {
+            if (isViewMode) return;
             if (guardandoInspeccion) return;
             guardandoInspeccion = true;
             const valor = inputEquipo.value.trim();

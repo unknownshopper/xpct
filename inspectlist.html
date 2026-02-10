@@ -79,6 +79,12 @@
                 </div>
             </section>
 
+            <section id="insp-acciones-pdf" style="margin-bottom: 0.75rem; display:none; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                <button type="button" id="btn-insp-pdf-individual" style="padding:0.4rem 0.75rem; border-radius:0.5rem; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; font-size:0.85rem;">Descargar PDF (individual)</button>
+                <button type="button" id="btn-insp-pdf-lote" style="padding:0.4rem 0.75rem; border-radius:0.5rem; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; font-size:0.85rem;">Descargar PDFs (lote)</button>
+                <span id="insp-pdf-ayuda" style="font-size:0.8rem; color:#6b7280;">Selecciona una o varias inspecciones realizadas.</span>
+            </section>
+
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-principal">
                 <table id="tabla-inspecciones" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
@@ -91,6 +97,7 @@
                             <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Serial</th>
                             <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
                             <th style="text-align:left; padding:0.4rem;">Lugar</th>
                             <th id="insp-th-evaluacion" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para filtrar: Pendientes / Realizadas / Todo">Evaluación</th>
@@ -112,8 +119,12 @@
                 <table id="tabla-inspecciones-huerfanas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f3f4f6;">
+                            <th style="text-align:center; padding:0.4rem; width:32px;">
+                                <input type="checkbox" id="insp-select-todos-huerfanas" title="Seleccionar / deseleccionar todos">
+                            </th>
                             <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Serial</th>
                             <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
                             <th style="text-align:left; padding:0.4rem;">Lugar</th>
                             <th style="text-align:left; padding:0.4rem;">Evaluación</th>
@@ -195,6 +206,10 @@
         const inputBuscar = document.getElementById('insp-buscar');
         const lblCont = document.getElementById('insp-contador');
         const chkTodos = document.getElementById('insp-select-todos');
+        const chkTodosHuerfanas = document.getElementById('insp-select-todos-huerfanas');
+        const secAccionesPdf = document.getElementById('insp-acciones-pdf');
+        const btnPdfIndividual = document.getElementById('btn-insp-pdf-individual');
+        const btnPdfLote = document.getElementById('btn-insp-pdf-lote');
         const cardPendientes = document.getElementById('insp-card-pendientes');
         const cardRealizadas = document.getElementById('insp-card-realizadas');
         const cardWrapPend = document.getElementById('insp-card-wrap-pendientes');
@@ -206,6 +221,27 @@
         let filtroEstado = null; // null | 'PENDIENTE' | 'REALIZADA'
         let sortKey = null; // null | 'fecha_real' | 'fecha_act'
         let sortDir = -1; // -1 desc | 1 asc
+
+        // Mapa global actualizado en cada carga, para que los botones PDF siempre usen la data más reciente
+        let inspeccionPorActividadGlobal = new Map();
+
+        function descargarArrayBufferComoArchivo(buf, fileName, mime = 'application/pdf') {
+            try {
+                const blob = new Blob([buf], { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName || 'inspeccion.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => {
+                    try { URL.revokeObjectURL(url); } catch {}
+                }, 15000);
+            } catch (e) {
+                console.warn('No se pudo descargar PDF', e);
+            }
+        }
 
         function toMs(v) {
             if (!v) return null;
@@ -290,6 +326,73 @@
                 .trim();
         }
 
+        function normKeyCompact(v) {
+            return (v || '')
+                .toString()
+                .trim()
+                .toUpperCase()
+                .replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < (line || '').length; i++) {
+                const ch = line[i];
+                if (ch === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (ch === ',' && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += ch;
+                }
+            }
+            result.push(current);
+            return result;
+        }
+
+        let serialPorEquipo = new Map();
+        let inventarioSerialesPromise = null;
+
+        async function asegurarSerialesInventario() {
+            if (inventarioSerialesPromise) return inventarioSerialesPromise;
+            inventarioSerialesPromise = (async () => {
+                try {
+                    const res = await fetch('docs/invre.csv', { cache: 'no-store' });
+                    if (!res.ok) throw new Error('No se pudo cargar invre.csv');
+                    const texto = await res.text();
+                    const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+                    if (!lineas.length) return;
+                    const headers = parseCSVLine(lineas[0]).map(h => (h || '').toString().trim().toUpperCase());
+                    const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+                    const idxSerial = headers.indexOf('SERIAL');
+                    if (idxEquipo < 0 || idxSerial < 0) return;
+
+                    const mapa = new Map();
+                    lineas.slice(1).forEach(linea => {
+                        const cols = parseCSVLine(linea);
+                        const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                        const sr = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
+                        const key = normKeyCompact(eq);
+                        if (!key) return;
+                        if (!mapa.has(key)) mapa.set(key, (sr || '').toString().trim());
+                    });
+                    serialPorEquipo = mapa;
+                } catch (e) {
+                    console.warn('No se pudo cargar inventario para seriales', e);
+                    serialPorEquipo = new Map();
+                }
+            })();
+            return inventarioSerialesPromise;
+        }
+
         function canonCliente(v) {
             const key = normalizarTextoClave(v);
             // Correcciones puntuales de typos frecuentes (solo display/agrupación)
@@ -307,12 +410,18 @@
             if (msgHuerfanas) msgHuerfanas.style.display = 'none';
             if (lblCont) lblCont.textContent = '0 registros';
             if (chkTodos) chkTodos.checked = false;
+            if (chkTodosHuerfanas) chkTodosHuerfanas.checked = false;
             if (cardPendientes) cardPendientes.textContent = '0';
             if (cardRealizadas) cardRealizadas.textContent = '0';
 
             actualizarIndicadoresSort();
 
             let filtro = (inputBuscar?.value || '').toLowerCase().trim();
+
+            // Para mostrar serial en pendientes, necesitamos el mapa de inventario
+            try {
+                await asegurarSerialesInventario();
+            } catch {}
 
             // 1) Leer inspecciones desde Firestore
             let inspecciones = [];
@@ -343,6 +452,8 @@
                     inspeccionPorActividad.set(reg.actividadId, { ...reg, _indexLocal: idx });
                 }
             });
+
+            inspeccionPorActividadGlobal = inspeccionPorActividad;
 
             // Inspecciones huérfanas (sin actividadId): sí existen en Firestore, pero no se cruzan con actividades
             const inspeccionesHuerfanas = inspecciones.filter(reg => reg && !reg.actividadId);
@@ -528,6 +639,7 @@
                     const area = insp?.areaCliente || act.areaCliente || '';
                     const lugar = insp?.ubicacion || act.ubicacion || '';
                     const equipo = insp?.equipo || act.equipo || '';
+                    const serial = insp?.serial || serialPorEquipo.get(normKeyCompact(equipo)) || '';
                     const usuario = insp?.usuarioInspeccion || '';
                     const tipoInsp = insp?.tipoInspeccion || act.tipoInspeccion || '';
                     const observaciones = insp?.observaciones || '';
@@ -571,7 +683,7 @@
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.className = 'insp-group-cliente';
                         trGrupoCliente.innerHTML = `
-                            <td colspan="13" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                            <td colspan="14" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                                 Cliente: ${clienteActualLabel}
                             </td>
                         `;
@@ -584,7 +696,7 @@
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.className = 'insp-group-area';
                         trGrupoArea.innerHTML = `
-                            <td colspan="13" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="14" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="insp-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -597,7 +709,7 @@
                         const trGrupoUbic = document.createElement('tr');
                         trGrupoUbic.className = 'insp-group-ubic';
                         trGrupoUbic.innerHTML = `
-                            <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                            <td colspan="14" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
                                 Ubicación: ${lugarActual}
                             </td>
                         `;
@@ -606,6 +718,11 @@
 
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-actividad-id', act.id || '');
+                    if (insp && insp.id) {
+                        tr.classList.add('insp-fila-realizada');
+                        tr.setAttribute('data-insp-id', insp.id);
+                        tr.style.cursor = 'pointer';
+                    }
                     if (!insp) {
                         tr.classList.add('insp-fila-pendiente');
                         tr.style.cursor = 'pointer';
@@ -631,6 +748,7 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInspHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? (evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto) : 'Pendiente'}</td>
@@ -655,7 +773,7 @@
             if (hayRealizadas) {
                 const trSep = document.createElement('tr');
                 trSep.innerHTML = `
-                    <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
+                    <td colspan="14" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
                         Inspecciones realizadas
                     </td>
                 `;
@@ -689,6 +807,7 @@
                     const area = insp?.areaCliente || '';
                     const lugar = insp?.ubicacion || '';
                     const equipo = insp?.equipo || '';
+                    const serial = insp?.serial || '';
                     const usuario = insp?.usuarioInspeccion || '';
                     const tipoInsp = insp?.tipoInspeccion || '';
                     const observaciones = insp?.observaciones || '';
@@ -716,8 +835,12 @@
 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                            <input type="checkbox" class="insp-select-fila-huerfana" data-insp-id="${insp?.id || ''}">
+                        </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInsp}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto}</td>
@@ -770,6 +893,12 @@
             }
             if (lblCont) {
                 lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
+            }
+
+            // Acciones PDF solo cuando estamos en Realizadas (para evitar confusión con pendientes)
+            if (secAccionesPdf) {
+                const mostrarAcciones = (filtroEstado === 'REALIZADA');
+                secAccionesPdf.style.display = mostrarAcciones ? 'flex' : 'none';
             }
 
             // 4) Permitir abrir la inspección desde una fila pendiente
@@ -853,6 +982,31 @@
                 });
             });
 
+            // Doble click en inspección realizada: abrir en modo solo lectura (no admin). Admin puede editar.
+            tbody.querySelectorAll('tr.insp-fila-realizada').forEach(tr => {
+                tr.addEventListener('dblclick', (ev) => {
+                    if (ev.target.closest('button, select, a, input')) return;
+                    const inspId = tr.getAttribute('data-insp-id') || '';
+                    const actividadId = tr.getAttribute('data-actividad-id') || '';
+                    if (!inspId && !actividadId) return;
+
+                    if (window.isAdmin) {
+                        if (actividadId) {
+                            window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
+                            return;
+                        }
+                        window.location.href = `inspeccion.html?inspId=${encodeURIComponent(inspId)}`;
+                        return;
+                    }
+
+                    // Solo lectura
+                    let url = 'inspeccion.html?view=1';
+                    if (inspId) url += `&inspId=${encodeURIComponent(inspId)}`;
+                    else if (actividadId) url += `&actividadId=${encodeURIComponent(actividadId)}`;
+                    window.location.href = url;
+                });
+            });
+
             // 8) Manejar eliminación de inspecciones realizadas (no toca actividades)
             tbody.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -929,6 +1083,148 @@
                         chkArea.checked = marcado;
                     });
                 };
+            }
+
+            // Seleccionar todos (huérfanas)
+            if (chkTodosHuerfanas && tbodyHuerfanas) {
+                const filasH = tbodyHuerfanas.querySelectorAll('.insp-select-fila-huerfana');
+                chkTodosHuerfanas.checked = filasH.length > 0 && Array.from(filasH).every(chk => chk.checked);
+                chkTodosHuerfanas.onchange = () => {
+                    const marcado = chkTodosHuerfanas.checked;
+                    filasH.forEach(chk => { chk.checked = marcado; });
+                };
+                filasH.forEach(chk => {
+                    chk.addEventListener('change', () => {
+                        const todas = filasH.length > 0 && Array.from(filasH).every(c => c.checked);
+                        chkTodosHuerfanas.checked = todas;
+                    });
+                });
+            }
+
+            function obtenerSeleccionadasParaPdf() {
+                const seleccion = [];
+
+                tbody.querySelectorAll('.insp-select-fila:checked').forEach(chk => {
+                    const actividadId = chk.getAttribute('data-actividad-id') || '';
+                    if (!actividadId) return;
+                    const insp = inspeccionPorActividadGlobal.get(actividadId);
+                    const inspId = insp && insp.id ? String(insp.id) : '';
+                    if (inspId) seleccion.push({ inspId, actividadId });
+                });
+
+                if (tbodyHuerfanas) {
+                    tbodyHuerfanas.querySelectorAll('.insp-select-fila-huerfana:checked').forEach(chk => {
+                        const inspId = chk.getAttribute('data-insp-id') || '';
+                        if (inspId) seleccion.push({ inspId, actividadId: '' });
+                    });
+                }
+
+                return seleccion;
+            }
+
+            function abrirPdfEnNuevaPestana(item) {
+                const inspId = item?.inspId || '';
+                const actividadId = item?.actividadId || '';
+                // Descarga sin abrir pestañas: usar iframe oculto que genere y descargue el PDF
+                let url = 'inspeccion.html?autoPdf=1&embedded=1';
+                if (inspId) url += `&inspId=${encodeURIComponent(inspId)}`;
+                if (actividadId) url += `&actividadId=${encodeURIComponent(actividadId)}`;
+
+                const frame = document.createElement('iframe');
+                // Importante: no usar 0x0; html2canvas/jspdf se rompen si el layout colapsa
+                frame.style.width = '1200px';
+                frame.style.height = '900px';
+                frame.style.border = '0';
+                frame.style.position = 'fixed';
+                frame.style.left = '-9999px';
+                frame.style.top = '-9999px';
+                frame.setAttribute('aria-hidden', 'true');
+                frame.dataset.kind = 'pdf';
+                frame.setAttribute('data-kind', 'pdf');
+                frame.src = url;
+                document.body.appendChild(frame);
+
+                // Limpieza por si no llega mensaje
+                setTimeout(() => {
+                    try { frame.remove(); } catch {}
+                }, 45000);
+            }
+
+            async function descargarPdfLote(items) {
+                // Secuencial para reducir bloqueos del navegador
+                return new Promise((resolve) => {
+                    let idx = 0;
+                    const frames = [];
+                    const onMsg = (ev) => {
+                        if (!ev || !ev.data) return;
+                        if (ev.data.type !== 'pct_pdf_blob') return;
+                        if (ev.data.kind !== 'inspeccion') return;
+
+                        // Descargar en la ventana principal
+                        const fileName = ev.data.fileName || `inspeccion-${idx + 1}.pdf`;
+                        const buf = ev.data.data;
+                        if (buf) descargarArrayBufferComoArchivo(buf, fileName);
+
+                        // Limpiar el iframe previo
+                        try {
+                            const prev = frames.shift();
+                            if (prev) prev.remove();
+                        } catch {}
+
+                        // Continuar con el siguiente
+                        idx += 1;
+                        lanzarSiguiente();
+                    };
+
+                    const lanzarSiguiente = () => {
+                        if (idx >= items.length) {
+                            window.removeEventListener('message', onMsg);
+                            // limpiar cualquier iframe restante
+                            try {
+                                frames.forEach(f => { try { f.remove(); } catch {} });
+                            } catch {}
+                            resolve();
+                            return;
+                        }
+                        const beforeCount = document.querySelectorAll('iframe[data-kind="pdf"]').length;
+                        abrirPdfEnNuevaPestana(items[idx]);
+                        const after = document.querySelectorAll('iframe[data-kind="pdf"]');
+                        // guardar referencia del último iframe insertado
+                        if (after.length > beforeCount) {
+                            frames.push(after[after.length - 1]);
+                        }
+                    };
+
+                    window.addEventListener('message', onMsg);
+                    lanzarSiguiente();
+                });
+            }
+
+            if (btnPdfIndividual && !btnPdfIndividual.dataset.bound) {
+                btnPdfIndividual.dataset.bound = '1';
+                btnPdfIndividual.addEventListener('click', () => {
+                    const sel = obtenerSeleccionadasParaPdf();
+                    if (sel.length !== 1) {
+                        alert('Selecciona exactamente 1 inspección realizada para descargar el PDF individual.');
+                        return;
+                    }
+                    descargarPdfLote(sel);
+                });
+            }
+
+            if (btnPdfLote && !btnPdfLote.dataset.bound) {
+                btnPdfLote.dataset.bound = '1';
+                btnPdfLote.addEventListener('click', () => {
+                    const sel = obtenerSeleccionadasParaPdf();
+                    if (!sel.length) {
+                        alert('Selecciona al menos 1 inspección realizada para descargar en lote.');
+                        return;
+                    }
+                    if (sel.length > 25) {
+                        if (!confirm(`Vas a descargar ${sel.length} PDFs. ¿Continuar?`)) return;
+                    }
+                    descargarPdfLote(sel);
+                });
             }
 
             // Selección por área
