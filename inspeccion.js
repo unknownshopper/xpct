@@ -1741,6 +1741,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {
                 ubicacionGps = '';
             }
+
+            // Normalizar: no persistir el literal "Sin GPS" como valor de ubicación
+            try {
+                const gpsTxt = (ubicacionGps || '').toString().trim();
+                if (gpsTxt.toUpperCase() === 'SIN GPS') ubicacionGps = '';
+            } catch {}
+
             if (!ubicacion) ubicacion = ubicacionGps || ubicacion;
 
             // Usuario actual (correo) para registrar quién hizo la inspección

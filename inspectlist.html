@@ -455,8 +455,9 @@
 
             inspeccionPorActividadGlobal = inspeccionPorActividad;
 
-            // Inspecciones huérfanas (sin actividadId): sí existen en Firestore, pero no se cruzan con actividades
-            const inspeccionesHuerfanas = inspecciones.filter(reg => reg && !reg.actividadId);
+            // Inspecciones huérfanas: se calculan después de cargar actividades
+            let inspeccionesHuerfanas = [];
+            let actividadesIds = new Set();
 
             // 2) Leer actividades desde Firestore (si el rol lo permite)
             let actividadesPermitidas = true;
@@ -511,19 +512,30 @@
                 const snap = await getDocs(colRef);
 
                 actividades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Calcular huérfanas: sin actividadId o con actividadId que ya no existe en las actividades actuales
+                actividadesIds = new Set(Array.from(actividades || []).map(a => a && a.id ? String(a.id) : '').filter(Boolean));
+                inspeccionesHuerfanas = inspecciones.filter(reg => {
+                    if (!reg) return false;
+                    const actId = reg.actividadId ? String(reg.actividadId) : '';
+                    if (!actId) return true;
+                    return !actividadesIds.has(actId);
+                });
             } catch (e) {
-                const msgErr = String(e?.message || '').toLowerCase();
-                const code = (e && e.code) ? String(e.code) : '';
-                const isPerm = code === 'permission-denied' || msgErr.includes('missing or insufficient permissions') || msgErr.includes('permission-denied');
-                if (isPerm) {
+                const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                const msg = (e && e.message) ? String(e.message) : '';
+                const esPermiso = code.includes('permission') || /permission/i.test(msg);
+                if (esPermiso) {
                     actividadesPermitidas = false;
+                    actividades = [];
+                    // Sin actividades, consideramos huérfanas solo las que no tienen actividadId
+                    inspeccionesHuerfanas = inspecciones.filter(reg => reg && !reg.actividadId);
                 } else {
-                    console.error('Error al leer actividades para inspectlist', e);
+                    console.error('Error al leer actividades desde Firestore', e);
+                    actividades = [];
+                    inspeccionesHuerfanas = inspecciones.filter(reg => reg && !reg.actividadId);
                 }
-                actividades = [];
             }
-
-            // Si no se permite leer actividades (ej. supervisor), construir el listado solo con inspecciones.
+ // Si no se permite leer actividades (ej. supervisor), construir el listado solo con inspecciones.
             // En este modo no es posible mostrar "pendientes" porque depende de la lista de actividades.
             if (!actividadesPermitidas && inspecciones.length) {
                 actividades = inspecciones.map(insp => ({
@@ -542,7 +554,7 @@
                 if (cardRealizadas) {
                     // Históricas = inspecciones existentes (si hay actividades, solo las cruzadas a una actividad para no contar huérfanas por duplicado)
                     const realizadas = actividadesPermitidas
-                        ? Array.from(inspeccionPorActividad.keys()).length
+                        ? (Array.from(inspeccionPorActividad.keys()).length + (Array.isArray(inspeccionesHuerfanas) ? inspeccionesHuerfanas.length : 0))
                         : (Array.isArray(inspecciones) ? inspecciones.length : 0);
                     cardRealizadas.textContent = String(realizadas);
                 }
@@ -637,7 +649,8 @@
                     const clienteRaw = insp?.cliente || act.cliente || '';
                     const cliente = canonCliente(clienteRaw);
                     const area = insp?.areaCliente || act.areaCliente || '';
-                    const lugar = insp?.ubicacion || act.ubicacion || '';
+                    let lugar = insp?.ubicacion || act.ubicacion || '';
+                    if (String(lugar || '').trim().toUpperCase() === 'SIN GPS') lugar = '';
                     const equipo = insp?.equipo || act.equipo || '';
                     const serial = insp?.serial || serialPorEquipo.get(normKeyCompact(equipo)) || '';
                     const usuario = insp?.usuarioInspeccion || '';
@@ -1008,66 +1021,75 @@
             });
 
             // 8) Manejar eliminación de inspecciones realizadas (no toca actividades)
-            tbody.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const actividadId = btn.getAttribute('data-actividad-id') || '';
-                    const inspId = btn.getAttribute('data-insp-id') || '';
-                    if (!inspId && !actividadId) return;
+            const bindEliminar = (root) => {
+                if (!root) return;
+                root.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
+                    if (btn.dataset.boundDel === '1') return;
+                    btn.dataset.boundDel = '1';
+                    btn.addEventListener('click', (ev) => {
+                        try { ev.stopPropagation(); } catch {}
+                        const actividadId = btn.getAttribute('data-actividad-id') || '';
+                        const inspId = btn.getAttribute('data-insp-id') || '';
+                        if (!inspId && !actividadId) return;
 
-                    if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
+                        if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
 
-                    (async () => {
-                        try {
-                            // Eliminar de Firestore
-                            const { getFirestore, collection, query, where, getDocs, deleteDoc, doc } = await import(
-                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                            );
+                        (async () => {
+                            try {
+                                // Eliminar de Firestore
+                                const { getFirestore, collection, query, where, getDocs, deleteDoc, doc } = await import(
+                                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                                );
 
-                            const db = getFirestore();
-                            let ops = [];
-                            if (inspId) {
-                                ops = [deleteDoc(doc(db, 'inspecciones', inspId))];
-                                await Promise.all(ops);
-                                try {
-                                    if (typeof window.pctAudit === 'function') {
-                                        await window.pctAudit('inspecciones_delete_by_id', { inspId }, { throttleKey: `inspecciones_delete_by_id_${inspId}` });
-                                    }
-                                } catch {}
-                            } else {
-                                const colInsp = collection(db, 'inspecciones');
-                                const q = query(colInsp, where('actividadId', '==', actividadId));
-                                const snap = await getDocs(q);
-                                ops = snap.docs.map(d => deleteDoc(doc(db, 'inspecciones', d.id)));
-                                await Promise.all(ops);
-                                try {
-                                    if (typeof window.pctAudit === 'function') {
-                                        await window.pctAudit('inspecciones_delete_by_actividad', { actividadId, count: ops.length }, { throttleKey: `inspecciones_delete_by_actividad_${actividadId}` });
-                                    }
-                                } catch {}
+                                const db = getFirestore();
+                                let ops = [];
+                                if (inspId) {
+                                    ops = [deleteDoc(doc(db, 'inspecciones', inspId))];
+                                    await Promise.all(ops);
+                                    try {
+                                        if (typeof window.pctAudit === 'function') {
+                                            await window.pctAudit('inspecciones_delete_by_id', { inspId }, { throttleKey: `inspecciones_delete_by_id_${inspId}` });
+                                        }
+                                    } catch {}
+                                } else {
+                                    const colInsp = collection(db, 'inspecciones');
+                                    const q = query(colInsp, where('actividadId', '==', actividadId));
+                                    const snap = await getDocs(q);
+                                    ops = snap.docs.map(d => deleteDoc(doc(db, 'inspecciones', d.id)));
+                                    await Promise.all(ops);
+                                    try {
+                                        if (typeof window.pctAudit === 'function') {
+                                            await window.pctAudit('inspecciones_delete_by_actividad', { actividadId, count: ops.length }, { throttleKey: `inspecciones_delete_by_actividad_${actividadId}` });
+                                        }
+                                    } catch {}
+                                }
+                            } catch (e) {
+                                console.error('No se pudo eliminar la inspección en Firestore', e);
                             }
-                        } catch (e) {
-                            console.error('No se pudo eliminar la inspección en Firestore', e);
-                        }
 
-                        // También limpiar en localStorage como respaldo
-                        let actuales = [];
-                        try {
-                            actuales = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
-                            if (!Array.isArray(actuales)) actuales = [];
-                        } catch {
-                            actuales = [];
-                        }
+                            // También limpiar en localStorage como respaldo
+                            let actuales = [];
+                            try {
+                                actuales = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
+                                if (!Array.isArray(actuales)) actuales = [];
+                            } catch {
+                                actuales = [];
+                            }
 
-                        actuales = actuales.filter(reg => {
-                            if (inspId) return reg && reg.id !== inspId;
-                            return reg && reg.actividadId !== actividadId;
-                        });
-                        localStorage.setItem(claveInspecciones, JSON.stringify(actuales));
+                            actuales = actuales.filter(reg => {
+                                if (inspId) return reg && reg.id !== inspId;
+                                return reg && reg.actividadId !== actividadId;
+                            });
+                            localStorage.setItem(claveInspecciones, JSON.stringify(actuales));
 
-                        cargarDatos();
-                    })();
+                            cargarDatos();
+                        })();
+                    });
                 });
-            });
+            };
+
+            bindEliminar(tbody);
+            bindEliminar(tbodyHuerfanas);
 
             // 9) Lógica de selección múltiple
             const filasChk = tbody.querySelectorAll('.insp-select-fila');

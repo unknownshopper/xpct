@@ -748,7 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function guardarPruebaEnFirestore(registro) {
         if (!window.db) {
             console.warn('Firestore no está inicializado (window.db)');
-            return;
+            throw new Error('Firestore no inicializado');
         }
 
         try {
@@ -761,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 creadoEn: serverTimestamp()
             };
 
-            await addDoc(collection(window.db, 'pruebas'), datos);
+            const ref = await addDoc(collection(window.db, 'pruebas'), datos);
             try {
                 if (typeof window.pctAudit === 'function') {
                     const equipo = (registro && (registro.equipo || registro.equipoId || registro.activo) ? String(registro.equipo || registro.equipoId || registro.activo) : '').trim();
@@ -770,9 +770,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch {}
             console.log('Prueba guardada en Firestore');
+            return ref && ref.id ? String(ref.id) : null;
         } catch (e) {
             console.error('Error al guardar prueba en Firestore', e);
+            throw e;
         }
+    }
+
+    function makeLocalId() {
+        return `p_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    }
+
+    async function guardarPruebaLocal({ registro, firestoreId = null, status = 'pending', error = '' } = {}) {
+        const store = window.pctInspectorPruebasStore;
+        if (!store || !store.putPrueba) return null;
+        const dayKey = store.todayKey ? store.todayKey() : '';
+        const createdAt = Date.now();
+        const localId = makeLocalId();
+        const email = (window.currentUserEmail || '').toLowerCase();
+
+        const entry = {
+            localId,
+            dayKey,
+            createdAt,
+            status,
+            firestoreId,
+            error,
+            email,
+            registro
+        };
+
+        try {
+            await store.clearExpired({ dayKey, ttlMs: 24 * 60 * 60 * 1000 });
+        } catch {}
+        await store.putPrueba(entry);
+        return entry;
     }
 
     function limpiarFormularioPruebas() {
@@ -985,8 +1017,28 @@ document.addEventListener('DOMContentLoaded', () => {
             observaciones: document.getElementById('prueba-observaciones')?.value || ''
         };
 
-        // Guardar en Firestore (fuente principal de datos)
-        await guardarPruebaEnFirestore(registro);
+        // Guardado offline-first: siempre registrar local y luego intentar Firestore
+        let localEntry = null;
+        try {
+            localEntry = await guardarPruebaLocal({ registro, status: 'pending' });
+        } catch (e) {
+            console.warn('No se pudo guardar localmente la prueba', e);
+        }
+
+        let firestoreId = null;
+        try {
+            firestoreId = await guardarPruebaEnFirestore(registro);
+            if (localEntry && window.pctInspectorPruebasStore && window.pctInspectorPruebasStore.updatePrueba) {
+                await window.pctInspectorPruebasStore.updatePrueba(localEntry.localId, { status: 'synced', firestoreId, error: '' });
+            }
+        } catch (e) {
+            if (localEntry && window.pctInspectorPruebasStore && window.pctInspectorPruebasStore.updatePrueba) {
+                try {
+                    await window.pctInspectorPruebasStore.updatePrueba(localEntry.localId, { status: 'pending', firestoreId: null, error: (e && e.message) ? String(e.message) : 'Error' });
+                } catch {}
+            }
+            // Si falló Firestore (offline, etc.) no bloqueamos el flujo: queda local como pendiente
+        }
 
         limpiarFormularioPruebas();
         alert('Prueba guardada.');

@@ -175,11 +175,88 @@ document.addEventListener('DOMContentLoaded', () => {
                         isAdmin ||
                         isDirector ||
                         (isSupervisor && currentPage === 'index.html') ||
+                        (isInspector && currentPage === 'index.html') ||
                         allowedNavPages.has(currentPage);
                     setNavVisible(shouldShowByRole);
 
                     // Supervisor: solo ver Pruebas e Inspecciones (ocultar Actividad y rutas relacionadas)
                     if (isSupervisor) {
+                        // Ocultar el item superior de Actividad y su dropdown
+                        document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown').forEach(li => {
+                            const anchor = li.querySelector(':scope > a');
+                            if (!anchor) return;
+                            const text = (anchor.textContent || '').trim().toLowerCase();
+                            if (text.includes('actividad')) {
+                                li.style.display = 'none';
+                            }
+                        });
+
+                        // Ocultar enlaces sueltos a páginas de actividad si existieran en otros lugares del menú
+                        document.querySelectorAll(
+                            'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="trazabilidades.html"]'
+                        ).forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = 'none';
+                        });
+
+                        // Inspector: el listado de pruebas debe ser local (sin Firestore)
+                        document.querySelectorAll('a[href$="pruebaslist.html"], a[href*="pruebaslist.html?"]').forEach(a => {
+                            try {
+                                const href = String(a.getAttribute('href') || '');
+                                if (!href.includes('pruebaslist.html')) return;
+
+                                // Forzar modo local
+                                if (!href.includes('local=1')) {
+                                    a.setAttribute('href', 'pruebaslist.html?local=1');
+                                }
+
+                                // Renombrar para que no parezca acceso a listado global
+                                const txt = (a.textContent || '').trim().toLowerCase();
+                                if (txt.includes('listado') || txt.includes('pruebas')) {
+                                    a.textContent = 'Trabajo del día';
+                                }
+                            } catch {}
+                        });
+
+                        // En dashboard: ocultar la tarjeta de actividades
+                        if (currentPage === 'index.html') {
+                            const actValue = document.getElementById('dash-actividades');
+                            const card = actValue ? actValue.closest('.dash-card') : null;
+                            if (card) card.style.display = 'none';
+
+                            const invValue = document.getElementById('dash-equipos-invre');
+                            const invCard = invValue ? invValue.closest('.dash-card') : null;
+                            if (invCard) invCard.style.display = 'none';
+
+                            const pruebasValue = document.getElementById('dash-pruebas');
+                            const pruebasCard = pruebasValue ? pruebasValue.closest('.dash-card') : null;
+                            if (pruebasCard) pruebasCard.style.display = 'none';
+                        }
+                    }
+
+                    // En dashboard: ocultar KPIs para roles operativos (no admin/director)
+                    if (currentPage === 'index.html' && !(isAdmin || isDirector)) {
+                        try {
+                            const invValue = document.getElementById('dash-equipos-invre');
+                            const invCard = invValue ? invValue.closest('.dash-card') : null;
+                            if (invCard) invCard.style.display = 'none';
+
+                            const pruebasValue = document.getElementById('dash-pruebas');
+                            const pruebasCard = pruebasValue ? pruebasValue.closest('.dash-card') : null;
+                            if (pruebasCard) pruebasCard.style.display = 'none';
+                        } catch {}
+                    }
+
+                    // Para inspector/capturista: ocultar actividadmin en la navegación
+                    if (isInspector || isCapturista) {
+                        document.querySelectorAll('a[href*="actividadmin"]').forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = 'none';
+                        });
+                    }
+
+                    // Inspector: solo ver Pruebas e Inspecciones (ocultar Actividad y rutas relacionadas)
+                    if (isInspector) {
                         // Ocultar el item superior de Actividad y su dropdown
                         document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown').forEach(li => {
                             const anchor = li.querySelector(':scope > a');
@@ -204,14 +281,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             const card = actValue ? actValue.closest('.dash-card') : null;
                             if (card) card.style.display = 'none';
                         }
-                    }
-
-                    // Para inspector/capturista: ocultar actividadmin en la navegación
-                    if (isInspector || isCapturista) {
-                        document.querySelectorAll('a[href*="actividadmin"]').forEach(a => {
-                            const li = a.closest('li') || a;
-                            li.style.display = 'none';
-                        });
                     }
 
                     // Capturista: solo puede ver Pruebas y Inspecciones. Ocultar sección Actividad completa

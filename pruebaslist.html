@@ -113,7 +113,7 @@
             <h1 style="text-align:center; font-size:2.25rem; font-weight:800; letter-spacing:0.02em; margin:0.25rem 0 0.75rem; color:#111827;">
                 VISOR DE PND Y CALIBRACIONES
             </h1>
-            <section style="margin-bottom: 0.75rem;">
+            <section id="seccion-chips-alertas" style="margin-bottom: 0.75rem;">
                 <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:center; font-size:1rem;">
                     <div id="chip-gt60" class="chip chip-large chip-green" style="cursor:pointer;">
                         > 60 días: <strong id="pruebas-alert-gt60">0</strong>
@@ -136,7 +136,7 @@
                 Los rangos anteriores aplican únicamente a pruebas <strong>ANUALES</strong>. Las pruebas de <strong>Post-trabajo</strong> y <strong>Reparación</strong> siempre se muestran en el listado; sus chips sirven para filtrar por período.
             </p>
         <!-- Chips de período centrados antes del Resumen de estado -->
-        <section style="margin: 0 0 0.75rem; display:flex; justify-content:center;">
+        <section id="seccion-chips-periodo" style="margin: 0 0 0.75rem; display:flex; justify-content:center;">
             <div class="chips-periodo" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                 <span id="pruebas-contador-historico" class="chip chip-large" style="font-weight:600;">
                     0 en histórico
@@ -248,7 +248,7 @@
 
             
 
-            <section style="margin-bottom:1rem; display:none;">
+            <section id="seccion-resumen-equipo" style="margin-bottom:1rem; display:none;">
                 <h3 style="font-size:1rem; margin-bottom:0.35rem;">Estado por equipo (última prueba)</h3>
                 <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
                     Para cada equipo se muestra la última prueba registrada y su estado de vigencia. Este resumen no se ve afectado por el filtro de búsqueda.
@@ -379,6 +379,7 @@
     </main>
 
     <script src="nav.js"></script>
+    <script src="inspector-pruebas-store.js"></script>
 
     <script src="config.local.js"></script>
     <script type="module" src="firebase-init.js"></script>
@@ -697,6 +698,33 @@
             }
         } catch {}
 
+        const params = new URLSearchParams(window.location.search || '');
+        const localMode = params.get('local') === '1';
+
+        // Inspector: no debe acceder al listado global; usar modo local
+        try {
+            if (window.isInspector && !localMode) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('local', '1');
+                window.location.replace(url.toString());
+                return;
+            }
+        } catch {}
+
+        // Modo local: no consultar Firestore, renderizar solo desde IndexedDB
+        if (localMode) {
+            try {
+                const dash = document.querySelector('.pruebas-dashboard');
+                if (dash) dash.style.display = 'none';
+            } catch {}
+            try {
+                await cargarPruebasLocal();
+            } catch (e) {
+                console.error('No se pudieron cargar pruebas locales', e);
+            }
+            return;
+        }
+
         // Ocultar panel de resumen costoso para capturista
         try {
             if (window.isCapturista) {
@@ -708,6 +736,80 @@
         // Todos los roles autenticados pueden ver esta página; el UI ya se ajusta vía nav.js
         cargarPruebasDesdeFirestore();
     });
+
+    async function cargarPruebasLocal() {
+        const tbodyListado = document.getElementById('tbody-pruebas-listado');
+        const msgListado = document.getElementById('mensaje-sin-pruebas-listado');
+        const loadMore = document.getElementById('pruebas-load-more');
+        const buscarWrap = document.getElementById('pruebas-buscar')?.closest('section') || null;
+
+        try { if (loadMore) loadMore.style.display = 'none'; } catch {}
+        try { if (buscarWrap) buscarWrap.style.display = 'none'; } catch {}
+
+        if (!tbodyListado) return;
+
+        const store = window.pctInspectorPruebasStore;
+        if (!store || !store.listPruebas) {
+            if (msgListado) {
+                msgListado.style.display = 'block';
+                msgListado.textContent = 'No hay almacenamiento local disponible.';
+            }
+            return;
+        }
+
+        try {
+            await store.clearExpired({ dayKey: store.todayKey(), ttlMs: 24 * 60 * 60 * 1000 });
+        } catch {}
+
+        const items = await store.listPruebas({ dayKey: store.todayKey(), ttlMs: 24 * 60 * 60 * 1000 });
+
+        tbodyListado.innerHTML = '';
+        if (!items.length) {
+            if (msgListado) {
+                msgListado.style.display = 'block';
+                msgListado.textContent = 'No hay pruebas locales registradas hoy.';
+            }
+            return;
+        }
+        if (msgListado) msgListado.style.display = 'none';
+
+        const fmt = (ms) => {
+            try {
+                const d = new Date(ms);
+                return d.toLocaleString('es-MX');
+            } catch {
+                return '';
+            }
+        };
+
+        items.forEach(item => {
+            const r = item.registro || {};
+            const tr = document.createElement('tr');
+            const status = (item.status || 'pending').toString();
+            const statusTxt = status === 'synced' ? 'Enviada' : 'Pendiente';
+
+            tr.innerHTML = `
+                <td style="padding:0.4rem;">
+                    <input type="checkbox" disabled>
+                </td>
+                <td style="padding:0.4rem;">${String(r.fechaRealizacion || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.proxima || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.periodo || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${statusTxt}</td>
+                <td style="padding:0.4rem;">${fmt(item.createdAt)}</td>
+                <td style="padding:0.4rem;">${String(r.equipo || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.producto || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.descripcion || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.pruebaTipo || r.prueba || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.area || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.noReporte || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.resultado || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.emisor || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${String(r.tecnico || '').trim() || ''}</td>
+            `;
+            tbodyListado.appendChild(tr);
+        });
+    }
 
     if (btnLogout) {
         btnLogout.addEventListener('click', async () => {
@@ -786,6 +888,17 @@
         const chip0 = document.getElementById('chip-0');
         let filtroRango = null; // 'gt60' | '60' | '30' | '15' | '0' | null
 
+        // Inspector: ocultar chips/resúmenes y evitar filtros (solo lista recientes 32h)
+        const seccionChipsAlertas = document.getElementById('seccion-chips-alertas');
+        const seccionChipsPeriodo = document.getElementById('seccion-chips-periodo');
+        const seccionResumenEquipo = document.getElementById('seccion-resumen-equipo');
+        if (window.isInspector) {
+            if (seccionChipsAlertas) seccionChipsAlertas.style.display = 'none';
+            if (seccionChipsPeriodo) seccionChipsPeriodo.style.display = 'none';
+            if (seccionResumenEquipo) seccionResumenEquipo.style.display = 'none';
+            filtroRango = null;
+        }
+
         // Habilitar persistencia offline si está disponible (no falla en multi-tab)
         (async ()=>{
             try {
@@ -798,6 +911,10 @@
 
         // Filtro por periodo (ANUAL / POST-TRABAJO / REPARACION)
         let filtroPeriodo = null; // null = todos, 'ANUAL' | 'POST-TRABAJO' | 'REPARACION'
+
+        if (window.isInspector) {
+            filtroPeriodo = null;
+        }
 
         // Filtro por cobertura de equipos (para la tabla de resumen por equipo)
         let filtroCobertura = null; // null | '100' | 'parcial' | 'sin'
@@ -1155,7 +1272,7 @@
         // Lectura paginada (orden por creadoEn desc). Cache primero; red solo bajo demanda.
         async function leerPagina({ reset = false, forceNetwork = false } = {}) {
             try {
-                const { getFirestore, collection, getDocs, getDocsFromCache, query, orderBy, limit, startAfter, documentId } = await import(
+                const { getFirestore, collection, getDocs, getDocsFromCache, query, orderBy, limit, startAfter, documentId, where } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const db = getFirestore();
@@ -1169,8 +1286,15 @@
                     try { window.pruebas = window.pctGetPruebas(); } catch {}
                 }
 
+                const isInspector = !!window.isInspector;
+                const cutoffDate = isInspector ? new Date(Date.now() - (32 * 60 * 60 * 1000)) : null;
+
                 let qBase;
-                if (_paginationMode === 'docId') {
+                if (isInspector) {
+                    // Inspector: limitar a últimas 32 horas para reducir lecturas y volumen.
+                    qBase = query(colRef, where('creadoEn', '>=', cutoffDate), orderBy('creadoEn', 'desc'), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, where('creadoEn', '>=', cutoffDate), orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+                } else if (_paginationMode === 'docId') {
                     qBase = query(colRef, orderBy(documentId()), limit(_pageLimit));
                     if (_lastDoc) qBase = query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit));
                 } else {
@@ -1190,15 +1314,18 @@
                     catch (e) { netErr = e; }
                 }
                 if (!snap || snap.empty) {
-                    // Fallback: hay datasets antiguos sin "creadoEn" o casos donde la ordenación no regresa docs.
-                    // Usar una paginación estable por documentId para poder recorrer TODA la colección.
-                    try {
-                        _paginationMode = 'docId';
-                        const qFallback = _lastDoc
-                            ? query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit))
-                            : query(colRef, orderBy(documentId()), limit(_pageLimit));
-                        snap = forceNetwork ? await getDocs(qFallback) : (await getDocsFromCache(qFallback).catch(() => null)) || (await getDocs(qFallback));
-                    } catch {}
+                    // Para inspector no hacemos fallback a docId (evitar recorrer toda la colección)
+                    if (!isInspector) {
+                        // Fallback: hay datasets antiguos sin "creadoEn" o casos donde la ordenación no regresa docs.
+                        // Usar una paginación estable por documentId para poder recorrer TODA la colección.
+                        try {
+                            _paginationMode = 'docId';
+                            const qFallback = _lastDoc
+                                ? query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit))
+                                : query(colRef, orderBy(documentId()), limit(_pageLimit));
+                            snap = forceNetwork ? await getDocs(qFallback) : (await getDocsFromCache(qFallback).catch(() => null)) || (await getDocs(qFallback));
+                        } catch {}
+                    }
                 }
 
                 if (!snap || snap.empty) {

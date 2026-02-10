@@ -173,7 +173,7 @@
 
         <section class="card-prueba" style="display:flex; justify-content:space-between; align-items:center;">
             <button id="btn-guardar-prueba">Guardar prueba</button>
-            <a href="pruebaslist.html" class="link-inspecciones">Ver pruebas guardadas</a>
+            <a href="pruebaslist.html" class="link-inspecciones" id="link-ver-pruebas">Ver pruebas guardadas</a>
         </section>
     </main>
 
@@ -207,11 +207,15 @@
                 window.isInspector = role === 'inspector';
                 window.isCapturista = role === 'capturista';
 
-                // Acceso permitido: admin, director, capturista
-                if (window.isInspector) {
-                    window.location.href = 'inspeccion.html';
-                    return;
-                }
+                // Acceso permitido: admin, director, inspector, capturista
+                // Inspector puede registrar pruebas (modo offline-first con lista local del día)
+
+                try {
+                    const linkVer = document.getElementById('link-ver-pruebas');
+                    if (linkVer && window.isInspector) {
+                        linkVer.href = 'pruebaslist.html?local=1';
+                    }
+                } catch {}
 
                 // El campo Técnico queda abierto para que lo capture el usuario (sin autocompletar ni bloquear)
             } catch {}
@@ -230,6 +234,7 @@
 
     <script src="nav.js"></script>
     <script src="utils.js"></script>
+    <script src="inspector-pruebas-store.js"></script>
     <script src="pruebas.js"></script>
 </body>
 </html>

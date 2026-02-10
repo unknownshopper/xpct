@@ -142,6 +142,15 @@
                 <button id="adm-btn-actualizar" type="button" title="Actualizar desde servidor" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
                     Actualizar
                 </button>
+                <button id="adm-btn-reporte-csv" type="button" title="Descargar reporte consolidado (CSV)" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; cursor:pointer;">
+                    Reporte CSV
+                </button>
+                <button id="adm-btn-reporte-xls" type="button" title="Descargar reporte consolidado (Excel)" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; cursor:pointer;">
+                    Reporte Excel
+                </button>
+                <button id="adm-btn-reporte-pdf" type="button" title="Reporte profesional para PDF" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; cursor:pointer;">
+                    Reporte PDF
+                </button>
                 <button id="adm-btn-cambiar-cliente" type="button" title="Cambiar cliente en filas seleccionadas" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; cursor:pointer;">Cambiar cliente selección</button>
                 <span id="adm-contador">0 registros</span>
             </div>
@@ -503,6 +512,8 @@
     // Mapa de descripcion por equipo desde invre.csv
     window.mapaDescripcionPorEquipoAdm = window.mapaDescripcionPorEquipoAdm || {};
     const mapaDescripcionPorEquipoAdm = window.mapaDescripcionPorEquipoAdm;
+    window.mapaSerialPorEquipoAdm = window.mapaSerialPorEquipoAdm || {};
+    const mapaSerialPorEquipoAdm = window.mapaSerialPorEquipoAdm;
 
     // Helpers de normalización (formato PCT-XX-NN) para usar llaves consistentes
     const __rmAcc = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -548,6 +559,7 @@
             const headers = parse(lineas[0]);
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxDesc = headers.indexOf('DESCRIPCION');
+            const idxSerial = headers.indexOf('SERIAL');
             if (idxEquipo < 0 || idxDesc < 0) return;
 
             lineas.slice(1).forEach(l => {
@@ -555,9 +567,13 @@
                 const eqRaw = (cols[idxEquipo] || '').toString().trim();
                 const eq = __normalizeEquipoAdm(eqRaw);
                 const desc = (cols[idxDesc] || '').toString().trim();
+                const serial = (idxSerial >= 0 ? (cols[idxSerial] || '') : '').toString().trim();
                 if (!eq || !desc) return;
                 if (!mapaDescripcionPorEquipoAdm[eq]) {
                     mapaDescripcionPorEquipoAdm[eq] = desc;
+                }
+                if (serial && !mapaSerialPorEquipoAdm[eq]) {
+                    mapaSerialPorEquipoAdm[eq] = serial;
                 }
             });
             if (window && typeof window.__admRenderTabla === 'function') {
@@ -2387,6 +2403,308 @@
                     } catch (e) {
                         console.warn('No se pudo forzar actualización desde servidor', e);
                     }
+                });
+            }
+
+            async function cargarPeriodosSeleccion({ actividadIds }) {
+                const { getFirestore, collection, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const colRef = collection(db, 'actividadPeriodos');
+
+                const chunks = [];
+                const ids = Array.from(new Set((actividadIds || []).map(x => String(x || '').trim()).filter(Boolean)));
+                const MAX_IN = 30;
+                for (let i = 0; i < ids.length; i += MAX_IN) chunks.push(ids.slice(i, i + MAX_IN));
+
+                const out = [];
+                for (const c of chunks) {
+                    const q = query(colRef, where('actividadId', 'in', c));
+                    const snap = await getDocs(q);
+                    snap.forEach(d => out.push({ id: d.id, ...(d.data() || {}) }));
+                }
+                return out;
+            }
+
+            function filasSeleccionadasActividad() {
+                const tbody = document.getElementById('adm-tbody-actividad');
+                if (!tbody) return [];
+                const checks = Array.from(tbody.querySelectorAll('.adm-select-fila:checked'));
+                return checks.map(chk => {
+                    const tr = chk.closest('tr');
+                    const id = chk.getAttribute('data-id') || tr?.getAttribute('data-id') || '';
+                    return { chk, tr, id: String(id || '').trim() };
+                }).filter(x => x.id);
+            }
+
+            function escapeCsv(val) {
+                const s = (val == null) ? '' : String(val);
+                if (/[\n\r,\"]/g.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+                return s;
+            }
+
+            function downloadBlob({ blob, filename }) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    URL.revokeObjectURL(url);
+                    a.remove();
+                }, 0);
+            }
+
+            function ymd() {
+                const d = new Date();
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                return `${yyyy}-${mm}-${dd}`;
+            }
+
+            function construirReporte({ selected, periodos }) {
+                const metaPorAct = new Map();
+                selected.forEach(({ tr, id }) => {
+                    const get = (k) => tr ? (tr.getAttribute(k) || '') : '';
+                    const equipoRaw = get('data-equipo');
+                    let serial = '';
+                    try {
+                        const eqKey = (typeof __normalizeEquipoAdm === 'function') ? __normalizeEquipoAdm(equipoRaw) : (equipoRaw || '').toString().trim().toUpperCase();
+                        serial = (window.mapaSerialPorEquipoAdm && window.mapaSerialPorEquipoAdm[eqKey]) ? window.mapaSerialPorEquipoAdm[eqKey] : '';
+                    } catch {}
+                    metaPorAct.set(id, {
+                        actividadId: id,
+                        cliente: get('data-cliente'),
+                        area: get('data-area'),
+                        ubicacion: get('data-ubicacion'),
+                        equipo: equipoRaw,
+                        serial,
+                        os: get('data-os'),
+                        inicioServicio: get('data-inicio'),
+                        terminacionServicio: get('data-terminacion'),
+                        precioDiario: get('data-precioequipo'),
+                    });
+                });
+
+                const idsConPeriodos = new Set((periodos || []).map(p => (p && p.actividadId ? String(p.actividadId) : '')).filter(Boolean));
+
+                const rows = (periodos || []).map(p => {
+                    const actId = (p.actividadId || '').toString();
+                    const meta = metaPorAct.get(actId) || { actividadId: actId };
+                    return {
+                        actividadId: meta.actividadId || actId,
+                        os: meta.os || '',
+                        cliente: meta.cliente || '',
+                        area: meta.area || '',
+                        ubicacion: meta.ubicacion || '',
+                        equipo: meta.equipo || '',
+                        serial: meta.serial || '',
+                        inicioServicio: meta.inicioServicio || '',
+                        terminacionServicio: meta.terminacionServicio || '',
+                        periodoId: (p.id || '').toString(),
+                        inicioPeriodo: (p.inicioPeriodo || '').toString(),
+                        finPeriodo: (p.finPeriodo || '').toString(),
+                        diasFacturados: (p.diasFacturados != null ? p.diasFacturados : ''),
+                        tarifaDiaria: (p.tarifaDiaria != null ? p.tarifaDiaria : ''),
+                        importe: (p.importe != null ? p.importe : ''),
+                        tipoPeriodo: (p.tipoPeriodo || '').toString(),
+                        oc: (p.oc || '').toString(),
+                        factura: (p.factura || '').toString(),
+                        observaciones: (p.observaciones || '').toString(),
+                    };
+                });
+
+                // Incluir actividades seleccionadas sin períodos (ABIERTO)
+                for (const [actId, meta] of metaPorAct.entries()) {
+                    if (idsConPeriodos.has(actId)) continue;
+                    rows.push({
+                        actividadId: meta.actividadId || actId,
+                        os: meta.os || '',
+                        cliente: meta.cliente || '',
+                        area: meta.area || '',
+                        ubicacion: meta.ubicacion || '',
+                        equipo: meta.equipo || '',
+                        serial: meta.serial || '',
+                        inicioServicio: meta.inicioServicio || '',
+                        terminacionServicio: meta.terminacionServicio || '',
+                        periodoId: '',
+                        inicioPeriodo: '',
+                        finPeriodo: '',
+                        diasFacturados: '',
+                        tarifaDiaria: meta.precioDiario || '',
+                        importe: '',
+                        tipoPeriodo: 'ABIERTO',
+                        oc: '',
+                        factura: '',
+                        observaciones: '',
+                    });
+                }
+
+                rows.sort((a, b) => {
+                    const ax = `${a.cliente}|||${a.area}|||${a.ubicacion}|||${a.equipo}|||${a.inicioPeriodo}`;
+                    const bx = `${b.cliente}|||${b.area}|||${b.ubicacion}|||${b.equipo}|||${b.inicioPeriodo}`;
+                    return ax.localeCompare(bx);
+                });
+
+                return rows;
+            }
+
+            async function exportReporte({ mode }) {
+                const sel = filasSeleccionadasActividad();
+                if (!sel.length) { alert('Selecciona al menos una actividad.'); return; }
+                const actividadIds = sel.map(x => x.id);
+
+                let periodos = [];
+                try {
+                    periodos = await cargarPeriodosSeleccion({ actividadIds });
+                } catch (e) {
+                    alert('No se pudieron cargar los tabuladores.');
+                    return;
+                }
+
+                const rows = construirReporte({ selected: sel, periodos });
+                const headers = [
+                    'actividadId','os','cliente','area','ubicacion','equipo','serial','inicioServicio','terminacionServicio',
+                    'periodoId','inicioPeriodo','finPeriodo','diasFacturados','tarifaDiaria','importe','tipoPeriodo','oc','factura','observaciones'
+                ];
+
+                if (!rows.length) {
+                    alert('No hay información para exportar.');
+                    return;
+                }
+
+                if (mode === 'csv') {
+                    const lines = [];
+                    lines.push(headers.map(escapeCsv).join(','));
+                    rows.forEach(r => {
+                        lines.push(headers.map(h => escapeCsv(r[h])).join(','));
+                    });
+                    const csv = '\uFEFF' + lines.join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                    downloadBlob({ blob, filename: `reporte_tabuladores_${ymd()}.csv` });
+                    return;
+                }
+
+                if (mode === 'xls') {
+                    const th = headers.map(h => `<th>${String(h)}</th>`).join('');
+                    const trs = rows.map(r => `<tr>${headers.map(h => `<td>${String(r[h] == null ? '' : r[h])}</td>`).join('')}</tr>`).join('');
+                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><table border="1"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></body></html>`;
+                    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+                    downloadBlob({ blob, filename: `reporte_tabuladores_${ymd()}.xls` });
+                }
+            }
+
+            async function exportReportePdf() {
+                const sel = filasSeleccionadasActividad();
+                if (!sel.length) { alert('Selecciona al menos una actividad.'); return; }
+                const actividadIds = sel.map(x => x.id);
+
+                let periodos = [];
+                try {
+                    periodos = await cargarPeriodosSeleccion({ actividadIds });
+                } catch {
+                    periodos = [];
+                }
+
+                const rows = construirReporte({ selected: sel, periodos });
+                if (!rows.length) { alert('No hay información para exportar.'); return; }
+
+                const headers = [
+                    { key: 'cliente', label: 'Cliente' },
+                    { key: 'area', label: 'Área' },
+                    { key: 'ubicacion', label: 'Ubicación' },
+                    { key: 'equipo', label: 'Equipo' },
+                    { key: 'serial', label: 'Serial' },
+                    { key: 'os', label: 'OS' },
+                    { key: 'inicioServicio', label: 'Inicio' },
+                    { key: 'terminacionServicio', label: 'Terminación' },
+                    { key: 'tipoPeriodo', label: 'Estado' },
+                    { key: 'inicioPeriodo', label: 'Inicio período' },
+                    { key: 'finPeriodo', label: 'Fin período' },
+                    { key: 'diasFacturados', label: 'Días' },
+                    { key: 'tarifaDiaria', label: 'Tarifa' },
+                    { key: 'importe', label: 'Importe' },
+                    { key: 'oc', label: 'OC' },
+                    { key: 'factura', label: 'Factura' },
+                ];
+
+                const w = window.open('', '_blank');
+                if (!w) { alert('El navegador bloqueó la ventana del reporte.'); return; }
+
+                const title = `Reporte de tabuladores (${ymd()})`;
+                const thead = `<tr>${headers.map(h => `<th>${h.label}</th>`).join('')}</tr>`;
+                const tbody = rows.map(r => {
+                    return `<tr>${headers.map(h => `<td>${String(r[h.key] == null ? '' : r[h.key])}</td>`).join('')}</tr>`;
+                }).join('');
+
+                w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1" />
+                    <title>${title}</title>
+                    <style>
+                        @page { size: A4 landscape; margin: 12mm; }
+                        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827; }
+                        .hdr { display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #111827; padding-bottom: 8px; margin-bottom: 12px; }
+                        .hdr-left { display:flex; align-items:center; gap: 10px; }
+                        .hdr img { height: 28px; }
+                        .hdr h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
+                        .sub { font-size: 11px; color:#4b5563; margin-top: 2px; }
+                        .meta { font-size: 11px; color:#374151; text-align:right; }
+                        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+                        thead th { background:#f3f4f6; border:1px solid #d1d5db; padding:6px 6px; text-align:left; white-space:nowrap; }
+                        tbody td { border:1px solid #e5e7eb; padding:5px 6px; vertical-align:top; }
+                        tbody tr:nth-child(even) td { background:#fafafa; }
+                        .badge { display:inline-block; padding:1px 6px; border-radius:999px; border:1px solid #d1d5db; font-size:10px; }
+                        .b-open { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+                        .b-par { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+                        .b-fin { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+                        .foot { margin-top: 10px; font-size: 10px; color:#6b7280; display:flex; justify-content:space-between; }
+                        .nowrap { white-space:nowrap; }
+                    </style>
+                </head><body>`);
+
+                w.document.write(`<div class="hdr">
+                    <div class="hdr-left">
+                        <img src="img/logopctch.png" alt="PCT" />
+                        <div>
+                            <h1>${title}</h1>
+                            <div class="sub">Actividades seleccionadas: ${sel.length} · Filas: ${rows.length}</div>
+                        </div>
+                    </div>
+                    <div class="meta">
+                        <div><strong>Generado:</strong> ${new Date().toLocaleString('es-MX')}</div>
+                        <div class="sub">Actividad - Administración</div>
+                    </div>
+                </div>`);
+
+                w.document.write(`<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`);
+                w.document.write(`<div class="foot"><span>Nota: ABIERTO = actividad sin períodos capturados.</span><span class="nowrap">${window.location.origin || ''}</span></div>`);
+                w.document.write('</body></html>');
+                w.document.close();
+                w.focus();
+                setTimeout(() => {
+                    try { w.print(); } catch {}
+                }, 250);
+            }
+
+            const btnRepCsv = document.getElementById('adm-btn-reporte-csv');
+            if (btnRepCsv) {
+                btnRepCsv.addEventListener('click', async () => {
+                    await exportReporte({ mode: 'csv' });
+                });
+            }
+
+            const btnRepXls = document.getElementById('adm-btn-reporte-xls');
+            if (btnRepXls) {
+                btnRepXls.addEventListener('click', async () => {
+                    await exportReporte({ mode: 'xls' });
+                });
+            }
+
+            const btnRepPdf = document.getElementById('adm-btn-reporte-pdf');
+            if (btnRepPdf) {
+                btnRepPdf.addEventListener('click', async () => {
+                    await exportReportePdf();
                 });
             }
 
