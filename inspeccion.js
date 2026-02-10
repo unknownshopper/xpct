@@ -19,12 +19,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let guardandoInspeccion = false; // evita doble guardado
     const fotosTomadas = {}; // idx -> { blob }
 
+    const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+
     const claveEstadoOverride = 'pct_invre_estado_override';
     let mapaEstadoOverride = {};
     try {
         const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
         const parsed = JSON.parse(crudo);
-        if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
+        if (parsed && typeof parsed === 'object') {
+            const normalizado = {};
+            Object.entries(parsed).forEach(([k, v]) => {
+                const kk = normKey(k);
+                if (kk) normalizado[kk] = v;
+            });
+            mapaEstadoOverride = normalizado;
+        }
     } catch {
         mapaEstadoOverride = {};
     }
@@ -41,8 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const equipoId = docSnap.id || data.equipoId || '';
                     let edo = (data.edo || '').toString().trim().toUpperCase();
                     if (!edo) edo = 'ON';
-                    if (equipoId) {
-                        mapaEstadoOverride[equipoId] = edo;
+                    const k = normKey(equipoId);
+                    if (k) {
+                        mapaEstadoOverride[k] = edo;
                     }
                 });
                 try {
@@ -298,16 +308,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Poblar datalist (usar overrides de estado; solo equipos con estado efectivo ON)
             equipos.forEach(cols => {
                 const equipoId = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                const equipoIdKey = normKey(equipoId);
                 const descripcion = idxDescripcion >= 0 ? (cols[idxDescripcion] || '') : '';
                 const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
-                if (!equipoId) return;
+                if (!equipoIdKey) return;
                 let edoEfectivo = edo.trim().toUpperCase();
-                const override = mapaEstadoOverride[equipoId];
+                const override = mapaEstadoOverride[equipoIdKey];
                 if (override) edoEfectivo = String(override).trim().toUpperCase();
-                if (edoEfectivo !== 'ON') return;
+                if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') return;
 
                 const option = document.createElement('option');
-                option.value = equipoId;
+                option.value = (equipoId || '').toString().trim();
                 option.label = `${equipoId} - ${descripcion}`;
                 datalistEquipos.appendChild(option);
             });
@@ -399,7 +410,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
         const idxReporte = headers.indexOf('REPORTE P/P');
-        const fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
+        const idxSerial = headers.indexOf('SERIAL');
+        const norm = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+        const target = norm(valor);
+
+        let fila = equipos.find(cols => idxEquipo >= 0 && norm(cols[idxEquipo]) === target);
+        if (!fila && idxSerial >= 0) {
+            const matchSerial = (s) => {
+                const a = norm(s);
+                if (!a) return false;
+                if (a === target) return true;
+                // Permitir buscar por serial sin prefijo PCT-
+                const aNoPct = a.replace(/^PCT-/, '');
+                const tNoPct = target.replace(/^PCT-/, '');
+                if (aNoPct && aNoPct === tNoPct) return true;
+                // Si el usuario pega solo la parte final del serial
+                if (tNoPct && aNoPct.endsWith(tNoPct)) return true;
+                return false;
+            };
+
+            const filaPorSerial = equipos.find(cols => matchSerial(cols[idxSerial] || ''));
+            if (filaPorSerial) {
+                fila = filaPorSerial;
+                try {
+                    const equipoDetectado = idxEquipo >= 0 ? (fila[idxEquipo] || '') : '';
+                    if (equipoDetectado) inputEquipo.value = equipoDetectado;
+                } catch {}
+            }
+        }
         if (!fila) {
             detalleContenedor.innerHTML = '<p>No se encontró información para el equipo seleccionado.</p>';
             if (btnGuardar) btnGuardar.disabled = true;
@@ -409,7 +447,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Índices de columnas relevantes
         const idxProducto = headers.indexOf('PRODUCTO');
-        const idxSerial = headers.indexOf('SERIAL');
         const idxDescripcion = headers.indexOf('DESCRIPCION');
         const idxDiam1 = headers.indexOf('DIAMETRO 1');
         const idxTipo1 = headers.indexOf('TIPO 1');
@@ -446,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Duplicar 'Área de sellado' -> 'Área de sellado A' y 'Área de sellado B' para productos aplicables (CA, CE, DSA, Brida de paso)
         const productoStr = (get(idxProducto) || '').toString().toUpperCase();
         const aplicaCaraAB = /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b/.test(productoStr);
-        const norm = (s) => (s || '')
+        const normParam = (s) => (s || '')
             .toString()
             .toLowerCase()
             .normalize('NFD')
@@ -456,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!aplicaCaraAB) return parametrosInspeccion.slice();
             const out = [];
             parametrosInspeccion.forEach(p => {
-                const np = norm(p);
+                const np = normParam(p);
                 if (np.startsWith('area de sellado')) {
                     out.push('Área de sellado A');
                     out.push('Área de sellado B');
