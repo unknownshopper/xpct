@@ -59,6 +59,17 @@
                 Se muestran inspecciones registradas contra las actividades actuales. Puedes filtrar y seleccionar filas para acciones futuras.
             </p>
 
+            <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
+                <div class="dash-card" id="insp-card-wrap-pendientes">
+                    <div class="dash-card-label">Inspecciones pendientes</div>
+                    <div class="dash-card-value" id="insp-card-pendientes">0</div>
+                </div>
+                <div class="dash-card" id="insp-card-wrap-realizadas">
+                    <div class="dash-card-label">Inspecciones realizadas (histórico)</div>
+                    <div class="dash-card-value" id="insp-card-realizadas">0</div>
+                </div>
+            </section>
+
             <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
                 <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                     <input type="search" id="insp-buscar" placeholder="Buscar por cliente, área, equipo, lugar..." style="min-width: 260px;">
@@ -68,20 +79,21 @@
                 </div>
             </section>
 
-            <div class="tabla-inspecciones-wrapper">
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-principal">
                 <table id="tabla-inspecciones" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f3f4f6;">
                             <th style="text-align:center; padding:0.4rem; width:32px;">
                                 <input type="checkbox" id="insp-select-todos" title="Seleccionar / deseleccionar todos">
                             </th>
-                            <th style="text-align:left; padding:0.4rem;">Fecha (registro)</th>
+                            <th id="insp-th-fecha-real" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha realización</th>
+                            <th id="insp-th-fecha-act" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha (actividad)</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
                             <th style="text-align:left; padding:0.4rem;">Lugar</th>
-                            <th style="text-align:left; padding:0.4rem;">Evaluación</th>
+                            <th id="insp-th-evaluacion" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para filtrar: Pendientes / Realizadas / Todo">Evaluación</th>
                             <th style="text-align:left; padding:0.4rem;">Asignado a</th>
                             <th style="text-align:left; padding:0.4rem;">Usuario</th>
                             <th style="text-align:left; padding:0.4rem;">Observaciones</th>
@@ -92,6 +104,28 @@
                 </table>
                 <p id="mensaje-sin-inspecciones" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay inspecciones registradas todavía.
+                </p>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-huerfanas" style="margin-top:0.75rem; display:none;">
+                <h3 style="margin:0.25rem 0 0.5rem; font-size:1rem;">Inspecciones realizadas (sin actividad)</h3>
+                <table id="tabla-inspecciones-huerfanas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
+                            <th style="text-align:left; padding:0.4rem;">Lugar</th>
+                            <th style="text-align:left; padding:0.4rem;">Evaluación</th>
+                            <th style="text-align:left; padding:0.4rem;">Usuario</th>
+                            <th style="text-align:left; padding:0.4rem;">Observaciones</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-inspecciones-huerfanas"></tbody>
+                </table>
+                <p id="mensaje-sin-huerfanas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                    No hay inspecciones realizadas sin actividad.
                 </p>
             </div>
         </section>
@@ -155,14 +189,92 @@
     document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('tbody-inspecciones');
         const msg = document.getElementById('mensaje-sin-inspecciones');
+        const tbodyHuerfanas = document.getElementById('tbody-inspecciones-huerfanas');
+        const msgHuerfanas = document.getElementById('mensaje-sin-huerfanas');
+        const secHuerfanas = document.getElementById('insp-seccion-huerfanas');
         const inputBuscar = document.getElementById('insp-buscar');
         const lblCont = document.getElementById('insp-contador');
         const chkTodos = document.getElementById('insp-select-todos');
+        const cardPendientes = document.getElementById('insp-card-pendientes');
+        const cardRealizadas = document.getElementById('insp-card-realizadas');
+        const cardWrapPend = document.getElementById('insp-card-wrap-pendientes');
+        const cardWrapReal = document.getElementById('insp-card-wrap-realizadas');
+        const thEvaluacion = document.getElementById('insp-th-evaluacion');
+        const thFechaReal = document.getElementById('insp-th-fecha-real');
+        const thFechaAct = document.getElementById('insp-th-fecha-act');
+
+        let filtroEstado = null; // null | 'PENDIENTE' | 'REALIZADA'
+        let sortKey = null; // null | 'fecha_real' | 'fecha_act'
+        let sortDir = -1; // -1 desc | 1 asc
+
+        function toMs(v) {
+            if (!v) return null;
+            try {
+                if (v && typeof v.toDate === 'function') {
+                    const d = v.toDate();
+                    return (d && !isNaN(d.getTime())) ? d.getTime() : null;
+                }
+                if (v && typeof v === 'object' && typeof v.seconds === 'number') {
+                    return v.seconds * 1000;
+                }
+            } catch {}
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? null : d.getTime();
+        }
+
+        function toggleSort(nextKey) {
+            if (sortKey === nextKey) {
+                sortDir = sortDir === 1 ? -1 : 1;
+            } else {
+                sortKey = nextKey;
+                sortDir = -1; // por defecto: más recientes primero
+            }
+            cargarDatos();
+        }
+
+        function actualizarIndicadoresSort() {
+            const suf = sortDir === 1 ? ' ▲' : ' ▼';
+            if (thFechaReal) thFechaReal.textContent = 'Fecha realización' + (sortKey === 'fecha_real' ? suf : '');
+            if (thFechaAct) thFechaAct.textContent = 'Fecha (actividad)' + (sortKey === 'fecha_act' ? suf : '');
+        }
+
+        if (thFechaReal && !thFechaReal.dataset.sortBound) {
+            thFechaReal.dataset.sortBound = '1';
+            thFechaReal.addEventListener('click', () => toggleSort('fecha_real'));
+        }
+        if (thFechaAct && !thFechaAct.dataset.sortBound) {
+            thFechaAct.dataset.sortBound = '1';
+            thFechaAct.addEventListener('click', () => toggleSort('fecha_act'));
+        }
+
+        // Filtro por encabezado de Evaluación: ciclo Todo -> Pendientes -> Realizadas -> Todo
+        if (thEvaluacion && !thEvaluacion.dataset.filterBound) {
+            thEvaluacion.dataset.filterBound = '1';
+            thEvaluacion.addEventListener('click', () => {
+                if (filtroEstado === null) filtroEstado = 'PENDIENTE';
+                else if (filtroEstado === 'PENDIENTE') filtroEstado = 'REALIZADA';
+                else filtroEstado = null;
+                cargarDatos();
+            });
+        }
 
         const claveInspecciones = 'pct_inspecciones';
 
         function formatearFechaRegistro(iso) {
             if (!iso) return '';
+            try {
+                // Firestore Timestamp (client) tiene toDate()
+                if (iso && typeof iso.toDate === 'function') {
+                    const dTs = iso.toDate();
+                    if (dTs && !isNaN(dTs.getTime())) return dTs.toLocaleString('es-MX');
+                }
+                // Firestore Timestamp-like {seconds,nanoseconds}
+                if (iso && typeof iso === 'object' && typeof iso.seconds === 'number') {
+                    const dTs2 = new Date(iso.seconds * 1000);
+                    if (!isNaN(dTs2.getTime())) return dTs2.toLocaleString('es-MX');
+                }
+            } catch {}
+
             const d = new Date(iso);
             if (isNaN(d.getTime())) return '';
             return d.toLocaleString('es-MX');
@@ -191,8 +303,14 @@
         async function cargarDatos() {
             tbody.innerHTML = '';
             msg.style.display = 'none';
+            if (tbodyHuerfanas) tbodyHuerfanas.innerHTML = '';
+            if (msgHuerfanas) msgHuerfanas.style.display = 'none';
             if (lblCont) lblCont.textContent = '0 registros';
             if (chkTodos) chkTodos.checked = false;
+            if (cardPendientes) cardPendientes.textContent = '0';
+            if (cardRealizadas) cardRealizadas.textContent = '0';
+
+            actualizarIndicadoresSort();
 
             let filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
@@ -225,6 +343,9 @@
                     inspeccionPorActividad.set(reg.actividadId, { ...reg, _indexLocal: idx });
                 }
             });
+
+            // Inspecciones huérfanas (sin actividadId): sí existen en Firestore, pero no se cruzan con actividades
+            const inspeccionesHuerfanas = inspecciones.filter(reg => reg && !reg.actividadId);
 
             // 2) Leer actividades desde Firestore (si el rol lo permite)
             let actividadesPermitidas = true;
@@ -305,6 +426,25 @@
                 }));
             }
 
+            // Contadores de tarjetas
+            try {
+                if (cardRealizadas) {
+                    // Históricas = inspecciones existentes (si hay actividades, solo las cruzadas a una actividad para no contar huérfanas por duplicado)
+                    const realizadas = actividadesPermitidas
+                        ? Array.from(inspeccionPorActividad.keys()).length
+                        : (Array.isArray(inspecciones) ? inspecciones.length : 0);
+                    cardRealizadas.textContent = String(realizadas);
+                }
+                if (cardPendientes) {
+                    if (actividadesPermitidas) {
+                        const pendientes = actividades.filter(act => !inspeccionPorActividad.has(act.id)).length;
+                        cardPendientes.textContent = String(pendientes);
+                    } else {
+                        cardPendientes.textContent = '0';
+                    }
+                }
+            } catch {}
+
             if (!actividades.length && !inspecciones.length) {
                 msg.style.display = 'block';
                 return;
@@ -331,21 +471,48 @@
                 let areaActual = '';
                 let lugarActual = '';
 
+                if (filtroEstado === 'PENDIENTE' && esRealizadas) return;
+                if (filtroEstado === 'REALIZADA' && !esRealizadas) return;
+
                 // Si no hay permisos de leer actividades, solo mostramos realizadas (las inspecciones existentes)
                 if (!actividadesPermitidas && !esRealizadas) {
                     return;
                 }
 
-                actividades.forEach(act => {
+                const subset = actividades.filter(act => {
                     const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
                     const tieneInsp = !!insp;
-                    if (esRealizadas && !tieneInsp) return;
-                    if (!esRealizadas && tieneInsp) return;
+                    if (esRealizadas && !tieneInsp) return false;
+                    if (!esRealizadas && tieneInsp) return false;
+                    return true;
+                });
 
-                    const fechaTexto = formatearFechaRegistro(insp ? insp.fecha : act.fechaRegistro);
+                if (sortKey) {
+                    subset.sort((a, b) => {
+                        const inspA = a.id ? inspeccionPorActividad.get(a.id) : null;
+                        const inspB = b.id ? inspeccionPorActividad.get(b.id) : null;
+                        const msA = sortKey === 'fecha_real'
+                            ? toMs(inspA ? (inspA.fecha || inspA.creadoEn) : null)
+                            : toMs(a.fechaRegistro);
+                        const msB = sortKey === 'fecha_real'
+                            ? toMs(inspB ? (inspB.fecha || inspB.creadoEn) : null)
+                            : toMs(b.fechaRegistro);
+                        if (msA == null && msB == null) return 0;
+                        if (msA == null) return 1;
+                        if (msB == null) return -1;
+                        return (msA - msB) * sortDir;
+                    });
+                }
 
-                    let evaluacion = 'Pendiente';
-                    let estadoTexto = 'Pendiente';
+                subset.forEach(act => {
+                    const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
+                    const tieneInsp = !!insp;
+
+                    const fechaRealizadaTexto = insp ? formatearFechaRegistro(insp.fecha || insp.creadoEn) : '';
+                    const fechaRegistroTexto = formatearFechaRegistro(act.fechaRegistro);
+
+                    let evaluacion = '';
+                    let estadoTexto = insp ? 'Realizada' : 'Pendiente';
                     if (insp && Array.isArray(insp.parametros) && insp.parametros.length) {
                         let evaluacionCalc = 'Operativo';
                         const hayFallo = insp.parametros.some(p => {
@@ -354,7 +521,6 @@
                         });
                         if (hayFallo) evaluacionCalc = 'No operativo';
                         evaluacion = evaluacionCalc;
-                        estadoTexto = 'Realizada';
                     }
 
                     const clienteRaw = insp?.cliente || act.cliente || '';
@@ -392,7 +558,7 @@
 
                     const accionesHtml = (insp && (window.isAdmin || window.isInspector)) ? `
                             <button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>
-                            <button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
+                            ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
                         ` : '';
 
                     // Insertar encabezados de agrupación por cliente y área cuando cambien
@@ -405,7 +571,7 @@
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.className = 'insp-group-cliente';
                         trGrupoCliente.innerHTML = `
-                            <td colspan="12" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                            <td colspan="13" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                                 Cliente: ${clienteActualLabel}
                             </td>
                         `;
@@ -418,7 +584,7 @@
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.className = 'insp-group-area';
                         trGrupoArea.innerHTML = `
-                            <td colspan="12" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="13" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="insp-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -431,7 +597,7 @@
                         const trGrupoUbic = document.createElement('tr');
                         trGrupoUbic.className = 'insp-group-ubic';
                         trGrupoUbic.innerHTML = `
-                            <td colspan="12" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                            <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
                                 Ubicación: ${lugarActual}
                             </td>
                         `;
@@ -460,13 +626,14 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                             <input type="checkbox" class="insp-select-fila" data-actividad-id="${act.id}" data-cliente="${cliente}" data-area="${area}">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaTexto}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRegistroTexto}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInspHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? `${estadoTexto} - ${evaluacion}` : 'Pendiente'}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? (evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto) : 'Pendiente'}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
@@ -488,13 +655,114 @@
             if (hayRealizadas) {
                 const trSep = document.createElement('tr');
                 trSep.innerHTML = `
-                    <td colspan="12" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
+                    <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
                         Inspecciones realizadas
                     </td>
                 `;
                 tbody.appendChild(trSep);
 
                 renderBloque(true);
+            }
+
+            // Render de inspecciones huérfanas en sección independiente
+            if (secHuerfanas) {
+                const mostrarHuerfanas = (filtroEstado !== 'PENDIENTE') && inspeccionesHuerfanas.length > 0;
+                secHuerfanas.style.display = mostrarHuerfanas ? 'block' : 'none';
+            }
+            if (tbodyHuerfanas) {
+                const huerfanasOrden = inspeccionesHuerfanas.slice();
+                if (sortKey === 'fecha_real') {
+                    huerfanasOrden.sort((a, b) => {
+                        const msA = toMs(a ? (a.fecha || a.creadoEn) : null);
+                        const msB = toMs(b ? (b.fecha || b.creadoEn) : null);
+                        if (msA == null && msB == null) return 0;
+                        if (msA == null) return 1;
+                        if (msB == null) return -1;
+                        return (msA - msB) * sortDir;
+                    });
+                }
+
+                let visiblesH = 0;
+                huerfanasOrden.forEach(insp => {
+                    const clienteRaw = insp?.cliente || '';
+                    const cliente = canonCliente(clienteRaw);
+                    const area = insp?.areaCliente || '';
+                    const lugar = insp?.ubicacion || '';
+                    const equipo = insp?.equipo || '';
+                    const usuario = insp?.usuarioInspeccion || '';
+                    const tipoInsp = insp?.tipoInspeccion || '';
+                    const observaciones = insp?.observaciones || '';
+
+                    const textoBuscar = `${cliente} ${area} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp}`.toLowerCase();
+                    if (filtro && !textoBuscar.includes(filtro)) return;
+
+                    const fechaRealizadaTexto = formatearFechaRegistro(insp.fecha || insp.creadoEn);
+
+                    let evaluacion = '';
+                    let estadoTexto = 'Realizada';
+                    if (Array.isArray(insp.parametros) && insp.parametros.length) {
+                        let evaluacionCalc = 'Operativo';
+                        const hayFallo = insp.parametros.some(p => {
+                            const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
+                            return est === 'MALO' || est === 'NO LEGIBLE';
+                        });
+                        if (hayFallo) evaluacionCalc = 'No operativo';
+                        evaluacion = evaluacionCalc;
+                    }
+
+                    const accionesHtml = (window.isAdmin) ? `
+                        <button type="button" class="insp-btn-eliminar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
+                    ` : '';
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInsp}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${accionesHtml}</td>
+                    `;
+                    tbodyHuerfanas.appendChild(tr);
+                    visiblesH += 1;
+                });
+
+                if (msgHuerfanas) {
+                    msgHuerfanas.style.display = (visiblesH === 0 && (filtroEstado !== 'PENDIENTE')) ? 'block' : 'none';
+                }
+            }
+
+            // Hacer tarjetas clicables como filtro rápido
+            function actualizarFiltroCards() {
+                if (cardWrapPend) {
+                    cardWrapPend.style.outline = (filtroEstado === 'PENDIENTE') ? '2px solid #2563eb' : '';
+                    cardWrapPend.style.outlineOffset = (filtroEstado === 'PENDIENTE') ? '2px' : '';
+                    cardWrapPend.style.cursor = 'pointer';
+                }
+                if (cardWrapReal) {
+                    cardWrapReal.style.outline = (filtroEstado === 'REALIZADA') ? '2px solid #2563eb' : '';
+                    cardWrapReal.style.outlineOffset = (filtroEstado === 'REALIZADA') ? '2px' : '';
+                    cardWrapReal.style.cursor = 'pointer';
+                }
+            }
+
+            actualizarFiltroCards();
+
+            if (cardWrapPend && !cardWrapPend.dataset.filterBound) {
+                cardWrapPend.dataset.filterBound = '1';
+                cardWrapPend.addEventListener('click', () => {
+                    filtroEstado = (filtroEstado === 'PENDIENTE') ? null : 'PENDIENTE';
+                    cargarDatos();
+                });
+            }
+            if (cardWrapReal && !cardWrapReal.dataset.filterBound) {
+                cardWrapReal.dataset.filterBound = '1';
+                cardWrapReal.addEventListener('click', () => {
+                    filtroEstado = (filtroEstado === 'REALIZADA') ? null : 'REALIZADA';
+                    cargarDatos();
+                });
             }
 
             if (!visibles) {
@@ -589,7 +857,8 @@
             tbody.querySelectorAll('.insp-btn-eliminar').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const actividadId = btn.getAttribute('data-actividad-id') || '';
-                    if (!actividadId) return;
+                    const inspId = btn.getAttribute('data-insp-id') || '';
+                    if (!inspId && !actividadId) return;
 
                     if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
 
@@ -601,16 +870,27 @@
                             );
 
                             const db = getFirestore();
-                            const colInsp = collection(db, 'inspecciones');
-                            const q = query(colInsp, where('actividadId', '==', actividadId));
-                            const snap = await getDocs(q);
-                            const ops = snap.docs.map(d => deleteDoc(doc(db, 'inspecciones', d.id)));
-                            await Promise.all(ops);
-                            try {
-                                if (typeof window.pctAudit === 'function') {
-                                    await window.pctAudit('inspecciones_delete_by_actividad', { actividadId, count: ops.length }, { throttleKey: `inspecciones_delete_by_actividad_${actividadId}` });
-                                }
-                            } catch {}
+                            let ops = [];
+                            if (inspId) {
+                                ops = [deleteDoc(doc(db, 'inspecciones', inspId))];
+                                await Promise.all(ops);
+                                try {
+                                    if (typeof window.pctAudit === 'function') {
+                                        await window.pctAudit('inspecciones_delete_by_id', { inspId }, { throttleKey: `inspecciones_delete_by_id_${inspId}` });
+                                    }
+                                } catch {}
+                            } else {
+                                const colInsp = collection(db, 'inspecciones');
+                                const q = query(colInsp, where('actividadId', '==', actividadId));
+                                const snap = await getDocs(q);
+                                ops = snap.docs.map(d => deleteDoc(doc(db, 'inspecciones', d.id)));
+                                await Promise.all(ops);
+                                try {
+                                    if (typeof window.pctAudit === 'function') {
+                                        await window.pctAudit('inspecciones_delete_by_actividad', { actividadId, count: ops.length }, { throttleKey: `inspecciones_delete_by_actividad_${actividadId}` });
+                                    }
+                                } catch {}
+                            }
                         } catch (e) {
                             console.error('No se pudo eliminar la inspección en Firestore', e);
                         }
@@ -624,7 +904,10 @@
                             actuales = [];
                         }
 
-                        actuales = actuales.filter(reg => reg.actividadId !== actividadId);
+                        actuales = actuales.filter(reg => {
+                            if (inspId) return reg && reg.id !== inspId;
+                            return reg && reg.actividadId !== actividadId;
+                        });
                         localStorage.setItem(claveInspecciones, JSON.stringify(actuales));
 
                         cargarDatos();

@@ -21,6 +21,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
 
+    async function capturarGpsTexto() {
+        try {
+            if (!navigator.geolocation) return 'Sin GPS';
+            function toStr(pos) {
+                const { latitude, longitude, accuracy } = pos.coords || {};
+                return (latitude != null && longitude != null)
+                    ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}${accuracy ? ` (±${Math.round(accuracy)}m)` : ''}`
+                    : 'Sin GPS';
+            }
+            const getPosition = () => new Promise(resolve => {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve(toStr(pos)),
+                    () => resolve('Sin GPS'),
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                );
+            });
+            try {
+                if (navigator.permissions && navigator.permissions.query) {
+                    const status = await navigator.permissions.query({ name: 'geolocation' });
+                    if (status.state === 'denied') return 'Sin GPS';
+                    return await getPosition();
+                }
+            } catch {}
+            return await getPosition();
+        } catch {
+            return 'Sin GPS';
+        }
+    }
+
     const claveEstadoOverride = 'pct_invre_estado_override';
     let mapaEstadoOverride = {};
     try {
@@ -1000,33 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const bgResultado = totalMalos > 0 ? '#fef2f2' : '#ecfdf5';
 
                 // Capturar geolocalización: esperar a que el usuario autorice o rechace
-                const gps = await (async () => {
-                    if (!navigator.geolocation) return 'Sin GPS';
-                    function toStr(pos) {
-                        const { latitude, longitude, accuracy } = pos.coords || {};
-                        return (latitude != null && longitude != null)
-                            ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}${accuracy?` (±${Math.round(accuracy)}m)`:''}`
-                            : 'Sin GPS';
-                    }
-                    const getPosition = () => new Promise(resolve => {
-                        navigator.geolocation.getCurrentPosition(
-                            (pos) => resolve(toStr(pos)),
-                            () => resolve('Sin GPS'),
-                            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-                        );
-                    });
-                    try {
-                        if (navigator.permissions && navigator.permissions.query) {
-                            const status = await navigator.permissions.query({ name: 'geolocation' });
-                            if (status.state === 'denied') return 'Sin GPS';
-                            // 'granted' o 'prompt': esperar respuesta del usuario/OS
-                            return await getPosition();
-                        }
-                        return await getPosition();
-                    } catch {
-                        return await getPosition();
-                    }
-                })();
+                const gps = await capturarGpsTexto();
 
                 encabezado.innerHTML = `
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px 16px; align-items:start;">
@@ -1059,6 +1062,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const contenidoClonado = panel.cloneNode(true);
                 contenidoClonado.style.backgroundColor = '#ffffff';
                 contenidoClonado.style.overflow = 'visible';
+
+                // Asegurar que la tabla de parámetros se renderice completa (sin scroll) en el PDF
+                try {
+                    const contParams = contenidoClonado.querySelector('.parametros-inspeccion');
+                    if (contParams) {
+                        contParams.style.maxHeight = 'none';
+                        contParams.style.overflow = 'visible';
+                    }
+                } catch {}
 
                 // Normalizar contenido para testimonio: mostrar estados/daños como texto y ocultar controles de evidencia
                 try {
@@ -1411,6 +1423,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let areaCliente = '';
             let ubicacion = '';
             let actividadId = '';
+            let ubicacionGps = '';
 
             try {
                 const { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, getDoc } = await import(
@@ -1465,6 +1478,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('No se pudieron leer fechas de actividad para la inspección', e);
             }
 
+            // Capturar GPS para persistir locación (tablets suelen no tener ubicacion en actividad)
+            try {
+                ubicacionGps = await capturarGpsTexto();
+            } catch {
+                ubicacionGps = '';
+            }
+            if (!ubicacion) ubicacion = ubicacionGps || ubicacion;
+
             // Usuario actual (correo) para registrar quién hizo la inspección
             let usuarioInspeccion = '';
             try {
@@ -1490,6 +1511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cliente,
                 areaCliente,
                 ubicacion,
+                ubicacionGps,
                 usuarioInspeccion,
                 actividadId,
                 observaciones: observacionesResumen,
