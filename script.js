@@ -339,6 +339,29 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxSerial = headersAct.indexOf('SERIAL');
             const idxEdo = headersAct.indexOf('EDO');
             const idxProp = headersAct.indexOf('PROPIEDAD');
+            const idxProd = headersAct.indexOf('PRODUCTO');
+            const idxRep = headersAct.indexOf('REPORTE P/P');
+
+            function buildDescripcionUI(cols, desc) {
+                try {
+                    const prod = (idxProd >= 0 ? (cols[idxProd] || '') : '').toString().trim();
+                    if (prod !== '90' && prod !== '45') return desc;
+                    const rep = (idxRep >= 0 ? (cols[idxRep] || '') : '').toString().trim().toUpperCase();
+                    const descU = (desc || '').toString().toUpperCase();
+                    const isCodo = rep.includes('CODO') || descU.includes('CODO');
+                    if (!isCodo) return desc;
+                    const prefix = `CODO ${prod}°`;
+                    // Si la descripción ya empieza con 90/45, reemplazar ese inicio por el prefijo
+                    const descTrim = (desc || '').toString().trim();
+                    const reStart = new RegExp(`^${prod}\\b`);
+                    if (reStart.test(descTrim)) {
+                        return descTrim.replace(reStart, prefix);
+                    }
+                    return descTrim ? `${prefix} - ${descTrim}` : prefix;
+                } catch {
+                    return desc;
+                }
+            }
 
             const vistos = new Set();
             filasAct.forEach(cols => {
@@ -347,6 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 vistos.add(eq);
 
                 const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
+                const descUI = buildDescripcionUI(cols, desc);
                 let edoBase = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
                 edoBase = edoBase.toString().trim().toUpperCase();
                 if (!edoBase) edoBase = 'ON';
@@ -358,17 +382,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (edoEfectivo !== 'OFF') {
                     const opt = document.createElement('option');
                     opt.value = eq;
-                    opt.label = desc ? `${eq} - ${desc}` : eq;
+                    opt.label = descUI ? `${eq} - ${descUI}` : (desc ? `${eq} - ${desc}` : eq);
                     datalistEquipos.appendChild(opt);
                 }
 
                 const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
                 const prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
+                const producto = idxProd >= 0 ? (cols[idxProd] || '') : '';
+                const reporte = idxRep >= 0 ? (cols[idxRep] || '') : '';
                 infoPorEquipoAct[eq] = {
                     serial,
                     estado: edoEfectivo,
                     propiedad: prop,
-                    descripcion: desc
+                    descripcion: desc,
+                    descripcionUI: descUI,
+                    producto,
+                    reporte
                 };
             });
         })
@@ -1160,8 +1189,8 @@ function renderEquiposSeleccionados() {
         const colProp = document.createElement('span');
         colProp.textContent = info.propiedad || '';
 
-        const colDesc = document.createElement('span');
-        colDesc.textContent = info.descripcion || '';
+        const colDesc = document.createElement('div');
+        colDesc.textContent = info.descripcionUI || info.descripcion || '';
 
         const colAccion = document.createElement('span');
         const btnX = document.createElement('button');
