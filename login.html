@@ -67,6 +67,31 @@
     </section>
 </main>
 
+<script>
+// iOS 10 (iPad 4ta gen) / navegadores viejos no soportan <script type="module">.
+// En ese caso, el login fallaría "en silencio" porque no se enlaza el handler del botón.
+(function(){
+  try {
+    var supportsModule = false;
+    try {
+      var s = document.createElement('script');
+      supportsModule = ('noModule' in s);
+    } catch (e) {}
+    if (supportsModule) return;
+
+    var msg = document.getElementById('login-mensaje');
+    var btn = document.getElementById('btn-login');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Navegador no compatible';
+    }
+    if (msg) {
+      msg.textContent = 'Este dispositivo/navegador no es compatible (requiere soporte de JavaScript Modules). Usa un iPhone/iPad con iOS 11+ o una computadora.';
+    }
+  } catch (e) {}
+})();
+</script>
+
 <!-- Inicialización de Firebase (segura) -->
 <script src="config.local.js"></script>
 <script type="module" src="firebase-init.js"></script>
