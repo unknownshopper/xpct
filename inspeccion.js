@@ -1161,6 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let currentFacing = 'environment'; // 'environment' (trasera) | 'user' (frontal)
             let currentStream = null;
             let videoInputs = [];
+            let currentDeviceId = '';
 
             async function refreshDevices() {
                 try {
@@ -1172,6 +1173,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnSwitch.style.display = videoInputs.length >= 2 ? '' : 'none';
             }
 
+            function pickPreferredDeviceId(facing) {
+                try {
+                    if (!videoInputs || !videoInputs.length) return '';
+                    const wantEnv = String(facing || '').toLowerCase() === 'environment';
+                    const reBack = /(back|rear|environment|traser)/i;
+                    const reFront = /(front|user|frontal)/i;
+                    const byLabel = (d) => String(d && d.label ? d.label : '');
+
+                    const labeled = videoInputs.filter(d => byLabel(d));
+                    const list = labeled.length ? labeled : videoInputs;
+
+                    if (wantEnv) {
+                        const hit = list.find(d => reBack.test(byLabel(d)));
+                        if (hit && hit.deviceId) return hit.deviceId;
+                        // Heurística: muchas veces la trasera es la última
+                        const last = list[list.length - 1];
+                        return last && last.deviceId ? last.deviceId : '';
+                    }
+
+                    const hit = list.find(d => reFront.test(byLabel(d)));
+                    if (hit && hit.deviceId) return hit.deviceId;
+                    const first = list[0];
+                    return first && first.deviceId ? first.deviceId : '';
+                } catch {
+                    return '';
+                }
+            }
+
+            function nextDeviceId() {
+                try {
+                    if (!videoInputs || videoInputs.length < 2) return '';
+                    const ids = videoInputs.map(d => d.deviceId).filter(Boolean);
+                    if (!ids.length) return '';
+                    const idx = currentDeviceId ? ids.indexOf(currentDeviceId) : -1;
+                    const next = ids[(idx + 1 + ids.length) % ids.length];
+                    return next || '';
+                } catch {
+                    return '';
+                }
+            }
+
             function stopStream() {
                 try {
                     if (currentStream) currentStream.getTracks().forEach(t => t.stop());
@@ -1181,8 +1223,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             async function startStream() {
                 stopStream();
-                // En iOS/Safari, usar ideal para mejorar selección de cámara
-                const constraints = {
+                // En iOS/Safari: primero intentar deviceId explícito (si está disponible)
+                const preferredId = currentDeviceId || pickPreferredDeviceId(currentFacing);
+                let constraints = {
                     audio: false,
                     video: {
                         facingMode: { ideal: currentFacing },
@@ -1190,9 +1233,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         height: { ideal: 720 }
                     }
                 };
+                if (preferredId) {
+                    constraints = {
+                        audio: false,
+                        video: {
+                            deviceId: { exact: preferredId },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    };
+                }
+
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = currentStream;
                 try { await video.play(); } catch {}
+
+                // Después de permisos, ahora sí suelen aparecer labels. Refrescar lista y deviceId actual.
+                try {
+                    await refreshDevices();
+                    const track = currentStream && currentStream.getVideoTracks ? currentStream.getVideoTracks()[0] : null;
+                    const settings = track && track.getSettings ? track.getSettings() : null;
+                    const did = settings && settings.deviceId ? String(settings.deviceId) : '';
+                    if (did) currentDeviceId = did;
+                } catch {}
             }
 
             await refreshDevices();
@@ -1213,7 +1276,24 @@ document.addEventListener('DOMContentLoaded', () => {
             function stop() { stopStream(); document.body.removeChild(overlay); }
             btnCancel.onclick = () => stop();
             btnSwitch.onclick = async () => {
-                currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+                // Preferir alternar por deviceId (más confiable que facingMode en iOS)
+                const nxt = nextDeviceId();
+                if (nxt) {
+                    currentDeviceId = nxt;
+                    // Best-effort: inferir facing por label
+                    try {
+                        const dev = videoInputs.find(d => d.deviceId === nxt);
+                        const label = String(dev && dev.label ? dev.label : '');
+                        if (/(back|rear|environment|traser)/i.test(label)) currentFacing = 'environment';
+                        else if (/(front|user|frontal)/i.test(label)) currentFacing = 'user';
+                        else currentFacing = (currentFacing === 'environment' ? 'user' : 'environment');
+                    } catch {
+                        currentFacing = (currentFacing === 'environment' ? 'user' : 'environment');
+                    }
+                } else {
+                    currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+                    currentDeviceId = '';
+                }
                 try {
                     await startStream();
                 } catch (e) {

@@ -192,6 +192,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch {}
                     }
 
+                    // Supervisor: ocultar sección Actividad completa en navbar (pero mantener dashboard completo)
+                    if (isSupervisor) {
+                        try {
+                            // Ocultar el item superior de Actividad y su dropdown
+                            document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown').forEach(li => {
+                                const anchor = li.querySelector(':scope > a');
+                                if (!anchor) return;
+                                const text = (anchor.textContent || '').trim().toLowerCase();
+                                if (text.includes('actividad')) {
+                                    li.style.display = 'none';
+                                }
+                            });
+
+                            // Ocultar enlaces directos a páginas de actividad
+                            document.querySelectorAll(
+                                'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="trazabilidades.html"]'
+                            ).forEach(a => {
+                                const li = a.closest('li') || a;
+                                li.style.display = 'none';
+                            });
+                        } catch {}
+                    }
+
                     // Para inspector/capturista: ocultar actividadmin en la navegación
                     if (isInspector || isCapturista) {
                         document.querySelectorAll('a[href*="actividadmin"]').forEach(a => {
