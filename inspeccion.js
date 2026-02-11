@@ -132,68 +132,164 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!insp) return;
 
-            const equipo = (insp.equipo || '').toString().trim();
-            if (equipo) {
-                inputEquipo.value = equipo;
-                actualizarDetalleDesdeInput();
-            }
+            const renderDocumento = (data) => {
+                try {
+                    const panel = document.getElementById('detalle-equipo-contenido');
+                    if (!panel) return;
 
-            try {
-                const selTipo = document.getElementById('inspeccion-tipo');
-                if (selTipo && insp.tipoInspeccion) {
-                    selTipo.value = String(insp.tipoInspeccion).trim();
-                    selTipo.dispatchEvent(new Event('change'));
-                }
-            } catch {}
+                    const equipo = (data.equipo || '').toString();
+                    const serial = (data.serial || '').toString();
+                    const cliente = (data.cliente || '').toString();
+                    const areaCliente = (data.areaCliente || '').toString();
+                    const ubicacion = (data.ubicacion || '').toString();
+                    const ubicacionGps = (data.ubicacionGps || '').toString();
+                    const usuario = (data.usuarioInspeccion || '').toString();
+                    const tipo = (data.tipoInspeccion || '').toString();
+                    const fecha = (data.fecha || data.creadoEn || '').toString();
 
-            await esperar(() => {
-                const panel = document.getElementById('detalle-equipo-contenido');
-                return !!(panel && panel.querySelector('.parametros-inspeccion'));
-            });
+                    const params = Array.isArray(data.parametros) ? data.parametros : [];
+                    const ok = (v) => (v == null ? '' : String(v));
 
-            try {
-                const params = Array.isArray(insp.parametros) ? insp.parametros : [];
-                params.forEach((p, idx) => {
-                    const estado = (p && p.estado) ? String(p.estado) : '';
-                    const tipoDano = (p && p.tipoDano) ? String(p.tipoDano) : '';
-                    const detalleOtro = (p && p.detalleOtro) ? String(p.detalleOtro) : '';
-                    const selEstado = document.querySelector(`select[name="param-${idx}-estado"]`);
-                    if (selEstado && estado) {
-                        selEstado.value = estado;
-                        selEstado.dispatchEvent(new Event('change'));
-                    }
-                    const selTipo = document.querySelector(`select[name="param-${idx}-tipo-dano"]`);
-                    if (selTipo && tipoDano) {
-                        selTipo.value = tipoDano;
-                        selTipo.dispatchEvent(new Event('change'));
-                    }
-                    const inpOtro = document.querySelector(`input[name="param-${idx}-detalle-otro"]`);
-                    if (inpOtro && detalleOtro) {
-                        inpOtro.value = detalleOtro;
-                        inpOtro.dispatchEvent(new Event('input'));
-                    }
-                });
-            } catch {}
+                    const blocks = params.map((p) => {
+                        const nombre = ok(p && p.nombre);
+                        const estado = ok(p && p.estado).toUpperCase();
+                        const tipoDano = ok(p && p.tipoDano);
+                        const detalleOtro = ok(p && p.detalleOtro);
+                        const evidenciaUrl = ok(p && p.evidenciaUrl);
+                        const evidenciaNombre = ok(p && p.evidenciaNombre);
+                        const danoTxt = (estado === 'MALO') ? (detalleOtro || tipoDano || '') : '';
+                        const badge = estado === 'MALO'
+                            ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; font-size:12px; font-weight:700;">MALO</span>'
+                            : (estado === 'NO LEGIBLE'
+                                ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; font-weight:700;">NO LEGIBLE</span>'
+                                : '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; border:1px solid #bbf7d0; color:#166534; font-size:12px; font-weight:700;">BUENO</span>');
+
+                        const evidenciaHtml = evidenciaUrl
+                            ? `
+                                <div style="margin-top:8px;">
+                                    <div style="font-size:12px; color:#475569; margin-bottom:6px;">Evidencia</div>
+                                    <img
+                                        src="${evidenciaUrl}"
+                                        alt="Evidencia"
+                                        class="insp-evid-thumb"
+                                        data-full="${evidenciaUrl}"
+                                        style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in;"
+                                    />
+                                </div>
+                              `
+                            : (evidenciaNombre ? `
+                                <div style="margin-top:8px; font-size:12px; color:#64748b;">Evidencia: ${evidenciaNombre}</div>
+                              ` : '');
+
+                        return `
+                            <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff; break-inside:avoid;">
+                                <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                                    <div style="font-weight:800; color:#0f172a;">${nombre}</div>
+                                    <div>${badge}</div>
+                                </div>
+                                ${danoTxt ? `<div style="margin-top:6px; font-size:13px; color:#0f172a;"><span style="color:#64748b; font-weight:700;">Hallazgo:</span> ${danoTxt}</div>` : ''}
+                                ${evidenciaHtml}
+                            </div>
+                        `;
+                    }).join('');
+
+                    panel.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; border-bottom:3px solid #0f172a; padding-bottom:10px; margin-bottom:12px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <img src="img/logopctch.png" alt="PCT" style="height:34px;" />
+                                <div>
+                                    <div style="font-weight:900; font-size:16px; color:#0f172a;">Inspección de equipo</div>
+                                    <div style="font-size:12px; color:#475569;">Documento digital</div>
+                                </div>
+                            </div>
+                            <div style="text-align:right; font-size:12px; color:#334155;">
+                                <div><strong>Tipo:</strong> ${tipo}</div>
+                                <div><strong>Fecha:</strong> ${fecha}</div>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
+                            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px;">
+                                <div style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Equipo</div>
+                                <div style="font-size:14px; font-weight:900; color:#0f172a; margin-top:2px;">${equipo}</div>
+                                ${serial ? `<div style="font-size:12px; color:#475569; margin-top:2px;"><strong>Serial:</strong> ${serial}</div>` : ''}
+                            </div>
+                            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px;">
+                                <div style="font-size:12px; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">Cliente</div>
+                                <div style="font-size:14px; font-weight:900; color:#0f172a; margin-top:2px;">${cliente}</div>
+                                <div style="font-size:12px; color:#475569; margin-top:2px;">${areaCliente}${ubicacion ? ` · ${ubicacion}` : ''}</div>
+                                ${ubicacionGps ? `<div style="font-size:12px; color:#64748b; margin-top:2px;"><strong>GPS:</strong> ${ubicacionGps}</div>` : ''}
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                            <span style="display:inline-flex; gap:6px; align-items:center; padding:5px 10px; border-radius:999px; border:1px solid #e2e8f0; background:#fff; font-size:12px; color:#0f172a;"><span style="color:#64748b; text-transform:uppercase; letter-spacing:0.06em; font-size:10px;">Usuario</span><strong>${usuario}</strong></span>
+                            ${data.actividadId ? `<span style="display:inline-flex; gap:6px; align-items:center; padding:5px 10px; border-radius:999px; border:1px solid #e2e8f0; background:#fff; font-size:12px; color:#0f172a;"><span style="color:#64748b; text-transform:uppercase; letter-spacing:0.06em; font-size:10px;">Actividad</span><strong>${ok(data.actividadId)}</strong></span>` : ''}
+                        </div>
+
+                        <div style="font-weight:900; color:#0f172a; margin: 6px 0 8px;">Checklist</div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">${blocks}</div>
+                    `;
+
+                    // Lightbox
+                    try {
+                        const prev = document.getElementById('insp-lightbox');
+                        if (prev) prev.remove();
+                    } catch {}
+
+                    const lb = document.createElement('div');
+                    lb.id = 'insp-lightbox';
+                    lb.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.75); display:none; align-items:center; justify-content:center; z-index:10000; padding:18px;';
+                    lb.innerHTML = `
+                        <div style="background:#fff; border-radius:14px; max-width:1100px; width:100%; max-height:92vh; overflow:auto; box-shadow:0 18px 50px rgba(0,0,0,0.35);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid #e5e7eb;">
+                                <div style="font-weight:900; color:#0f172a;">Evidencia</div>
+                                <div style="display:flex; gap:8px;">
+                                    <a id="insp-lightbox-open" href="#" target="_blank" rel="noopener" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:10px; text-decoration:none; color:#0f172a; background:#fff; font-weight:700; font-size:12px;">Abrir</a>
+                                    <button id="insp-lightbox-close" type="button" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:10px; background:#0f172a; color:#fff; font-weight:800; font-size:12px; cursor:pointer;">Cerrar</button>
+                                </div>
+                            </div>
+                            <div style="padding:12px;">
+                                <img id="insp-lightbox-img" alt="Evidencia" style="max-width:100%; height:auto; border-radius:12px; border:1px solid #e5e7eb;" />
+                                <div style="margin-top:8px; font-size:12px; color:#64748b;">Tip: en iPad puedes hacer zoom con gesto de pellizco. También puedes usar “Abrir”.</div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(lb);
+                    const btnClose = lb.querySelector('#insp-lightbox-close');
+                    const openA = lb.querySelector('#insp-lightbox-open');
+                    const img = lb.querySelector('#insp-lightbox-img');
+                    if (btnClose) btnClose.addEventListener('click', () => { lb.style.display = 'none'; });
+                    lb.addEventListener('click', (ev) => {
+                        if (ev.target === lb) lb.style.display = 'none';
+                    });
+                    panel.querySelectorAll('.insp-evid-thumb').forEach(el => {
+                        el.addEventListener('click', () => {
+                            const url = el.getAttribute('data-full') || el.getAttribute('src') || '';
+                            if (!url) return;
+                            if (img) img.setAttribute('src', url);
+                            if (openA) openA.setAttribute('href', url);
+                            lb.style.display = 'flex';
+                        });
+                    });
+                } catch {}
+            };
+
+            // Render documento (visor) y salir temprano para evitar lógica de formulario
+            try { renderDocumento(insp); } catch {}
 
             // Deshabilitar edición, permitir exportación
             try {
+                const selTipo = document.getElementById('inspeccion-tipo');
+                if (selTipo) selTipo.disabled = true;
+                try { inputEquipo.disabled = true; } catch {}
                 if (btnGuardar) {
                     btnGuardar.disabled = true;
                     btnGuardar.style.display = 'none';
                 }
-                try { inputEquipo.disabled = true; } catch {}
-                const selTipo = document.getElementById('inspeccion-tipo');
-                if (selTipo) selTipo.disabled = true;
-
-                const panel = document.getElementById('detalle-equipo-contenido');
-                if (panel) {
-                    panel.querySelectorAll('input, select, textarea, button').forEach(el => {
-                        const id = el.id || '';
-                        if (id === 'btn-exportar-jpg') return;
-                        el.disabled = true;
-                    });
-                }
             } catch {}
+
+            return;
         } catch (e) {
             console.warn('No se pudo aplicar modo solo lectura', e);
         }
@@ -1969,8 +2065,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // También guardar en Firestore para que las inspecciones sean visibles en cualquier dispositivo
             try {
-                const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+                const { getFirestore, collection, addDoc, serverTimestamp, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const { getStorage, ref, uploadBytes, getDownloadURL } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
                 );
 
                 const db = getFirestore();
@@ -1979,7 +2078,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     ...registro,
                     creadoEn: serverTimestamp(),
                 };
-                await addDoc(colRef, payload);
+
+                const docRef = await addDoc(colRef, payload);
+
+                // Subir evidencias a Storage y guardar URLs en Firestore (documento digital)
+                try {
+                    if (docRef && docRef.id && Array.isArray(fotosParaSubir) && fotosParaSubir.length) {
+                        const storage = getStorage();
+                        const urlsPorIdx = {};
+                        for (const f of fotosParaSubir) {
+                            const name = (f && f.evidenciaNombre) ? String(f.evidenciaNombre) : `foto-${String(f && f.idx != null ? f.idx : '')}.jpg`;
+                            const pth = `inspecciones/${docRef.id}/${name}`;
+                            const stRef = ref(storage, pth);
+                            await uploadBytes(stRef, f.file);
+                            const url = await getDownloadURL(stRef);
+                            if (f && typeof f.idx === 'number') {
+                                urlsPorIdx[String(f.idx)] = url;
+                            }
+                        }
+
+                        const paramsOut = (Array.isArray(payload.parametros) ? payload.parametros : []).map((p, idx) => {
+                            const u = urlsPorIdx[String(idx)] || '';
+                            if (!u) return p;
+                            return { ...(p || {}), evidenciaUrl: u };
+                        });
+
+                        await updateDoc(doc(db, 'inspecciones', docRef.id), {
+                            parametros: paramsOut,
+                            evidenciasSubidas: true,
+                        });
+                    }
+                } catch (e) {
+                    console.warn('No se pudieron subir evidencias a Storage:', e);
+                }
                 try {
                     if (typeof window.pctAudit === 'function') {
                         const equipo = (registro && registro.equipo ? String(registro.equipo) : '').trim();

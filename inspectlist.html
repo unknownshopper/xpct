@@ -512,11 +512,41 @@
                 const snap = await getDocs(colRef);
 
                 actividades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                // Fallback: algunas inspecciones históricas se guardaron sin actividadId.
+                // Si el equipo coincide con una actividad actual, las consideramos enlazadas.
+                try {
+                    const actByEquipo = new Map();
+                    actividades.forEach(a => {
+                        const eq = (a && a.equipo ? String(a.equipo) : '').trim();
+                        if (!eq) return;
+                        if (!actByEquipo.has(eq)) actByEquipo.set(eq, []);
+                        actByEquipo.get(eq).push(String(a.id || ''));
+                    });
+
+                    inspecciones.forEach((reg, idx) => {
+                        if (!reg) return;
+                        const hasAct = !!(reg.actividadId && String(reg.actividadId).trim());
+                        if (hasAct) return;
+                        const eq = (reg.equipo ? String(reg.equipo) : '').trim();
+                        if (!eq) return;
+                        const ids = actByEquipo.get(eq) || [];
+                        // Si hay match único, enlazarlo
+                        if (ids.length === 1) {
+                            const actId = ids[0];
+                            reg.__actividadIdMatched = actId;
+                            if (!inspeccionPorActividad.has(actId)) {
+                                inspeccionPorActividad.set(actId, { ...reg, _indexLocal: idx, actividadId: actId, _matchedByEquipo: true });
+                            }
+                        }
+                    });
+                } catch {}
+
                 // Calcular huérfanas: sin actividadId o con actividadId que ya no existe en las actividades actuales
                 actividadesIds = new Set(Array.from(actividades || []).map(a => a && a.id ? String(a.id) : '').filter(Boolean));
                 inspeccionesHuerfanas = inspecciones.filter(reg => {
                     if (!reg) return false;
-                    const actId = reg.actividadId ? String(reg.actividadId) : '';
+                    const actId = reg.actividadId ? String(reg.actividadId) : (reg.__actividadIdMatched ? String(reg.__actividadIdMatched) : '');
                     if (!actId) return true;
                     return !actividadesIds.has(actId);
                 });
@@ -681,8 +711,9 @@
                         `;
                     }
 
-                    const accionesHtml = (insp && (window.isAdmin || window.isInspector)) ? `
-                            <button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>
+                    const accionesHtml = (insp) ? `
+                            <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
+                            ${(window.isAdmin || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
                             ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
                         ` : '';
 
@@ -773,6 +804,19 @@
                         </td>
                     `;
 
+                    // Abrir visor con click en cualquier parte de la fila (excepto controles)
+                    if (insp && insp.id) {
+                        tr.addEventListener('click', (ev) => {
+                            if (ev.target.closest('button, select, a, input')) return;
+                            const inspId = String(insp.id || '');
+                            const actividadId = String(act.id || '');
+                            let url = 'inspeccion.html?view=1';
+                            if (inspId) url += `&inspId=${encodeURIComponent(inspId)}`;
+                            else if (actividadId) url += `&actividadId=${encodeURIComponent(actividadId)}`;
+                            window.location.href = url;
+                        });
+                    }
+
                     tbody.appendChild(tr);
                     visibles += 1;
                 });
@@ -842,9 +886,10 @@
                         evaluacion = evaluacionCalc;
                     }
 
-                    const accionesHtml = (window.isAdmin) ? `
-                        <button type="button" class="insp-btn-eliminar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>
-                    ` : '';
+                    const accionesHtml = `
+                        <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
+                        ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
+                    `;
 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
@@ -861,6 +906,13 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${accionesHtml}</td>
                     `;
+                    tr.style.cursor = 'pointer';
+                    tr.addEventListener('click', (ev) => {
+                        if (ev.target.closest('button, select, a, input')) return;
+                        const inspId = String(insp && insp.id ? insp.id : '').trim();
+                        if (!inspId) return;
+                        window.location.href = `inspeccion.html?view=1&inspId=${encodeURIComponent(inspId)}`;
+                    });
                     tbodyHuerfanas.appendChild(tr);
                     visiblesH += 1;
                 });
@@ -995,8 +1047,36 @@
                 });
             });
 
+            // 7.1) Ver inspección realizada (documento digital)
+            tbody.querySelectorAll('.insp-btn-ver').forEach(btn => {
+                if (btn.dataset.boundVer === '1') return;
+                btn.dataset.boundVer = '1';
+                btn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const inspId = btn.getAttribute('data-insp-id') || '';
+                    const actividadId = btn.getAttribute('data-actividad-id') || '';
+                    let url = 'inspeccion.html?view=1';
+                    if (inspId) url += `&inspId=${encodeURIComponent(inspId)}`;
+                    else if (actividadId) url += `&actividadId=${encodeURIComponent(actividadId)}`;
+                    window.location.href = url;
+                });
+            });
+
             // Doble click en inspección realizada: abrir en modo solo lectura (no admin). Admin puede editar.
             tbody.querySelectorAll('tr.insp-fila-realizada').forEach(tr => {
+                tr.addEventListener('click', (ev) => {
+                    // No disparar cuando se hace clic en botones, selects, enlaces o checkboxes dentro de la fila
+                    if (ev.target.closest('button, select, a, input')) return;
+                    const inspId = tr.getAttribute('data-insp-id') || '';
+                    const actividadId = tr.getAttribute('data-actividad-id') || '';
+                    if (!inspId && !actividadId) return;
+
+                    // Visor tipo documento (solo lectura)
+                    let url = 'inspeccion.html?view=1';
+                    if (inspId) url += `&inspId=${encodeURIComponent(inspId)}`;
+                    else if (actividadId) url += `&actividadId=${encodeURIComponent(actividadId)}`;
+                    window.location.href = url;
+                });
                 tr.addEventListener('dblclick', (ev) => {
                     if (ev.target.closest('button, select, a, input')) return;
                     const inspId = tr.getAttribute('data-insp-id') || '';
