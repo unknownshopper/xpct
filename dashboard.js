@@ -5,6 +5,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const spanInvre2 = document.getElementById('dash-registros-invre2');
     const spanActividades = document.getElementById('dash-actividades');
 
+    const dashModal = document.getElementById('dash-modal');
+    const dashModalBody = document.getElementById('dash-modal-body');
+    const dashModalClose = document.getElementById('dash-modal-cerrar');
+    const dashModalTitle = document.getElementById('dash-modal-title');
+
+    function abrirDashModal(titulo, htmlBody) {
+        if (!dashModal || !dashModalBody) return;
+        try {
+            if (dashModalTitle) dashModalTitle.textContent = titulo || '';
+            dashModalBody.innerHTML = htmlBody || '';
+            dashModal.style.display = 'flex';
+        } catch {}
+    }
+
+    function cerrarDashModal() {
+        if (!dashModal) return;
+        try { dashModal.style.display = 'none'; } catch {}
+    }
+
+    if (dashModalClose) {
+        dashModalClose.addEventListener('click', () => cerrarDashModal());
+    }
+    if (dashModal) {
+        dashModal.addEventListener('click', (ev) => {
+            if (ev.target === dashModal) cerrarDashModal();
+        });
+    }
+
     if (!spanPruebas && !spanInspecciones && !spanInvre && !spanInvre2 && !spanActividades) return; // No estamos en index.html
 
     // Habilitar persistencia offline si está disponible (no falla en multi-tab)
@@ -204,6 +232,124 @@ document.addEventListener('DOMContentLoaded', () => {
         // Lógica tomada del bloque original de script.js (Dashboard en index.html)
         const elEquiposInvre = spanInvre;
 
+        const LS_DASH_INVRE = 'pct_dash_invre_equipo_rows_v1';
+        function setCachedInvreRows(rows) {
+            try {
+                localStorage.setItem(LS_DASH_INVRE, JSON.stringify(rows || []));
+            } catch {}
+        }
+        function getCachedInvreRows() {
+            try {
+                const raw = localStorage.getItem(LS_DASH_INVRE) || '[]';
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch { return []; }
+        }
+
+        function renderListaEquiposModal(titulo, equipos) {
+            const list = Array.isArray(equipos) ? equipos : [];
+            if (!list.length) {
+                abrirDashModal(titulo, '<div style="color:#6b7280;">Sin registros.</div>');
+                return;
+            }
+
+            const rows = list
+                .slice(0, 500)
+                .map(r => {
+                    const equipo = (r.equipo || '').toString();
+                    const serial = (r.serial || '').toString();
+                    const edo = (r.edo || '').toString();
+                    return `
+                        <tr>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${edo}</td>
+                        </tr>
+                    `;
+                })
+                .join('');
+
+            const html = `
+                <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:0.5rem;">
+                    <div style="font-size:0.85rem; color:#111827;">Total: <strong>${list.length}</strong></div>
+                    <input id="dash-invre-buscar" type="text" placeholder="Buscar equipo o serial" style="flex:1; max-width:320px; padding:0.4rem 0.55rem; border:1px solid #d1d5db; border-radius:0.5rem;" />
+                </div>
+                <div style="max-height:60vh; overflow:auto; border:1px solid #e5e7eb; border-radius:0.5rem;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                        <thead>
+                            <tr style="background:#f9fafb;">
+                                <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Equipo</th>
+                                <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Serial</th>
+                                <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-invre-tbody">${rows}</tbody>
+                    </table>
+                </div>
+                ${list.length > 500 ? '<div style="margin-top:0.4rem; color:#6b7280; font-size:0.8rem;">Mostrando primeros 500 registros.</div>' : ''}
+            `;
+
+            abrirDashModal(titulo, html);
+
+            // Búsqueda simple en cliente
+            try {
+                const input = document.getElementById('dash-invre-buscar');
+                const tbody = document.getElementById('dash-invre-tbody');
+                if (input && tbody) {
+                    input.addEventListener('input', () => {
+                        const q = String(input.value || '').trim().toUpperCase();
+                        const filtered = !q
+                            ? list
+                            : list.filter(r => {
+                                const e = (r.equipo || '').toString().toUpperCase();
+                                const s = (r.serial || '').toString().toUpperCase();
+                                return e.includes(q) || s.includes(q);
+                            });
+                        tbody.innerHTML = filtered
+                            .slice(0, 500)
+                            .map(r => {
+                                const equipo = (r.equipo || '').toString();
+                                const serial = (r.serial || '').toString();
+                                const edo = (r.edo || '').toString();
+                                return `
+                                    <tr>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${edo}</td>
+                                    </tr>
+                                `;
+                            })
+                            .join('');
+                    });
+                }
+            } catch {}
+        }
+
+        function bindInvreVerButtons() {
+            const btnOff = document.getElementById('dash-invre-ver-off');
+            const btnWip = document.getElementById('dash-invre-ver-wip');
+            const btnFs = document.getElementById('dash-invre-ver-fs');
+            const rows = getCachedInvreRows();
+            if (btnOff && !btnOff.dataset.bound) {
+                btnOff.dataset.bound = '1';
+                btnOff.addEventListener('click', () => {
+                    renderListaEquiposModal('Equipos OFF', rows.filter(r => (r.edo || '').toUpperCase() === 'OFF'));
+                });
+            }
+            if (btnWip && !btnWip.dataset.bound) {
+                btnWip.dataset.bound = '1';
+                btnWip.addEventListener('click', () => {
+                    renderListaEquiposModal('Equipos WIP', rows.filter(r => (r.edo || '').toUpperCase() === 'WIP'));
+                });
+            }
+            if (btnFs && !btnFs.dataset.bound) {
+                btnFs.dataset.bound = '1';
+                btnFs.addEventListener('click', () => {
+                    renderListaEquiposModal('Fuera de servicio (por inspección)', rows.filter(r => (r.fueraServicio === true)));
+                });
+            }
+        }
+
         // 1) Determinar equipos "fuera de servicio" a partir de inspecciones locales
         //    Regla: si un equipo tiene al menos una inspección con algún parámetro en estado MALO,
         //    se considera fuera de servicio (independiente de OFF/WIP en inventario; se cruza con ON).
@@ -276,6 +422,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
                 const idxSerial = headersLocal.indexOf('SERIAL');
 
+                const rowsAll = [];
+
                 let onCount = 0;
                 let offCount = 0;
                 let wipCount = 0;
@@ -291,6 +439,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '').trim().toUpperCase() : '';
                     const serial = idxSerial >= 0 ? (cols[idxSerial] || '').trim().toUpperCase() : '';
+
+                    if (equipo || serial) {
+                        rowsAll.push({
+                            equipo,
+                            serial,
+                            edo: valor,
+                            fueraServicio: (valor === 'ON' && equipo && equiposFueraServicio.has(equipo)),
+                        });
+                    }
 
                     if (valor === 'ON') {
                         onCount += 1;
@@ -316,12 +473,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 elEquiposInvre.innerHTML = `
                     <div style="font-size:0.85rem; line-height:1.4;">
                         ON: <strong>${onCount}</strong><br>
-                        OFF: <strong>${offCount}</strong><br>
-                        WIP: <strong>${wipCount}</strong><br>
+                        OFF: <strong>${offCount}</strong> <button id="dash-invre-ver-off" type="button" style="margin-left:6px; font-size:0.72rem; padding:0.05rem 0.4rem; border-radius:999px; border:1px solid #d1d5db; background:#fff; cursor:pointer;">Ver</button><br>
+                        WIP: <strong>${wipCount}</strong> <button id="dash-invre-ver-wip" type="button" style="margin-left:6px; font-size:0.72rem; padding:0.05rem 0.4rem; border-radius:999px; border:1px solid #d1d5db; background:#fff; cursor:pointer;">Ver</button><br>
                         <span style="color:#6b7280;">WIP con pruebas: <strong>${wipConPruebas}</strong></span><br>
-                        Fuera de servicio: <strong>${fueraServicioCount}</strong>
+                        Fuera de servicio: <strong>${fueraServicioCount}</strong> <button id="dash-invre-ver-fs" type="button" style="margin-left:6px; font-size:0.72rem; padding:0.05rem 0.4rem; border-radius:999px; border:1px solid #d1d5db; background:#fff; cursor:pointer;">Ver</button>
                     </div>
                 `;
+
+                setCachedInvreRows(rowsAll);
+                bindInvreVerButtons();
             } catch {
                 elEquiposInvre.textContent = '--';
             }
