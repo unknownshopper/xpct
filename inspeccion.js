@@ -30,17 +30,50 @@ document.addEventListener('DOMContentLoaded', () => {
     async function capturarGpsTexto() {
         try {
             if (!navigator.geolocation) return 'Sin GPS';
+            const LS_KEY = 'pct_last_gps_txt';
+            const LS_TS_KEY = 'pct_last_gps_ts';
             function toStr(pos) {
                 const { latitude, longitude, accuracy } = pos.coords || {};
                 return (latitude != null && longitude != null)
                     ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}${accuracy ? ` (±${Math.round(accuracy)}m)` : ''}`
                     : 'Sin GPS';
             }
+            const getCached = () => {
+                try {
+                    const txt = String(localStorage.getItem(LS_KEY) || '').trim();
+                    const ts = Number(localStorage.getItem(LS_TS_KEY) || 0);
+                    if (!txt || !ts) return '';
+                    // Reutilizar último GPS si es relativamente reciente
+                    const ageMs = Date.now() - ts;
+                    if (ageMs > 12 * 60 * 60 * 1000) return '';
+                    return txt;
+                } catch {
+                    return '';
+                }
+            };
+
             const getPosition = () => new Promise(resolve => {
                 navigator.geolocation.getCurrentPosition(
-                    (pos) => resolve(toStr(pos)),
-                    () => resolve('Sin GPS'),
-                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                    (pos) => {
+                        const txt = toStr(pos);
+                        // Cachear último GPS válido
+                        try {
+                            if (txt && txt.toUpperCase() !== 'SIN GPS') {
+                                localStorage.setItem(LS_KEY, txt);
+                                localStorage.setItem(LS_TS_KEY, String(Date.now()));
+                            }
+                        } catch {}
+                        resolve(txt);
+                    },
+                    (err) => {
+                        try {
+                            console.warn('Geolocalización falló', { code: err && err.code, message: err && err.message });
+                        } catch {}
+                        const cached = getCached();
+                        resolve(cached || 'Sin GPS');
+                    },
+                    // iPad/campo: permitir valores cacheados y dar más tiempo
+                    { enableHighAccuracy: true, timeout: 60000, maximumAge: 5 * 60 * 1000 }
                 );
             });
             try {
@@ -1117,15 +1150,76 @@ document.addEventListener('DOMContentLoaded', () => {
             video.style.cssText = 'width:100%;border-radius:8px;background:#000;';
             const ctrls = document.createElement('div');
             ctrls.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:8px;';
+            const btnSwitch = document.createElement('button');
+            btnSwitch.textContent = 'Cambiar cámara';
+            btnSwitch.style.display = 'none';
             const btnCancel = document.createElement('button'); btnCancel.textContent = 'Cancelar';
             const btnSnap = document.createElement('button'); btnSnap.textContent = 'Capturar';
-            ctrls.appendChild(btnCancel); ctrls.appendChild(btnSnap);
+            ctrls.appendChild(btnSwitch); ctrls.appendChild(btnCancel); ctrls.appendChild(btnSnap);
             box.appendChild(video); box.appendChild(ctrls); overlay.appendChild(box); document.body.appendChild(overlay);
 
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-            video.srcObject = stream;
-            function stop() { try { stream.getTracks().forEach(t => t.stop()); } catch {}; document.body.removeChild(overlay); }
+            let currentFacing = 'environment'; // 'environment' (trasera) | 'user' (frontal)
+            let currentStream = null;
+            let videoInputs = [];
+
+            async function refreshDevices() {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    videoInputs = (devices || []).filter(d => d && d.kind === 'videoinput');
+                } catch {
+                    videoInputs = [];
+                }
+                btnSwitch.style.display = videoInputs.length >= 2 ? '' : 'none';
+            }
+
+            function stopStream() {
+                try {
+                    if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+                } catch {}
+                currentStream = null;
+            }
+
+            async function startStream() {
+                stopStream();
+                // En iOS/Safari, usar ideal para mejorar selección de cámara
+                const constraints = {
+                    audio: false,
+                    video: {
+                        facingMode: { ideal: currentFacing },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                try { await video.play(); } catch {}
+            }
+
+            await refreshDevices();
+            try {
+                await startStream();
+            } catch (e) {
+                // Fallback: si falla, intentar sin facingMode (algunos devices fallan constraints)
+                try {
+                    stopStream();
+                    currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    video.srcObject = currentStream;
+                    try { await video.play(); } catch {}
+                } catch {
+                    throw e;
+                }
+            }
+
+            function stop() { stopStream(); document.body.removeChild(overlay); }
             btnCancel.onclick = () => stop();
+            btnSwitch.onclick = async () => {
+                currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+                try {
+                    await startStream();
+                } catch (e) {
+                    console.warn('No se pudo cambiar de cámara', e);
+                }
+            };
             btnSnap.onclick = () => {
                 try {
                     const canvas = document.createElement('canvas');
