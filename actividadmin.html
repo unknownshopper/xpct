@@ -2610,76 +2610,223 @@
                 const rows = construirReporte({ selected: sel, periodos });
                 if (!rows.length) { alert('No hay información para exportar.'); return; }
 
-                const headers = [
-                    { key: 'cliente', label: 'Cliente' },
-                    { key: 'area', label: 'Área' },
-                    { key: 'ubicacion', label: 'Ubicación' },
-                    { key: 'equipo', label: 'Equipo' },
-                    { key: 'serial', label: 'Serial' },
-                    { key: 'os', label: 'OS' },
-                    { key: 'inicioServicio', label: 'Inicio' },
-                    { key: 'terminacionServicio', label: 'Terminación' },
-                    { key: 'tipoPeriodo', label: 'Estado' },
-                    { key: 'inicioPeriodo', label: 'Inicio período' },
-                    { key: 'finPeriodo', label: 'Fin período' },
-                    { key: 'diasFacturados', label: 'Días' },
-                    { key: 'tarifaDiaria', label: 'Tarifa' },
-                    { key: 'importe', label: 'Importe' },
-                    { key: 'oc', label: 'OC' },
-                    { key: 'factura', label: 'Factura' },
-                ];
-
                 const w = window.open('', '_blank');
                 if (!w) { alert('El navegador bloqueó la ventana del reporte.'); return; }
 
-                const title = `Reporte de tabuladores (${ymd()})`;
-                const thead = `<tr>${headers.map(h => `<th>${h.label}</th>`).join('')}</tr>`;
-                const tbody = rows.map(r => {
-                    return `<tr>${headers.map(h => `<td>${String(r[h.key] == null ? '' : r[h.key])}</td>`).join('')}</tr>`;
+                const title = `Reporte de tabuladores`;
+                const fechaTxt = new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'2-digit' });
+
+                const num = (v) => {
+                    const x = Number(v);
+                    return Number.isFinite(x) ? x : 0;
+                };
+                const money = (v) => {
+                    const x = num(v);
+                    try { return x.toLocaleString('es-MX', { style:'currency', currency:'MXN' }); } catch { return '$' + x.toFixed(2); }
+                };
+                const txt = (v) => (v == null ? '' : String(v));
+
+                // Agrupar por actividad/equipo
+                const groups = new Map();
+                for (const r of rows) {
+                    const key = txt(r.actividadId);
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key).push(r);
+                }
+                const groupList = Array.from(groups.entries()).map(([k, list]) => {
+                    const head = list[0] || {};
+                    const totalImporte = list.reduce((acc, it) => acc + num(it.importe), 0);
+                    const totalDias = list.reduce((acc, it) => acc + num(it.diasFacturados), 0);
+                    const conPeriodos = list.filter(it => txt(it.periodoId));
+                    const abiertos = list.filter(it => txt(it.tipoPeriodo).toUpperCase() === 'ABIERTO');
+                    return {
+                        actividadId: k,
+                        head,
+                        list,
+                        totalImporte,
+                        totalDias,
+                        periodosCount: conPeriodos.length,
+                        abiertosCount: abiertos.length,
+                    };
+                });
+                groupList.sort((a, b) => {
+                    const ax = `${txt(a.head.cliente)}|||${txt(a.head.area)}|||${txt(a.head.ubicacion)}|||${txt(a.head.equipo)}`;
+                    const bx = `${txt(b.head.cliente)}|||${txt(b.head.area)}|||${txt(b.head.ubicacion)}|||${txt(b.head.equipo)}`;
+                    return ax.localeCompare(bx);
+                });
+
+                const totalGlobal = groupList.reduce((acc, g) => acc + g.totalImporte, 0);
+                const totalGlobalDias = groupList.reduce((acc, g) => acc + g.totalDias, 0);
+
+                const badge = (estado) => {
+                    const s = txt(estado).toUpperCase();
+                    if (s === 'ABIERTO') return '<span class="pill pill-open">ABIERTO</span>';
+                    if (s === 'PARCIAL') return '<span class="pill pill-par">PARCIAL</span>';
+                    if (s === 'FINAL') return '<span class="pill pill-fin">FINAL</span>';
+                    return `<span class="pill">${txt(estado)}</span>`;
+                };
+
+                const periodoCard = (r) => {
+                    const estado = txt(r.tipoPeriodo).toUpperCase();
+                    const hasPeriodo = !!txt(r.periodoId);
+                    if (!hasPeriodo && estado === 'ABIERTO') {
+                        return `
+                            <div class="period-card open">
+                                <div class="period-top">
+                                    <div class="period-title">${badge('ABIERTO')} Sin períodos capturados</div>
+                                </div>
+                                <div class="kv-grid">
+                                    <div class="kv"><div class="k">Tarifa diaria</div><div class="v">${txt(r.tarifaDiaria) ? money(r.tarifaDiaria) : ''}</div></div>
+                                    <div class="kv"><div class="k">Observaciones</div><div class="v">${txt(r.observaciones)}</div></div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    return `
+                        <div class="period-card">
+                            <div class="period-top">
+                                <div class="period-title">${badge(r.tipoPeriodo)} ${txt(r.inicioPeriodo)} ${txt(r.finPeriodo) ? '→ ' + txt(r.finPeriodo) : ''}</div>
+                                <div class="period-amount">${txt(r.importe) ? money(r.importe) : ''}</div>
+                            </div>
+                            <div class="kv-grid">
+                                <div class="kv"><div class="k">Días facturados</div><div class="v">${txt(r.diasFacturados)}</div></div>
+                                <div class="kv"><div class="k">Tarifa diaria</div><div class="v">${txt(r.tarifaDiaria) ? money(r.tarifaDiaria) : ''}</div></div>
+                                <div class="kv"><div class="k">OC</div><div class="v">${txt(r.oc)}</div></div>
+                                <div class="kv"><div class="k">Factura</div><div class="v">${txt(r.factura)}</div></div>
+                            </div>
+                        </div>
+                    `;
+                };
+
+                const sectionHtml = groupList.map(g => {
+                    const h = g.head || {};
+                    const periods = (g.list || []).slice().sort((a, b) => {
+                        const ax = `${txt(a.inicioPeriodo)}|||${txt(a.finPeriodo)}|||${txt(a.periodoId)}`;
+                        const bx = `${txt(b.inicioPeriodo)}|||${txt(b.finPeriodo)}|||${txt(b.periodoId)}`;
+                        return ax.localeCompare(bx);
+                    });
+                    const cards = periods.map(periodoCard).join('');
+                    return `
+                        <section class="act-section">
+                            <div class="act-head">
+                                <div class="act-title">
+                                    <div class="act-equipo">${txt(h.equipo)}${txt(h.serial) ? ` <span class="muted">· Serial:</span> ${txt(h.serial)}` : ''}</div>
+                                    <div class="act-sub">${txt(h.cliente)}${txt(h.area) ? ' · ' + txt(h.area) : ''}${txt(h.ubicacion) ? ' · ' + txt(h.ubicacion) : ''}</div>
+                                </div>
+                                <div class="act-metrics">
+                                    <div class="metric"><div class="k">Importe</div><div class="v">${money(g.totalImporte)}</div></div>
+                                    <div class="metric"><div class="k">Días</div><div class="v">${g.totalDias || ''}</div></div>
+                                    <div class="metric"><div class="k">Períodos</div><div class="v">${g.periodosCount}</div></div>
+                                </div>
+                            </div>
+                            <div class="act-meta">
+                                <div class="meta-chip"><span class="k">OS</span><span class="v">${txt(h.os)}</span></div>
+                                <div class="meta-chip"><span class="k">Inicio servicio</span><span class="v">${txt(h.inicioServicio)}</span></div>
+                                <div class="meta-chip"><span class="k">Terminación</span><span class="v">${txt(h.terminacionServicio)}</span></div>
+                                <div class="meta-chip"><span class="k">Actividad ID</span><span class="v">${txt(h.actividadId)}</span></div>
+                            </div>
+                            <div class="periods">
+                                ${cards}
+                            </div>
+                        </section>
+                    `;
                 }).join('');
 
                 w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" />
                     <meta name="viewport" content="width=device-width, initial-scale=1" />
                     <title>${title}</title>
                     <style>
-                        @page { size: A4 landscape; margin: 12mm; }
-                        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827; }
-                        .hdr { display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #111827; padding-bottom: 8px; margin-bottom: 12px; }
-                        .hdr-left { display:flex; align-items:center; gap: 10px; }
-                        .hdr img { height: 28px; }
-                        .hdr h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
-                        .sub { font-size: 11px; color:#4b5563; margin-top: 2px; }
-                        .meta { font-size: 11px; color:#374151; text-align:right; }
-                        table { width: 100%; border-collapse: collapse; font-size: 10px; }
-                        thead th { background:#f3f4f6; border:1px solid #d1d5db; padding:6px 6px; text-align:left; white-space:nowrap; }
-                        tbody td { border:1px solid #e5e7eb; padding:5px 6px; vertical-align:top; }
-                        tbody tr:nth-child(even) td { background:#fafafa; }
-                        .badge { display:inline-block; padding:1px 6px; border-radius:999px; border:1px solid #d1d5db; font-size:10px; }
-                        .b-open { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
-                        .b-par { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
-                        .b-fin { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
-                        .foot { margin-top: 10px; font-size: 10px; color:#6b7280; display:flex; justify-content:space-between; }
-                        .nowrap { white-space:nowrap; }
-                    </style>
-                </head><body>`);
+                        @page { size: A4; margin: 14mm; }
+                        html, body { height: 100%; }
+                        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0f172a; }
+                        * { box-sizing: border-box; }
+                        .page { width: 100%; }
+                        .brand { display:flex; align-items:center; justify-content:space-between; gap: 12px; border-bottom: 3px solid #0f172a; padding-bottom: 10px; margin-bottom: 12px; }
+                        .brand-left { display:flex; align-items:center; gap: 10px; }
+                        .brand img { height: 34px; }
+                        .brand-title { margin:0; font-size: 16px; letter-spacing: 0.02em; }
+                        .brand-sub { margin:2px 0 0; font-size: 11px; color:#475569; }
+                        .brand-meta { text-align:right; font-size: 11px; color:#334155; }
+                        .summary { display:grid; grid-template-columns: 1.4fr 1fr; gap: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+                        .summary .big { font-weight: 700; font-size: 14px; }
+                        .summary .muted { color:#64748b; font-size: 11px; }
+                        .summary .stats { display:flex; justify-content:flex-end; gap: 10px; }
+                        .stat { background:white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; min-width: 130px; }
+                        .stat .k { font-size: 10px; color:#64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+                        .stat .v { margin-top: 2px; font-size: 14px; font-weight: 700; }
 
-                w.document.write(`<div class="hdr">
-                    <div class="hdr-left">
+                        .act-section { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin: 0 0 12px; break-inside: avoid; }
+                        .act-head { display:flex; justify-content:space-between; align-items:flex-start; gap: 12px; }
+                        .act-equipo { font-size: 14px; font-weight: 800; }
+                        .act-sub { font-size: 11px; color:#475569; margin-top: 2px; }
+                        .act-metrics { display:flex; gap: 10px; }
+                        .metric { background:#0f172a; color:white; border-radius: 10px; padding: 8px 10px; min-width: 120px; }
+                        .metric .k { font-size: 10px; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.06em; }
+                        .metric .v { margin-top: 2px; font-size: 13px; font-weight: 800; }
+                        .act-meta { display:flex; flex-wrap:wrap; gap: 6px; margin-top: 10px; }
+                        .meta-chip { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px; padding: 5px 9px; font-size: 10px; color:#0f172a; }
+                        .meta-chip .k { color:#64748b; margin-right: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+                        .meta-chip .v { font-weight: 700; }
+                        .periods { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+                        .period-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: white; }
+                        .period-card.open { background: #fff7ed; border-color:#fed7aa; }
+                        .period-top { display:flex; justify-content:space-between; align-items:flex-start; gap: 8px; }
+                        .period-title { font-weight: 800; font-size: 11px; color:#0f172a; }
+                        .period-amount { font-weight: 900; font-size: 12px; color:#0f172a; white-space:nowrap; }
+                        .kv-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 8px; }
+                        .kv .k { font-size: 9px; color:#64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+                        .kv .v { margin-top: 1px; font-size: 11px; font-weight: 700; color:#0f172a; }
+                        .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #e2e8f0; font-size: 10px; background:white; }
+                        .pill-open { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+                        .pill-par { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+                        .pill-fin { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+                        .muted { color:#64748b; font-weight: 600; }
+
+                        .footer { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color:#64748b; display:flex; justify-content:space-between; }
+                        .footer .note { max-width: 70%; }
+
+                        /* Paginación */
+                        @media print {
+                            .no-print { display:none !important; }
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        }
+                    </style>
+                </head><body><div class="page">`);
+
+                w.document.write(`<div class="brand">
+                    <div class="brand-left">
                         <img src="img/logopctch.png" alt="PCT" />
                         <div>
-                            <h1>${title}</h1>
-                            <div class="sub">Actividades seleccionadas: ${sel.length} · Filas: ${rows.length}</div>
+                            <h1 class="brand-title">${title}</h1>
+                            <div class="brand-sub">Documento de soporte de períodos de facturación (tabuladores)</div>
                         </div>
                     </div>
-                    <div class="meta">
+                    <div class="brand-meta">
+                        <div><strong>Fecha:</strong> ${fechaTxt}</div>
                         <div><strong>Generado:</strong> ${new Date().toLocaleString('es-MX')}</div>
-                        <div class="sub">Actividad - Administración</div>
                     </div>
                 </div>`);
 
-                w.document.write(`<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`);
-                w.document.write(`<div class="foot"><span>Nota: ABIERTO = actividad sin períodos capturados.</span><span class="nowrap">${window.location.origin || ''}</span></div>`);
-                w.document.write('</body></html>');
+                w.document.write(`<div class="summary">
+                    <div>
+                        <div class="big">Resumen</div>
+                        <div class="muted">Actividades seleccionadas: <strong>${sel.length}</strong> · Equipos en reporte: <strong>${groupList.length}</strong></div>
+                        <div class="muted">Este reporte agrupa por equipo y muestra sus períodos de facturación asociados.</div>
+                    </div>
+                    <div class="stats">
+                        <div class="stat"><div class="k">Importe total</div><div class="v">${money(totalGlobal)}</div></div>
+                        <div class="stat"><div class="k">Días total</div><div class="v">${totalGlobalDias || ''}</div></div>
+                    </div>
+                </div>`);
+
+                w.document.write(sectionHtml);
+
+                w.document.write(`<div class="footer">
+                    <div class="note">Nota: <strong>ABIERTO</strong> indica que la actividad no tiene períodos capturados en el tabulador.</div>
+                    <div>${txt(window.location.origin || '')}</div>
+                </div>`);
+
+                w.document.write(`</div></body></html>`);
                 w.document.close();
                 w.focus();
                 setTimeout(() => {
