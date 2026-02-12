@@ -56,6 +56,56 @@
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
                 Lista completa de equipos activos según <code>docs/invre.csv</code>. Luego podemos agregar filtros, búsqueda avanzada o enlaces a inspección.
             </p>
+
+            <section id="invre-resumen" style="margin-bottom:0.75rem;">
+                <details id="invre-resumen-details" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem 0.75rem;">
+                    <summary style="cursor:pointer; font-weight:800; color:#0f172a; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                        <span>Resumen por categoría</span>
+                        <span style="font-weight:600; color:#64748b; font-size:0.85rem;">(abrir/cerrar)</span>
+                    </summary>
+                    <div style="margin-top:0.55rem;">
+                        <div style="font-size:0.85rem; color:#64748b; margin-bottom:0.4rem;">Agrupado por <strong>PRODUCTO</strong> + <strong>4206/6206</strong> + <strong>TIPO EQUIPO</strong>.</div>
+                        <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.6rem;">Tip: abre/cierra cada categoría para ver el listado.</div>
+                        <div id="invre-resumen-body">--</div>
+                    </div>
+                </details>
+            </section>
+
+            <section id="invre-selector" style="background:#ffffff; border:1px solid #e5e7eb; border-radius:0.75rem; padding:0.75rem; margin-bottom:0.75rem;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-weight:800; color:#0f172a;">Selector de equipos para actividad</div>
+                        <div style="font-size:0.85rem; color:#64748b;">Busca una categoría (ej: <strong>TUBO</strong>), selecciona cantidad y arma el listado para pasárselo al director.</div>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <button id="invre-pick-copy" type="button" style="padding:0.35rem 0.6rem; border-radius:0.5rem; border:1px solid #cbd5e1; background:#fff; cursor:pointer;">Copiar selección</button>
+                        <button id="invre-pick-clear" type="button" style="padding:0.35rem 0.6rem; border-radius:0.5rem; border:1px solid #fecaca; background:#fff; cursor:pointer; color:#991b1b;">Limpiar</button>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:0.6rem; align-items:flex-end; flex-wrap:wrap;">
+                    <div style="min-width:260px; flex:1; position:relative;">
+                        <label for="invre-pick-input" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Buscar categoría</label>
+                        <input id="invre-pick-input" type="text" placeholder="Ej: tubo, cross, elevador..." autocomplete="off" style="width:100%; padding:0.45rem 0.55rem; border-radius:0.5rem; border:1px solid #cbd5e1; font-size:0.9rem;" />
+                        <div id="invre-pick-dropdown" style="position:absolute; left:0; right:0; top:100%; margin-top:6px; background:#fff; border:1px solid #e5e7eb; border-radius:0.6rem; box-shadow:0 10px 30px rgba(15,23,42,0.12); max-height:260px; overflow:auto; display:none; z-index:40;"></div>
+                    </div>
+                    <div style="width:140px;">
+                        <label for="invre-pick-qty" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Cantidad</label>
+                        <input id="invre-pick-qty" type="number" min="1" step="1" value="1" style="width:100%; padding:0.45rem 0.55rem; border-radius:0.5rem; border:1px solid #cbd5e1; font-size:0.9rem;" />
+                    </div>
+                    <div style="width:160px;">
+                        <button id="invre-pick-add" type="button" style="width:100%; padding:0.5rem 0.65rem; border-radius:0.55rem; border:1px solid #0ea5e9; background:#0ea5e9; color:white; font-weight:700; cursor:pointer;">Agregar</button>
+                    </div>
+                </div>
+
+                <div id="invre-pick-steps" style="margin-top:0.6rem;"></div>
+
+                <div id="invre-pick-selected" style="margin-top:0.7rem; display:none;">
+                    <div style="font-weight:800; color:#0f172a; margin-bottom:0.4rem;">Selección</div>
+                    <div id="invre-pick-cart" style="border:1px solid #e5e7eb; border-radius:0.65rem; overflow:hidden;"></div>
+                </div>
+            </section>
+
             <div class="filtros-invre" style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:0.5rem;">
                 <div style="min-width:220px;">
                     <label for="invre-filtro-texto" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Buscar</label>
@@ -77,6 +127,16 @@
         </section>
     </main>
 
+    <div id="invre-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:60;">
+        <div style="background:white; max-width:980px; width:96%; border-radius:0.75rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:0.9rem 1rem;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:0.5rem;">
+                <div id="invre-modal-title" style="margin:0; font-size:1rem; font-weight:800; color:#0f172a;">Detalle</div>
+                <button id="invre-modal-cerrar" type="button" style="font-size:0.85rem;">Cerrar</button>
+            </div>
+            <div id="invre-modal-body" style="font-size:0.9rem; color:#111827;"></div>
+        </div>
+    </div>
+
     <script src="config.local.js"></script>
     <script type="module" src="firebase-init.js"></script>
     <script type="module">
@@ -84,19 +144,10 @@
 
     const auth = window.auth;
 
-    const ADMINS = [
-        "the@unknownshoppers.com",
-        "jalcz@pct.com"
-    ];
-    const INSPECTORES = [
-        "inspector01@pct.com",
-        "inspector02@pct.com"
-    ];
-
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.href = 'login.html';
             return;
@@ -105,14 +156,26 @@
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
-        window.isAdmin = ADMINS.includes(email);
+        try {
+            const tok = await user.getIdTokenResult();
+            const role = (tok && tok.claims && tok.claims.role) ? String(tok.claims.role) : '';
+            const isAdmin = role === 'admin';
+            const isDirector = role === 'director';
+            const isSupervisor = role === 'supervisor';
+            const isInspector = role === 'inspector';
+            const isCapturista = role === 'capturista';
 
-        if (!ADMINS.includes(email)) {
-            if (INSPECTORES.includes(email)) {
-                window.location.href = 'inspeccion.html';
-            } else {
-                window.location.href = 'login.html';
+            window.isAdmin = !!isAdmin;
+            window.isDirector = !!isDirector;
+            window.isSupervisor = !!isSupervisor;
+            window.isInspector = !!isInspector;
+            window.isCapturista = !!isCapturista;
+
+            if (!(isAdmin || isDirector || isSupervisor)) {
+                window.location.href = 'index.html';
             }
+        } catch {
+            window.location.href = 'index.html';
         }
     });
 

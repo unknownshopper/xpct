@@ -258,11 +258,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 .map(r => {
                     const equipo = (r.equipo || '').toString();
                     const serial = (r.serial || '').toString();
+                    const spec = (r.spec || '').toString();
+                    const producto = (r.producto || '').toString();
+                    const tipoEquipo = (r.tipoEquipo || '').toString();
                     const edo = (r.edo || '').toString();
                     return `
                         <tr>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${spec}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${producto}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoEquipo}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${edo}</td>
                         </tr>
                     `;
@@ -280,6 +286,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <tr style="background:#f9fafb;">
                                 <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Equipo</th>
                                 <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Serial</th>
+                                <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Spec</th>
+                                <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Producto</th>
+                                <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Tipo equipo</th>
                                 <th style="text-align:left; padding:0.45rem; border-bottom:1px solid #e5e7eb;">Estado</th>
                             </tr>
                         </thead>
@@ -303,18 +312,27 @@ document.addEventListener('DOMContentLoaded', () => {
                             : list.filter(r => {
                                 const e = (r.equipo || '').toString().toUpperCase();
                                 const s = (r.serial || '').toString().toUpperCase();
-                                return e.includes(q) || s.includes(q);
+                                const sp = (r.spec || '').toString().toUpperCase();
+                                const p = (r.producto || '').toString().toUpperCase();
+                                const te = (r.tipoEquipo || '').toString().toUpperCase();
+                                return e.includes(q) || s.includes(q) || sp.includes(q) || p.includes(q) || te.includes(q);
                             });
                         tbody.innerHTML = filtered
                             .slice(0, 500)
                             .map(r => {
                                 const equipo = (r.equipo || '').toString();
                                 const serial = (r.serial || '').toString();
+                                const spec = (r.spec || '').toString();
+                                const producto = (r.producto || '').toString();
+                                const tipoEquipo = (r.tipoEquipo || '').toString();
                                 const edo = (r.edo || '').toString();
                                 return `
                                     <tr>
                                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
                                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${spec}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${producto}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoEquipo}</td>
                                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${edo}</td>
                                     </tr>
                                 `;
@@ -421,8 +439,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const idxEstado = headersLocal.indexOf('EDO');
                 const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
                 const idxSerial = headersLocal.indexOf('SERIAL');
+                const idxProducto = headersLocal.indexOf('PRODUCTO');
+                const idxTipoEquipo = headersLocal.indexOf('TIPO EQUIPO');
+                const idxDiam1 = headersLocal.indexOf('DIAMETRO 1');
+                const idxTipo1 = headersLocal.indexOf('TIPO 1');
 
                 const rowsAll = [];
+
 
                 let onCount = 0;
                 let offCount = 0;
@@ -439,6 +462,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '').trim().toUpperCase() : '';
                     const serial = idxSerial >= 0 ? (cols[idxSerial] || '').trim().toUpperCase() : '';
+                    const producto = idxProducto >= 0 ? (cols[idxProducto] || '').trim().toUpperCase() : '';
+                    const tipoEquipo = idxTipoEquipo >= 0 ? (cols[idxTipoEquipo] || '').trim().toUpperCase() : '';
+                    const diam1 = idxDiam1 >= 0 ? (cols[idxDiam1] || '').trim().toUpperCase() : '';
+                    const tipo1 = idxTipo1 >= 0 ? (cols[idxTipo1] || '').trim().toUpperCase() : '';
+
+                    // Spec: identificar 4206 / 6206 en base a DIAMETRO 1 + TIPO 1
+                    // Regla: 4 + 206 => 4206, 6 + 206 => 6206
+                    let spec = '';
+                    try {
+                        const d = diam1.replace(/\s+/g, '');
+                        const t1 = tipo1.replace(/\s+/g, '');
+                        if (t1 === '206') {
+                            if (d === '4' || d === '4.0' || d === '4  ' || d === '4 ') spec = '4206';
+                            else if (d === '6' || d === '6.0' || d === '6  ' || d === '6 ') spec = '6206';
+                            else if (d.startsWith('4')) spec = '4206';
+                            else if (d.startsWith('6')) spec = '6206';
+                        }
+                    } catch {}
+
+                    const keyProd = [producto, spec, tipoEquipo].filter(Boolean).join(' · ');
 
                     if (equipo || serial) {
                         rowsAll.push({
@@ -446,8 +489,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             serial,
                             edo: valor,
                             fueraServicio: (valor === 'ON' && equipo && equiposFueraServicio.has(equipo)),
+                            spec,
+                            producto,
+                            tipoEquipo,
                         });
                     }
+
 
                     if (valor === 'ON') {
                         onCount += 1;

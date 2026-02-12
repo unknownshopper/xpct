@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'pruebas.html',
         'pruebaslist.html',
         'inspeccion.html',
-        'inspectlist.html'
+        'inspectlist.html',
+        'invre.html'
     ]);
 
     function currentPageKey() {
@@ -168,6 +169,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isInspector = role === 'inspector';
                     const isCapturista = role === 'capturista';
 
+                    function ensureInvreNavLink(visible) {
+                        try {
+                            const navUl = navMain.querySelector(':scope > ul');
+                            if (!navUl) return;
+                            const existing = navUl.querySelector('a[href="invre.html"]');
+                            if (visible) {
+                                if (existing) {
+                                    const li = existing.closest('li') || existing;
+                                    li.style.display = '';
+                                    return;
+                                }
+                                const li = document.createElement('li');
+                                const a = document.createElement('a');
+                                a.href = 'invre.html';
+                                a.textContent = 'Inventario';
+                                li.appendChild(a);
+                                // Insertar después de "Inicio" si existe
+                                const inicio = Array.from(navUl.querySelectorAll(':scope > li > a')).find(x => ((x.textContent || '').trim().toLowerCase() === 'inicio'));
+                                const liInicio = inicio ? (inicio.closest('li') || null) : null;
+                                if (liInicio && liInicio.nextSibling) navUl.insertBefore(li, liInicio.nextSibling);
+                                else navUl.appendChild(li);
+                            } else {
+                                if (!existing) return;
+                                const li = existing.closest('li') || existing;
+                                li.style.display = 'none';
+                            }
+                        } catch {}
+                    }
+
                     // Navbar: admin/director lo ven en todas las páginas.
                     // Supervisor: lo ve en todas las páginas.
                     // Otros roles: solo en páginas permitidas.
@@ -178,6 +208,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         (isInspector && currentPage === 'index.html') ||
                         allowedNavPages.has(currentPage);
                     setNavVisible(shouldShowByRole);
+
+                    // Inventario (invre.html): solo admin/director/supervisor
+                    ensureInvreNavLink(isAdmin || isDirector || isSupervisor);
 
                     // En dashboard: ocultar KPIs solo para inspector (UI reducida)
                     if (currentPage === 'index.html' && isInspector) {
