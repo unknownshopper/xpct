@@ -371,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const desc = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
                 const descUI = buildDescripcionUI(cols, desc);
+                const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
                 let edoBase = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
                 edoBase = edoBase.toString().trim().toUpperCase();
                 if (!edoBase) edoBase = 'ON';
@@ -382,11 +383,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (edoEfectivo !== 'OFF') {
                     const opt = document.createElement('option');
                     opt.value = eq;
-                    opt.label = descUI ? `${eq} - ${descUI}` : (desc ? `${eq} - ${desc}` : eq);
+                    const serialTxt = (serial || '').toString().trim();
+                    const baseDesc = descUI ? descUI : (desc ? desc : '');
+                    opt.label = baseDesc
+                        ? (serialTxt ? `${eq} - ${serialTxt} - ${baseDesc}` : `${eq} - ${baseDesc}`)
+                        : (serialTxt ? `${eq} - ${serialTxt}` : eq);
                     datalistEquipos.appendChild(opt);
                 }
 
-                const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
                 const prop = idxProp >= 0 ? (cols[idxProp] || '') : '';
                 const producto = idxProd >= 0 ? (cols[idxProd] || '') : '';
                 const reporte = idxRep >= 0 ? (cols[idxRep] || '') : '';
@@ -1581,6 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mapas desde inventario para vista operación
     const mapaDescripcionPorEquipoList = {};
     const mapaEstadoPorEquipoList = {};
+    const mapaSerialPorEquipoList = {};
 
     (async () => {
         try {
@@ -1596,6 +1601,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const headers = parse(lineas[0]);
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxDesc = headers.indexOf('DESCRIPCION');
+            const idxSerial = headers.indexOf('SERIAL');
             const idxEdo = headers.indexOf('EDO');
             if (idxEquipo < 0 || idxDesc < 0) return;
 
@@ -1610,9 +1616,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cols = parse(l);
                 const eq = (cols[idxEquipo] || '').toString().trim();
                 const desc = (cols[idxDesc] || '').toString().trim();
+                const serial = (idxSerial >= 0 ? (cols[idxSerial] || '') : '').toString().trim();
                 if (!eq || !desc) return;
                 if (!mapaDescripcionPorEquipoList[eq]) {
                     mapaDescripcionPorEquipoList[eq] = desc;
+                }
+                if (serial && !mapaSerialPorEquipoList[eq]) {
+                    mapaSerialPorEquipoList[eq] = serial;
                 }
                 // Estado efectivo
                 if (!mapaEstadoPorEquipoList[eq]) {
@@ -1747,7 +1757,8 @@ document.addEventListener('DOMContentLoaded', () => {
             equiposArr.forEach(equipoNombre => {
                 const eqMostrarFiltro = normalizeEquipoCode(equipoNombre);
                 const descFiltro = (reg.equipoDescripcion || descripcionBase || mapaDescripcionPorEquipoList[eqMostrarFiltro] || '');
-                const textoBuscar = `${cliente} ${area} ${ubicacion} ${eqMostrarFiltro} ${descFiltro} ${os} ${estCotVal} ${reg.terceroPropiedad || ''} ${reg.terceroDescripcion || ''}`.toLowerCase();
+                const serialFiltro = (mapaSerialPorEquipoList && mapaSerialPorEquipoList[eqMostrarFiltro]) ? mapaSerialPorEquipoList[eqMostrarFiltro] : '';
+                const textoBuscar = `${cliente} ${area} ${ubicacion} ${eqMostrarFiltro} ${serialFiltro} ${descFiltro} ${os} ${estCotVal} ${reg.terceroPropiedad || ''} ${reg.terceroDescripcion || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 visibles += 1;

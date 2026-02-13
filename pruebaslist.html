@@ -1161,6 +1161,7 @@
         let productoPorEquipoInv = {};
         let descripcionPorSerialInv = {};
         let productoPorSerialInv = {};
+        let serialPorEquipoInv = {};
         let edoPorEquipoInv = {};
         // Áreas por equipo/serial y tipo de prueba (derivadas de invre2.csv)
         let areaPorEquipoPruebaInv = {};
@@ -1747,6 +1748,7 @@
                 const mapaProd = {};
                 const mapaDescSerial = {};
                 const mapaProdSerial = {};
+                const mapaSerialPorEquipo = {};
                 const mapaEdo = {};
 
                 rows.forEach(cols => {
@@ -1754,6 +1756,7 @@
                     const serial = ((idxSerial>=0 ? cols[idxSerial] : '') || '').toString().trim().toUpperCase();
                     if (!eq) return;
                     setEq.add(eq);
+                    if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
                     if (idxEdo >= 0) {
                         const edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
                         if (edo && !mapaEdo[eq]) mapaEdo[eq] = edo;
@@ -1791,6 +1794,7 @@
                                 const serial2 = ((idxSerial2>=0 ? cols2[idxSerial2] : '') || '').toString().trim().toUpperCase();
                                 if (!eq2) return;
                                 setEq.add(eq2);
+                                if (serial2 && !mapaSerialPorEquipo[eq2]) mapaSerialPorEquipo[eq2] = serial2;
                                 if (idxDesc2 >= 0) {
                                     const desc2 = (cols2[idxDesc2] || '').toString().trim();
                                     if (desc2 && !mapaDesc[eq2]) mapaDesc[eq2] = desc2;
@@ -1824,6 +1828,7 @@
                 productoPorEquipoInv = mapaProd;
                 descripcionPorSerialInv = mapaDescSerial;
                 productoPorSerialInv = mapaProdSerial;
+                serialPorEquipoInv = mapaSerialPorEquipo;
                 edoPorEquipoInv = mapaEdo;
             } catch (e) {
                 console.warn('No se pudo cargar invre.csv para resumen de pruebas', e);
@@ -3125,7 +3130,8 @@
                     .forEach(eqK => {
                         const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : '';
                         const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : '';
-                        const textoBuscarEq = `${eqK} ${prod} ${desc}`.toLowerCase();
+                        const serial = (serialPorEquipoInv && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                        const textoBuscarEq = `${eqK} ${serial} ${prod} ${desc}`.toLowerCase();
                         if (filtro && !textoBuscarEq.includes(filtro)) return;
 
                         const edo = (edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).toUpperCase() : '';
@@ -3221,7 +3227,9 @@
             }
 
             listaOrdenada.forEach(reg => {
-                const textoBuscar = `${reg.equipo || ''} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
+                const eqK = normEquipoKey(reg.equipo);
+                const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                const textoBuscar = `${reg.equipo || ''} ${serialInv} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 // Filtro por cobertura (100/parcial/sin) aplicado al listado grande por equipo

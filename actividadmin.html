@@ -1347,9 +1347,20 @@
                     const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length
                         ? reg.equipos
                         : (reg.equipo ? [reg.equipo] : []);
-                    const matchEquipo = equiposArr.some(eq =>
-                        (eq || '').toString().toLowerCase().includes(filtroEquipo)
-                    );
+                    const matchEquipo = equiposArr.some(eq => {
+                        const eqTxt = (eq || '').toString().toLowerCase();
+                        if (eqTxt.includes(filtroEquipo)) return true;
+                        try {
+                            const eqKey = (typeof __normalizeEquipoAdm === 'function') ? __normalizeEquipoAdm(eq) : (eq || '').toString().trim().toUpperCase();
+                            const serial = (window.mapaSerialPorEquipoAdm && window.mapaSerialPorEquipoAdm[eqKey])
+                                ? window.mapaSerialPorEquipoAdm[eqKey]
+                                : '';
+                            const serialTxt = (serial || '').toString().toLowerCase();
+                            return !!serialTxt && serialTxt.includes(filtroEquipo);
+                        } catch {
+                            return false;
+                        }
+                    });
                     if (!matchEquipo) return false;
                 }
 
@@ -1510,7 +1521,11 @@
                     const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO');
                     const terceroProp = (reg.terceroPropiedad || '').toString();
                     const terceroDesc = (reg.terceroDescripcion || '').toString();
-                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoMostrar} ${descEfectiva} ${os} ${oc} ${estCot} ${factura} ${terceroProp} ${terceroDesc}`.toLowerCase();
+                    let serialEq = '';
+                    try {
+                        serialEq = (window.mapaSerialPorEquipoAdm && window.mapaSerialPorEquipoAdm[eqNorm]) ? window.mapaSerialPorEquipoAdm[eqNorm] : '';
+                    } catch {}
+                    const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoMostrar} ${serialEq} ${descEfectiva} ${os} ${oc} ${estCot} ${factura} ${terceroProp} ${terceroDesc}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
                     }
@@ -1666,6 +1681,7 @@
                     tr.setAttribute('data-cliente', clienteNorm);
                     tr.setAttribute('data-area', area);
                     tr.setAttribute('data-ubicacion', ubicacion);
+                    tr.setAttribute('data-descripcion', descEfectiva || '');
                     tr.setAttribute('data-equipo', equipoNombre);
                     tr.setAttribute('data-precioequipo', String(precioPorEquipo));
                     tr.setAttribute('data-os', os);
@@ -2442,6 +2458,12 @@
                 return s;
             }
 
+            function escapeTsv(val) {
+                const s = (val == null) ? '' : String(val);
+                // Excel interpreta tab como separador; limpiar saltos de línea para evitar celdas rotas.
+                return s.replace(/\t/g, ' ').replace(/[\r\n]+/g, ' ').trim();
+            }
+
             function downloadBlob({ blob, filename }) {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -2468,6 +2490,7 @@
                 selected.forEach(({ tr, id }) => {
                     const get = (k) => tr ? (tr.getAttribute(k) || '') : '';
                     const equipoRaw = get('data-equipo');
+                    const descripcion = get('data-descripcion');
                     let serial = '';
                     try {
                         const eqKey = (typeof __normalizeEquipoAdm === 'function') ? __normalizeEquipoAdm(equipoRaw) : (equipoRaw || '').toString().trim().toUpperCase();
@@ -2478,6 +2501,7 @@
                         cliente: get('data-cliente'),
                         area: get('data-area'),
                         ubicacion: get('data-ubicacion'),
+                        descripcion,
                         equipo: equipoRaw,
                         serial,
                         os: get('data-os'),
@@ -2493,11 +2517,11 @@
                     const actId = (p.actividadId || '').toString();
                     const meta = metaPorAct.get(actId) || { actividadId: actId };
                     return {
-                        actividadId: meta.actividadId || actId,
                         os: meta.os || '',
                         cliente: meta.cliente || '',
                         area: meta.area || '',
                         ubicacion: meta.ubicacion || '',
+                        descripcion: meta.descripcion || '',
                         equipo: meta.equipo || '',
                         serial: meta.serial || '',
                         inicioServicio: meta.inicioServicio || '',
@@ -2519,11 +2543,11 @@
                 for (const [actId, meta] of metaPorAct.entries()) {
                     if (idsConPeriodos.has(actId)) continue;
                     rows.push({
-                        actividadId: meta.actividadId || actId,
                         os: meta.os || '',
                         cliente: meta.cliente || '',
                         area: meta.area || '',
                         ubicacion: meta.ubicacion || '',
+                        descripcion: meta.descripcion || '',
                         equipo: meta.equipo || '',
                         serial: meta.serial || '',
                         inicioServicio: meta.inicioServicio || '',
@@ -2565,7 +2589,7 @@
 
                 const rows = construirReporte({ selected: sel, periodos });
                 const headers = [
-                    'actividadId','os','cliente','area','ubicacion','equipo','serial','inicioServicio','terminacionServicio',
+                    'os','cliente','area','ubicacion','descripcion','equipo','serial','inicioServicio','terminacionServicio',
                     'periodoId','inicioPeriodo','finPeriodo','diasFacturados','tarifaDiaria','importe','tipoPeriodo','oc','factura','observaciones'
                 ];
 
@@ -2587,10 +2611,14 @@
                 }
 
                 if (mode === 'xls') {
-                    const th = headers.map(h => `<th>${String(h)}</th>`).join('');
-                    const trs = rows.map(r => `<tr>${headers.map(h => `<td>${String(r[h] == null ? '' : r[h])}</td>`).join('')}</tr>`).join('');
-                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><table border="1"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></body></html>`;
-                    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+                    // Exportar como TSV (tab-separated). Excel lo abre como tabla sin mostrar HTML en una sola línea.
+                    const lines = [];
+                    lines.push(headers.map(escapeTsv).join('\t'));
+                    rows.forEach(r => {
+                        lines.push(headers.map(h => escapeTsv(r[h])).join('\t'));
+                    });
+                    const tsv = '\uFEFF' + lines.join('\n');
+                    const blob = new Blob([tsv], { type: 'application/vnd.ms-excel;charset=utf-8' });
                     downloadBlob({ blob, filename: `reporte_tabuladores_${ymd()}.xls` });
                 }
             }
