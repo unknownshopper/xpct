@@ -120,10 +120,15 @@ function clasificarDias(proxima) {
   hoy.setHours(0, 0, 0, 0);
   const diff = proxima.getTime() - hoy.getTime();
   const dias = Math.round(diff / (1000 * 60 * 60 * 24));
-  if (dias < 0) return { dias, bucket: 'vencidas' };
-  if (dias >= 30 && dias <= 60) return { dias, bucket: '60_30' };
-  if (dias >= 15 && dias < 30) return { dias, bucket: '30_15' };
-  if (dias >= 0 && dias < 15) return { dias, bucket: '15_0' };
+  // Alinear rangos con UI (pruebaslist):
+  // - Vencidas: 0 o menos
+  // - 1–15
+  // - 16–30
+  // - 31–60
+  if (dias <= 0) return { dias, bucket: 'vencidas' };
+  if (dias >= 31 && dias <= 60) return { dias, bucket: '60_30' };
+  if (dias >= 16 && dias <= 30) return { dias, bucket: '30_15' };
+  if (dias >= 1 && dias <= 15) return { dias, bucket: '15_0' };
   return { dias, bucket: 'otras' };
 }
 
@@ -172,9 +177,9 @@ function buildHtml({ lista60, lista30, lista15 }) {
     <div style="font-family:Arial, Helvetica, sans-serif; color:#111827;">
       ${headerHtml}
       <p style="margin:4px 0 12px; font-size:13px; color:#4b5563;">Solo se consideran pruebas ANUALES.</p>
-      ${section('60–30 días', lista60)}
-      ${section('30–15 días', lista30)}
-      ${section('15–0 días (envío diario)', lista15)}
+      ${section('60–31 días', lista60)}
+      ${section('30–16 días', lista30)}
+      ${section('15–1 días (envío diario)', lista15)}
     </div>
   `;
 
