@@ -1,0 +1,45 @@
+INVIVAPP (Inventario Vivo) — Árbol de archivos (referencia)
+
+Proyecto origen: /xpct
+Fecha de generación: 2026-02-16
+
+Raíz del proyecto (lista principal):
+- README.md
+- actividad.html
+- actividadlist.html
+- actividadmin.html
+- activigraf.html
+- certif-import.html
+- certifisos.html
+- config.local.js
+- dashboard.js
+- docs/
+- firebase-init.js
+- fonts/
+- forxmat.html
+- funcionamiento.html
+- img/
+- index.html
+- inspeccion.html
+- inspeccion.js
+- inspectlist.html
+- inspector-pruebas-store.js
+- invre.html
+- invre.js
+- invre2.html
+- login.html
+- nav.js
+- package-lock.json
+- package.json
+- pruebas.html
+- pruebas.js
+- pruebaslist.html
+- script.js
+- server/
+- style.css
+- tabulador.js
+- trazabilidades.html
+- utils.js
+- visor.html
+
+Nota: este árbol es una referencia de alto nivel para el expediente. Si necesitas el árbol completo (subdirectorios), genéralo con una exportación tipo "find" y pégalo aquí.

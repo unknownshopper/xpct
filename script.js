@@ -36,16 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapaEstadoOverride = {};
             }
 
-    const chkTodos = document.getElementById('actlist-select-todos');
-    if (chkTodos) {
-        chkTodos.addEventListener('change', () => {
-            const filas = tbody.querySelectorAll('.actlist-select-fila');
-            filas.forEach(chk => {
-                chk.checked = chkTodos.checked;
-            });
-        });
-    }
-
             const vistos = new Set();
             filasInv.forEach(cols => {
                 const eq = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
@@ -1561,6 +1551,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const msgVacio = document.getElementById('actlist-msg-vacio');
     const lblCont = document.getElementById('actlist-contador');
     const inputBuscar = document.getElementById('actlist-buscar');
+    const sortHeaders = Array.from(document.querySelectorAll('th[data-sort-key]'));
     const btnAreaGp5 = document.getElementById('actlist-btn-area-gp5');
     const btnClienteMayus = document.getElementById('actlist-btn-cliente-mayus');
     const btnNormMp5Global = document.getElementById('actlist-btn-normalizar-mp5-global');
@@ -1581,6 +1572,83 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalId = null;
 
     let listaActividad = [];
+
+    let sortState = { key: '', dir: 'asc' }; // dir: asc|desc
+
+    function normSortKey(s) {
+        return String(s || '').toLowerCase().trim();
+    }
+
+    function getPruebasRank(reg) {
+        try {
+            const finTxt = (reg && reg.terminacionServicio != null) ? String(reg.terminacionServicio).trim() : '';
+            if (!finTxt) return 0; // ABIERTO
+            const esFinal = !!(reg && reg.terminacionEsFinal);
+            return esFinal ? 2 : 1; // PARCIAL=1, FINAL=2
+        } catch {
+            return 0;
+        }
+    }
+
+    function getSortValue(reg, key) {
+        const k = normSortKey(key);
+        if (k === 'pruebas') {
+            return getPruebasRank(reg);
+        }
+        if (k === 'inicioservicio') {
+            const d = parseFechaDdMmAaListado(reg ? reg.inicioServicio : '');
+            return d ? d.getTime() : null;
+        }
+        if (k === 'terminacionservicio') {
+            const d = parseFechaDdMmAaListado(reg ? reg.terminacionServicio : '');
+            return d ? d.getTime() : null;
+        }
+        return null;
+    }
+
+    function compareValues(a, b, dir) {
+        const desc = dir === 'desc';
+        const aNull = (a == null);
+        const bNull = (b == null);
+        if (aNull && bNull) return 0;
+        if (aNull) return 1; // null al final
+        if (bNull) return -1;
+        if (a < b) return desc ? 1 : -1;
+        if (a > b) return desc ? -1 : 1;
+        return 0;
+    }
+
+    function applyHeaderIndicators() {
+        try {
+            sortHeaders.forEach(th => {
+                const k = String(th.getAttribute('data-sort-key') || '').trim();
+                const base = th.getAttribute('data-base-label') || th.textContent || '';
+                if (!th.getAttribute('data-base-label')) th.setAttribute('data-base-label', base);
+                const isActive = k && sortState.key === k;
+                const arrow = isActive ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+                th.textContent = `${base}${arrow}`;
+            });
+        } catch {}
+    }
+
+    // Sorting por encabezado (Pruebas / Inicio / Terminación)
+    if (sortHeaders && sortHeaders.length) {
+        sortHeaders.forEach(th => {
+            th.addEventListener('click', () => {
+                const k = String(th.getAttribute('data-sort-key') || '').trim();
+                if (!k) return;
+                if (sortState.key === k) {
+                    sortState.dir = (sortState.dir === 'asc') ? 'desc' : 'asc';
+                } else {
+                    sortState.key = k;
+                    sortState.dir = 'asc';
+                }
+                applyHeaderIndicators();
+                try { renderTabla(); } catch {}
+            });
+        });
+        applyHeaderIndicators();
+    }
 
     // Mapas desde inventario para vista operación
     const mapaDescripcionPorEquipoList = {};
@@ -1688,8 +1756,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let visibles = 0;
 
-        // Ordenar por cliente, área y ubicación para agrupar visualmente
         const listaOrdenada = [...listaBase].sort((a, b) => {
+            const key = normSortKey(sortState.key);
+            if (key) {
+                const va = getSortValue(a, key);
+                const vb = getSortValue(b, key);
+                const c0 = compareValues(va, vb, sortState.dir);
+                if (c0 !== 0) return c0;
+            }
+
+            // Default / tie-breaker: cliente, área, ubicación para mantener agrupación visual
             const ca = (a.cliente || '').toString().toUpperCase();
             const cb = (b.cliente || '').toString().toUpperCase();
             if (ca < cb) return -1;

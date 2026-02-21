@@ -615,6 +615,26 @@
             if (emailSpan) emailSpan.textContent = email;
         } catch {}
 
+        // Resolver rol desde Custom Claims (role) con reintentos para evitar tokens desfasados
+        try {
+            let role = null;
+            let intentos = 0;
+            while (intentos < 3 && !role) {
+                const token = await user.getIdTokenResult(true);
+                role = (token?.claims?.role) || null;
+                if (role) break;
+                await new Promise(r => setTimeout(r, 800));
+                intentos += 1;
+            }
+
+            window.userRole = role;
+            window.isAdmin = role === 'admin';
+            window.isDirector = role === 'director';
+            window.isInspector = role === 'inspector';
+            window.isCapturista = role === 'capturista';
+            window.isSupervisor = role === 'supervisor';
+        } catch {}
+
         // Migración opcional: marcar terminaciones PARCIALES a partir de los períodos de facturación.
         // Uso sugerido: abrir consola en actividadmin.html y ejecutar
         //   marcarTerminacionesParcialesDesdePeriodos()
@@ -1591,7 +1611,7 @@
                         trGrupoUbic.innerHTML = `
                             <td colspan="15" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="adm-select-ubic" data-cliente="${clienteNorm}" data-area="${areaActual}" data-ubicacion="${ubicacionActual}" title="Seleccionar ubicación completa">
-                                <span>Ubicación: ${ubicacionActual}</span>
+                                <span class="adm-ubic-title" data-cliente="${clienteNorm}" data-area="${areaActual}" data-ubicacion="${ubicacionActual}" title="Click para renombrar ubicación">Ubicación: ${ubicacionActual}</span>
                             </td>
                         `;
                         tbody.appendChild(trGrupoUbic);
@@ -2072,6 +2092,38 @@
                 });
                 await Promise.allSettled(ops);
                 // Re-render para reagrupar
+                renderTabla();
+            });
+
+            // Renombrar ubicación desde el encabezado del grupo (admin o director)
+            tbody.addEventListener('click', async (ev) => {
+                const el = ev.target.closest('.adm-ubic-title');
+                if (!el) return;
+                if (!(window.isAdmin || window.isDirector)) { alert('Solo admin o director pueden renombrar ubicaciones.'); return; }
+                const cliente = (el.getAttribute('data-cliente') || '').toString();
+                const area = (el.getAttribute('data-area') || '').toString();
+                const ubicOld = (el.getAttribute('data-ubicacion') || '').toString();
+                const nuevo = window.prompt('Nuevo nombre de ubicación:', ubicOld);
+                if (!nuevo) return;
+                const ubicNew = String(nuevo).trim().toUpperCase();
+                if (!ubicNew || ubicNew === ubicOld.toUpperCase()) return;
+
+                // Filas de la ubicación actual visibles
+                const filas = Array.from(tbody.querySelectorAll('.adm-select-fila'))
+                    .filter(chk => (chk.getAttribute('data-cliente') || '').toString() === cliente
+                                 && (chk.getAttribute('data-area') || '').toString().toUpperCase() === area.toUpperCase()
+                                 && (chk.getAttribute('data-ubicacion') || '').toString().toUpperCase() === ubicOld.toUpperCase());
+                if (!filas.length) { alert('No se encontraron filas para esta ubicación.'); return; }
+                if (!confirm(`Renombrar ubicación '${ubicOld}' a '${ubicNew}' en ${filas.length} registro(s)?`)) return;
+
+                const ops = filas.map(chk => {
+                    const id = chk.getAttribute('data-id') || '';
+                    if (!id) return Promise.resolve();
+                    const regLocal = listaActividad.find(r => r.id === id);
+                    if (regLocal) regLocal.ubicacion = ubicNew;
+                    return actualizarActividadEnFirestore(id, { ubicacion: ubicNew });
+                });
+                await Promise.allSettled(ops);
                 renderTabla();
             });
 

@@ -1,0 +1,315 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificaciones e ISO objetivo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 1.5rem auto; padding: 1rem;">
+        <section class="detalle-equipo">
+            <h1 style="margin:0 0 0.5rem; font-size:1.35rem;">Certificaciones / ISO a las que aspira el sistema</h1>
+            <p style="margin:0 0 1rem; color:#4b5563; font-size:0.95rem; line-height:1.4;">
+                Esta página describe <strong>estándares y certificaciones relevantes</strong> para una empresa de <strong>renta de equipo para pozos petroleros</strong>
+                (tubos, codos, cruces, accesorios, herramientas, etc.) con foco en:
+                <strong>trazabilidad por activo</strong>, <strong>inspecciones</strong>, <strong>certificados</strong>, <strong>evidencia</strong> y <strong>vigencias</strong>.
+                Es una guía para orientar el diseño y la operación. La certificación formal siempre depende del
+                <strong>sistema de gestión de la organización</strong> y de auditorías externas.
+            </p>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin: 0 0 14px;">
+                <div style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff;">
+                    <div style="font-weight:600; color:#111827; margin-bottom:6px;">Pilares que el sistema ya soporta</div>
+                    <div style="color:#374151; font-size:0.92rem; line-height:1.45;">
+                        Trazabilidad por equipo y por evento; evidencia (fotos/archivos); control por roles; historial y reportes;
+                        alertas de vigencia; estandarización de registros; centralización en Firestore/Storage.
+                    </div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff;">
+                    <div style="font-weight:600; color:#111827; margin-bottom:6px;">Lo que fortalece una certificación</div>
+                    <div style="color:#374151; font-size:0.92rem; line-height:1.45;">
+                        Procedimientos, responsabilidades, formación, gestión de cambios, revisión por dirección,
+                        control documental, retención de registros, auditoría interna y gestión de riesgos.
+                    </div>
+                </div>
+            </div>
+
+            <h2 style="margin: 0.75rem 0 0.5rem; font-size:1.15rem;">Desglose por norma</h2>
+
+            <div style="display:grid; grid-template-columns:1fr; gap:10px;">
+                <details open style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">API Q1 / API Q2 (Calidad en industria petrolera)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema (muy aplicable a renta/servicio)</div>
+                        <div>
+                            Control de registros por activo (historial), inspecciones de recepción/salida,
+                            evidencia fotográfica, control de certificados y fechas, trazabilidad de incidentes/hallazgos,
+                            y visibilidad de cumplimiento (alertas de vigencias).
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Evidencia típica que conviene capturar</div>
+                        <div>
+                            Estado del equipo al entrar/salir, identificación (activo/serie), reportes y certificados,
+                            liberaciones, no conformidades, acciones correctivas y responsables.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 29001 (Calidad para petróleo y gas, basado en ISO 9001)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Refuerza ISO 9001 con énfasis en gestión de riesgos operativos, control de cambios,
+                            trazabilidad y control de registros en la cadena de suministro.
+                            El sistema apoya con historial por activo, bitácoras, reportes y evidencias.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Claves para implementarlo</div>
+                        <div>
+                            Estandarizar criterios de inspección, definir aceptación/rechazo y asegurar retención de registros
+                            con búsqueda y exportación.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 55001 (Gestión de Activos)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema (inventario + ciclo de vida)</div>
+                        <div>
+                            Consolidación de inventario por activo, historial de inspecciones/pruebas, condiciones y vigencias;
+                            soporte para decidir mantenimiento, retiro, reacondicionamiento y disponibilidad.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué conviene complementar</div>
+                        <div>
+                            Políticas de ciclo de vida, criticidad, costo total, criterios de disposición y KPI de disponibilidad.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 14224 (Datos de confiabilidad y mantenimiento – Oil & Gas)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Estructura para capturar fallas, modos de falla, reparaciones, tiempos fuera de servicio y eventos por activo.
+                            Con datos consistentes, puedes calcular indicadores de confiabilidad y mantenimiento.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Siguiente paso</div>
+                        <div>
+                            Normalizar catálogos (clases de equipo, ubicación/cliente, tipos de falla, causa raíz) para reporteo.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">NACE MR0175 / ISO 15156 (Materiales en ambiente con H₂S)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Control documental y trazabilidad de certificados de materiales, compatibilidad de servicio y evidencias.
+                            El sistema ayuda a vincular por activo: certificados, inspecciones, liberaciones y condiciones.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué se requiere en operación</div>
+                        <div>
+                            Especificaciones de servicio, límites de ambiente (H₂S, cloruros, temperatura, presión) y trazabilidad de MTR/CMTR.
+                        </div>
+                    </div>
+                </details>
+
+                <details open style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 9001 (Sistema de Gestión de Calidad)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Registros consistentes de actividades/inspecciones/pruebas; trazabilidad por equipo;
+                            seguimiento de cumplimiento (vigencias); reportes y exportaciones para análisis;
+                            control de acceso por rol (segregación de funciones).
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Buenas prácticas a implementar/usar</div>
+                        <div>
+                            Catalogar procesos (procedimientos), definir responsables, aprobar formatos,
+                            controlar cambios y versiones, gestionar no conformidades y acciones correctivas.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO/IEC 27001 (Seguridad de la Información)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Autenticación (Firebase Auth), control de acceso por roles (claims), segregación de permisos
+                            y almacenamiento centralizado de datos/evidencias con control de lectura/escritura.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Requisitos/controles típicos</div>
+                        <div>
+                            Inventario de activos de información, políticas, gestión de accesos, registros de auditoría,
+                            copias de seguridad, continuidad, gestión de incidentes y evaluación de riesgos.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO/IEC 27701 (Privacidad / PIMS)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Minimización y control de acceso a datos personales; segregación por rol; trazabilidad de acciones.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué considerar</div>
+                        <div>
+                            Clasificar PII, definir bases legales/avisos de privacidad, retención, eliminación, derechos ARCO,
+                            y contratos con encargados.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO/IEC 17025 (Laboratorios de ensayo y calibración)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Gestión de resultados y certificados; evidencia y trazabilidad por equipo;
+                            control de vigencias y recordatorios; captura de fechas y reportes.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué faltaría para estar “17025-ready”</div>
+                        <div>
+                            Procedimientos técnicos, incertidumbre, trazabilidad metrológica, competencia del personal,
+                            control de equipos patrón, control de condiciones ambientales, validación de métodos.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 45001 (Seguridad y Salud en el Trabajo)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Registro de inspecciones y hallazgos; evidencia fotográfica; historial por equipo/área;
+                            soporte para seguimiento y cierre de acciones.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué se complementa a nivel organización</div>
+                        <div>
+                            Identificación de peligros, evaluación de riesgos, investigación de incidentes,
+                            participación de trabajadores, capacitación y controles operacionales.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 14001 (Gestión Ambiental)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Evidencia y trazabilidad de inspecciones ambientales; checklists; seguimiento a cumplimiento
+                            y documentación de acciones.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué se complementa</div>
+                        <div>
+                            Identificación de aspectos/impactos, cumplimiento legal, objetivos ambientales,
+                            emergencias ambientales y evaluación de desempeño.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 19011 (Auditorías de sistemas de gestión)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Centraliza evidencias, historial y reportes; facilita muestreo; soporta trazabilidad
+                            de registros para auditorías internas y externas.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Sugerencias de uso</div>
+                        <div>
+                            Definir criterios de auditoría, listas de verificación por proceso y retención de registros
+                            con búsqueda y exportación.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 22301 (Continuidad del Negocio)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            La operación con datos centralizados y respaldables permite diseñar estrategias de continuidad
+                            y recuperación; las alertas reducen riesgos operativos por vencimientos.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué se complementa</div>
+                        <div>
+                            BIA (análisis de impacto), RTO/RPO, planes de continuidad, pruebas de recuperación y gobernanza.
+                        </div>
+                    </div>
+                </details>
+
+                <details style="border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:10px 12px;">
+                    <summary style="cursor:pointer; font-weight:700; color:#111827;">ISO 31000 (Gestión de Riesgos)</summary>
+                    <div style="margin-top:10px; color:#374151; line-height:1.5;">
+                        <div style="font-weight:600; color:#111827; margin: 0 0 6px;">En qué ayuda el sistema</div>
+                        <div>
+                            Provee datos para análisis de riesgos (frecuencia de hallazgos, vencimientos, incidentes);
+                            soporta trazabilidad para evaluar y dar seguimiento a controles.
+                        </div>
+                        <div style="font-weight:600; color:#111827; margin: 10px 0 6px;">Qué se complementa</div>
+                        <div>
+                            Matriz de riesgos, apetito/tolerancia, planes de tratamiento, responsables y revisión continua.
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <h2 style="margin: 1rem 0 0.5rem; font-size:1.15rem;">PROMOVER SISTEMA</h2>
+           
+        </section>
+    </main>
+
+    <script src="nav.js"></script>
+</body>
+</html>
+
