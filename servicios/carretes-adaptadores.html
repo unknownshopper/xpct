@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carretes Adaptadores - PCT</title>
+    <link rel="icon" href="../img/logosch.png" type="image/png">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="service-detail.css">
+    <style>
+        .service-detail {
+            max-width: 1200px;
+            margin: 100px auto 50px;
+            padding: 40px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .service-header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .service-header h1 {
+            font-size: 3em;
+            color: #FF7B00;
+            margin-bottom: 20px;
+        }
+        
+        .service-icon-large {
+            font-size: 5em;
+            margin-bottom: 20px;
+        }
+        
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+        
+        .spec-card {
+            padding: 30px;
+            background: linear-gradient(135deg, #f8f8f8 0%, #e8e8e8 100%);
+            border-radius: 15px;
+            border-left: 5px solid #FF7B00;
+        }
+        
+        .spec-card h3 {
+            color: #FF7B00;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .spec-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .spec-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .spec-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .spec-list li::before {
+            content: "✓ ";
+            color: #FF7B00;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .back-button {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 15px 30px;
+            background: #FF7B00;
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .back-button:hover {
+            background: #e66d00;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(255, 123, 0, 0.4);
+        }
+        
+        .features-section {
+            margin: 50px 0;
+        }
+        
+        .features-section h2 {
+            color: #FF7B00;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <ul style="justify-content:flex-end;">
+                <li><a href="../website.html#inicio">Inicio</a></li>
+                <li><a href="../website.html#nosotros">Nosotros</a></li>
+                <li><a href="../website.html#servicios">Servicios</a></li>
+                <li><a href="../website.html#proyectos">Proyectos</a></li>
+                <li><a href="../website.html#contacto">Contacto</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="service-detail">
+        <div class="service-header">
+            <div class="service-icon-large">⚙</div>
+            <h1>Carretes Adaptadores</h1>
+            <p style="font-size: 1.3em; color: #666;">Soluciones de adaptación para conexiones industriales en la industria Oil & Gas</p>
+        </div>
+
+        <section class="features-section">
+            <h2>Especificaciones Técnicas</h2>
+            <div class="specs-grid">
+                <div class="spec-card">
+                    <h3>📏 Dimensiones</h3>
+                    <ul class="spec-list">
+                        <li>Diámetros: 2" hasta 48"</li>
+                        <li>Longitudes personalizadas</li>
+                        <li>Espesores según norma ASME</li>
+                        <li>Tolerancias precisas</li>
+                    </ul>
+                </div>
+                
+                <div class="spec-card">
+                    <h3>🔩 Materiales</h3>
+                    <ul class="spec-list">
+                        <li>Acero al carbón A-105</li>
+                        <li>Acero inoxidable 304/316</li>
+                        <li>Aleaciones especiales</li>
+                        <li>Certificados de calidad</li>
+                    </ul>
+                </div>
+                
+                <div class="spec-card">
+                    <h3>⚙️ Características</h3>
+                    <ul class="spec-list">
+                        <li>Conexiones bridadas</li>
+                        <li>Soldadura certificada</li>
+                        <li>Pruebas hidrostáticas</li>
+                        <li>Acabado industrial</li>
+                    </ul>
+                </div>
+                
+                <div class="spec-card">
+                    <h3>📋 Normas</h3>
+                    <ul class="spec-list">
+                        <li>ASME B16.5</li>
+                        <li>ASME B16.47</li>
+                        <li>API 6A</li>
+                        <li>NACE MR0175</li>
+                    </ul>
+                </div>
+                
+                <div class="spec-card">
+                    <h3>🎯 Aplicaciones</h3>
+                    <ul class="spec-list">
+                        <li>Conexiones de pozos</li>
+                        <li>Líneas de producción</li>
+                        <li>Sistemas de inyección</li>
+                        <li>Instalaciones superficiales</li>
+                    </ul>
+                </div>
+                
+                <div class="spec-card">
+                    <h3>✅ Ventajas</h3>
+                    <ul class="spec-list">
+                        <li>Alta resistencia</li>
+                        <li>Instalación rápida</li>
+                        <li>Bajo mantenimiento</li>
+                        <li>Larga vida útil</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section style="margin-top: 50px; padding: 40px; background: linear-gradient(135deg, #FF7B00 0%, #e66d00 100%); border-radius: 20px; color: white; text-align: center;">
+            <h2 style="color: white; margin-bottom: 20px;">¿Necesitas más información?</h2>
+            <p style="font-size: 1.2em; margin-bottom: 30px;">Contáctanos para una cotización personalizada</p>
+            <a href="../website.html#contacto" class="back-button" style="background: white; color: #FF7B00;">Contactar ahora</a>
+        </section>
+
+        <div style="text-align: center;">
+            <a href="../website.html#servicios" class="back-button">← Volver a Servicios</a>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 PCT - Proveedora y Comercializadora Tabasqueña S.A. de C.V.</p>
+        <p>Servicios Oil and Gas | Desde 2008</p>
+        <p>
+            <a href="../aviso.html">Aviso de Privacidad y Términos</a> | 
+            <a href="../sitemap.xml">Sitemap</a> | 
+            <a href="../humans.txt">Humans.txt</a>
+        </p>
+    </footer>
+</body>
+</html>

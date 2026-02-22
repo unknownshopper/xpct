@@ -119,7 +119,7 @@
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
-            window.location.href = 'login.html';
+            window.location.href = 'website.html';
             return;
         }
 
@@ -141,7 +141,7 @@
 
             // Sin rol asignado
             await signOut(auth);
-            window.location.href = 'login.html';
+            window.location.href = 'website.html';
         } catch (e) {
             console.error(e);
         }
@@ -152,7 +152,7 @@
             try {
                 await signOut(auth);
             } finally {
-                window.location.href = 'login.html';
+                window.location.href = 'website.html';
             }
         });
     }

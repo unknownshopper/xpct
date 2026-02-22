@@ -36,7 +36,7 @@
     const btnLogout = document.getElementById('btn-logout');
 
     onAuthStateChanged(auth, async (user) => {
-        if (!user) { window.location.href = 'login.html'; return; }
+        if (!user) { window.location.href = 'website.html'; return; }
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
         // Acceso: admin y director. Otros a inspeccion.
@@ -56,7 +56,7 @@
     });
 
     if (btnLogout) {
-        btnLogout.addEventListener('click', async () => { try { await signOut(auth); } finally { window.location.href = 'login.html'; } });
+        btnLogout.addEventListener('click', async () => { try { await signOut(auth); } finally { window.location.href = 'website.html'; } });
     }
 
     const selCliente = document.addEventListener ? document.getElementById('gf-cliente') : null;
