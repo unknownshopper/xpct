@@ -375,6 +375,37 @@
             </section>
         </section>
 
+        <div id="pl-edit-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:80;">
+            <div style="background:white; max-width:720px; width:96%; border-radius:0.75rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:1rem 1.25rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; margin-bottom:0.75rem;">
+                    <div>
+                        <div style="font-weight:700; font-size:1rem;">Editar fechas</div>
+                        <div id="pl-edit-subtitle" style="font-size:0.85rem; color:#6b7280;"></div>
+                    </div>
+                    <button id="pl-edit-close" type="button">Cerrar</button>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; align-items:end;">
+                    <label style="display:flex; flex-direction:column; gap:0.25rem;">
+                        <span style="font-size:0.85rem; color:#374151;">Fecha realización (dd/mm/aa)</span>
+                        <input id="pl-edit-fecha-real" type="text" inputmode="numeric" placeholder="06/06/25" style="padding:0.5rem; border:1px solid #d1d5db; border-radius:0.5rem;">
+                    </label>
+                    <label style="display:flex; flex-direction:column; gap:0.25rem;">
+                        <span style="font-size:0.85rem; color:#374151;">Próxima prueba (dd/mm/aa)</span>
+                        <input id="pl-edit-proxima" type="text" inputmode="numeric" placeholder="06/06/26" style="padding:0.5rem; border:1px solid #d1d5db; border-radius:0.5rem;">
+                    </label>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; gap:0.75rem; align-items:center; margin-top:0.75rem; flex-wrap:wrap;">
+                    <div id="pl-edit-msg" style="font-size:0.85rem; color:#6b7280;"></div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="pl-edit-cancel" type="button">Cancelar</button>
+                        <button id="pl-edit-save" type="button">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         </section>
     </main>
 
@@ -2664,6 +2695,125 @@
             fila.classList.add('pl-active');
         }
 
+        const plEditModal = document.getElementById('pl-edit-modal');
+        const plEditSubtitle = document.getElementById('pl-edit-subtitle');
+        const plEditFechaReal = document.getElementById('pl-edit-fecha-real');
+        const plEditProxima = document.getElementById('pl-edit-proxima');
+        const plEditMsg = document.getElementById('pl-edit-msg');
+        const plEditBtnClose = document.getElementById('pl-edit-close');
+        const plEditBtnCancel = document.getElementById('pl-edit-cancel');
+        const plEditBtnSave = document.getElementById('pl-edit-save');
+
+        let _plEditReg = null;
+
+        function normalizarFechaDdMmAa(s) {
+            const t = (s || '').toString().trim();
+            if (!t) return '';
+            const solo = t.replace(/[^0-9/]/g, '').slice(0, 8);
+            if (solo.length !== 8) return t;
+            const dd = solo.slice(0, 2);
+            const mm = solo.slice(3, 5);
+            const aa = solo.slice(6, 8);
+            if (solo[2] !== '/' || solo[5] !== '/') return t;
+            return `${dd}/${mm}/${aa}`;
+        }
+
+        function cerrarModalEdicion() {
+            _plEditReg = null;
+            if (plEditFechaReal) plEditFechaReal.value = '';
+            if (plEditProxima) plEditProxima.value = '';
+            if (plEditMsg) plEditMsg.textContent = '';
+            if (plEditModal) plEditModal.style.display = 'none';
+        }
+
+        async function guardarEdicionFechas() {
+            const reg = _plEditReg;
+            if (!reg || !reg.id) return;
+
+            const frStr = normalizarFechaDdMmAa(plEditFechaReal ? plEditFechaReal.value : '');
+            const pxStr = normalizarFechaDdMmAa(plEditProxima ? plEditProxima.value : '');
+
+            const frDate = frStr ? parseFechaRealizacion(frStr) : null;
+            const pxDate = pxStr ? parseProxima(pxStr) : null;
+            if (frStr && !frDate) { if (plEditMsg) plEditMsg.textContent = 'Fecha realización inválida. Usa dd/mm/aa.'; return; }
+            if (pxStr && !pxDate) { if (plEditMsg) plEditMsg.textContent = 'Próxima prueba inválida. Usa dd/mm/aa.'; return; }
+
+            const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+            const esAnual = (!periodo || periodo === 'ANUAL');
+            if (!esAnual && pxStr) { if (plEditMsg) plEditMsg.textContent = 'Post-trabajo/Reparación no usa próxima prueba. Deja el campo vacío.'; return; }
+
+            const patch = {
+                fechaRealizacion: frStr || '',
+                proxima: esAnual ? (pxStr || '') : '',
+                editadoEn: new Date().toISOString(),
+                editadoPor: (window.currentUserEmail || '').toString(),
+            };
+
+            if (plEditBtnSave) plEditBtnSave.disabled = true;
+            if (plEditMsg) plEditMsg.textContent = 'Guardando...';
+
+            try {
+                const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                await updateDoc(doc(db, 'pruebas', reg.id), patch);
+
+                const idx = (pruebas || []).findIndex(x => x && x.id === reg.id);
+                if (idx >= 0) {
+                    pruebas[idx] = { ...pruebas[idx], ...patch };
+                }
+                try { localStorage.setItem(claveLocal, JSON.stringify(pruebas)); } catch {}
+                try { window.pruebas = window.pctGetPruebas(); } catch {}
+
+                cerrarModalEdicion();
+                try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                render();
+            } catch (e) {
+                console.error('No se pudo guardar edición de fechas', e);
+                if (plEditMsg) plEditMsg.textContent = 'No se pudo guardar. Revisa permisos/conexión.';
+            } finally {
+                if (plEditBtnSave) plEditBtnSave.disabled = false;
+            }
+        }
+
+        function abrirModalEdicion(reg) {
+            if (!plEditModal) return;
+            const puedeEditar = !!(window.isAdmin || window.isSupervisor || window.isDirector);
+            if (!puedeEditar) return;
+            if (!reg || !reg.id) return;
+
+            _plEditReg = reg;
+
+            if (plEditSubtitle) {
+                const eq = (reg.equipo || '').toString();
+                const sr = (reg.serial || '').toString();
+                const rep = (reg.noReporte || '').toString();
+                plEditSubtitle.textContent = `${eq}${sr ? ' · ' + sr : ''}${rep ? ' · ' + rep : ''}`;
+            }
+            if (plEditFechaReal) plEditFechaReal.value = (reg.fechaRealizacion || '').toString();
+
+            const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+            const esAnual = (!periodo || periodo === 'ANUAL');
+            if (plEditProxima) {
+                plEditProxima.value = esAnual ? ((reg.proxima || '').toString() || '') : '';
+                plEditProxima.disabled = !esAnual;
+            }
+
+            if (plEditMsg) plEditMsg.textContent = '';
+            plEditModal.style.display = 'flex';
+            try { (plEditFechaReal || plEditProxima).focus(); } catch {}
+        }
+
+        if (plEditBtnClose) plEditBtnClose.addEventListener('click', cerrarModalEdicion);
+        if (plEditBtnCancel) plEditBtnCancel.addEventListener('click', cerrarModalEdicion);
+        if (plEditModal) {
+            plEditModal.addEventListener('click', (e) => {
+                if (e && e.target === plEditModal) cerrarModalEdicion();
+            });
+        }
+        if (plEditBtnSave) plEditBtnSave.addEventListener('click', guardarEdicionFechas);
+        if (plEditFechaReal) plEditFechaReal.addEventListener('blur', () => { plEditFechaReal.value = normalizarFechaDdMmAa(plEditFechaReal.value); });
+        if (plEditProxima) plEditProxima.addEventListener('blur', () => { plEditProxima.value = normalizarFechaDdMmAa(plEditProxima.value); });
+
         function hoySinHora() {
             const d = new Date();
             d.setHours(0, 0, 0, 0);
@@ -3429,6 +3579,23 @@
                 });
                 fila.addEventListener('click', () => {
                     toggleDetalleInline(fila, reg);
+                });
+                fila.addEventListener('dblclick', (e) => {
+                    try {
+                        const target = e && e.target;
+                        if (target && target.closest && target.closest('input, select, button, a, label')) return;
+                    } catch {}
+                    try { e.preventDefault(); } catch {}
+                    try { e.stopPropagation(); } catch {}
+                    try {
+                        const tbody = fila.parentElement;
+                        if (tbody) {
+                            const abiertos = tbody.querySelectorAll('tr.pl-detalle-row');
+                            abiertos.forEach(tr => tr.remove());
+                            tbody.querySelectorAll('tr.pl-active').forEach(tr => tr.classList.remove('pl-active'));
+                        }
+                    } catch {}
+                    abrirModalEdicion(reg);
                 });
 
                 tbodyListado.appendChild(fila);
