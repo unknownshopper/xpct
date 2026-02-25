@@ -2292,7 +2292,7 @@
 
         async function deleteExistingFromCsv(rows) {
             const { getFirestore, collection, getDocs, deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-            const db = getFirestore(app);
+            const db = (window.db || getFirestore());
             // Construir mapa key->docId de Firestore
             const colRef = collection(db, 'pruebas');
             const snap = await getDocs(colRef);
@@ -3710,7 +3710,7 @@
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
-                const db = getFirestore(app);
+                const db = (window.db || getFirestore());
                 const ref = doc(db, 'pruebas', id);
                 await updateDoc(ref, { prueba: nuevoValor, pruebaTipo: nuevoValor });
 
@@ -3733,7 +3733,7 @@
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
-                const db = getFirestore(app);
+                const db = (window.db || getFirestore());
                 const ref = doc(db, 'pruebas', id);
                 await updateDoc(ref, { noReporte: nuevoValor });
 
@@ -3743,6 +3743,10 @@
                     }
                     return reg;
                 });
+
+                try { localStorage.setItem(claveLocal, JSON.stringify(pruebas)); } catch {}
+                try { window.pruebas = window.pctGetPruebas(); } catch {}
+                try { buildExistingKeys(); } catch {}
             } catch (e) {
                 console.error('No se pudo actualizar el No. reporte / cert. para id ' + id, e);
                 alert('No se pudo guardar el cambio de No. reporte / cert. Revisa la consola para más detalles.');
@@ -3755,7 +3759,7 @@
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
-                const db = getFirestore(app);
+                const db = (window.db || getFirestore());
                 const ref = doc(db, 'pruebas', id);
                 await updateDoc(ref, { resultado: nuevoValor });
 
@@ -3777,7 +3781,7 @@
                 const { getFirestore, doc, updateDoc, deleteField } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
-                const db = getFirestore(app);
+                const db = (window.db || getFirestore());
                 const ref = doc(db, 'pruebas', id);
 
                 const payload = { periodo: nuevoValor || '' };
@@ -3808,7 +3812,7 @@
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
-                const db = getFirestore(app);
+                const db = (window.db || getFirestore());
                 const ref = doc(db, 'pruebas', id);
                 await updateDoc(ref, { emisor: nuevoValor });
 
@@ -3830,7 +3834,7 @@
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
-                const db = getFirestore(app);
+                const db = (window.db || getFirestore());
                 const ref = doc(db, 'pruebas', id);
                 await updateDoc(ref, { tecnico: nuevoValor });
 
@@ -3956,7 +3960,7 @@
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
 
-                const db = getFirestore(app);
+                const db = (window.db || getFirestore());
 
                 for (const id of idsAEliminar) {
                     try {
@@ -4009,6 +4013,16 @@ tbodyListado.addEventListener('change', (ev) => {
   } else if (target.classList.contains('pl-tecnico')) {
     actualizarCampoTecnico(id, valor);
   }
+});
+
+// Guardar ediciones al presionar Enter (sin depender de blur)
+tbodyListado.addEventListener('keydown', (ev) => {
+  const target = ev.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (!target.classList.contains('pl-norep') && !target.classList.contains('pl-prueba') && !target.classList.contains('pl-emisor') && !target.classList.contains('pl-tecnico')) return;
+  if (ev.key !== 'Enter') return;
+  try { ev.preventDefault(); } catch {}
+  try { target.blur(); } catch {}
 });
 
 // Mostrar los últimos dígitos por defecto en No. reporte / cert.
