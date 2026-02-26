@@ -714,6 +714,7 @@
             window.isSupervisor = role === 'supervisor';
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
+            window.isAuxger = role === 'auxger';
         } catch {}
 
         window.currentUserEmail = email;
@@ -1055,7 +1056,7 @@
         }
 
         // Import CSV para admin o director
-        if (btnImportCsv) btnImportCsv.style.display = ((window.isAdmin || window.isDirector) ? '' : 'none');
+        if (btnImportCsv) btnImportCsv.style.display = ((window.isAdmin || window.isDirector || window.isAuxger) ? '' : 'none');
         if (btnDeleteCsv) {
             const canDelCsv = (window.isAdmin || window.isDirector);
             if (canDelCsv) {
@@ -2407,7 +2408,7 @@
 
         if (btnImportConfirm) {
             btnImportConfirm.addEventListener('click', async () => {
-                if (!window.isAdmin) return;
+                if (!(window.isAdmin || window.isDirector || window.isAuxger)) return;
                 btnImportConfirm.disabled = true;
                 try {
                     // Salir del modo vista previa CSV: después de importar, el origen de verdad es Firestore
