@@ -231,6 +231,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">${blocks}</div>
                     `;
 
+                    try {
+                        panel.dataset.equipo = (equipo || '').toString().trim();
+                        panel.dataset.tipo = (tipo || '').toString().trim();
+                    } catch {}
+
                     // Lightbox
                     try {
                         const prev = document.getElementById('insp-lightbox');
@@ -277,6 +282,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Render documento (visor) y salir temprano para evitar lógica de formulario
             try { renderDocumento(insp); } catch {}
+
+            // Sincronizar valores a los inputs (la exportación valida contra estos)
+            try {
+                const equipo = (insp && insp.equipo ? String(insp.equipo) : '').trim();
+                if (equipo) inputEquipo.value = equipo;
+            } catch {}
+            try {
+                const selTipo = document.getElementById('inspeccion-tipo');
+                const tipo = (insp && insp.tipoInspeccion ? String(insp.tipoInspeccion) : '').trim();
+                if (selTipo && tipo) selTipo.value = tipo;
+            } catch {}
 
             // Deshabilitar edición, permitir exportación
             try {
@@ -611,7 +627,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!insp) return;
 
             // Asegurar que el equipo esté seleccionado y renderizado
-            const equipo = (insp.equipo || '').toString().trim();
+            let equipo = (insp.equipo || '').toString().trim();
+            if (!equipo && actividadIdUrl) {
+                try {
+                    const actRef = doc(db, 'actividades', actividadIdUrl);
+                    const actSnap = await getDoc(actRef);
+                    if (actSnap.exists()) {
+                        const act = actSnap.data() || {};
+                        if (Array.isArray(act.equipos) && act.equipos.length) {
+                            equipo = String(act.equipos[0] || '').trim();
+                        } else if (act.equipo) {
+                            equipo = String(act.equipo || '').trim();
+                        }
+                    }
+                } catch (e) {
+                    console.warn('No se pudo resolver equipo desde actividad para autoPdf', e);
+                }
+            }
             if (equipo) {
                 inputEquipo.value = equipo;
                 actualizarDetalleDesdeInput();
@@ -1421,16 +1453,37 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnExportarJpg) {
         btnExportarJpg.addEventListener('click', async () => {
             try {
-                const equipoSel = (document.getElementById('equipo-input')?.value || '').trim();
-                if (!equipoSel) { alert('Selecciona un equipo antes de exportar.'); return; }
-                const tipoSelVal = (document.getElementById('inspeccion-tipo')?.value || '').trim();
-                if (!tipoSelVal) { alert('Selecciona el Tipo de inspección antes de exportar.'); return; }
+                let equipoSel = (document.getElementById('equipo-input')?.value || '').trim();
                 const panel = document.getElementById('detalle-equipo-contenido');
+                if (!equipoSel && panel && panel.dataset && panel.dataset.equipo) {
+                    equipoSel = String(panel.dataset.equipo || '').trim();
+                    try {
+                        if (equipoSel) {
+                            const inp = document.getElementById('equipo-input');
+                            if (inp) inp.value = equipoSel;
+                        }
+                    } catch {}
+                }
+                if (!equipoSel) { alert('Selecciona un equipo antes de exportar.'); return; }
+
+                let tipoSelVal = (document.getElementById('inspeccion-tipo')?.value || '').trim();
+                if (!tipoSelVal && panel && panel.dataset && panel.dataset.tipo) {
+                    tipoSelVal = String(panel.dataset.tipo || '').trim();
+                    try {
+                        const sel = document.getElementById('inspeccion-tipo');
+                        if (sel && tipoSelVal) sel.value = tipoSelVal;
+                    } catch {}
+                }
+                if (!tipoSelVal) { alert('Selecciona el Tipo de inspección antes de exportar.'); return; }
                 if (!panel) return;
                 // Verificar que haya parámetros renderizados
                 if (!panel.querySelector('.parametros-inspeccion')) {
-                    alert('Primero genera la inspección del equipo (parámetros) para exportar el ejemplo.');
-                    return;
+                    // En modo view=1 se renderiza el documento digital (checklist) y no existe el bloque
+                    // .parametros-inspeccion del modo editable. En ese caso, exportamos tal cual lo mostrado.
+                    if (!isViewMode) {
+                        alert('Primero genera la inspección del equipo (parámetros) para exportar el ejemplo.');
+                        return;
+                    }
                 }
                 // Cargar html2canvas si no está presente
                 async function ensureHtml2Canvas() {
