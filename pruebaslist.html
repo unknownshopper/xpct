@@ -3380,7 +3380,22 @@
             listaOrdenada.forEach(reg => {
                 const eqK = normEquipoKey(reg.equipo);
                 const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
-                const textoBuscar = `${reg.equipo || ''} ${serialInv} ${reg.producto || ''} ${reg.descripcion || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
+                const serialKey = (reg && reg.numeroSerie ? String(reg.numeroSerie) : '').trim().toUpperCase();
+                const prodDerivado = (productoPorEquipoInv && eqK && productoPorEquipoInv[eqK])
+                    ? String(productoPorEquipoInv[eqK])
+                    : (productoPorSerialInv && serialKey && productoPorSerialInv[serialKey])
+                        ? String(productoPorSerialInv[serialKey])
+                        : '';
+                const descDerivado = (descripcionPorEquipoInv && eqK && descripcionPorEquipoInv[eqK])
+                    ? String(descripcionPorEquipoInv[eqK])
+                    : (descripcionPorSerialInv && serialKey && descripcionPorSerialInv[serialKey])
+                        ? String(descripcionPorSerialInv[serialKey])
+                        : '';
+
+                const prod = (reg && reg.producto) ? String(reg.producto) : prodDerivado;
+                const desc = (reg && reg.descripcion) ? String(reg.descripcion) : descDerivado;
+
+                const textoBuscar = `${reg.equipo || ''} ${serialInv} ${prod || ''} ${desc || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 // Filtro por cobertura (100/parcial/sin) aplicado al listado grande por equipo
@@ -3562,8 +3577,8 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${diasParaProxima}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.producto || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.descripcion || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${celdaNoRep}</td>
