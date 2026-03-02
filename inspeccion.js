@@ -2272,6 +2272,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             inputEquipo.value = '';
+            try {
+                const selTipo = document.getElementById('inspeccion-tipo');
+                if (selTipo) selTipo.value = '';
+            } catch {}
+
+            try {
+                Object.keys(fotosTomadas || {}).forEach(k => {
+                    try { delete fotosTomadas[k]; } catch {}
+                });
+            } catch {}
+
             detalleContenedor.innerHTML = `
                 <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #22c55e; background:#ecfdf5; text-align:center; font-size:1rem; font-weight:600; color:#166534; margin-bottom:0.5rem;">
                     Inspección guardada
@@ -2280,6 +2291,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     Seleccione otro equipo para realizar una nueva inspección.
                 </p>
             `;
+
+            try {
+                // Confirmación explícita para el usuario (evita dudas de si sí se guardó)
+                alert('Inspección guardada');
+            } catch {}
 
             // Deshabilitar botón hasta que se seleccione otro equipo
             btnGuardar.textContent = 'Guardar inspección';
