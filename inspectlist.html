@@ -1231,6 +1231,8 @@
                 let url = 'inspeccion.html?autoPdf=1&embedded=1';
                 if (inspId) url += `&inspId=${encodeURIComponent(inspId)}`;
                 if (actividadId) url += `&actividadId=${encodeURIComponent(actividadId)}`;
+                const pdfToken = (item && item.pdfToken) ? String(item.pdfToken) : '';
+                if (pdfToken) url += `&pdfToken=${encodeURIComponent(pdfToken)}`;
 
                 const frame = document.createElement('iframe');
                 // Importante: no usar 0x0; html2canvas/jspdf se rompen si el layout colapsa
@@ -1252,71 +1254,178 @@
                 }, 45000);
             }
 
-            async function descargarPdfLote(items) {
-                // Secuencial para reducir bloqueos del navegador
-                return new Promise((resolve) => {
-                    let idx = 0;
-                    const frames = [];
-                    const onMsg = (ev) => {
-                        if (!ev || !ev.data) return;
-                        if (ev.data.type !== 'pct_pdf_blob') return;
-                        if (ev.data.kind !== 'inspeccion') return;
-
-                        // Descargar en la ventana principal
-                        const fileName = ev.data.fileName || `inspeccion-${idx + 1}.pdf`;
-                        const buf = ev.data.data;
-                        if (buf) descargarArrayBufferComoArchivo(buf, fileName);
-
-                        // Limpiar el iframe previo
-                        try {
-                            const prev = frames.shift();
-                            if (prev) prev.remove();
-                        } catch {}
-
-                        // Continuar con el siguiente
-                        idx += 1;
-                        lanzarSiguiente();
-                    };
-
-                    const lanzarSiguiente = () => {
-                        if (idx >= items.length) {
-                            window.removeEventListener('message', onMsg);
-                            // limpiar cualquier iframe restante
-                            try {
-                                frames.forEach(f => { try { f.remove(); } catch {} });
-                            } catch {}
-                            resolve();
-                            return;
-                        }
-                        const beforeCount = document.querySelectorAll('iframe[data-kind="pdf"]').length;
-                        abrirPdfEnNuevaPestana(items[idx]);
-                        const after = document.querySelectorAll('iframe[data-kind="pdf"]');
-                        // guardar referencia del último iframe insertado
-                        if (after.length > beforeCount) {
-                            frames.push(after[after.length - 1]);
-                        }
-                    };
-
-                    window.addEventListener('message', onMsg);
-                    lanzarSiguiente();
+            async function ensurePdfLib() {
+                if (window.PDFLib && window.PDFLib.PDFDocument) return;
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
                 });
             }
 
+            async function generarPdfsDesdeSeleccion(items) {
+                // Generación secuencial para reducir bloqueos del navegador y evitar saturación
+                const resultados = [];
+
+                const esperarPdf = (pdfToken, timeoutMs = 60000) => {
+                    return new Promise((resolve, reject) => {
+                        const onMsg = (ev) => {
+                            try {
+                                if (!ev || !ev.data) return;
+                                if (ev.data.type !== 'pct_pdf_blob') return;
+                                if (ev.data.kind !== 'inspeccion') return;
+                                const tok = String(ev.data.pdfToken || '').trim();
+                                if (!pdfToken || tok !== pdfToken) return;
+                                window.removeEventListener('message', onMsg);
+                                resolve({
+                                    fileName: ev.data.fileName || 'inspeccion.pdf',
+                                    buf: ev.data.data,
+                                });
+                            } catch (e) {
+                                // Ignorar y esperar mensaje correcto
+                            }
+                        };
+                        window.addEventListener('message', onMsg);
+                        setTimeout(() => {
+                            try { window.removeEventListener('message', onMsg); } catch {}
+                            reject(new Error('Timeout esperando PDF'));
+                        }, timeoutMs);
+                    });
+                };
+
+                for (let i = 0; i < items.length; i++) {
+                    const it = items[i];
+                    const pdfToken = `pdf_${Date.now()}_${Math.random().toString(16).slice(2)}_${i}`;
+                    const itemTok = { ...it, pdfToken };
+
+                    const beforeCount = document.querySelectorAll('iframe[data-kind="pdf"]').length;
+                    abrirPdfEnNuevaPestana(itemTok);
+                    const after = document.querySelectorAll('iframe[data-kind="pdf"]');
+                    let frame = null;
+                    if (after.length > beforeCount) frame = after[after.length - 1];
+
+                    try {
+                        const r = await esperarPdf(pdfToken);
+                        if (r && r.buf) resultados.push(r);
+                    } finally {
+                        try { if (frame) frame.remove(); } catch {}
+                    }
+                }
+
+                return resultados;
+            }
+
+            async function descargarPdfLote(items) {
+                const pdfs = await generarPdfsDesdeSeleccion(items);
+                pdfs.forEach((p, idx) => {
+                    const fileName = p.fileName || `inspeccion-${idx + 1}.pdf`;
+                    if (p.buf) descargarArrayBufferComoArchivo(p.buf, fileName);
+                });
+            }
+
+            async function descargarPdfIndividual(items) {
+                const pdfs = await generarPdfsDesdeSeleccion(items);
+                if (!pdfs.length) return;
+                if (pdfs.length === 1) {
+                    const p = pdfs[0];
+                    if (p.buf) descargarArrayBufferComoArchivo(p.buf, p.fileName || 'inspeccion.pdf');
+                    return;
+                }
+
+                await ensurePdfLib();
+                const { PDFDocument } = window.PDFLib;
+                const merged = await PDFDocument.create();
+                for (const p of pdfs) {
+                    if (!p || !p.buf) continue;
+                    const src = await PDFDocument.load(p.buf);
+                    const pages = await merged.copyPages(src, src.getPageIndices());
+                    pages.forEach(pg => merged.addPage(pg));
+                }
+                const bytes = await merged.save();
+                const fileName = `inspecciones-${new Date().toISOString().slice(0, 10)}.pdf`;
+                descargarArrayBufferComoArchivo(bytes.buffer ? bytes.buffer : bytes, fileName);
+            }
+
+            let colaExportPdf = Promise.resolve();
+            const estiloBtnActivo = (btn) => ({
+                opacity: btn.style.opacity,
+                filter: btn.style.filter,
+                cursor: btn.style.cursor,
+                pointerEvents: btn.style.pointerEvents,
+                color: btn.style.color,
+                background: btn.style.background,
+                borderColor: btn.style.borderColor,
+            });
+
+            const estadoBtn = new WeakMap();
+            const setBtnBusy = (btn, busy, textoBusy) => {
+                if (!btn) return;
+                if (!estadoBtn.has(btn)) {
+                    estadoBtn.set(btn, {
+                        html: btn.innerHTML,
+                        disabled: btn.disabled,
+                        style: estiloBtnActivo(btn),
+                    });
+                }
+
+                const st = estadoBtn.get(btn);
+                if (!st) return;
+
+                if (busy) {
+                    btn.disabled = true;
+                    btn.innerHTML = textoBusy || 'Generando…';
+                    btn.style.opacity = '0.65';
+                    btn.style.filter = 'grayscale(1)';
+                    btn.style.cursor = 'not-allowed';
+                    btn.style.pointerEvents = 'none';
+                } else {
+                    btn.disabled = st.disabled;
+                    btn.innerHTML = st.html;
+                    btn.style.opacity = st.style.opacity;
+                    btn.style.filter = st.style.filter;
+                    btn.style.cursor = st.style.cursor;
+                    btn.style.pointerEvents = st.style.pointerEvents;
+                    btn.style.color = st.style.color;
+                    btn.style.background = st.style.background;
+                    btn.style.borderColor = st.style.borderColor;
+                    estadoBtn.delete(btn);
+                }
+            };
+
             if (btnPdfIndividual && !btnPdfIndividual.dataset.bound) {
                 btnPdfIndividual.dataset.bound = '1';
-                btnPdfIndividual.addEventListener('click', () => {
+                btnPdfIndividual.addEventListener('click', async () => {
                     const sel = obtenerSeleccionadasParaPdf();
-                    if (sel.length !== 1) {
-                        alert('Selecciona exactamente 1 inspección realizada para descargar el PDF individual.');
+                    if (!sel.length) {
+                        alert('Selecciona al menos 1 inspección realizada para descargar el PDF.');
                         return;
                     }
-                    descargarPdfLote(sel);
+
+                    if (btnPdfIndividual.disabled) return;
+                    setBtnBusy(btnPdfIndividual, true, 'Generando…');
+
+                    const tarea = async () => {
+                        try {
+                            await descargarPdfIndividual(sel);
+                        } catch (e) {
+                            console.warn('No se pudo generar el PDF (individual)', e);
+                            alert('No se pudo generar el PDF. Intenta de nuevo.');
+                        } finally {
+                            setBtnBusy(btnPdfIndividual, false);
+                        }
+                    };
+
+                    // Encolar para evitar exportaciones concurrentes (postMessage/iframes)
+                    colaExportPdf = colaExportPdf.then(tarea, tarea);
+                    await colaExportPdf;
                 });
             }
 
             if (btnPdfLote && !btnPdfLote.dataset.bound) {
                 btnPdfLote.dataset.bound = '1';
-                btnPdfLote.addEventListener('click', () => {
+                btnPdfLote.addEventListener('click', async () => {
                     const sel = obtenerSeleccionadasParaPdf();
                     if (!sel.length) {
                         alert('Selecciona al menos 1 inspección realizada para descargar en lote.');
@@ -1325,7 +1434,24 @@
                     if (sel.length > 25) {
                         if (!confirm(`Vas a descargar ${sel.length} PDFs. ¿Continuar?`)) return;
                     }
-                    descargarPdfLote(sel);
+
+                    if (btnPdfLote.disabled) return;
+                    setBtnBusy(btnPdfLote, true, 'Generando…');
+
+                    const tarea = async () => {
+                        try {
+                            await descargarPdfLote(sel);
+                        } catch (e) {
+                            console.warn('No se pudo generar el PDF (lote)', e);
+                            alert('No se pudieron generar los PDFs. Intenta de nuevo.');
+                        } finally {
+                            setBtnBusy(btnPdfLote, false);
+                        }
+                    };
+
+                    // Encolar para evitar exportaciones concurrentes (postMessage/iframes)
+                    colaExportPdf = colaExportPdf.then(tarea, tarea);
+                    await colaExportPdf;
                 });
             }
 

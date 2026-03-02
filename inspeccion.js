@@ -370,10 +370,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function parseProxima(str) {
             if (!str) return null;
-            const d = new Date(str);
-            if (isNaN(d.getTime())) return null;
-            d.setHours(0, 0, 0, 0);
-            return d;
+
+            const s = String(str).trim();
+            if (!s) return null;
+
+            // Preferir formatos no ambiguos
+            // 1) ISO: YYYY-MM-DD
+            const mIso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (mIso) {
+                const y = parseInt(mIso[1], 10);
+                const mo = parseInt(mIso[2], 10);
+                const d = parseInt(mIso[3], 10);
+                if (!y || !mo || !d) return null;
+                const dt = new Date(y, mo - 1, d);
+                dt.setHours(0, 0, 0, 0);
+                return isNaN(dt.getTime()) ? null : dt;
+            }
+
+            // 2) Regla del sistema: DD/MM/YY o DD/MM/YYYY
+            const partes = s.split('/');
+            if (partes.length === 3) {
+                const [ddStr, mmStr, aaStr] = partes;
+                const dd = parseInt(ddStr, 10);
+                const mm = parseInt(mmStr, 10);
+                const aa = parseInt(aaStr, 10);
+                if (!dd || !mm || isNaN(aa)) return null;
+                const year = aa < 100 ? 2000 + aa : aa;
+                const dt = new Date(year, mm - 1, dd);
+                dt.setHours(0, 0, 0, 0);
+                return isNaN(dt.getTime()) ? null : dt;
+            }
+
+            // 3) Fallback: intentar Date.parse solo si no hay separadores tipo DD/MM
+            // (evita que 01/08/2026 se interprete como MM/DD/YYYY)
+            if (!s.includes('/')) {
+                const dt = new Date(s);
+                if (!isNaN(dt.getTime())) {
+                    dt.setHours(0, 0, 0, 0);
+                    return dt;
+                }
+            }
+
+            return null;
         }
 
         function parseFechaRealizacion(str) {
@@ -1868,26 +1906,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     yPx += sliceHeightPx;
                 }
 
-                // En iframe (embedded) algunos navegadores bloquean descargas directas.
-                // Mandar el PDF al contenedor para que descargue en la ventana principal.
+                // Descargar / retornar el PDF
+                let isEmbedded = false;
+                let pdfToken = '';
                 try {
                     const paramsUrl = new URLSearchParams(window.location.search || '');
-                    const embedded = (paramsUrl.get('embedded') || '').trim();
-                    if (embedded === '1' && window.parent && window.parent !== window) {
+                    isEmbedded = String(paramsUrl.get('embedded') || '').trim() === '1';
+                    pdfToken = String(paramsUrl.get('pdfToken') || '').trim();
+                } catch {}
+
+                if (isEmbedded && window.parent && typeof window.parent.postMessage === 'function') {
+                    try {
                         const blob = pdf.output('blob');
                         const buf = await blob.arrayBuffer();
                         window.parent.postMessage(
-                            { type: 'pct_pdf_blob', kind: 'inspeccion', fileName, data: buf },
+                            { type: 'pct_pdf_blob', kind: 'inspeccion', fileName, data: buf, pdfToken },
                             '*',
                             [buf]
                         );
-                    } else {
-                        pdf.save(fileName);
+                    } catch (e) {
+                        console.warn('No se pudo enviar el PDF al parent (embedded)', e);
                     }
-                } catch (e) {
-                    // Fallback: intentar descarga normal
+                } else {
                     try { pdf.save(fileName); } catch {}
                 }
+
             } catch (e) {
                 console.warn('No se pudo exportar el PDF:', e);
             }
@@ -1961,7 +2004,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 if (p.estado.toUpperCase() === 'MALO') {
-                    if (!p.tipoDano) {
+                    // Exigir tipo de daño solo si el parámetro no es Recubrimiento (o similar sin selector de daño)
+                    const baseNombre = (p.nombre || '').toLowerCase();
+                    const tieneSelectorDanos = !baseNombre.includes('recubrimiento');
+                    if (tieneSelectorDanos && !p.tipoDano) {
                         alert(`Selecciona el tipo de daño para: ${p.nombre}`);
                         guardandoInspeccion = false;
                         return;
