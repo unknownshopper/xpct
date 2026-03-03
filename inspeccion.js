@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Resolver URLs de evidencias si solo viene evidenciaNombre (para mostrar thumbnails)
             try {
                 const params = Array.isArray(insp.parametros) ? insp.parametros : [];
-                const needs = params.some(p => p && p.evidenciaNombre && !p.evidenciaUrl);
+                const needs = params.some(p => p && ((p.evidenciaPath) || (p.evidenciaNombre)) && !p.evidenciaUrl);
                 if (needs && insp && insp.id) {
                     const { getStorage, ref: stRef, getDownloadURL } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
@@ -222,12 +222,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const actId = String(insp.actividadId || '').trim();
                     const nextParams = await Promise.all(params.map(async (p) => {
                         try {
-                            if (!p || !p.evidenciaNombre || p.evidenciaUrl) return p;
-                            const name = String(p.evidenciaNombre || '').trim();
-                            if (!name) return p;
+                            if (!p || p.evidenciaUrl) return p;
                             const candidatos = [];
-                            if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
-                            if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                            const pathDirecto = String(p.evidenciaPath || '').trim();
+                            if (pathDirecto) candidatos.push(pathDirecto);
+
+                            const name = String(p.evidenciaNombre || '').trim();
+                            if (name) {
+                                if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                            }
+
+                            if (!candidatos.length) return p;
 
                             for (const path of candidatos) {
                                 try {
@@ -281,22 +287,26 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; font-weight:700;">NO LEGIBLE</span>'
                                 : '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; border:1px solid #bbf7d0; color:#166534; font-size:12px; font-weight:700;">BUENO</span>');
 
-                        const evidenciaHtml = evidenciaUrl
+                        const evidenciaHtml = (evidenciaUrl || evidenciaNombre)
                             ? `
                                 <div style="margin-top:8px;">
                                     <div style="font-size:12px; color:#475569; margin-bottom:6px;">Evidencia</div>
-                                    <img
-                                        src="${evidenciaUrl}"
-                                        alt="Evidencia"
-                                        class="insp-evid-thumb"
-                                        data-full="${evidenciaUrl}"
-                                        style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in;"
-                                    />
+                                    ${evidenciaUrl ? `
+                                        <img
+                                            src="${evidenciaUrl}"
+                                            alt="Evidencia"
+                                            class="insp-evid-thumb"
+                                            data-full="${evidenciaUrl}"
+                                            style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in;"
+                                            onerror="try{this.style.display='none'; const fb=this.parentElement && this.parentElement.querySelector('.insp-evid-fallback'); if(fb) fb.style.display='block';}catch(e){}"
+                                        />
+                                    ` : ''}
+                                    <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${evidenciaUrl ? 'display:none;' : ''}">
+                                        ${evidenciaNombre ? `Evidencia: ${evidenciaNombre}` : (evidenciaUrl ? 'No se pudo cargar la evidencia.' : '')}
+                                    </div>
                                 </div>
                               `
-                            : (evidenciaNombre ? `
-                                <div style="margin-top:8px; font-size:12px; color:#64748b;">Evidencia: ${evidenciaNombre}</div>
-                              ` : '');
+                            : '';
 
                         return `
                             <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff; break-inside:avoid;">
@@ -2115,6 +2125,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const get = (idx) => (idx >= 0 && idx < fila.length ? fila[idx] : '');
 
+            const localId = generarIdLocal('insp');
             const parametrosCapturados = [];
             const fotosParaSubir = [];
             const filas = document.querySelectorAll('.parametros-fila');
@@ -2128,21 +2139,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const detalleOtro = inputOtro ? (inputOtro.value || '').trim() : '';
                 const inputFoto = filaHtml.querySelector(`input[name="param-${idx}-foto"]`);
                 let evidenciaNombre = '';
+                let evidenciaPath = '';
                 if (estado && estado.toUpperCase() === 'MALO') {
                     const fotoBlob = (fotosTomadas[idx]?.blob) || (inputFoto && inputFoto.files && inputFoto.files[0]) || null;
                     if (fotoBlob) {
-                        // Nombre de evidencia: EQUIPO+FECHA (DD-MM-YY)
+                        // Nombre de evidencia: debe ser ÚNICO por parámetro para evitar sobreescritura en Storage
                         const ahora = new Date();
                         const dd = String(ahora.getDate()).padStart(2, '0');
                         const mm = String(ahora.getMonth() + 1).padStart(2, '0');
                         const yy = String(ahora.getFullYear()).slice(-2);
                         const fechaSafe = `${dd}-${mm}-${yy}`;
                         const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
-                        evidenciaNombre = `${equipoId}-${fechaSafe}.jpg`;
+                        const slug = String(nombre || '')
+                            .toLowerCase()
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/^-+|-+$/g, '')
+                            .slice(0, 28);
+                        const idxSafe = String(idx).padStart(2, '0');
+                        evidenciaNombre = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}.jpg`;
+                        evidenciaPath = `inspecciones/${localId}/${evidenciaNombre}`;
                         fotosParaSubir.push({ idx, nombre, file: fotoBlob, evidenciaNombre });
                     }
                 }
-                parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro, hasEvidencia: !!evidenciaNombre, evidenciaNombre });
+                parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro, hasEvidencia: !!evidenciaNombre, evidenciaNombre, evidenciaPath });
             });
 
             // Validaciones requeridas por parámetro
@@ -2297,7 +2318,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const registro = {
                 fecha: new Date().toISOString(),
-                localId: generarIdLocal('insp'),
+                localId,
                 equipo: get(idxEquipo),
                 producto: get(idxProducto),
                 serial: get(idxSerial),
@@ -2371,7 +2392,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const paramsOut = (Array.isArray(payload.parametros) ? payload.parametros : []).map((p, idx) => {
                             const u = urlsPorIdx[String(idx)] || '';
                             if (!u) return p;
-                            return { ...(p || {}), evidenciaUrl: u };
+                            const name = (p && p.evidenciaNombre) ? String(p.evidenciaNombre) : '';
+                            const evidenciaPath = (p && p.evidenciaPath) ? String(p.evidenciaPath) : (name ? `inspecciones/${docRef.id}/${name}` : '');
+                            return { ...(p || {}), evidenciaUrl: u, evidenciaPath };
                         });
 
                         await updateDoc(doc(db, 'inspecciones', docRef.id), {
