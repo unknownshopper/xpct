@@ -25,6 +25,83 @@ document.addEventListener('DOMContentLoaded', () => {
     let guardandoInspeccion = false; // evita doble guardado
     const fotosTomadas = {}; // idx -> { blob }
 
+    function generarIdLocal(prefix = 'insp') {
+        try {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return `${prefix}_${window.crypto.randomUUID()}`;
+            }
+        } catch {}
+        return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    }
+
+    function leerListaInspeccionesLocal() {
+        const clave = 'pct_inspecciones';
+        try {
+            const raw = JSON.parse(localStorage.getItem(clave) || '[]');
+            return Array.isArray(raw) ? raw : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function escribirListaInspeccionesLocal(lista) {
+        const clave = 'pct_inspecciones';
+        try {
+            localStorage.setItem(clave, JSON.stringify(Array.isArray(lista) ? lista : []));
+        } catch {}
+    }
+
+    function patchInspeccionLocalPorId(localId, patch) {
+        if (!localId) return;
+        const lista = leerListaInspeccionesLocal();
+        const idx = lista.findIndex(r => r && (r.localId === localId || r.id === localId));
+        if (idx < 0) return;
+        lista[idx] = { ...(lista[idx] || {}), ...(patch || {}) };
+        escribirListaInspeccionesLocal(lista);
+    }
+
+    function asegurarEstilosLoader() {
+        try {
+            if (document.getElementById('pct-loader-style')) return;
+            const st = document.createElement('style');
+            st.id = 'pct-loader-style';
+            st.textContent = `
+                @keyframes pctSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                .pct-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.45); border-top-color: rgba(255,255,255,0.95); border-radius:50%; animation: pctSpin 0.8s linear infinite; vertical-align:middle; margin-right:8px; }
+            `;
+            document.head.appendChild(st);
+        } catch {}
+    }
+
+    async function intentarSyncInspeccionesPendientes() {
+        try {
+            if (!window.auth || !window.auth.currentUser) return;
+            if (!window.db) return;
+        } catch {
+            return;
+        }
+
+        const lista = leerListaInspeccionesLocal();
+        const pendientes = lista.filter(r => r && r.syncStatus === 'PENDING' && (r.localId || r.id));
+        if (!pendientes.length) return;
+
+        try {
+            const { getFirestore, doc, setDoc, serverTimestamp } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
+            for (const r of pendientes) {
+                const localId = String(r.localId || r.id || '').trim();
+                if (!localId) continue;
+                const payload = { ...r, creadoEn: serverTimestamp(), syncStatus: 'SYNCED' };
+                try {
+                    await setDoc(doc(db, 'inspecciones', localId), payload, { merge: true });
+                    patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
+                } catch {}
+            }
+        } catch {}
+    }
+
     const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
 
     async function capturarGpsTexto() {
@@ -131,6 +208,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if (!insp) return;
+
+            // Resolver URLs de evidencias si solo viene evidenciaNombre (para mostrar thumbnails)
+            try {
+                const params = Array.isArray(insp.parametros) ? insp.parametros : [];
+                const needs = params.some(p => p && p.evidenciaNombre && !p.evidenciaUrl);
+                if (needs && insp && insp.id) {
+                    const { getStorage, ref: stRef, getDownloadURL } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
+                    );
+                    const storage = getStorage();
+                    const inspId = String(insp.id || '').trim();
+                    const actId = String(insp.actividadId || '').trim();
+                    const nextParams = await Promise.all(params.map(async (p) => {
+                        try {
+                            if (!p || !p.evidenciaNombre || p.evidenciaUrl) return p;
+                            const name = String(p.evidenciaNombre || '').trim();
+                            if (!name) return p;
+                            const candidatos = [];
+                            if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                            if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+
+                            for (const path of candidatos) {
+                                try {
+                                    const url = await getDownloadURL(stRef(storage, path));
+                                    if (url) return { ...(p || {}), evidenciaUrl: url };
+                                } catch (e) {
+                                    const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                                    console.warn('No se pudo resolver evidencia desde Storage', { path, code });
+                                }
+                            }
+                            return p;
+                        } catch (e) {
+                            const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                            console.warn('No se pudo resolver evidencia (inesperado)', { code });
+                            return p;
+                        }
+                    }));
+                    insp = { ...(insp || {}), parametros: nextParams };
+                }
+            } catch {}
 
             const renderDocumento = (data) => {
                 try {
@@ -355,6 +472,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('No se pudieron cargar estados de inventario desde Firestore (inspeccion)', e);
         }
     })();
+
+    try { window.addEventListener('online', () => { intentarSyncInspeccionesPendientes(); }); } catch {}
+    try {
+        setTimeout(() => {
+            intentarSyncInspeccionesPendientes();
+        }, 1200);
+    } catch {}
 
     async function obtenerEstadoPruebasPorEquipo(equipoId) {
         if (!equipoId) return null;
@@ -1942,14 +2066,33 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isViewMode) return;
             if (guardandoInspeccion) return;
             guardandoInspeccion = true;
+
+            asegurarEstilosLoader();
+            const prevBtnHtml = btnGuardar.innerHTML;
+            const prevBtnDisabled = btnGuardar.disabled;
+            try {
+                btnGuardar.disabled = true;
+                btnGuardar.innerHTML = `<span class="pct-spinner" aria-hidden="true"></span>Guardando…`;
+            } catch {}
             const valor = inputEquipo.value.trim();
-            if (!valor) { guardandoInspeccion = false; return; }
+            if (!valor) {
+                try {
+                    btnGuardar.innerHTML = prevBtnHtml;
+                    btnGuardar.disabled = prevBtnDisabled;
+                } catch {}
+                guardandoInspeccion = false;
+                return;
+            }
 
             // Validar Tipo de inspección (requerido)
             const selTipo = document.getElementById('inspeccion-tipo');
             const tipoInspeccion = selTipo ? String(selTipo.value || '').trim().toUpperCase() : '';
             if (!tipoInspeccion) {
                 alert('Selecciona el Tipo de inspección');
+                try {
+                    btnGuardar.innerHTML = prevBtnHtml;
+                    btnGuardar.disabled = prevBtnDisabled;
+                } catch {}
                 guardandoInspeccion = false;
                 return;
             }
@@ -1957,7 +2100,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxReporte = headers.indexOf('REPORTE P/P');
             const fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
-            if (!fila) { guardandoInspeccion = false; return; }
+            if (!fila) {
+                try {
+                    btnGuardar.innerHTML = prevBtnHtml;
+                    btnGuardar.disabled = prevBtnDisabled;
+                } catch {}
+                guardandoInspeccion = false;
+                return;
+            }
 
             const idxProducto = headers.indexOf('PRODUCTO');
             const idxSerial = headers.indexOf('SERIAL');
@@ -2000,6 +2150,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const p = parametrosCapturados[i];
                 if (!p.estado) {
                     alert(`Selecciona el estado para el parámetro: ${p.nombre}`);
+                    try {
+                        btnGuardar.innerHTML = prevBtnHtml;
+                        btnGuardar.disabled = prevBtnDisabled;
+                    } catch {}
                     guardandoInspeccion = false;
                     return;
                 }
@@ -2009,11 +2163,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tieneSelectorDanos = !baseNombre.includes('recubrimiento');
                     if (tieneSelectorDanos && !p.tipoDano) {
                         alert(`Selecciona el tipo de daño para: ${p.nombre}`);
+                        try {
+                            btnGuardar.innerHTML = prevBtnHtml;
+                            btnGuardar.disabled = prevBtnDisabled;
+                        } catch {}
                         guardandoInspeccion = false;
                         return;
                     }
                     if (p.tipoDano.toUpperCase() === 'OTRO' && !p.detalleOtro) {
                         alert(`Describe el hallazgo en 'OTRO' para: ${p.nombre}`);
+                        try {
+                            btnGuardar.innerHTML = prevBtnHtml;
+                            btnGuardar.disabled = prevBtnDisabled;
+                        } catch {}
                         guardandoInspeccion = false;
                         return;
                     }
@@ -2022,6 +2184,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tieneFoto = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
                     if (!tieneFoto) {
                         alert(`Adjunta fotografía de evidencia para: ${p.nombre}`);
+                        try {
+                            btnGuardar.innerHTML = prevBtnHtml;
+                            btnGuardar.disabled = prevBtnDisabled;
+                        } catch {}
                         guardandoInspeccion = false;
                         return;
                     }
@@ -2131,6 +2297,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const registro = {
                 fecha: new Date().toISOString(),
+                localId: generarIdLocal('insp'),
                 equipo: get(idxEquipo),
                 producto: get(idxProducto),
                 serial: get(idxSerial),
@@ -2148,6 +2315,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 usuarioInspeccion,
                 actividadId,
                 observaciones: observacionesResumen,
+                syncStatus: 'PENDING',
             };
 
             const clave = 'pct_inspecciones';
@@ -2160,11 +2328,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             lista.push(registro);
-            localStorage.setItem(clave, JSON.stringify(lista));
+            escribirListaInspeccionesLocal(lista);
 
-            // También guardar en Firestore para que las inspecciones sean visibles en cualquier dispositivo
+            
+            let guardadoFirestoreOk = false;
             try {
-                const { getFirestore, collection, addDoc, serverTimestamp, doc, updateDoc } = await import(
+                const { getFirestore, serverTimestamp, doc, setDoc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const { getStorage, ref, uploadBytes, getDownloadURL } = await import(
@@ -2172,15 +2341,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
 
                 const db = getFirestore();
-                const colRef = collection(db, 'inspecciones');
+                const localId = String(registro.localId || '').trim();
+                const docRef = doc(db, 'inspecciones', localId);
                 const payload = {
                     ...registro,
                     creadoEn: serverTimestamp(),
+                    syncStatus: 'SYNCED',
                 };
 
-                const docRef = await addDoc(colRef, payload);
+                await setDoc(docRef, payload, { merge: true });
+                guardadoFirestoreOk = true;
+                patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
 
-                // Subir evidencias a Storage y guardar URLs en Firestore (documento digital)
                 try {
                     if (docRef && docRef.id && Array.isArray(fotosParaSubir) && fotosParaSubir.length) {
                         const storage = getStorage();
@@ -2265,42 +2437,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             })();
 
-            // Mensaje visible de confirmación en el panel de detalle
             const panelDetalle = document.getElementById('detalle-equipo');
             if (panelDetalle && panelDetalle.scrollIntoView) {
                 panelDetalle.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
-            inputEquipo.value = '';
-            try {
-                const selTipo = document.getElementById('inspeccion-tipo');
-                if (selTipo) selTipo.value = '';
-            } catch {}
+            if (guardadoFirestoreOk) {
+                inputEquipo.value = '';
+                try {
+                    const selTipo = document.getElementById('inspeccion-tipo');
+                    if (selTipo) selTipo.value = '';
+                } catch {}
+
+                try {
+                    Object.keys(fotosTomadas || {}).forEach(k => {
+                        try { delete fotosTomadas[k]; } catch {}
+                    });
+                } catch {}
+
+                detalleContenedor.innerHTML = `
+                    <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #22c55e; background:#ecfdf5; text-align:center; font-size:1rem; font-weight:600; color:#166534; margin-bottom:0.5rem;">
+                        Inspección guardada
+                    </div>
+                    <p style="font-size:0.85rem; color:#4b5563; text-align:center;">
+                        Seleccione otro equipo para realizar una nueva inspección.
+                    </p>
+                `;
+
+                try { alert('Inspección guardada'); } catch {}
+
+                btnGuardar.textContent = 'Guardar inspección';
+                btnGuardar.disabled = true;
+            } else {
+                detalleContenedor.innerHTML = `
+                    <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #f59e0b; background:#fffbeb; text-align:center; font-size:1rem; font-weight:700; color:#92400e; margin-bottom:0.5rem;">
+                        Inspección pendiente de sincronizar
+                    </div>
+                    <p style="font-size:0.85rem; color:#4b5563; text-align:center;">
+                        No se pudo guardar en el sistema (Firestore). Mantén la sesión abierta y revisa conexión/inicio de sesión.
+                    </p>
+                `;
+
+                try {
+                    btnGuardar.innerHTML = prevBtnHtml;
+                } catch {
+                    try { btnGuardar.textContent = 'Guardar inspección'; } catch {}
+                }
+                btnGuardar.disabled = false;
+                guardandoInspeccion = false;
+                return;
+            }
 
             try {
-                Object.keys(fotosTomadas || {}).forEach(k => {
-                    try { delete fotosTomadas[k]; } catch {}
-                });
-            } catch {}
-
-            detalleContenedor.innerHTML = `
-                <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #22c55e; background:#ecfdf5; text-align:center; font-size:1rem; font-weight:600; color:#166534; margin-bottom:0.5rem;">
-                    Inspección guardada
-                </div>
-                <p style="font-size:0.85rem; color:#4b5563; text-align:center;">
-                    Seleccione otro equipo para realizar una nueva inspección.
-                </p>
-            `;
-
-            try {
-                // Confirmación explícita para el usuario (evita dudas de si sí se guardó)
-                alert('Inspección guardada');
-            } catch {}
-
-            // Deshabilitar botón hasta que se seleccione otro equipo
-            btnGuardar.textContent = 'Guardar inspección';
-            btnGuardar.disabled = true;
-
+                btnGuardar.innerHTML = prevBtnHtml;
+            } catch {
+                try { btnGuardar.textContent = 'Guardar inspección'; } catch {}
+            }
             guardandoInspeccion = false;
         });
     }

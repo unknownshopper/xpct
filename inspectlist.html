@@ -93,7 +93,6 @@
                                 <input type="checkbox" id="insp-select-todos" title="Seleccionar / deseleccionar todos">
                             </th>
                             <th id="insp-th-fecha-real" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha realización</th>
-                            <th id="insp-th-fecha-act" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha (actividad)</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
@@ -216,10 +215,9 @@
         const cardWrapReal = document.getElementById('insp-card-wrap-realizadas');
         const thEvaluacion = document.getElementById('insp-th-evaluacion');
         const thFechaReal = document.getElementById('insp-th-fecha-real');
-        const thFechaAct = document.getElementById('insp-th-fecha-act');
 
         let filtroEstado = null; // null | 'PENDIENTE' | 'REALIZADA'
-        let sortKey = null; // null | 'fecha_real' | 'fecha_act'
+        let sortKey = null; // null | 'fecha_real'
         let sortDir = -1; // -1 desc | 1 asc
 
         // Mapa global actualizado en cada carga, para que los botones PDF siempre usen la data más reciente
@@ -271,16 +269,11 @@
         function actualizarIndicadoresSort() {
             const suf = sortDir === 1 ? ' ▲' : ' ▼';
             if (thFechaReal) thFechaReal.textContent = 'Fecha realización' + (sortKey === 'fecha_real' ? suf : '');
-            if (thFechaAct) thFechaAct.textContent = 'Fecha (actividad)' + (sortKey === 'fecha_act' ? suf : '');
         }
 
         if (thFechaReal && !thFechaReal.dataset.sortBound) {
             thFechaReal.dataset.sortBound = '1';
             thFechaReal.addEventListener('click', () => toggleSort('fecha_real'));
-        }
-        if (thFechaAct && !thFechaAct.dataset.sortBound) {
-            thFechaAct.dataset.sortBound = '1';
-            thFechaAct.addEventListener('click', () => toggleSort('fecha_act'));
         }
 
         // Filtro por encabezado de Evaluación: ciclo Todo -> Pendientes -> Realizadas -> Todo
@@ -644,12 +637,8 @@
                     subset.sort((a, b) => {
                         const inspA = a.id ? inspeccionPorActividad.get(a.id) : null;
                         const inspB = b.id ? inspeccionPorActividad.get(b.id) : null;
-                        const msA = sortKey === 'fecha_real'
-                            ? toMs(inspA ? (inspA.fecha || inspA.creadoEn) : null)
-                            : toMs(a.fechaRegistro);
-                        const msB = sortKey === 'fecha_real'
-                            ? toMs(inspB ? (inspB.fecha || inspB.creadoEn) : null)
-                            : toMs(b.fechaRegistro);
+                        const msA = toMs(inspA ? (inspA.fecha || inspA.creadoEn) : null);
+                        const msB = toMs(inspB ? (inspB.fecha || inspB.creadoEn) : null);
                         if (msA == null && msB == null) return 0;
                         if (msA == null) return 1;
                         if (msB == null) return -1;
@@ -662,7 +651,6 @@
                     const tieneInsp = !!insp;
 
                     const fechaRealizadaTexto = insp ? formatearFechaRegistro(insp.fecha || insp.creadoEn) : '';
-                    const fechaRegistroTexto = formatearFechaRegistro(act.fechaRegistro);
 
                     let evaluacion = '';
                     let estadoTexto = insp ? 'Realizada' : 'Pendiente';
@@ -727,7 +715,7 @@
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.className = 'insp-group-cliente';
                         trGrupoCliente.innerHTML = `
-                            <td colspan="14" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                            <td colspan="13" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                                 Cliente: ${clienteActualLabel}
                             </td>
                         `;
@@ -740,7 +728,7 @@
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.className = 'insp-group-area';
                         trGrupoArea.innerHTML = `
-                            <td colspan="14" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="13" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="insp-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -753,7 +741,7 @@
                         const trGrupoUbic = document.createElement('tr');
                         trGrupoUbic.className = 'insp-group-ubic';
                         trGrupoUbic.innerHTML = `
-                            <td colspan="14" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                            <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
                                 Ubicación: ${lugarActual}
                             </td>
                         `;
@@ -788,7 +776,6 @@
                             <input type="checkbox" class="insp-select-fila" data-actividad-id="${act.id}" data-cliente="${cliente}" data-area="${area}">
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRegistroTexto}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
@@ -830,7 +817,7 @@
             if (hayRealizadas) {
                 const trSep = document.createElement('tr');
                 trSep.innerHTML = `
-                    <td colspan="14" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
+                    <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
                         Inspecciones realizadas
                     </td>
                 `;

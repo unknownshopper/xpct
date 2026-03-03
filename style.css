@@ -1336,6 +1336,26 @@ select.form-input {
     cursor: not-allowed;
 }
 
+#btn-exportar-jpg {
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid #bfdbfe;
+    background-color: #eff6ff;
+    color: #1d4ed8;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#btn-exportar-jpg:hover {
+    background-color: #dbeafe;
+}
+
+#btn-exportar-jpg:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Vista móvil / tablet para inspeccion.html */
 @media (max-width: 900px) {
     .inspeccion-page {
@@ -1370,6 +1390,11 @@ select.form-input {
     }
 
     #btn-guardar-inspeccion {
+        width: 100%;
+        justify-content: center;
+    }
+
+    #btn-exportar-jpg {
         width: 100%;
         justify-content: center;
     }
