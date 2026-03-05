@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const datalistEquipos = document.getElementById('lista-equipos');
     const detalleContenedor = document.getElementById('detalle-equipo-contenido');
     const btnGuardar = document.getElementById('btn-guardar-inspeccion');
+    const tipoInspeccionSelect = document.getElementById('inspeccion-tipo');
+    const tipoInspeccionChips = Array.from(document.querySelectorAll('.tipo-inspeccion-chip'));
 
     let isViewMode = false;
     try {
@@ -1246,13 +1248,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="parametros-fila">
                                 <div class="col-nombre">${p}</div>
                                 <div class="col-estado">
-                                    <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
-                                    <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
+                                    <div class="estado-switch" data-param-idx="${idx}">
+                                        <input type="checkbox" class="estado-switch-input" aria-label="Estado malo" data-idx="${idx}">
+                                        <span class="estado-switch-track" aria-hidden="true"></span>
+                                        <span class="estado-switch-label estado-switch-label-bueno">BUENO</span>
+                                        <span class="estado-switch-label estado-switch-label-malo">MALO</span>
+                                    </div>
+                                    <div class="estado-radios" style="display:none;">
+                                        <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
+                                        <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
+                                    </div>
                                 </div>
                                 <div class="col-dano" data-param-idx="${idx}" style="display:none;"></div>
                                 <div class="col-evidencia" data-param-idx="${idx}" style="display:none;">
                                     <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
-                                    <input type="file" name="param-${idx}-foto" accept="image/*" capture="environment" style="display:none;">
+                                    <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                 </div>
                             </div>
@@ -1264,18 +1275,30 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="parametros-fila">
                                 <div class="col-nombre">${p}</div>
                                 <div class="col-estado">
-                                    <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
-                                    <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
+                                    <div class="estado-switch" data-param-idx="${idx}">
+                                        <input type="checkbox" class="estado-switch-input" aria-label="Estado malo" data-idx="${idx}">
+                                        <span class="estado-switch-track" aria-hidden="true"></span>
+                                        <span class="estado-switch-label estado-switch-label-bueno">BUENO</span>
+                                        <span class="estado-switch-label estado-switch-label-malo">MALO</span>
+                                    </div>
+                                    <div class="estado-radios" style="display:none;">
+                                        <label><input type="radio" name="param-${idx}-estado" value="BUENO" checked> BUENO</label>
+                                        <label><input type="radio" name="param-${idx}-estado" value="MALO"> MALO</label>
+                                    </div>
                                 </div>
                                 <div class="col-dano" data-param-idx="${idx}" style="display:none;">
-                                    <select name="param-${idx}-dano" disabled>
+                                    <div class="dano-chips" role="group" aria-label="Tipos de daño">
+                                        ${tiposDano.filter(op => !!op).map(op => `<button type="button" class="dano-chip" data-val="${op}" disabled>${op}</button>`).join('')}
+                                    </div>
+                                    <select name="param-${idx}-dano" disabled style="display:none;">
                                         ${tiposDano.map(op => op ? `<option value="${op}">${op}</option>` : '<option value="">Daños</option>').join('')}
                                     </select>
                                     <input type="text" name="param-${idx}-dano-otro" placeholder="Describa el hallazgo" style="display:none; margin-top:0.25rem; font-size:0.8rem; width:100%;" disabled>
                                 </div>
                                 <div class="col-evidencia" data-param-idx="${idx}" style="display:none;">
                                     <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
-                                    <input type="file" name="param-${idx}-foto" accept="image/*" capture="environment" style="display:none;">
+                                    <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                 </div>
                             </div>
@@ -1351,13 +1374,55 @@ document.addEventListener('DOMContentLoaded', () => {
         // Mostrar selector de daño y evidencia solo cuando el estado sea MALO
         detalleContenedor.querySelectorAll('.parametros-fila').forEach((filaHtml, idx) => {
             const radios = filaHtml.querySelectorAll(`input[name="param-${idx}-estado"]`);
+            const estadoSwitch = filaHtml.querySelector('.estado-switch-input');
             const colDano = filaHtml.querySelector('.col-dano');
             const selectDano = colDano ? colDano.querySelector('select') : null;
+            const danoChips = colDano ? colDano.querySelector('.dano-chips') : null;
+            const danoChipBtns = danoChips ? Array.from(danoChips.querySelectorAll('.dano-chip')) : [];
             const inputOtro = colDano ? colDano.querySelector(`input[name="param-${idx}-dano-otro"]`) : null;
             const colEvid = filaHtml.querySelector('.col-evidencia');
             const inputFoto = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto"]`) : null;
             const btnTomar = colEvid ? colEvid.querySelector('.btn-tomar-foto') : null;
+            const btnSubir = colEvid ? colEvid.querySelector('.btn-subir-foto') : null;
             const imgPrev = document.getElementById(`preview-foto-${idx}`);
+
+            const getEstadoActual = () => {
+                let estado = '';
+                radios.forEach(r => { if (r.checked) estado = r.value; });
+                return String(estado || '').trim().toUpperCase();
+            };
+
+            const syncSwitchDesdeRadios = () => {
+                if (!estadoSwitch) return;
+                estadoSwitch.checked = getEstadoActual() === 'MALO';
+            };
+
+            const setEstadoDesdeSwitch = () => {
+                if (!estadoSwitch) return;
+                const esMalo = !!estadoSwitch.checked;
+                radios.forEach(r => {
+                    if (String(r.value || '').toUpperCase() === (esMalo ? 'MALO' : 'BUENO')) {
+                        r.checked = true;
+                    }
+                });
+            };
+
+            const actualizarSeleccionChips = () => {
+                if (!selectDano || !danoChipBtns.length) return;
+                const val = (selectDano.value || '').trim().toUpperCase();
+                danoChipBtns.forEach(btn => {
+                    const btnVal = (btn.getAttribute('data-val') || '').trim().toUpperCase();
+                    if (val && btnVal === val) btn.classList.add('is-selected');
+                    else btn.classList.remove('is-selected');
+                });
+            };
+
+            const setTipoDanoDesdeChip = (val) => {
+                if (!selectDano) return;
+                selectDano.value = val;
+                actualizarSeleccionChips();
+                actualizarVisibilidadOtro();
+            };
 
             const actualizarVisibilidadOtro = () => {
                 if (!selectDano || !inputOtro) return;
@@ -1381,16 +1446,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         selectDano.disabled = false;
                         actualizarVisibilidadOtro();
                     }
+                    if (danoChipBtns.length) {
+                        danoChipBtns.forEach(b => { b.disabled = false; });
+                        actualizarSeleccionChips();
+                    }
                     if (colEvid) {
                         colEvid.style.display = '';
                         if (inputFoto) inputFoto.disabled = false;
                         if (btnTomar) btnTomar.disabled = false;
+                        if (btnSubir) btnSubir.disabled = false;
                     }
                 } else {
                     if (colDano) colDano.style.display = 'none';
                     if (selectDano) {
                         selectDano.disabled = true;
                         selectDano.value = '';
+                    }
+                    if (danoChipBtns.length) {
+                        danoChipBtns.forEach(b => { b.disabled = true; b.classList.remove('is-selected'); });
                     }
                     if (inputOtro) {
                         inputOtro.style.display = 'none';
@@ -1401,6 +1474,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         colEvid.style.display = 'none';
                         if (inputFoto) { inputFoto.disabled = true; try { inputFoto.value = ''; } catch {} }
                         if (btnTomar) btnTomar.disabled = true;
+                        if (btnSubir) btnSubir.disabled = true;
                         if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
                         delete fotosTomadas[idx];
                     }
@@ -1409,10 +1483,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             radios.forEach(r => {
                 r.addEventListener('change', actualizarVisibilidadDano);
+                r.addEventListener('change', syncSwitchDesdeRadios);
             });
+
+            if (estadoSwitch) {
+                estadoSwitch.addEventListener('change', () => {
+                    setEstadoDesdeSwitch();
+                    syncSwitchDesdeRadios();
+                    actualizarVisibilidadDano();
+                });
+                syncSwitchDesdeRadios();
+            }
 
             if (selectDano) {
                 selectDano.addEventListener('change', actualizarVisibilidadOtro);
+                selectDano.addEventListener('change', actualizarSeleccionChips);
+            }
+
+            if (danoChipBtns.length) {
+                danoChipBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const val = btn.getAttribute('data-val') || '';
+                        setTipoDanoDesdeChip(val);
+                    });
+                });
             }
 
             actualizarVisibilidadDano();
@@ -1423,6 +1517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         await abrirCamaraParaIndice(idx, (blob) => {
                             fotosTomadas[idx] = { blob };
+                            try { if (inputFoto) inputFoto.value = ''; } catch {}
                             if (imgPrev) {
                                 imgPrev.src = URL.createObjectURL(blob);
                                 imgPrev.style.display = '';
@@ -1430,6 +1525,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     } catch (e) {
                         console.warn('No se pudo capturar foto', e);
+                    }
+                });
+            }
+
+            // Handler para subir foto desde galería / archivos
+            if (btnSubir && inputFoto) {
+                btnSubir.addEventListener('click', () => {
+                    try { inputFoto.click(); } catch {}
+                });
+            }
+            if (inputFoto) {
+                inputFoto.addEventListener('change', () => {
+                    try {
+                        const file = inputFoto.files && inputFoto.files[0] ? inputFoto.files[0] : null;
+                        if (!file) return;
+                        delete fotosTomadas[idx];
+                        if (imgPrev) {
+                            imgPrev.src = URL.createObjectURL(file);
+                            imgPrev.style.display = '';
+                        }
+                    } catch (e) {
+                        console.warn('No se pudo leer la foto seleccionada', e);
                     }
                 });
             }
@@ -1631,8 +1748,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     equipoSel = String(panel.dataset.equipo || '').trim();
                     try {
                         if (equipoSel) {
-                            const inp = document.getElementById('equipo-input');
-                            if (inp) inp.value = equipoSel;
+                            const equipoInput = document.getElementById('equipo-input');
+                            if (equipoInput) equipoInput.value = equipoSel;
                         }
                     } catch {}
                 }
@@ -2069,6 +2186,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('No se pudo exportar el PDF:', e);
             }
         });
+    }
+
+    if (tipoInspeccionSelect && tipoInspeccionChips && tipoInspeccionChips.length) {
+        const normalizarTipo = (v) => String(v || '').trim().toUpperCase();
+
+        const actualizarSeleccionTipo = () => {
+            const val = normalizarTipo(tipoInspeccionSelect.value);
+            tipoInspeccionChips.forEach(btn => {
+                const btnVal = normalizarTipo(btn.getAttribute('data-val'));
+                if (val && btnVal === val) btn.classList.add('is-selected');
+                else btn.classList.remove('is-selected');
+            });
+        };
+
+        tipoInspeccionChips.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const v = normalizarTipo(btn.getAttribute('data-val'));
+                tipoInspeccionSelect.value = v;
+                actualizarSeleccionTipo();
+            });
+        });
+
+        tipoInspeccionSelect.addEventListener('change', actualizarSeleccionTipo);
+        actualizarSeleccionTipo();
     }
 
     if (btnGuardar) {

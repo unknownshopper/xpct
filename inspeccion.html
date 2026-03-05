@@ -56,7 +56,12 @@
         <section class="selector-equipo">
             <h1>Inspección de equipos</h1>
             <label for="inspeccion-tipo">Tipo de inspección</label>
-            <select id="inspeccion-tipo" class="form-input" required>
+            <div class="tipo-inspeccion-chips" role="group" aria-label="Tipo de inspección">
+                <button type="button" class="tipo-inspeccion-chip" data-val="PRE-TRABAJO">Pre-trabajo</button>
+                <button type="button" class="tipo-inspeccion-chip" data-val="POST-TRABAJO">Post-trabajo</button>
+                <button type="button" class="tipo-inspeccion-chip" data-val="RECEPCION">Recepción</button>
+            </div>
+            <select id="inspeccion-tipo" class="form-input" required style="display:none;">
                 <option value="" selected>Seleccione tipo…</option>
                 <option value="PRE-TRABAJO">Pre-trabajo</option>
                 <option value="POST-TRABAJO">Post-trabajo</option>

@@ -1320,6 +1320,33 @@ select.form-input {
     align-items: center;
 }
 
+ .tipo-inspeccion-chips {
+     display: flex;
+     flex-wrap: wrap;
+     gap: 0.45rem;
+     align-items: center;
+     margin-bottom: 0.65rem;
+ }
+
+ .tipo-inspeccion-chip {
+     appearance: none;
+     border: 1px solid #cbd5e1;
+     background: #ffffff;
+     color: #0f172a;
+     border-radius: 999px;
+     padding: 0.45rem 0.75rem;
+     font-size: 0.9rem;
+     font-weight: 700;
+     cursor: pointer;
+     line-height: 1.1;
+ }
+
+ .tipo-inspeccion-chip.is-selected {
+     border-color: #1d4ed8;
+     background: #dbeafe;
+     color: #1d4ed8;
+ }
+
 #btn-guardar-inspeccion {
     padding: 0.45rem 0.9rem;
     border-radius: 999px;
@@ -1489,10 +1516,41 @@ select.form-input {
     overflow: hidden;
 }
 
+ .dano-chips {
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+     gap: 0.35rem;
+     align-items: center;
+ }
+
+ .dano-chip {
+     appearance: none;
+     border: 1px solid #cbd5e1;
+     background: #ffffff;
+     color: #0f172a;
+     border-radius: 999px;
+     padding: 0.35rem 0.6rem;
+     font-size: 0.85rem;
+     font-weight: 600;
+     cursor: pointer;
+     line-height: 1.1;
+ }
+
+ .dano-chip:disabled {
+     opacity: 0.55;
+     cursor: not-allowed;
+ }
+
+ .dano-chip.is-selected {
+     border-color: #1d4ed8;
+     background: #dbeafe;
+     color: #1d4ed8;
+ }
+
 .parametros-header,
 .parametros-fila {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1.2fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.15fr) minmax(0, 1.35fr) minmax(0, 1.15fr);
     gap: 0.5rem;
     align-items: center;
     padding: 0.4rem 0.75rem;
@@ -1520,12 +1578,110 @@ select.form-input {
     white-space: nowrap;
 }
 
+ .estado-switch {
+     position: relative;
+     display: grid;
+     grid-template-columns: auto auto;
+     grid-template-rows: auto auto;
+     align-items: center;
+     column-gap: 0.45rem;
+     row-gap: 0.05rem;
+     padding: 0.1rem 0.15rem;
+     user-select: none;
+ }
+
+ .estado-switch-track {
+     display: none;
+ }
+
+ .estado-switch-input {
+     appearance: none;
+     -webkit-appearance: none;
+     width: 24px;
+     height: 44px;
+     border-radius: 999px;
+     background: #bbf7d0;
+     border: 1px solid #cbd5e1;
+     position: relative;
+     cursor: pointer;
+     outline: none;
+     grid-column: 1;
+     grid-row: 1 / 3;
+ }
+
+ .estado-switch-input::after {
+     content: '';
+     position: absolute;
+     top: 2px;
+     left: 2px;
+     width: 18px;
+     height: 18px;
+     border-radius: 999px;
+     background: #ffffff;
+     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+     transition: transform 160ms ease;
+ }
+
+ .estado-switch-input:checked {
+     background: #fecaca;
+     border-color: #fca5a5;
+ }
+
+ .estado-switch-input:checked::after {
+     transform: translateY(20px);
+ }
+
+ .estado-switch-label {
+     font-size: 0.8rem;
+     font-weight: 700;
+     color: #64748b;
+     white-space: nowrap;
+ }
+
+ .estado-switch-label-bueno {
+     color: #15803d;
+     grid-column: 2;
+     grid-row: 1;
+ }
+
+ .estado-switch-label-malo {
+     grid-column: 2;
+     grid-row: 2;
+ }
+
+ .estado-switch-input:checked ~ .estado-switch-label-bueno {
+     color: #64748b;
+ }
+
+ .estado-switch-input:checked ~ .estado-switch-label-malo {
+     color: #b91c1c;
+ }
+
 .parametros-fila .col-dano select {
     width: 100%;
     padding: 0.25rem 0.3rem;
     border-radius: 0.35rem;
     border: 1px solid #d1d5db;
     font-size: 0.85rem;
+}
+
+.parametros-fila .col-evidencia {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+}
+
+ .parametros-fila .col-evidencia img {
+     align-self: flex-start;
+ }
+
+.parametros-fila .col-evidencia .btn {
+    display: inline-flex;
+    white-space: nowrap;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.82rem;
 }
 
 /* Ajustes específicos para parámetros en vista móvil: evitar que el select
@@ -1548,6 +1704,12 @@ select.form-input {
 
     .parametros-fila .col-dano {
         grid-column: 1 / -1;
+        margin-top: 0.15rem;
+    }
+
+    .parametros-fila .col-evidencia {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
         margin-top: 0.15rem;
     }
 }
