@@ -2,6 +2,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const inputEquipo = document.getElementById('equipo-input');
     const datalistEquipos = document.getElementById('lista-equipos');
+    const equipoDropdown = document.getElementById('equipo-dropdown');
     const detalleContenedor = document.getElementById('detalle-equipo-contenido');
     const btnGuardar = document.getElementById('btn-guardar-inspeccion');
     const tipoInspeccionSelect = document.getElementById('inspeccion-tipo');
@@ -24,8 +25,109 @@ document.addEventListener('DOMContentLoaded', () => {
     let mapaDanos = []; // [{ match: 'recubrimiento', opciones: [...] }]
     let inventarioCargado = false;
     let formatosCargados = false;
+    let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
     let guardandoInspeccion = false; // evita doble guardado
     const fotosTomadas = {}; // idx -> { blob }
+
+    const isAndroid = (() => {
+        try { return /android/i.test(navigator.userAgent || ''); } catch { return false; }
+    })();
+
+    const isChromeLike = (() => {
+        try { return /(chrome|crios|chromium)/i.test(navigator.userAgent || ''); } catch { return false; }
+    })();
+
+    const usarDropdownEquipos = !!(equipoDropdown && inputEquipo && isAndroid && isChromeLike);
+
+    if (usarDropdownEquipos) {
+        try { inputEquipo.removeAttribute('list'); } catch {}
+        try { if (datalistEquipos) datalistEquipos.style.display = 'none'; } catch {}
+    }
+
+    function hideEquipoDropdown() {
+        if (!equipoDropdown) return;
+        equipoDropdown.style.display = 'none';
+        equipoDropdown.innerHTML = '';
+    }
+
+    function showEquipoDropdown(items) {
+        if (!equipoDropdown) return;
+        if (!Array.isArray(items) || !items.length) {
+            hideEquipoDropdown();
+            return;
+        }
+        equipoDropdown.innerHTML = items
+            .map(it => {
+                const equipoId = (it && it.equipoId) ? String(it.equipoId) : '';
+                const descripcion = (it && it.descripcion) ? String(it.descripcion) : '';
+                const safeEquipo = equipoId.replace(/"/g, '&quot;');
+                const text = descripcion ? `${equipoId} - ${descripcion}` : equipoId;
+                return `<div class="equipo-dropdown-item" data-equipo="${safeEquipo}">${text}</div>`;
+            })
+            .join('');
+        equipoDropdown.style.display = '';
+    }
+
+    function filtrarEquiposActivos(query) {
+        const q = String(query || '').trim();
+        if (!q) return [];
+        const qKey = normKey(q);
+        if (!qKey) return [];
+
+        const out = [];
+        for (const it of equiposActivos) {
+            if (!it) continue;
+            if (it.equipoKey && it.equipoKey.includes(qKey)) out.push(it);
+            else if (it.descKey && it.descKey.includes(qKey)) out.push(it);
+            if (out.length >= 30) break;
+        }
+        return out;
+    }
+
+    if (usarDropdownEquipos) {
+        try {
+            document.addEventListener('click', (ev) => {
+                try {
+                    if (!equipoDropdown || !inputEquipo) return;
+                    const t = ev && ev.target ? ev.target : null;
+                    if (!t) return;
+                    if (t === inputEquipo) return;
+                    if (equipoDropdown.contains(t)) return;
+                    hideEquipoDropdown();
+                } catch {}
+            });
+        } catch {}
+
+        if (equipoDropdown) {
+            // Usar mousedown para seleccionar antes de que el input pierda foco
+            equipoDropdown.addEventListener('mousedown', (ev) => {
+                try {
+                    const item = ev && ev.target ? ev.target.closest('.equipo-dropdown-item') : null;
+                    if (!item) return;
+                    ev.preventDefault();
+                    const equipo = item.getAttribute('data-equipo') || '';
+                    if (!equipo) return;
+                    inputEquipo.value = equipo;
+                    hideEquipoDropdown();
+                    inputEquipo.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch {}
+            });
+        }
+
+        inputEquipo.addEventListener('focus', () => {
+            try {
+                const items = filtrarEquiposActivos(inputEquipo.value);
+                showEquipoDropdown(items);
+            } catch {}
+        });
+
+        inputEquipo.addEventListener('input', () => {
+            try {
+                const items = filtrarEquiposActivos(inputEquipo.value);
+                showEquipoDropdown(items);
+            } catch {}
+        });
+    }
 
     function generarIdLocal(prefix = 'insp') {
         try {
@@ -897,6 +999,7 @@ document.addEventListener('DOMContentLoaded', () => {
             equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
 
             // Poblar datalist (usar overrides de estado; solo equipos con estado efectivo ON)
+            equiposActivos = [];
             equipos.forEach(cols => {
                 const equipoId = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
                 const equipoIdKey = normKey(equipoId);
@@ -907,6 +1010,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const override = mapaEstadoOverride[equipoIdKey];
                 if (override) edoEfectivo = String(override).trim().toUpperCase();
                 if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') return;
+
+                equiposActivos.push({
+                    equipoId: (equipoId || '').toString().trim(),
+                    descripcion: (descripcion || '').toString().trim(),
+                    equipoKey: equipoIdKey,
+                    descKey: normKey(descripcion)
+                });
 
                 const option = document.createElement('option');
                 option.value = (equipoId || '').toString().trim();

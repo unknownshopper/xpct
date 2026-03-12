@@ -68,7 +68,10 @@
                 <option value="RECEPCION">Recepción</option>
             </select>
             <label for="equipo-input">Equipo</label>
-            <input type="text" id="equipo-input" list="lista-equipos" placeholder="Escriba PUP, XO o parte del código / descripción">
+            <div class="equipo-input-wrapper">
+                <input type="text" id="equipo-input" list="lista-equipos" placeholder="Escriba PUP, XO o parte del código / descripción" autocomplete="off">
+                <div id="equipo-dropdown" class="equipo-dropdown" style="display:none;"></div>
+            </div>
             <datalist id="lista-equipos"></datalist>
         </section>
 
