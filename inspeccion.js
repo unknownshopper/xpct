@@ -130,12 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
         equipoDropdown.innerHTML = items
             .map(it => {
                 const equipoId = (it && it.equipoId) ? String(it.equipoId) : '';
-                const descripcion = (it && it.descripcion) ? String(it.descripcion) : '';
                 const serial = (it && it.serial) ? String(it.serial) : '';
                 const safeEquipo = escapeHtml(equipoId);
-                const text = escapeHtml(descripcion ? `${equipoId} - ${descripcion}` : equipoId);
-                const serialTxt = serial ? `<div style="margin-top:4px; font-size:0.86em; color:#475569;">Serial: ${escapeHtml(serial)}</div>` : '';
-                return `<div class="equipo-dropdown-item" data-equipo="${safeEquipo}"><div>${text}</div>${serialTxt}</div>`;
+                const equipoTxt = escapeHtml(equipoId);
+                const serialTxt = serial ? escapeHtml(serial) : '';
+                const header = serialTxt
+                    ? `<div><strong>${equipoTxt}</strong> <span style="margin-left:8px; font-size:0.88em; color:#0f172a;">${serialTxt}</span></div>`
+                    : `<div><strong>${equipoTxt}</strong></div>`;
+                return `<div class="equipo-dropdown-item" data-equipo="${safeEquipo}">${header}</div>`;
             })
             .join('');
         equipoDropdown.style.display = '';
