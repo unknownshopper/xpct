@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isViewMode = (paramsUrl.get('view') || '').trim() === '1';
     } catch {}
 
-    if (!inputEquipo || !datalistEquipos || !detalleContenedor) {
+    if (!inputEquipo || !detalleContenedor) {
         // No estamos en inspeccion.html
         return;
     }
@@ -1018,10 +1018,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     descKey: normKey(descripcion)
                 });
 
-                const option = document.createElement('option');
-                option.value = (equipoId || '').toString().trim();
-                option.label = `${equipoId} - ${descripcion}`;
-                datalistEquipos.appendChild(option);
+                if (datalistEquipos) {
+                    const option = document.createElement('option');
+                    option.value = (equipoId || '').toString().trim();
+                    option.label = `${equipoId} - ${descripcion}`;
+                    datalistEquipos.appendChild(option);
+                }
             });
 
             inventarioCargado = true;
