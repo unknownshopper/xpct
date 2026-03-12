@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (usarDropdownEquipos) {
         try { inputEquipo.removeAttribute('list'); } catch {}
         try { if (datalistEquipos) datalistEquipos.style.display = 'none'; } catch {}
+    } else {
+        // Desktop/otros: usar datalist nativo para sugerencias
+        try { if (datalistEquipos) datalistEquipos.style.display = ''; } catch {}
+        try { if (datalistEquipos) inputEquipo.setAttribute('list', 'lista-equipos'); } catch {}
     }
 
     function escapeHtml(s) {
