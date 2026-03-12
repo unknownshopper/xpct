@@ -53,6 +53,30 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/'/g, '&#39;');
     }
 
+    function normHeaderKey(s) {
+        return String(s || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '')
+            .trim();
+    }
+
+    function findHeaderIndex(headersArr, candidates) {
+        try {
+            const hs = Array.isArray(headersArr) ? headersArr : [];
+            const cands = Array.isArray(candidates) ? candidates : [];
+            if (!hs.length || !cands.length) return -1;
+            const map = new Map();
+            for (let i = 0; i < hs.length; i++) map.set(normHeaderKey(hs[i]), i);
+            for (const c of cands) {
+                const idx = map.get(normHeaderKey(c));
+                if (typeof idx === 'number') return idx;
+            }
+        } catch {}
+        return -1;
+    }
+
     function hideEquipoDropdown() {
         if (!equipoDropdown) return;
         equipoDropdown.style.display = 'none';
@@ -1007,7 +1031,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxDescripcion = headers.indexOf('DESCRIPCION');
             const idxEdo = headers.indexOf('EDO');
-            const idxSerial = headers.indexOf('SERIAL');
+            const idxSerial = (() => {
+                const exact = headers.indexOf('SERIAL');
+                if (exact >= 0) return exact;
+                return findHeaderIndex(headers, [
+                    'NO. SERIE',
+                    'NO SERIE',
+                    'N° SERIE',
+                    'NUMERO DE SERIE',
+                    'NÚMERO DE SERIE',
+                    'SERIE',
+                    'SERIAL'
+                ]);
+            })();
 
             equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
 
