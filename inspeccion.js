@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!it) continue;
             if (it.equipoKey && it.equipoKey.includes(qKey)) out.push(it);
             else if (it.descKey && it.descKey.includes(qKey)) out.push(it);
+            else if (it.serialKey && it.serialKey.includes(qKey)) out.push(it);
             if (out.length >= 120) break;
         }
         return out;
@@ -995,6 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxDescripcion = headers.indexOf('DESCRIPCION');
             const idxEdo = headers.indexOf('EDO');
+            const idxSerial = headers.indexOf('SERIAL');
 
             equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
 
@@ -1004,6 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const equipoId = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
                 const equipoIdKey = normKey(equipoId);
                 const descripcion = idxDescripcion >= 0 ? (cols[idxDescripcion] || '') : '';
+                const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
                 const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
                 if (!equipoIdKey) return;
                 let edoEfectivo = edo.trim().toUpperCase();
@@ -1014,8 +1017,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 equiposActivos.push({
                     equipoId: (equipoId || '').toString().trim(),
                     descripcion: (descripcion || '').toString().trim(),
+                    serial: (serial || '').toString().trim(),
                     equipoKey: equipoIdKey,
-                    descKey: normKey(descripcion)
+                    descKey: normKey(descripcion),
+                    serialKey: normKey(serial)
                 });
 
                 if (datalistEquipos) {
