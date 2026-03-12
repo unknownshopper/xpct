@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!it) continue;
             if (it.equipoKey && it.equipoKey.includes(qKey)) out.push(it);
             else if (it.descKey && it.descKey.includes(qKey)) out.push(it);
-            if (out.length >= 30) break;
+            if (out.length >= 120) break;
         }
         return out;
     }
