@@ -44,6 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
         try { if (datalistEquipos) datalistEquipos.style.display = 'none'; } catch {}
     }
 
+    function escapeHtml(s) {
+        return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function hideEquipoDropdown() {
         if (!equipoDropdown) return;
         equipoDropdown.style.display = 'none';
@@ -60,9 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
             .map(it => {
                 const equipoId = (it && it.equipoId) ? String(it.equipoId) : '';
                 const descripcion = (it && it.descripcion) ? String(it.descripcion) : '';
-                const safeEquipo = equipoId.replace(/"/g, '&quot;');
-                const text = descripcion ? `${equipoId} - ${descripcion}` : equipoId;
-                return `<div class="equipo-dropdown-item" data-equipo="${safeEquipo}">${text}</div>`;
+                const serial = (it && it.serial) ? String(it.serial) : '';
+                const safeEquipo = escapeHtml(equipoId);
+                const text = escapeHtml(descripcion ? `${equipoId} - ${descripcion}` : equipoId);
+                const serialTxt = serial ? `<div style="margin-top:4px; font-size:0.86em; color:#475569;">Serial: ${escapeHtml(serial)}</div>` : '';
+                return `<div class="equipo-dropdown-item" data-equipo="${safeEquipo}"><div>${text}</div>${serialTxt}</div>`;
             })
             .join('');
         equipoDropdown.style.display = '';
