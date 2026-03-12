@@ -77,6 +77,44 @@ document.addEventListener('DOMContentLoaded', () => {
         return -1;
     }
 
+    function findHeaderIndexContains(headersArr, containsAny) {
+        try {
+            const hs = Array.isArray(headersArr) ? headersArr : [];
+            const pats = Array.isArray(containsAny) ? containsAny : [];
+            if (!hs.length || !pats.length) return -1;
+            const patsNorm = pats.map(normHeaderKey).filter(Boolean);
+            for (let i = 0; i < hs.length; i++) {
+                const hk = normHeaderKey(hs[i]);
+                if (!hk) continue;
+                for (const p of patsNorm) {
+                    if (p && hk.includes(p)) return i;
+                }
+            }
+        } catch {}
+        return -1;
+    }
+
+    function getIdxSerial(headersArr) {
+        try {
+            const hs = Array.isArray(headersArr) ? headersArr : [];
+            if (!hs.length) return -1;
+            const exact = hs.indexOf('SERIAL');
+            if (exact >= 0) return exact;
+            const idx = findHeaderIndex(hs, [
+                'NO. SERIE',
+                'NO SERIE',
+                'N° SERIE',
+                'NUMERO DE SERIE',
+                'NÚMERO DE SERIE',
+                'SERIE',
+                'SERIAL'
+            ]);
+            if (idx >= 0) return idx;
+            return findHeaderIndexContains(hs, ['serial', 'serie']);
+        } catch {}
+        return -1;
+    }
+
     function hideEquipoDropdown() {
         if (!equipoDropdown) return;
         equipoDropdown.style.display = 'none';
@@ -1031,19 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxDescripcion = headers.indexOf('DESCRIPCION');
             const idxEdo = headers.indexOf('EDO');
-            const idxSerial = (() => {
-                const exact = headers.indexOf('SERIAL');
-                if (exact >= 0) return exact;
-                return findHeaderIndex(headers, [
-                    'NO. SERIE',
-                    'NO SERIE',
-                    'N° SERIE',
-                    'NUMERO DE SERIE',
-                    'NÚMERO DE SERIE',
-                    'SERIE',
-                    'SERIAL'
-                ]);
-            })();
+            const idxSerial = getIdxSerial(headers);
 
             equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
 
@@ -1175,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
         const idxReporte = headers.indexOf('REPORTE P/P');
-        const idxSerial = headers.indexOf('SERIAL');
+        const idxSerial = getIdxSerial(headers);
         const norm = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
         const target = norm(valor);
 
@@ -2425,7 +2451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const idxProducto = headers.indexOf('PRODUCTO');
-            const idxSerial = headers.indexOf('SERIAL');
+            const idxSerial = getIdxSerial(headers);
             const idxDescripcion = headers.indexOf('DESCRIPCION');
 
             const get = (idx) => (idx >= 0 && idx < fila.length ? fila[idx] : '');
