@@ -1105,7 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (datalistEquipos) {
                     const option = document.createElement('option');
                     option.value = (equipoId || '').toString().trim();
-                    option.label = `${equipoId} - ${descripcion}`;
+                    option.label = (serial || '').toString().trim() || (descripcion || '').toString().trim();
                     datalistEquipos.appendChild(option);
                 }
             });
