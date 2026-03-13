@@ -1,0 +1,11 @@
+[
+  {
+    "origin": [
+      "http://localhost:2200",
+      "https://unknownshopper.github.io"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Authorization"],
+    "maxAgeSeconds": 3600
+  }
+]
