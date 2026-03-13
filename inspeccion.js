@@ -416,6 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const storage = getStorage();
                     const inspId = String(insp.id || '').trim();
                     const actId = String(insp.actividadId || '').trim();
+                    const localId = String(insp.localId || '').trim();
+                    const inspIdQs = String(inspIdUrl || '').trim();
+                    const actIdQs = String(actividadIdUrl || '').trim();
                     const nextParams = await Promise.all(params.map(async (p) => {
                         try {
                             if (!p || p.evidenciaUrl) return p;
@@ -426,18 +429,26 @@ document.addEventListener('DOMContentLoaded', () => {
                             const name = String(p.evidenciaNombre || '').trim();
                             if (name) {
                                 if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
                                 if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                if (actIdQs) candidatos.push(`inspecciones/${actIdQs}/${name}`);
                             }
 
                             if (!candidatos.length) return p;
 
-                            for (const path of candidatos) {
-                                try {
-                                    const url = await getDownloadURL(stRef(storage, path));
-                                    if (url) return { ...(p || {}), evidenciaUrl: url };
-                                } catch (e) {
-                                    const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
-                                    console.warn('No se pudo resolver evidencia desde Storage', { path, code });
+                            for (let pass = 0; pass < 2; pass++) {
+                                for (const path of candidatos) {
+                                    try {
+                                        const url = await getDownloadURL(stRef(storage, path));
+                                        if (url) return { ...(p || {}), evidenciaUrl: url };
+                                    } catch (e) {
+                                        const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                                        console.warn('No se pudo resolver evidencia desde Storage', { path, code });
+                                    }
+                                }
+                                if (pass === 0) {
+                                    await new Promise(r => setTimeout(r, 350));
                                 }
                             }
                             return p;
@@ -476,6 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const detalleOtro = ok(p && p.detalleOtro);
                         const evidenciaUrl = ok(p && p.evidenciaUrl);
                         const evidenciaNombre = ok(p && p.evidenciaNombre);
+                        const evidenciaPath = ok(p && p.evidenciaPath);
                         const danoTxt = (estado === 'MALO') ? (detalleOtro || tipoDano || '') : '';
                         const badge = estado === 'MALO'
                             ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; font-size:12px; font-weight:700;">MALO</span>'
@@ -483,22 +495,26 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; font-weight:700;">NO LEGIBLE</span>'
                                 : '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; border:1px solid #bbf7d0; color:#166534; font-size:12px; font-weight:700;">BUENO</span>');
 
-                        const evidenciaHtml = (evidenciaUrl || evidenciaNombre)
+                        const evidenciaHtml = (evidenciaUrl || evidenciaNombre || evidenciaPath)
                             ? `
                                 <div style="margin-top:8px;">
                                     <div style="font-size:12px; color:#475569; margin-bottom:6px;">Evidencia</div>
-                                    ${evidenciaUrl ? `
-                                        <img
-                                            src="${evidenciaUrl}"
-                                            alt="Evidencia"
-                                            class="insp-evid-thumb"
-                                            data-full="${evidenciaUrl}"
-                                            style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in;"
-                                            onerror="try{this.style.display='none'; const fb=this.parentElement && this.parentElement.querySelector('.insp-evid-fallback'); if(fb) fb.style.display='block';}catch(e){}"
-                                        />
-                                    ` : ''}
+                                    <img
+                                        src="${evidenciaUrl ? evidenciaUrl : ''}"
+                                        alt="Evidencia"
+                                        class="insp-evid-thumb"
+                                        data-full="${evidenciaUrl ? evidenciaUrl : ''}"
+                                        data-evidencia-path="${evidenciaPath}"
+                                        data-evidencia-nombre="${evidenciaNombre}"
+                                        crossorigin="anonymous"
+                                        referrerpolicy="no-referrer"
+                                        loading="eager"
+                                        decoding="sync"
+                                        style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${evidenciaUrl ? '' : 'display:none;'}"
+                                        onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
+                                    />
                                     <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${evidenciaUrl ? 'display:none;' : ''}">
-                                        ${evidenciaNombre ? `Evidencia: ${evidenciaNombre}` : (evidenciaUrl ? 'No se pudo cargar la evidencia.' : '')}
+                                        ${evidenciaNombre ? `Evidencia: ${evidenciaNombre}` : (evidenciaPath ? 'Evidencia' : '')}
                                     </div>
                                 </div>
                               `
@@ -517,12 +533,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).join('');
 
                     panel.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; border-bottom:3px solid #0f172a; padding-bottom:10px; margin-bottom:12px;">
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <img src="img/logopctch.png" alt="PCT" style="height:34px;" />
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <img src="img/logopctch.png" alt="PCT" style="height:36px; width:auto;" crossorigin="anonymous" />
                                 <div>
-                                    <div style="font-weight:900; font-size:16px; color:#0f172a;">Inspección de equipo</div>
-                                    <div style="font-size:12px; color:#475569;">Documento digital</div>
+                                    <div style="font-weight:900; font-size:16px;">Inspección de equipo</div>
+                                    <div style="font-size:12px; color:#64748b;">Documento digital</div>
                                 </div>
                             </div>
                             <div style="text-align:right; font-size:12px; color:#334155;">
@@ -557,6 +573,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         panel.dataset.equipo = (equipo || '').toString().trim();
                         panel.dataset.tipo = (tipo || '').toString().trim();
+                        panel.dataset.inspId = (data && data.id ? String(data.id) : '').trim();
+                        panel.dataset.localId = (data && data.localId ? String(data.localId) : '').trim();
+                        panel.dataset.actividadId = (data && data.actividadId ? String(data.actividadId) : '').trim();
                     } catch {}
 
                     // Lightbox
@@ -564,6 +583,66 @@ document.addEventListener('DOMContentLoaded', () => {
                         const prev = document.getElementById('insp-lightbox');
                         if (prev) prev.remove();
                     } catch {}
+
+                    // Fallback para thumbnails bloqueadas por CORS/403 en localhost: leer bytes vía SDK y usar blob: URL local.
+                    // Esto restaura: thumbnail visible, click-to-expand, e inclusión en PDF (html2canvas).
+                    window.__pctEvidFallback = async (imgEl) => {
+                        try {
+                            if (!imgEl) return;
+                            if (imgEl.dataset && imgEl.dataset.pctBlobOk === '1') return;
+
+                            const data = (panel && panel.dataset) ? panel.dataset : {};
+                            const inspId = String(data.inspId || '').trim();
+                            const localId = String(data.localId || '').trim();
+                            const actId = String(data.actividadId || '').trim();
+
+                            const pathDirecto = String(imgEl.getAttribute('data-evidencia-path') || '').trim();
+                            const nombre = String(imgEl.getAttribute('data-evidencia-nombre') || '').trim();
+
+                            const candidatos = [];
+                            if (pathDirecto) candidatos.push(pathDirecto);
+                            if (nombre) {
+                                if (inspId) candidatos.push(`inspecciones/${inspId}/${nombre}`);
+                                if (localId) candidatos.push(`inspecciones/${localId}/${nombre}`);
+                                if (actId) candidatos.push(`inspecciones/${actId}/${nombre}`);
+                            }
+                            if (!candidatos.length) return;
+
+                            const { getStorage, ref: stRef, getBytes } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
+                            );
+                            const storage = getStorage();
+
+                            let bytes = null;
+                            let lastErrCode = '';
+                            let lastPath = '';
+                            for (const pth of candidatos) {
+                                try {
+                                    lastPath = pth;
+                                    bytes = await getBytes(stRef(storage, pth));
+                                    if (bytes) break;
+                                } catch (e) {
+                                    const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                                    lastErrCode = code;
+                                    try {
+                                        console.warn('No se pudo cargar evidencia (getBytes)', { path: pth, code });
+                                    } catch {}
+                                }
+                            }
+                            if (!bytes) return;
+
+                            const blob = new Blob([bytes], { type: 'image/jpeg' });
+                            const blobUrl = URL.createObjectURL(blob);
+                            imgEl.src = blobUrl;
+                            imgEl.setAttribute('data-full', blobUrl);
+                            imgEl.dataset.pctBlobOk = '1';
+                            try {
+                                const fb = imgEl.parentElement && imgEl.parentElement.querySelector('.insp-evid-fallback');
+                                if (fb) fb.style.display = 'none';
+                                imgEl.style.display = '';
+                            } catch {}
+                        } catch {}
+                    };
 
                     const lb = document.createElement('div');
                     lb.id = 'insp-lightbox';
@@ -595,11 +674,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         el.addEventListener('click', () => {
                             const url = el.getAttribute('data-full') || el.getAttribute('src') || '';
                             if (!url) return;
-                            if (img) img.setAttribute('src', url);
-                            if (openA) openA.setAttribute('href', url);
+                            if (openA) openA.href = url;
+                            if (img) img.src = url;
                             lb.style.display = 'flex';
                         });
+
+                        // Si ya viene rota por CORS/403, disparar fallback inmediatamente
+                        try {
+                            const src = String(el.getAttribute('src') || '').trim();
+                            if (src && /^https?:\/\//i.test(src) && el.naturalWidth === 0) {
+                                window.__pctEvidFallback(el);
+                            }
+                        } catch {}
                     });
+
+                    // Si no había evidenciaUrl (o está bloqueada), intentar poblarla vía SDK inmediatamente
+                    try {
+                        panel.querySelectorAll('.insp-evid-thumb').forEach(el => {
+                            const src = String(el.getAttribute('src') || '').trim();
+                            if (!src || (/^https?:\/\//i.test(src) && el.naturalWidth === 0)) {
+                                window.__pctEvidFallback(el);
+                            }
+                        });
+                    } catch {}
                 } catch {}
             };
 
@@ -2220,6 +2317,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 document.body.appendChild(wrapper);
 
+                // Asegurar que imágenes (evidencias/brand) queden embebidas para que html2canvas las incluya en el PDF.
+                // Problema típico: CORS/timing con URLs de Firebase Storage => salen en pantalla pero no en el canvas.
+                async function embedRemoteImages(rootEl) {
+                    const imgs = Array.from(rootEl.querySelectorAll('img'));
+                    if (!imgs.length) return;
+
+                    const toDataUrl = async (url) => {
+                        try {
+                            const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
+                            if (!res.ok) return null;
+                            const blob = await res.blob();
+                            const dataUrl = await new Promise((resolve) => {
+                                try {
+                                    const fr = new FileReader();
+                                    fr.onload = () => resolve(String(fr.result || ''));
+                                    fr.onerror = () => resolve('');
+                                    fr.readAsDataURL(blob);
+                                } catch {
+                                    resolve('');
+                                }
+                            });
+                            return dataUrl || null;
+                        } catch {
+                            return null;
+                        }
+                    };
+
+                    // 1) Forzar eager + esperar load para evitar capturar antes de que pinten
+                    await Promise.allSettled(imgs.map(img => new Promise((resolve) => {
+                        try {
+                            img.loading = 'eager';
+                            img.decoding = 'sync';
+                            img.crossOrigin = 'anonymous';
+                            if (img.complete) return resolve();
+                            img.onload = () => resolve();
+                            img.onerror = () => resolve();
+                        } catch {
+                            resolve();
+                        }
+                    })));
+
+                    // 2) Convertir remotas a dataURL (solo si no son data: / blob:)
+                    for (const img of imgs) {
+                        try {
+                            const src = String(img.getAttribute('src') || '').trim();
+                            if (!src) continue;
+                            if (src.startsWith('data:') || src.startsWith('blob:')) continue;
+                            if (!/^https?:\/\//i.test(src)) continue;
+                            const data = await toDataUrl(src);
+                            if (data && data.startsWith('data:')) {
+                                img.setAttribute('src', data);
+                            }
+                        } catch {}
+                    }
+
+                    // 3) Esperar nuevamente por si el reemplazo tarda en decodificar
+                    await Promise.allSettled(imgs.map(img => new Promise((resolve) => {
+                        try {
+                            if (img.complete) return resolve();
+                            img.onload = () => resolve();
+                            img.onerror = () => resolve();
+                        } catch {
+                            resolve();
+                        }
+                    })));
+                }
+
+                await embedRemoteImages(wrapper);
+
                 // Preparar rangos (en px CSS) de elementos que NO deben cortarse entre páginas
                 // Nota: html2canvas escala el canvas; convertimos estos rangos a px del canvas después de capturar.
                 const wrapperWidthCss = wrapper.offsetWidth || 1;
@@ -2738,32 +2904,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
 
                 try {
-                    if (docRef && docRef.id && Array.isArray(fotosParaSubir) && fotosParaSubir.length) {
-                        const storage = getStorage();
+                    // Subir evidencias (fotos) a Storage y luego persistir evidenciaUrl/evidenciaPath en Firestore
+                    const storage = getStorage();
+                    if (Array.isArray(fotosParaSubir) && fotosParaSubir.length) {
                         const urlsPorIdx = {};
                         for (const f of fotosParaSubir) {
-                            const name = (f && f.evidenciaNombre) ? String(f.evidenciaNombre) : `foto-${String(f && f.idx != null ? f.idx : '')}.jpg`;
-                            const pth = `inspecciones/${docRef.id}/${name}`;
+                            const name = (f && f.evidenciaNombre)
+                                ? String(f.evidenciaNombre)
+                                : `foto-${String(f && f.idx != null ? f.idx : '')}.jpg`;
+                            // Usar la misma carpeta que evidenciaPath (localId)
+                            const pth = `inspecciones/${localId}/${name}`;
                             const stRef = ref(storage, pth);
                             await uploadBytes(stRef, f.file);
                             const url = await getDownloadURL(stRef);
-                            if (f && typeof f.idx === 'number') {
-                                urlsPorIdx[String(f.idx)] = url;
-                            }
+                            urlsPorIdx[String(f.idx)] = url;
                         }
 
-                        const paramsOut = (Array.isArray(payload.parametros) ? payload.parametros : []).map((p, idx) => {
+                        const nextParams = (parametrosCapturados || []).map((p, idx) => {
                             const u = urlsPorIdx[String(idx)] || '';
                             if (!u) return p;
                             const name = (p && p.evidenciaNombre) ? String(p.evidenciaNombre) : '';
-                            const evidenciaPath = (p && p.evidenciaPath) ? String(p.evidenciaPath) : (name ? `inspecciones/${docRef.id}/${name}` : '');
+                            const evidenciaPath = (p && p.evidenciaPath)
+                                ? String(p.evidenciaPath)
+                                : (name ? `inspecciones/${localId}/${name}` : '');
                             return { ...(p || {}), evidenciaUrl: u, evidenciaPath };
                         });
 
-                        await updateDoc(doc(db, 'inspecciones', docRef.id), {
-                            parametros: paramsOut,
-                            evidenciasSubidas: true,
-                        });
+                        // Guardar URLs resueltas en el documento (merge)
+                        await updateDoc(docRef, { parametros: nextParams });
+                        try {
+                            patchInspeccionLocalPorId(localId, { parametros: nextParams });
+                        } catch {}
                     }
                 } catch (e) {
                     console.warn('No se pudieron subir evidencias a Storage:', e);

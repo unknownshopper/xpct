@@ -115,6 +115,16 @@
 
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-huerfanas" style="margin-top:0.75rem; display:none;">
                 <h3 style="margin:0.25rem 0 0.5rem; font-size:1rem;">Inspecciones realizadas (sin actividad)</h3>
+                <div id="insp-acciones-huerfanas" style="display:none; gap:0.5rem; align-items:center; margin:0 0 0.5rem; flex-wrap:wrap;">
+                    <select id="insp-assign-huerfanas" style="font-size:0.85rem; padding:0.2rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
+                        <option value="">(Asignar a...)</option>
+                        <option value="inspector01@pc-t.com.mx">inspector01@pc-t.com.mx</option>
+                        <option value="inspector02@pc-t.com.mx">inspector02@pc-t.com.mx</option>
+                        <option value="capturista@pc-t.com.mx">capturista@pc-t.com.mx</option>
+                        <option value="auxger@pc-t.com.mx">auxger@pc-t.com.mx</option>
+                    </select>
+                    <button type="button" id="insp-btn-assign-huerfanas" style="font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#111827; color:#ffffff;">Asignar seleccionadas</button>
+                </div>
                 <table id="tabla-inspecciones-huerfanas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f3f4f6;">
@@ -125,8 +135,8 @@
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Serial</th>
                             <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
-                            <th style="text-align:left; padding:0.4rem;">Lugar</th>
                             <th style="text-align:left; padding:0.4rem;">Evaluación</th>
+                            <th style="text-align:left; padding:0.4rem;">Asignado a</th>
                             <th style="text-align:left; padding:0.4rem;">Usuario</th>
                             <th style="text-align:left; padding:0.4rem;">Observaciones</th>
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
@@ -702,6 +712,14 @@
                     const accionesHtml = (insp) ? `
                             <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
                             ${(window.isAdmin || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
+                            ${(() => {
+                                const t = (insp?.tipoInspeccion || '').toString().trim().toUpperCase();
+                                const obs = (insp?.observaciones || '').toString().trim();
+                                if (t === 'POST-TRABAJO' && obs) {
+                                    return `<button type="button" class="insp-btn-reparacion" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fde68a; background:#fffbeb; color:#92400e; margin-right:0.25rem;">Reparación</button>`;
+                                }
+                                return '';
+                            })()}
                             ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
                         ` : '';
 
@@ -767,6 +785,7 @@
                                 <option value="PRE-TRABAJO" ${String(tipoInsp).toUpperCase()==='PRE-TRABAJO' ? 'selected' : ''}>Pre-trabajo</option>
                                 <option value="POST-TRABAJO" ${String(tipoInsp).toUpperCase()==='POST-TRABAJO' ? 'selected' : ''}>Post-trabajo</option>
                                 <option value="RECEPCION" ${String(tipoInsp).toUpperCase()==='RECEPCION' ? 'selected' : ''}>Recepción</option>
+                                <option value="REPARACION" ${String(tipoInsp).toUpperCase()==='REPARACION' ? 'selected' : ''}>Reparación</option>
                             </select>
                           `
                         : (tipoInsp || '');
@@ -855,6 +874,7 @@
                     const usuario = insp?.usuarioInspeccion || '';
                     const tipoInsp = insp?.tipoInspeccion || '';
                     const observaciones = insp?.observaciones || '';
+                    const asignado = (insp?.inspectorAsignado || '').toString().trim();
 
                     const textoBuscar = `${cliente} ${area} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) return;
@@ -878,6 +898,24 @@
                         ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
                     `;
 
+                    let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
+                    if (window.isAdmin || window.isSupervisor) {
+                        const opt = (val, label) => `<option value="${val}" ${asignado === val ? 'selected' : ''}>${label}</option>`;
+                        asignadoHtml = `
+                            <select class="insp-select-asignado-huerfana" data-insp-id="${insp?.id || ''}" style="font-size:0.8rem; padding:0.15rem 0.35rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
+                                <option value="">(Sin asignar)</option>
+                                ${opt('inspector01@pc-t.com.mx', 'inspector01@pc-t.com.mx')}
+                                ${opt('inspector02@pc-t.com.mx', 'inspector02@pc-t.com.mx')}
+                                ${opt('capturista@pc-t.com.mx', 'capturista@pc-t.com.mx')}
+                                ${opt('auxger@pc-t.com.mx', 'auxger@pc-t.com.mx')}
+                            </select>
+                        `;
+                    } else if (!asignado && window.isInspector) {
+                        asignadoHtml = `
+                            <button type="button" class="insp-btn-claim-huerfana" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#e0f2fe; color:#0369a1;">Tomar</button>
+                        `;
+                    }
+
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
@@ -887,8 +925,8 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInsp}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${accionesHtml}</td>
@@ -1024,6 +1062,59 @@
                 });
             });
 
+            // 6.5) Crear actividad de REPARACIÓN desde inspección POST-TRABAJO con observaciones
+            tbody.querySelectorAll('.insp-btn-reparacion').forEach(btn => {
+                if (btn.dataset.boundRep === '1') return;
+                btn.dataset.boundRep = '1';
+                btn.addEventListener('click', async (ev) => {
+                    try { ev.stopPropagation(); } catch {}
+
+                    const actividadIdOrigen = btn.getAttribute('data-actividad-id') || '';
+                    const inspIdOrigen = btn.getAttribute('data-insp-id') || '';
+                    if (!actividadIdOrigen) return;
+
+                    const actOrigen = (Array.isArray(actividades) ? actividades.find(a => String(a?.id || '') === String(actividadIdOrigen)) : null);
+                    if (!actOrigen) {
+                        alert('No se encontró la actividad origen para generar reparación.');
+                        return;
+                    }
+
+                    if (!confirm('¿Generar una nueva actividad de REPARACIÓN para esta inspección?')) return;
+
+                    try {
+                        const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+
+                        const nuevo = { ...(actOrigen || {}) };
+                        delete nuevo.id;
+                        // Garantizar que quede como pendiente (sin inspección asociada aún)
+                        nuevo.tipoInspeccion = 'REPARACION';
+                        nuevo.inspectorAsignado = '';
+                        nuevo.fechaRegistro = serverTimestamp();
+                        nuevo.reparacionDeActividadId = String(actividadIdOrigen);
+                        nuevo.reparacionDeInspeccionId = String(inspIdOrigen || '');
+                        nuevo.reparacionCreadaPor = (window.currentUserEmail || '').toLowerCase();
+
+                        await addDoc(collection(db, 'actividades'), nuevo);
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('actividades_create_reparacion', {
+                                    actividadIdOrigen: String(actividadIdOrigen),
+                                    inspIdOrigen: String(inspIdOrigen || '')
+                                }, { throttleKey: `actividades_create_reparacion_${actividadIdOrigen}_${inspIdOrigen}` });
+                            }
+                        } catch {}
+
+                        cargarDatos();
+                    } catch (e) {
+                        console.error('No se pudo crear la actividad de reparación', e);
+                        alert('No se pudo crear la actividad de reparación. Revisa la consola.');
+                    }
+                });
+            });
+
             // 7) Editar inspecciones realizadas (reabrir formato)
             tbody.querySelectorAll('.insp-btn-editar').forEach(btn => {
                 btn.addEventListener('click', (ev) => {
@@ -1154,6 +1245,108 @@
                     });
                 });
             };
+
+            // 8.5) Asignación (individual/masiva) de inspecciones huérfanas
+            try {
+                const accionesH = document.getElementById('insp-acciones-huerfanas');
+                if (accionesH) {
+                    accionesH.style.display = (window.isAdmin || window.isSupervisor) ? 'flex' : 'none';
+                }
+            } catch {}
+
+            // Individual (admin/supervisor)
+            tbodyHuerfanas?.querySelectorAll('.insp-select-asignado-huerfana').forEach(sel => {
+                if (sel.dataset.boundAsgH === '1') return;
+                sel.dataset.boundAsgH = '1';
+                sel.addEventListener('change', async (ev) => {
+                    try { ev.stopPropagation(); } catch {}
+                    const inspId = sel.getAttribute('data-insp-id') || '';
+                    if (!inspId) return;
+                    const nuevo = String(sel.value || '').trim();
+                    try {
+                        const { getFirestore, doc, updateDoc } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        await updateDoc(doc(db, 'inspecciones', inspId), { inspectorAsignado: nuevo });
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('inspecciones_assign_inspector_huerfana', { inspId, inspectorAsignado: nuevo }, { throttleKey: `inspecciones_assign_inspector_huerfana_${inspId}` });
+                            }
+                        } catch {}
+                        cargarDatos();
+                    } catch (e) {
+                        console.error('No se pudo actualizar asignación (huérfana)', e);
+                    }
+                });
+            });
+
+            // Tomar (inspector)
+            tbodyHuerfanas?.querySelectorAll('.insp-btn-claim-huerfana').forEach(btn => {
+                if (btn.dataset.boundClaimH === '1') return;
+                btn.dataset.boundClaimH = '1';
+                btn.addEventListener('click', async (ev) => {
+                    try { ev.stopPropagation(); } catch {}
+                    const inspId = btn.getAttribute('data-insp-id') || '';
+                    if (!inspId) return;
+                    const email = (window.currentUserEmail || '').toLowerCase();
+                    if (!email || !window.isInspector) return;
+                    try {
+                        const { getFirestore, doc, updateDoc } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        await updateDoc(doc(db, 'inspecciones', inspId), { inspectorAsignado: email });
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('inspecciones_take_inspector_huerfana', { inspId, inspectorAsignado: email }, { throttleKey: `inspecciones_take_inspector_huerfana_${inspId}` });
+                            }
+                        } catch {}
+                        cargarDatos();
+                    } catch (e) {
+                        console.error('No se pudo tomar inspección huérfana', e);
+                    }
+                });
+            });
+
+            // Masiva (admin/supervisor)
+            const btnAsgH = document.getElementById('insp-btn-assign-huerfanas');
+            const selAsgH = document.getElementById('insp-assign-huerfanas');
+            if (btnAsgH && selAsgH && !btnAsgH.dataset.boundBulkH) {
+                btnAsgH.dataset.boundBulkH = '1';
+                btnAsgH.addEventListener('click', async () => {
+                    const nuevo = String(selAsgH.value || '').trim();
+                    if (!nuevo) {
+                        alert('Selecciona a quién asignar.');
+                        return;
+                    }
+                    const ids = Array.from(document.querySelectorAll('.insp-select-fila-huerfana:checked'))
+                        .map(el => String(el.getAttribute('data-insp-id') || '').trim())
+                        .filter(Boolean);
+                    if (!ids.length) {
+                        alert('Selecciona al menos una inspección.');
+                        return;
+                    }
+                    if (!confirm(`¿Asignar ${ids.length} inspección(es) a ${nuevo}?`)) return;
+                    try {
+                        const { getFirestore, doc, updateDoc } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        const ops = ids.map(inspId => updateDoc(doc(db, 'inspecciones', inspId), { inspectorAsignado: nuevo }));
+                        await Promise.allSettled(ops);
+                        try {
+                            if (typeof window.pctAudit === 'function') {
+                                await window.pctAudit('inspecciones_assign_bulk_huerfanas', { count: ids.length, inspectorAsignado: nuevo }, { throttleKey: `inspecciones_assign_bulk_huerfanas_${nuevo}` });
+                            }
+                        } catch {}
+                        cargarDatos();
+                    } catch (e) {
+                        console.error('No se pudo asignar masivamente (huérfanas)', e);
+                        alert('No se pudo asignar. Revisa la consola.');
+                    }
+                });
+            }
 
             bindEliminar(tbody);
             bindEliminar(tbodyHuerfanas);
