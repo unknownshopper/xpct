@@ -81,6 +81,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return -1;
     }
 
+    function normFormatoKey(s) {
+        try {
+            return String(s || '')
+                .toUpperCase()
+                .replace(/\s+/g, ' ')
+                .replace(/\s*\/\s*/g, '/')
+                .trim();
+        } catch {
+            return String(s || '').trim().toUpperCase();
+        }
+    }
+
     function findHeaderIndexContains(headersArr, containsAny) {
         try {
             const hs = Array.isArray(headersArr) ? headersArr : [];
@@ -1133,25 +1145,33 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(texto => {
             const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            let formatoActual = null;
+            let formatoActual = '';
+
+            Object.keys(formatosPorCodigo).forEach(k => delete formatosPorCodigo[k]);
+            formatosPorCodigo = {};
 
             lineas.forEach(linea => {
                 const cols = parseCSVLine(linea);
-                const nombre = (cols[0] || '').trim();
+                const nombre = (cols[0] || '').toString().trim();
+                if (!nombre) return;
 
-                if (!nombre) {
-                    formatoActual = null;
-                    return;
-                }
-
-                if (!formatoActual) {
-                    // Primera línea no vacía de un bloque: nombre del formato
+                // Encabezado de formato: en forxmat.csv los bloques empiezan con algo como 'PCT-FR-...'
+                if (/^PCT\b/i.test(nombre)) {
                     formatoActual = nombre;
                     if (!formatosPorCodigo[formatoActual]) {
                         formatosPorCodigo[formatoActual] = [];
                     }
-                } else {
-                    // Líneas siguientes: parámetros del formato
+
+                    // También indexar por clave normalizada para tolerar variantes (p.ej. DSA/SSA)
+                    const kNorm = normFormatoKey(formatoActual);
+                    if (kNorm && kNorm !== formatoActual && !formatosPorCodigo[kNorm]) {
+                        formatosPorCodigo[kNorm] = formatosPorCodigo[formatoActual];
+                    }
+                    return;
+                }
+
+                // Parámetro dentro del formato actual
+                if (formatoActual && formatosPorCodigo[formatoActual]) {
                     formatosPorCodigo[formatoActual].push(nombre);
                 }
             });
@@ -1259,8 +1279,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const get = (idx) => (idx >= 0 && idx < fila.length ? fila[idx] : '');
 
         const reporte = get(idxReporte);
-        const parametrosBrutos = reporte && formatosPorCodigo[reporte]
-            ? formatosPorCodigo[reporte].filter(p => p && p.length > 0)
+        const reporteNorm = normFormatoKey(reporte);
+        const formatoLista = (reporte && formatosPorCodigo[reporte])
+            ? formatosPorCodigo[reporte]
+            : (reporteNorm && formatosPorCodigo[reporteNorm])
+                ? formatosPorCodigo[reporteNorm]
+                : null;
+        const parametrosBrutos = Array.isArray(formatoLista)
+            ? formatoLista.filter(p => p && p.length > 0)
             : [];
 
         // Parámetros que ya están autocompletados en la ficha del equipo y no deben inspeccionarse
