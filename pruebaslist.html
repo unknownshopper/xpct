@@ -341,16 +341,35 @@
                     Incluye todas las pruebas registradas. Las pruebas con próxima fecha vencida se resaltan en rojo.
                 </p>
                 <div class="tabla-inspecciones-wrapper listado-scroll" style="overflow-x:auto;">
-                    <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1050px;">
+                    <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1350px; table-layout:fixed;">
+                        <colgroup>
+                            <col style="width:34px;">
+                            <col style="width:120px;">
+                            <col style="width:120px;">
+                            <col style="width:110px;">
+                            <col style="width:150px;">
+                            <col style="width:130px;">
+                            <col style="width:120px;">
+                            <col style="width:170px;">
+                            <col style="width:130px;">
+                            <col style="width:220px;">
+                            <col style="width:170px;">
+                            <col style="width:160px;">
+                            <col style="width:160px;">
+                            <col style="width:130px;">
+                            <col style="width:140px;">
+                            <col style="width:140px;">
+                        </colgroup>
                         <thead>
                             <tr style="background:#f3f4f6;">
-                                <th style="text-align:left; padding:0.4rem; width:32px;"><input type="checkbox" id="pruebas-select-todos"></th>
+                                <th style="text-align:center; padding:0.35rem;"><input type="checkbox" id="pruebas-select-todos" style="display:block; margin:0 auto;"></th>
                                 <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Periodo</th>
                                 <th style="text-align:left; padding:0.4rem;">Estado</th>
                                 <th style="text-align:left; padding:0.4rem;">Días para próxima Prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th style="text-align:left; padding:0.4rem;">Serial</th>
                                 <th style="text-align:left; padding:0.4rem;">Producto</th>
                                 <th style="text-align:left; padding:0.4rem;">Descripción</th>
                                 <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
@@ -722,13 +741,7 @@
         // Permisos por rol
         const permitirEliminar = !!(window.isAdmin || window.isDirector || window.isSupervisor);
 
-        // Ajustar encabezado: ocultar columna de selección si no se permite eliminar
-        try {
-            if (!permitirEliminar) {
-                const thSel = document.querySelector('#tabla-pruebas-listado thead th:first-child');
-                if (thSel) thSel.style.display = 'none';
-            }
-        } catch {}
+        // Ajustar encabezado: la columna de selección se usa para exportar y debe permanecer visible
 
         const params = new URLSearchParams(window.location.search || '');
         const localMode = params.get('local') === '1';
@@ -819,10 +832,11 @@
             const tr = document.createElement('tr');
             const status = (item.status || 'pending').toString();
             const statusTxt = status === 'synced' ? 'Enviada' : 'Pendiente';
+            const serialLocal = normSerialKey(r.numeroSerie || r.serial || '');
 
             tr.innerHTML = `
-                <td style="padding:0.4rem;">
-                    <input type="checkbox" disabled>
+                <td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;">
+                    <input type="checkbox" disabled style="display:block; margin:0 auto;">
                 </td>
                 <td style="padding:0.4rem;">${String(r.fechaRealizacion || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.proxima || '').trim() || ''}</td>
@@ -830,6 +844,7 @@
                 <td style="padding:0.4rem;">${statusTxt}</td>
                 <td style="padding:0.4rem;">${fmt(item.createdAt)}</td>
                 <td style="padding:0.4rem;">${String(r.equipo || '').trim() || ''}</td>
+                <td style="padding:0.4rem;">${serialLocal}</td>
                 <td style="padding:0.4rem;">${String(r.producto || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.descripcion || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.pruebaTipo || r.prueba || '').trim() || ''}</td>
@@ -1049,11 +1064,8 @@
         const btnImportCancel = document.getElementById('btn-import-cancel');
 
         const permitirEliminar = !!(window.isAdmin || window.isDirector);
-        // Ocultar botón eliminar y cabecera de checkbox si no tiene permiso
+        // Ocultar botón eliminar si no tiene permiso. La cabecera de selección se mantiene visible para exportar.
         if (btnEliminar) btnEliminar.style.display = permitirEliminar ? '' : 'none';
-        if (chkSelectTodos && chkSelectTodos.closest && chkSelectTodos.closest('th')) {
-            chkSelectTodos.closest('th').style.display = permitirEliminar ? '' : 'none';
-        }
 
         // Import CSV para admin o director
         if (btnImportCsv) btnImportCsv.style.display = ((window.isAdmin || window.isDirector || window.isAuxger) ? '' : 'none');
@@ -1785,7 +1797,7 @@
 
                 rows.forEach(cols => {
                     let eq = normEquipoKey((cols[idxEquipo] || '').toString());
-                    const serial = ((idxSerial>=0 ? cols[idxSerial] : '') || '').toString().trim().toUpperCase();
+                    const serial = normSerialKey(((idxSerial>=0 ? cols[idxSerial] : '') || ''));
                     if (!eq) return;
                     setEq.add(eq);
                     if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
@@ -1823,7 +1835,7 @@
                         if (idxEquipo2 >= 0 && rows2.length) {
                             rows2.forEach(cols2 => {
                                 let eq2 = normEquipoKey((cols2[idxEquipo2] || '').toString());
-                                const serial2 = ((idxSerial2>=0 ? cols2[idxSerial2] : '') || '').toString().trim().toUpperCase();
+                                const serial2 = normSerialKey(((idxSerial2>=0 ? cols2[idxSerial2] : '') || ''));
                                 if (!eq2) return;
                                 setEq.add(eq2);
                                 if (serial2 && !mapaSerialPorEquipo[eq2]) mapaSerialPorEquipo[eq2] = serial2;
@@ -2894,6 +2906,18 @@
             return t;
         }
 
+        function normSerialKey(v) {
+            let t = (v || '').toString();
+            t = t.replace(/\u00A0/g, ' ');
+            t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, ' ');
+            t = t.trim().toUpperCase();
+            // Compactar separadores comunes (sin cambiar el significado)
+            t = t.replace(/\s*\/\s*/g, '/');
+            t = t.replace(/\s*-\s*/g, '-');
+            t = t.replace(/\s{2,}/g, ' ');
+            return t;
+        }
+
         function render() {
             const filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
@@ -3312,9 +3336,7 @@
                         });
 
                         const fila = document.createElement('tr');
-                        const tdSelect = permitirEliminar
-                            ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}"></td>`
-                            : '';
+                        const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}" style="display:block; margin:0 auto;"></td>`;
                         const badgeSin = '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin prueba</span>';
                         const badgeWip = isWip
                             ? '<span style="margin-left:0.35rem; padding:0.1rem 0.5rem; border-radius:999px; background:#fef3c7; color:#92400e; font-size:0.75rem;">WIP</span>'
@@ -3334,6 +3356,7 @@
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial ? normSerialKey(serial) : '—'}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
@@ -3380,7 +3403,9 @@
             listaOrdenada.forEach(reg => {
                 const eqK = normEquipoKey(reg.equipo);
                 const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
-                const serialKey = (reg && reg.numeroSerie ? String(reg.numeroSerie) : '').trim().toUpperCase();
+                const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                const serialKey = normSerialKey(serialRaw);
+                const serialCelda = (serialKey || serialInv || '').toString().trim();
                 const prodDerivado = (productoPorEquipoInv && eqK && productoPorEquipoInv[eqK])
                     ? String(productoPorEquipoInv[eqK])
                     : (productoPorSerialInv && serialKey && productoPorSerialInv[serialKey])
@@ -3565,9 +3590,7 @@
                     ? `<input type="text" class="pl-tecnico" data-id="${reg.id || ''}" value="${(reg.tecnico || '').toString().replace(/"/g, '&quot;')}">`
                     : (reg.tecnico || '');
                 
-                const tdSelect = permitirEliminar
-                    ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><input type=\"checkbox\" class=\"prueba-select\" data-idx=\"${idx}\"></td>`
-                    : '';
+                const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type=\"checkbox\" class=\"prueba-select\" data-idx=\"${idx}\" style=\"display:block; margin:0 auto;\"></td>`;
 
                 fila.innerHTML = `
                     ${tdSelect}
@@ -3577,6 +3600,7 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${diasParaProxima}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serialCelda || '—'}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
@@ -3697,7 +3721,7 @@
         actualizarChipsUI();
         render();
 
-        if (permitirEliminar && chkSelectTodos) {
+        if (chkSelectTodos) {
             chkSelectTodos.addEventListener('change', () => {
                 const checks = tbodyListado.querySelectorAll('.prueba-select');
                 checks.forEach(chk => {
@@ -3716,8 +3740,7 @@
                     seleccionadas.push(filas[idx]);
                 }
             });
-            // Si no hay selección explícita, usar todas las visibles
-            return seleccionadas.length ? seleccionadas : filas;
+            return seleccionadas;
         }
 
         async function actualizarCampoPrueba(id, nuevoValor) {
@@ -3869,7 +3892,7 @@
         function exportarCsv() {
             const filas = obtenerSeleccionadas();
             if (!filas.length) {
-                alert('No hay pruebas para exportar.');
+                alert('Selecciona al menos una prueba para exportar.');
                 return;
             }
 
@@ -3879,6 +3902,7 @@
                 'Estado',
                 'DiasParaProxima',
                 'Equipo',
+                'Serial',
                 'Producto',
                 'Descripcion',
                 'Prueba',
@@ -3916,12 +3940,19 @@
                     dias = String(d);
                 }
 
+                const eqK = normEquipoKey(reg.equipo);
+                const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                const serialKey = normSerialKey(serialRaw);
+                const serialCsv = (serialKey || serialInv || '').toString().trim();
+
                 const filaCsv = [
                     reg.fechaRealizacion || '',
                     reg.proxima || '',
                     clasif.estado || '',
                     dias,
                     reg.equipo || '',
+                    serialCsv,
                     reg.producto || '',
                     reg.descripcion || '',
                     reg.prueba || reg.pruebaTipo || '',
