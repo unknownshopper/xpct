@@ -87,6 +87,73 @@
            
         </section>
 
+        <section class="dashboard-truth" style="margin:0.75rem 0 0.5rem;">
+            <details style="background:#ffffff; border:1px solid #e5e7eb; border-radius:0.75rem; padding:0.75rem 1rem; box-shadow:0 8px 24px rgba(15,23,42,0.06);">
+                <summary style="cursor:pointer; font-weight:700; color:#111827;">
+                    Fuente de verdad: cómo se calculan los indicadores
+                </summary>
+                <div style="margin-top:0.65rem; font-size:0.9rem; color:#374151; line-height:1.45;">
+                    <div style="margin-bottom:0.6rem; color:#6b7280;">
+                        Esta sección describe de dónde salen los números del dashboard y cómo deben cambiar cuando registras actividades, pruebas e inspecciones.
+                    </div>
+
+                    <div style="font-weight:800; margin:0.65rem 0 0.25rem;">1) Actividades registradas</div>
+                    <div style="margin-left:0.25rem;">
+                        - <strong>Fuente</strong>: colección <code>actividades</code> en Firestore.
+                        - <strong>Registradas</strong>: total de documentos válidos en <code>actividades</code>.
+                        - <strong>Concluidas</strong>: actividades con el flag <code>terminacionEsFinal===true</code> (cuando se cierra el servicio).
+                        - <strong>Pendientes</strong>: actividades registradas que no están concluidas.
+                        <div style="margin-top:0.25rem; color:#6b7280;">Regla: crear una actividad incrementa “Registradas”. Marcar terminación final mueve 1 de “Pendientes” a “Concluidas”.</div>
+                    </div>
+
+                    <div style="font-weight:800; margin:0.85rem 0 0.25rem;">2) Pruebas guardadas</div>
+                    <div style="margin-left:0.25rem;">
+                        - <strong>Fuente</strong>: colección <code>pruebas</code> en Firestore.
+                        - <strong>Total</strong>: cantidad de documentos en <code>pruebas</code>.
+                        - <strong>Tipos (según <code>periodo</code>)</strong>:
+                        <div style="margin-left:1rem;">
+                            - <strong>Anual</strong>: <code>periodo</code> = <code>ANUAL</code> (o vacío en históricos).
+                            - <strong>Post-trabajo</strong>: <code>periodo</code> = <code>POST-TRABAJO</code>.
+                            - <strong>Reparación</strong>: <code>periodo</code> = <code>REPARACION</code>.
+                        </div>
+                        <div style="margin-top:0.25rem; color:#6b7280;">
+                            Nota: <strong>Pre-trabajo</strong> es un <strong>tipo de inspección/actividad</strong> (flujo de inspecciones), no un <code>periodo</code> de la colección <code>pruebas</code>. Por lo tanto <strong>no incrementa</strong> los contadores de “Pruebas guardadas” por sí mismo.
+                        </div>
+                        - <strong>Rangos de días (60–30 / 30–15 / 15–0)</strong>:
+                        <div style="margin-left:1rem;">
+                            - Se calculan <strong>solo para pruebas ANUALES</strong>.
+                            - Se toma la fecha <code>proxima</code> (dd/mm/aa) y se calcula <code>dias = proxima - hoy</code>.
+                            - Se cuentan únicamente las que tienen <code>dias &gt;= 0</code> (si está vencida ya no entra en esos buckets).
+                        </div>
+                        <div style="margin-top:0.25rem; color:#6b7280;">
+                            Reglas de conteo:
+                            <div style="margin-left:1rem;">
+                                - Guardar una prueba <strong>siempre</strong> incrementa <strong>Total</strong>.
+                                - El conteo por <strong>Tipos</strong> depende de <code>periodo</code>.
+                                - Los <strong>buckets 60/30/15</strong> solo se mueven con pruebas <strong>ANUALES</strong> (por la <code>proxima</code>), y cambian con el paso de los días.
+                                - Pruebas <strong>Post-trabajo</strong> y <strong>Reparación</strong> cuentan en Total/Tipos, pero <strong>no afectan</strong> los buckets de días.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="font-weight:800; margin:0.85rem 0 0.25rem;">3) Inspecciones guardadas</div>
+                    <div style="margin-left:0.25rem;">
+                        - <strong>Fuente</strong>: colecciones <code>actividades</code> y <code>inspecciones</code> en Firestore.
+                        - <strong>Realizadas</strong>: actividades que ya tienen al menos una inspección asociada (por <code>actividadId</code> o por match de equipo cuando la inspección histórica no trae <code>actividadId</code> y el match es único).
+                        - <strong>Por realizar</strong>: actividades válidas que aún no tienen inspección asociada.
+                        <div style="margin-top:0.25rem; color:#6b7280;">Regla: al guardar una inspección para una actividad, “Por realizar” baja en 1 y “Realizadas” sube en 1.</div>
+                    </div>
+
+                    <div style="font-weight:800; margin:0.85rem 0 0.25rem;">Validación rápida (recomendado)</div>
+                    <div style="margin-left:0.25rem;">
+                        - Crear 1 actividad nueva: debe subir “Actividades registradas/pendientes”.
+                        - Guardar 1 inspección de esa actividad: debe moverse de “Por realizar” a “Realizadas”.
+                        - Guardar 1 prueba ANUAL con <code>proxima</code> a 45 días: debe subir el bucket “60–30 días”.
+                    </div>
+                </div>
+            </details>
+        </section>
+
         <!-- Modal: Detalle de pendientes (actividades) -->
         <div id="dash-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:50;">
             <div style="background:white; max-width:640px; width:95%; border-radius:0.5rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:1rem 1.25rem;">

@@ -5,6 +5,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const spanInvre2 = document.getElementById('dash-registros-invre2');
     const spanActividades = document.getElementById('dash-actividades');
 
+    const esperarAuthLista = async (msTotal = 4500) => {
+        try {
+            const t0 = Date.now();
+            while (!window.auth && (Date.now() - t0) < msTotal) {
+                await new Promise(r => setTimeout(r, 60));
+            }
+            const auth = window.auth;
+            if (!auth) return null;
+            if (auth.currentUser) return auth.currentUser;
+            const { onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+            const msRest = Math.max(250, msTotal - (Date.now() - t0));
+            return await new Promise((resolve) => {
+                let listo = false;
+                const to = setTimeout(() => {
+                    if (listo) return;
+                    listo = true;
+                    resolve(auth.currentUser || null);
+                }, msRest);
+                const unsub = onAuthStateChanged(auth, (u) => {
+                    if (listo) return;
+                    listo = true;
+                    try { clearTimeout(to); } catch {}
+                    try { if (typeof unsub === 'function') unsub(); } catch {}
+                    resolve(u || null);
+                });
+            });
+        } catch {
+            return (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
+        }
+    };
+
     const dashModal = document.getElementById('dash-modal');
     const dashModalBody = document.getElementById('dash-modal-body');
     const dashModalClose = document.getElementById('dash-modal-cerrar');
@@ -123,6 +154,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
+                const u = await esperarAuthLista();
+                if (!u) {
+                    spanPruebas.textContent = '--';
+                    return;
+                }
                 const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -130,29 +166,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const db = getFirestore();
                 const colRef = collection(db, 'pruebas');
 
-                // 1) Total sin agregación (evita 429 RunAggregationQuery)
+                // Buckets/tipos (y total) desde el mismo snapshot; evita discrepancias por cache stale.
                 let total = '—';
-                const cdKey = 'pct_dash_pruebas_count_cooldown_until';
-                const cacheKey = 'pct_pruebas_total_cached';
-                try {
-                    // Si ya hay un total cacheado, úsalo siempre.
-                    const cached = getCachedNumber(cacheKey);
-                    if (cached != null) total = cached;
-                    else {
-                        try {
-                            const snapCacheOnly = await getDocsFromCache(colRef);
-                            total = snapCacheOnly.size;
-                            setCachedNumber(cacheKey, total);
-                        } catch {}
-                    }
-                } catch (err) {
-                    // No se debería llegar aquí, pero mantenemos fallback silencioso.
-                    try { setCooldown(cdKey); } catch {}
-                }
-
-                try { setCachedNumber(cacheKey, total); } catch {}
-
-                // 2) Buckets y tipos desde caché únicamente (si no hay caché, mostramos —)
                 const hoy = new Date();
                 hoy.setHours(0, 0, 0, 0);
 
@@ -167,6 +182,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     let snap = await getDocsFromCache(colRef);
                     if (snap && typeof snap.size === 'number' && snap.size === 0) {
                         try { snap = await getDocs(colRef); } catch {}
+                    }
+                    if (snap && typeof snap.size === 'number') {
+                        total = snap.size;
+                        try { setCachedNumber('pct_pruebas_total_cached', total); } catch {}
                     }
                     let pv60 = 0, pv30 = 0, pv15 = 0, tAn=0, tPT=0, tRep=0;
                     snap.forEach(doc => {
@@ -183,10 +202,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!dProx) return;
                         const diffMs = dProx.getTime() - hoy.getTime();
                         let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
-                        if (dias < 0) return;
-                        if (dias >= 30 && dias <= 60) pv60 += 1;
-                        else if (dias >= 15 && dias < 30) pv30 += 1;
-                        else if (dias >= 0 && dias < 15) pv15 += 1;
+                        // Alineado a pruebaslist: 60–31, 30–16, 15–1 (0 y vencidas no entran en buckets)
+                        if (dias < 1) return;
+                        if (dias > 60) return;
+                        if (dias >= 31 && dias <= 60) pv60 += 1;
+                        else if (dias >= 16 && dias <= 30) pv30 += 1;
+                        else if (dias >= 1 && dias <= 15) pv15 += 1;
                     });
                     porVencer60 = pv60; porVencer30 = pv30; porVencer15 = pv15;
                     totalAnual = tAn; totalPostTrabajo = tPT; totalReparacion = tRep;
@@ -199,15 +220,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge gray">${total}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟦 <span>60–30 días</span></span>
+                            <span class="row-left">🟦 <span>60–31 días</span></span>
                             <span class="badge blue">${porVencer60}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟨 <span>30–15 días</span></span>
+                            <span class="row-left">🟨 <span>30–16 días</span></span>
                             <span class="badge amber">${porVencer30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟥 <span>15–0 días</span></span>
+                            <span class="row-left">🟥 <span>15–1 días</span></span>
                             <span class="badge red">${porVencer15}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
@@ -543,6 +564,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (async () => {
             try {
+                const u = await esperarAuthLista();
+                if (!u) {
+                    spanInspecciones.textContent = '--';
+                    return;
+                }
                 // 1) Leer actividades desde Firestore para conocer el universo de actividades
                 const { getFirestore, collection, getDocs, getDocsFromCache } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -560,8 +586,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     snap = await getDocs(colRef);
                 }
 
+                const esActividadValida = (a) => {
+                    try {
+                        if (!a) return false;
+                        const equipo = (a.equipo || '').toString().trim();
+                        const cliente = (a.cliente || '').toString().trim();
+                        const area = (a.areaCliente || '').toString().trim();
+                        const ubic = (a.ubicacion || '').toString().trim();
+                        const f = a.fechaRegistro || a.creadoEn || a.createdAt || a.fecha || null;
+                        // Legacy/incompleta: solo equipo, sin datos mínimos
+                        if (equipo && !cliente && !area && !ubic && !f) return false;
+                        return true;
+                    } catch {
+                        return true;
+                    }
+                };
+
                 const actividadIds = new Set();
                 snap.forEach(doc => {
+                    const data = doc.data ? doc.data() : null;
+                    if (!esActividadValida(data)) return;
                     actividadIds.add(doc.id);
                 });
 
@@ -574,8 +618,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const colInsp = col(db, 'inspecciones');
                     let snapInsp;
-                    try { snapInsp = await getDocsFromCacheInsp(colInsp); }
-                    catch { snapInsp = await getDocsInsp(colInsp); }
+                    try {
+                        snapInsp = await getDocsFromCacheInsp(colInsp);
+                        if (snapInsp && typeof snapInsp.size === 'number' && snapInsp.size === 0) {
+                            try { snapInsp = await getDocsInsp(colInsp); } catch {}
+                        }
+                    } catch {
+                        snapInsp = await getDocsInsp(colInsp);
+                    }
                     listaInspecciones = snapInsp.docs.map(d => ({ id: d.id, ...d.data() }));
                 } catch {
                     // Si falla Firestore, usar localStorage como respaldo
@@ -587,17 +637,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // Filtrar solo inspecciones con actividadId válido
-                listaInspecciones = listaInspecciones.filter(reg => reg && reg.actividadId && actividadIds.has(String(reg.actividadId)));
-
-                const realizadas = listaInspecciones.length;
-
                 // 3) Determinar qué actividades ya tienen al menos una inspección
+                // Nota: hay inspecciones históricas guardadas sin actividadId. Para no inflar "Por realizar",
+                // intentamos enlazarlas por equipo cuando el match de actividad sea único (igual que inspectlist).
                 const actividadesConInspeccion = new Set();
-                listaInspecciones.forEach(reg => {
-                    const actId = (reg && reg.actividadId) ? String(reg.actividadId) : '';
-                    if (actId) actividadesConInspeccion.add(actId);
+                const actIdsPorEquipo = new Map();
+                try {
+                    snap.forEach(doc => {
+                        const data = doc.data ? doc.data() : null;
+                        if (!esActividadValida(data)) return;
+                        const eq = (data && data.equipo ? String(data.equipo) : '').trim();
+                        if (!eq) return;
+                        if (!actIdsPorEquipo.has(eq)) actIdsPorEquipo.set(eq, []);
+                        actIdsPorEquipo.get(eq).push(doc.id);
+                    });
+                } catch {}
+
+                const inspeccionesLinkeadas = [];
+                const inspeccionesSinActividad = [];
+                (listaInspecciones || []).forEach(reg => {
+                    if (!reg) return;
+                    const actId = reg.actividadId ? String(reg.actividadId).trim() : '';
+                    if (actId && actividadIds.has(actId)) {
+                        inspeccionesLinkeadas.push(reg);
+                        actividadesConInspeccion.add(actId);
+                        return;
+                    }
+                    inspeccionesSinActividad.push(reg);
                 });
+
+                // Fallback por equipo (match único)
+                inspeccionesSinActividad.forEach(reg => {
+                    try {
+                        const eq = (reg && reg.equipo ? String(reg.equipo) : '').trim();
+                        if (!eq) return;
+                        const ids = actIdsPorEquipo.get(eq) || [];
+                        if (ids.length === 1) {
+                            actividadesConInspeccion.add(ids[0]);
+                        }
+                    } catch {}
+                });
+
+                const realizadas = actividadesConInspeccion.size;
 
                 // 4) Pendientes = actividades sin inspección asociada
                 let pendientes = 0;

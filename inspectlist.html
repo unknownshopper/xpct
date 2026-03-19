@@ -452,7 +452,9 @@
             const inspeccionPorActividad = new Map();
             inspecciones.forEach((reg, idx) => {
                 if (reg && reg.actividadId) {
-                    inspeccionPorActividad.set(reg.actividadId, { ...reg, _indexLocal: idx });
+                    const actId = String(reg.actividadId || '').trim();
+                    if (!actId) return;
+                    inspeccionPorActividad.set(actId, { ...reg, _indexLocal: idx, actividadId: actId });
                 }
             });
 
@@ -516,6 +518,23 @@
 
                 actividades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+                // Filtrar actividades legacy/incompletas (solo equipo, sin datos mínimos)
+                const esActividadValida = (a) => {
+                    try {
+                        if (!a) return false;
+                        const equipo = (a.equipo || '').toString().trim();
+                        const cliente = (a.cliente || '').toString().trim();
+                        const area = (a.areaCliente || '').toString().trim();
+                        const ubic = (a.ubicacion || '').toString().trim();
+                        const f = a.fechaRegistro || a.creadoEn || a.createdAt || a.fecha || null;
+                        if (equipo && !cliente && !area && !ubic && !f) return false;
+                        return true;
+                    } catch {
+                        return true;
+                    }
+                };
+                actividades = (actividades || []).filter(esActividadValida);
+
                 // Fallback: algunas inspecciones históricas se guardaron sin actividadId.
                 // Si el equipo coincide con una actividad actual, las consideramos enlazadas.
                 try {
@@ -546,10 +565,10 @@
                 } catch {}
 
                 // Calcular huérfanas: sin actividadId o con actividadId que ya no existe en las actividades actuales
-                actividadesIds = new Set(Array.from(actividades || []).map(a => a && a.id ? String(a.id) : '').filter(Boolean));
+                actividadesIds = new Set(Array.from(actividades || []).map(a => a && a.id ? String(a.id).trim() : '').filter(Boolean));
                 inspeccionesHuerfanas = inspecciones.filter(reg => {
                     if (!reg) return false;
-                    const actId = reg.actividadId ? String(reg.actividadId) : (reg.__actividadIdMatched ? String(reg.__actividadIdMatched) : '');
+                    const actId = reg.actividadId ? String(reg.actividadId).trim() : (reg.__actividadIdMatched ? String(reg.__actividadIdMatched).trim() : '');
                     if (!actId) return true;
                     return !actividadesIds.has(actId);
                 });
@@ -721,7 +740,11 @@
                                 return '';
                             })()}
                             ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
-                        ` : '';
+                        ` : (
+                            (window.isAdmin || window.isSupervisor || window.isDirector)
+                                ? `<button type="button" class="insp-btn-eliminar-actividad" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar actividad</button>`
+                                : ''
+                        );
 
                     // Insertar encabezados de agrupación por cliente y área cuando cambien
                     const clienteKey = normalizarTextoClave(cliente);
@@ -1246,6 +1269,51 @@
                 });
             };
 
+            // 8.2) Manejar eliminación de actividades PENDIENTES (sin inspección)
+            const bindEliminarActividad = (root) => {
+                if (!root) return;
+                root.querySelectorAll('.insp-btn-eliminar-actividad').forEach(btn => {
+                    if (btn.dataset.boundDelAct === '1') return;
+                    btn.dataset.boundDelAct = '1';
+                    btn.addEventListener('click', (ev) => {
+                        try { ev.stopPropagation(); } catch {}
+                        const actividadId = btn.getAttribute('data-actividad-id') || '';
+                        if (!actividadId) return;
+                        if (!confirm('¿Eliminar esta ACTIVIDAD pendiente? Esta acción no se puede deshacer.')) return;
+
+                        (async () => {
+                            try {
+                                const { getFirestore, doc, deleteDoc, collection, query, where, getDocs } = await import(
+                                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                                );
+                                const db = getFirestore();
+
+                                // Por seguridad: si existiera alguna inspección ligada a esta actividad, borrarla también
+                                try {
+                                    const colInsp = collection(db, 'inspecciones');
+                                    const q = query(colInsp, where('actividadId', '==', actividadId));
+                                    const snap = await getDocs(q);
+                                    for (const d of snap.docs) {
+                                        try { await deleteDoc(doc(db, 'inspecciones', d.id)); } catch {}
+                                    }
+                                } catch {}
+
+                                await deleteDoc(doc(db, 'actividades', actividadId));
+                                try {
+                                    if (typeof window.pctAudit === 'function') {
+                                        await window.pctAudit('actividades_delete_pending', { actividadId }, { throttleKey: `actividades_delete_pending_${actividadId}` });
+                                    }
+                                } catch {}
+                            } catch (e) {
+                                console.error('No se pudo eliminar la actividad en Firestore', e);
+                            }
+
+                            cargarDatos();
+                        })();
+                    });
+                });
+            };
+
             // 8.5) Asignación (individual/masiva) de inspecciones huérfanas
             try {
                 const accionesH = document.getElementById('insp-acciones-huerfanas');
@@ -1350,6 +1418,7 @@
 
             bindEliminar(tbody);
             bindEliminar(tbodyHuerfanas);
+            bindEliminarActividad(tbody);
 
             // 9) Lógica de selección múltiple
             const filasChk = tbody.querySelectorAll('.insp-select-fila');
