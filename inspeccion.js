@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
     let guardandoInspeccion = false; // evita doble guardado
     const fotosTomadas = {}; // idx -> { blob }
+    let fotoObs = null; // { blob }
 
     const isAndroid = (() => {
         try { return /android/i.test(navigator.userAgent || ''); } catch { return false; }
@@ -532,6 +533,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                     }).join('');
 
+                    const obsManual = (data.observacionesManual || '').toString().trim();
+                    const obsFotoUrl = (data.observacionesFotoUrl || '').toString().trim();
+                    const obsFotoPath = (data.observacionesFotoPath || '').toString().trim();
+                    const obsFotoNombre = (data.observacionesFotoNombre || '').toString().trim();
+                    const obsHtml = (obsManual || obsFotoUrl || obsFotoPath || obsFotoNombre)
+                        ? `
+                            <div style="margin: 10px 0 12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff;">
+                                <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">OBSERVACIONES</div>
+                                ${obsManual ? `<div style="white-space:pre-wrap; color:#0f172a;">${escapeHtml(obsManual)}</div>` : '<div style="color:#6b7280;">(Sin observaciones)</div>'}
+                                ${(obsFotoUrl || obsFotoPath || obsFotoNombre) ? `
+                                    <div style="margin-top:8px;">
+                                        <img
+                                            src="${obsFotoUrl ? obsFotoUrl : ''}"
+                                            alt="Foto observaciones"
+                                            class="insp-evid-thumb"
+                                            data-full="${obsFotoUrl ? obsFotoUrl : ''}"
+                                            data-evidencia-path="${escapeHtml(obsFotoPath)}"
+                                            data-evidencia-nombre="${escapeHtml(obsFotoNombre)}"
+                                            crossorigin="anonymous"
+                                            referrerpolicy="no-referrer"
+                                            loading="eager"
+                                            decoding="sync"
+                                            style="max-width:260px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${obsFotoUrl ? '' : 'display:none;'}"
+                                            onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
+                                        />
+                                        <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${obsFotoUrl ? 'display:none;' : ''}">
+                                            ${(obsFotoNombre ? `Evidencia: ${escapeHtml(obsFotoNombre)}` : (obsFotoPath ? 'Evidencia' : ''))}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                          `
+                        : '';
+
                     panel.innerHTML = `
                         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
                             <div style="display:flex; align-items:center; gap:12px;">
@@ -566,6 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${data.actividadId ? `<span style="display:inline-flex; gap:6px; align-items:center; padding:5px 10px; border-radius:999px; border:1px solid #e2e8f0; background:#fff; font-size:12px; color:#0f172a;"><span style="color:#64748b; text-transform:uppercase; letter-spacing:0.06em; font-size:10px;">Actividad</span><strong>${ok(data.actividadId)}</strong></span>` : ''}
                         </div>
 
+                        ${obsHtml}
                         <div style="font-weight:900; color:#0f172a; margin: 6px 0 8px;">Checklist</div>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">${blocks}</div>
                     `;
@@ -1688,7 +1724,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
             ${parametrosHtml}
+            <div class="insp-observaciones" style="margin-top:14px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff;">
+                <h3 style="margin:0 0 8px; font-size:1rem;">OBSERVACIONES</h3>
+                <textarea id="insp-obs-text" rows="3" placeholder="Escribe observaciones generales (opcional)" style="width:100%; resize:vertical; padding:0.6rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;"></textarea>
+                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px;">
+                    <button type="button" class="btn" id="insp-obs-tomar-foto">Tomar foto</button>
+                    <button type="button" class="btn" id="insp-obs-subir-foto">Subir foto</button>
+                    <input type="file" id="insp-obs-foto" accept="image/*" style="display:none;">
+                </div>
+                <img alt="preview" id="insp-obs-preview" style="display:none; max-height:96px; border-radius:10px; margin-top:8px; border:1px solid #e5e7eb;" />
+            </div>
         `;
+
+        try { fotoObs = null; } catch {}
+        try {
+            const btnTomarObs = document.getElementById('insp-obs-tomar-foto');
+            const btnSubirObs = document.getElementById('insp-obs-subir-foto');
+            const inputObsFoto = document.getElementById('insp-obs-foto');
+            const imgObsPrev = document.getElementById('insp-obs-preview');
+
+            if (btnTomarObs) {
+                btnTomarObs.addEventListener('click', async () => {
+                    try {
+                        await abrirCamaraParaIndice(-1, (blob) => {
+                            fotoObs = { blob };
+                            try { if (inputObsFoto) inputObsFoto.value = ''; } catch {}
+                            if (imgObsPrev) {
+                                imgObsPrev.src = URL.createObjectURL(blob);
+                                imgObsPrev.style.display = '';
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('No se pudo capturar foto (observaciones)', e);
+                    }
+                });
+            }
+
+            if (btnSubirObs && inputObsFoto) {
+                btnSubirObs.addEventListener('click', () => {
+                    try { inputObsFoto.click(); } catch {}
+                });
+            }
+
+            if (inputObsFoto) {
+                inputObsFoto.addEventListener('change', () => {
+                    try {
+                        const file = inputObsFoto.files && inputObsFoto.files[0] ? inputObsFoto.files[0] : null;
+                        if (!file) return;
+                        fotoObs = null;
+                        if (imgObsPrev) {
+                            imgObsPrev.src = URL.createObjectURL(file);
+                            imgObsPrev.style.display = '';
+                        }
+                    } catch (e) {
+                        console.warn('No se pudo leer la foto seleccionada (observaciones)', e);
+                    }
+                });
+            }
+        } catch {}
 
         // Mostrar selector de daño y evidencia solo cuando el estado sea MALO
         detalleContenedor.querySelectorAll('.parametros-fila').forEach((filaHtml, idx) => {
@@ -2199,6 +2292,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Capturar geolocalización: esperar a que el usuario autorice o rechace
                 const gps = await capturarGpsTexto();
 
+                const obsManualPdf = (document.getElementById('insp-obs-text')?.value || '').toString().trim();
+                const inputObsPdf = document.getElementById('insp-obs-foto');
+                const obsFotoPdf = (fotoObs && fotoObs.blob) ? fotoObs.blob : (inputObsPdf && inputObsPdf.files && inputObsPdf.files[0] ? inputObsPdf.files[0] : null);
+
                 encabezado.innerHTML = `
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px 16px; align-items:start;">
                         <div>
@@ -2227,9 +2324,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
 
+                if (obsManualPdf || obsFotoPdf) {
+                    const obsWrap = document.createElement('div');
+                    obsWrap.style.cssText = 'margin-top:10px; padding-top:10px; border-top:1px solid #e5e7eb;';
+                    obsWrap.innerHTML = `
+                        <div style="font-weight:800; color:#111827; margin-bottom:6px;">OBSERVACIONES</div>
+                        ${obsManualPdf ? `<div style="white-space:pre-wrap; color:#111827;">${escapeHtml(obsManualPdf)}</div>` : '<div style="color:#6b7280;">(Sin observaciones)</div>'}
+                    `;
+                    if (obsFotoPdf) {
+                        try {
+                            const url = URL.createObjectURL(obsFotoPdf);
+                            const img = document.createElement('img');
+                            img.src = url;
+                            img.alt = 'Foto observaciones';
+                            img.style.cssText = 'display:block; margin-top:8px; max-height:140px; border-radius:10px; border:1px solid #e5e7eb;';
+                            obsWrap.appendChild(img);
+                        } catch {}
+                    }
+                    encabezado.appendChild(obsWrap);
+                }
+
                 const contenidoClonado = panel.cloneNode(true);
                 contenidoClonado.style.backgroundColor = '#ffffff';
                 contenidoClonado.style.overflow = 'visible';
+
+                // Las observaciones se renderizan en el encabezado del PDF; evitar duplicarlas abajo.
+                try {
+                    const obsForm = contenidoClonado.querySelector('.insp-observaciones');
+                    if (obsForm && obsForm.parentNode) obsForm.parentNode.removeChild(obsForm);
+                } catch {}
 
                 // Asegurar que la tabla de parámetros se renderice completa (sin scroll) en el PDF
                 try {
@@ -2657,6 +2780,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const localId = generarIdLocal('insp');
             const parametrosCapturados = [];
             const fotosParaSubir = [];
+            const obsTextoManual = (document.getElementById('insp-obs-text')?.value || '').toString().trim();
+            const inputObsFoto = document.getElementById('insp-obs-foto');
+            const obsFotoBlob = (fotoObs && fotoObs.blob) ? fotoObs.blob : (inputObsFoto && inputObsFoto.files && inputObsFoto.files[0] ? inputObsFoto.files[0] : null);
+            let obsFotoNombre = '';
+            let obsFotoPath = '';
             const filas = document.querySelectorAll('.parametros-fila');
             filas.forEach((filaHtml, idx) => {
                 const nombre = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
@@ -2694,6 +2822,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro, hasEvidencia: !!evidenciaNombre, evidenciaNombre, evidenciaPath });
             });
+
+            if (obsFotoBlob) {
+                const ahoraObs = new Date();
+                const ddObs = String(ahoraObs.getDate()).padStart(2, '0');
+                const mmObs = String(ahoraObs.getMonth() + 1).padStart(2, '0');
+                const yyObs = String(ahoraObs.getFullYear()).slice(-2);
+                const HHObs = String(ahoraObs.getHours()).padStart(2, '0');
+                const MMObs = String(ahoraObs.getMinutes()).padStart(2, '0');
+                const SSObs = String(ahoraObs.getSeconds()).padStart(2, '0');
+                const equipoIdObs = get(idxEquipo) || 'SIN_EQUIPO';
+                obsFotoNombre = `${equipoIdObs}-${ddObs}${mmObs}${yyObs}-${HHObs}${MMObs}${SSObs}-observaciones.jpg`;
+                obsFotoPath = `inspecciones/${localId}/${obsFotoNombre}`;
+            }
 
             // Validaciones requeridas por parámetro
             for (let i = 0; i < parametrosCapturados.length; i++) {
@@ -2865,6 +3006,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 usuarioInspeccion,
                 actividadId,
                 observaciones: observacionesResumen,
+                observacionesManual: obsTextoManual,
+                observacionesFotoNombre: obsFotoNombre,
+                observacionesFotoPath: obsFotoPath,
                 syncStatus: 'PENDING',
             };
 
@@ -2934,6 +3078,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         await updateDoc(docRef, { parametros: nextParams });
                         try {
                             patchInspeccionLocalPorId(localId, { parametros: nextParams });
+                        } catch {}
+                    }
+
+                    if (obsFotoBlob && obsFotoNombre) {
+                        const pthObs = `inspecciones/${localId}/${obsFotoNombre}`;
+                        const stRefObs = ref(storage, pthObs);
+                        await uploadBytes(stRefObs, obsFotoBlob);
+                        const urlObs = await getDownloadURL(stRefObs);
+                        await updateDoc(docRef, {
+                            observacionesFotoUrl: urlObs,
+                            observacionesFotoPath: pthObs,
+                            observacionesFotoNombre: obsFotoNombre,
+                        });
+                        try {
+                            patchInspeccionLocalPorId(localId, {
+                                observacionesFotoUrl: urlObs,
+                                observacionesFotoPath: pthObs,
+                                observacionesFotoNombre: obsFotoNombre,
+                            });
                         } catch {}
                     }
                 } catch (e) {
