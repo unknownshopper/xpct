@@ -295,6 +295,7 @@
                     <button id="btn-pruebas-refresh" title="Actualizar desde servidor">Actualizar</button>
                     <button id="btn-pruebas-more" title="Cargar más resultados">Cargar más</button>
                     <button id="btn-pruebas-ver-todas" title="Cargar todas las pruebas (bajo demanda)">Ver todas</button>
+                    <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Registrar prueba(s)</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
@@ -1045,6 +1046,7 @@
         const chkSelectTodos = document.getElementById('pruebas-select-todos');
         const btnEliminar = document.getElementById('btn-pruebas-eliminar');
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
+        const btnRegistrar = document.getElementById('btn-pruebas-registrar');
         const btnRefresh = document.getElementById('btn-pruebas-refresh');
         const btnMore = document.getElementById('btn-pruebas-more');
         const btnMore200Bottom = document.getElementById('btn-pruebas-more-200');
@@ -3735,12 +3737,56 @@
             const checks = tbodyListado.querySelectorAll('.prueba-select:checked');
             const seleccionadas = [];
             checks.forEach(chk => {
-                const idx = parseInt(chk.getAttribute('data-idx') || '-1', 10);
-                if (!isNaN(idx) && idx >= 0 && idx < filas.length) {
-                    seleccionadas.push(filas[idx]);
-                }
+                const idx = parseInt(chk.getAttribute('data-idx'), 10);
+                if (isNaN(idx)) return;
+                const reg = filas[idx];
+                if (!reg) return;
+                seleccionadas.push(reg);
             });
             return seleccionadas;
+        }
+
+        function abrirRegistroPruebasParaSeleccionadas() {
+            const filas = obtenerSeleccionadas();
+            if (!filas.length) {
+                alert('Selecciona al menos una fila para registrar la prueba.');
+                return;
+            }
+
+            // Abrir un tab por selección puede ser agresivo; limitamos y avisamos.
+            const maxTabs = 10;
+            const toOpen = filas.slice(0, maxTabs);
+            if (filas.length > maxTabs) {
+                const ok = window.confirm(`Seleccionaste ${filas.length}. Se abrirán solo ${maxTabs} pestañas para registrar pruebas. ¿Deseas continuar?`);
+                if (!ok) return;
+            }
+
+            toOpen.forEach((reg, i) => {
+                try {
+                    const eq = (reg && reg.equipo) ? String(reg.equipo).trim() : '';
+                    if (!eq) return;
+
+                    const eqK = normEquipoKey(eq);
+                    const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                    const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                    const serial = (normSerialKey(serialRaw) || normSerialKey(serialInv) || '').toString().trim();
+
+                    const prod = (reg && reg.producto) ? String(reg.producto).trim() : '';
+                    const desc = (reg && reg.descripcion) ? String(reg.descripcion).trim() : '';
+
+                    const params = new URLSearchParams();
+                    params.set('equipo', eq);
+                    if (serial) params.set('serial', serial);
+                    if (prod) params.set('producto', prod);
+                    if (desc) params.set('descripcion', desc);
+                    params.set('periodo', 'ANUAL');
+
+                    // Stagger para evitar bloqueo de popups.
+                    setTimeout(() => {
+                        try { window.open(`pruebas.html?${params.toString()}`, '_blank'); } catch {}
+                    }, i * 250);
+                } catch {}
+            });
         }
 
         async function actualizarCampoPrueba(id, nuevoValor) {
@@ -4030,6 +4076,10 @@
 
         if (btnEliminar) {
             btnEliminar.addEventListener('click', eliminarSeleccionadas);
+        }
+
+        if (btnRegistrar) {
+            btnRegistrar.addEventListener('click', abrirRegistroPruebasParaSeleccionadas);
         }
 
    // Delegación de eventos para inputs/selects editables de prueba, noReporte y resultado
