@@ -35,14 +35,37 @@ function parseFecha(str) {
 }
 
 function ensureAdmin() {
-  if (admin.apps.length) return;
+  if (admin.apps && admin.apps.length) return;
+
   const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (json) {
-    const creds = JSON.parse(json);
-    admin.initializeApp({ credential: admin.credential.cert(creds) });
-  } else {
-    admin.initializeApp();
+    try {
+      const creds = JSON.parse(json);
+      try {
+        if (creds && typeof creds.private_key === 'string') {
+          creds.private_key = creds.private_key
+            .replace(/\\n/g, '\n')
+            .replace(/\r\n/g, '\n')
+            .trim();
+        }
+      } catch {}
+      admin.initializeApp({ credential: admin.credential.cert(creds) });
+      return;
+    } catch {}
   }
+
+  // Fallback: try local serviceAccount.json when env JSON is missing/invalid
+  try {
+    const localPath = path.resolve(process.cwd(), 'serviceAccount.json');
+    if (fs.existsSync(localPath)) {
+      const raw = fs.readFileSync(localPath, 'utf8');
+      const creds = JSON.parse(raw);
+      admin.initializeApp({ credential: admin.credential.cert(creds) });
+      return;
+    }
+  } catch {}
+
+  admin.initializeApp();
 }
 
 async function verifyFirebaseIdToken(req) {
@@ -284,14 +307,14 @@ async function calcularYEnviar({ testMode = false, force = false }) {
       const trackSnap = await trackRef.get();
       const t = trackSnap.exists ? trackSnap.data() : {};
       if (bucket === '60_30') {
-        if (force || !t.notif60At) {
-          lista60.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
-          if (!testMode) await trackRef.set({ ...t, notif60At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        lista60.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
+        if ((force || !t.notif60At) && !testMode) {
+          await trackRef.set({ ...t, notif60At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } else if (bucket === '30_15') {
-        if (force || !t.notif30At) {
-          lista30.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
-          if (!testMode) await trackRef.set({ ...t, notif30At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        lista30.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
+        if ((force || !t.notif30At) && !testMode) {
+          await trackRef.set({ ...t, notif30At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } else if (bucket === '15_0') {
         lista15.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
@@ -302,10 +325,11 @@ async function calcularYEnviar({ testMode = false, force = false }) {
 
   if (!lista60.length && !lista30.length && !lista15.length) {
     if (testMode) {
-      const subject = `[PCT] Prueba de correo – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy HH:mm')}`;
-      const html = '<div style="font-family:Arial, Helvetica, sans-serif; font-size:14px;">Correo de prueba OK</div>';
+      const html = buildHtml({ lista60, lista30, lista15 });
+      const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
       await enviarCorreo({ html, subject });
-      return { sent: true, empty: true };
+      const { toList } = getMailRecipients();
+      return { sent: true, empty: true, to: toList };
     }
     return { sent: false, empty: true };
   }
