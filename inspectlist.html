@@ -54,6 +54,12 @@
 
     <main class="inspeccion-page" style="max-width: 100%; margin: 0; padding: 0;">
         <section class="inspectlist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin:0 0 0.5rem;">
+                <a href="index.html" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; color:#111827; font-weight:800; font-size:0.95rem; padding:0.25rem 0.5rem; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff;">
+                    <span aria-hidden="true">←</span>
+                    <span>Inicio</span>
+                </a>
+            </div>
             <h2>Inspecciones guardadas</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
                 Se muestran inspecciones registradas contra las actividades actuales. Puedes filtrar y seleccionar filas para acciones futuras.
@@ -232,6 +238,97 @@
 
         // Mapa global actualizado en cada carga, para que los botones PDF siempre usen la data más reciente
         let inspeccionPorActividadGlobal = new Map();
+
+        function esAsignable(email) {
+            const e = String(email || '').trim().toLowerCase();
+            if (!e) return true;
+            if (e === 'supop@pc-t.com.mx') return false;
+            return true;
+        }
+
+        function escAttr(v) {
+            return String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function buildThumbMalo(insp) {
+            try {
+                const params = Array.isArray(insp?.parametros) ? insp.parametros : [];
+                const malo = params.find(p => {
+                    const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
+                    if (est !== 'MALO') return false;
+                    const hasAny = (p && (p.evidenciaUrl || p.evidenciaNombre || p.evidenciaPath));
+                    return !!hasAny;
+                });
+                if (!malo) return '';
+                const src = String(malo.evidenciaUrl || '').trim();
+                const path = String(malo.evidenciaPath || '').trim();
+                const name = String(malo.evidenciaNombre || '').trim();
+                const inspId = String(insp?.id || '').trim();
+                return `
+                    <img
+                        class="insp-thumb-malo"
+                        src="${escAttr(src)}"
+                        data-src="${escAttr(src)}"
+                        data-evidencia-path="${escAttr(path)}"
+                        data-evidencia-nombre="${escAttr(name)}"
+                        data-insp-id="${escAttr(inspId)}"
+                        alt="Evidencia MALO"
+                        title="Evidencia (MALO)"
+                        style="width:44px; height:44px; object-fit:cover; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; margin-left:8px; vertical-align:middle; ${src ? '' : 'display:none;'}"
+                    />
+                `;
+            } catch {
+                return '';
+            }
+        }
+
+        async function resolverThumbsMalo() {
+            const imgs = Array.from(document.querySelectorAll('img.insp-thumb-malo'));
+            const pendientes = imgs.filter(img => {
+                const src = String(img.getAttribute('data-src') || '').trim();
+                if (src) return false;
+                const path = String(img.getAttribute('data-evidencia-path') || '').trim();
+                const name = String(img.getAttribute('data-evidencia-nombre') || '').trim();
+                return !!(path || name);
+            });
+            if (!pendientes.length) return;
+
+            let storage = null;
+            let stRef = null;
+            let getDownloadURL = null;
+            try {
+                const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+                storage = m.getStorage();
+                stRef = m.ref;
+                getDownloadURL = m.getDownloadURL;
+            } catch {
+                return;
+            }
+
+            for (const img of pendientes) {
+                try {
+                    const pathDirecto = String(img.getAttribute('data-evidencia-path') || '').trim();
+                    const name = String(img.getAttribute('data-evidencia-nombre') || '').trim();
+                    const inspId = String(img.getAttribute('data-insp-id') || '').trim();
+                    const candidatos = [];
+                    if (pathDirecto) candidatos.push(pathDirecto);
+                    if (name && inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+
+                    let url = '';
+                    for (const p of candidatos) {
+                        try {
+                            url = await getDownloadURL(stRef(storage, p));
+                            if (url) break;
+                        } catch {}
+                    }
+                    if (url) {
+                        img.setAttribute('data-src', url);
+                        img.src = url;
+                        img.style.display = '';
+                    }
+                } catch {}
+            }
+        }
 
         function descargarArrayBufferComoArchivo(buf, fileName, mime = 'application/pdf') {
             try {
@@ -705,6 +802,8 @@
                     const observaciones = insp?.observaciones || '';
                     const asignado = act.inspectorAsignado || '';
 
+                    const thumbMalo = insp ? buildThumbMalo(insp) : '';
+
                     const textoBuscar = `${cliente} ${area} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
@@ -827,7 +926,7 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? (evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto) : 'Pendiente'}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}${thumbMalo}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
                             ${accionesHtml}
                         </td>
@@ -849,6 +948,21 @@
                     tbody.appendChild(tr);
                     visibles += 1;
                 });
+
+                setTimeout(() => {
+                    try {
+                        tbody.querySelectorAll('img.insp-thumb-malo').forEach(img => {
+                            if (img.dataset.boundClick === '1') return;
+                            img.dataset.boundClick = '1';
+                            img.addEventListener('click', (ev) => {
+                                try { ev.stopPropagation(); } catch {}
+                                const u = String(img.getAttribute('data-src') || img.getAttribute('src') || '').trim();
+                                if (u) window.open(u, '_blank');
+                            });
+                        });
+                    } catch {}
+                    resolverThumbsMalo();
+                }, 0);
             }
 
             // Primero bloque de pendientes
@@ -898,6 +1012,8 @@
                     const tipoInsp = insp?.tipoInspeccion || '';
                     const observaciones = insp?.observaciones || '';
                     const asignado = (insp?.inspectorAsignado || '').toString().trim();
+
+                    const thumbMalo = buildThumbMalo(insp);
 
                     const textoBuscar = `${cliente} ${area} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) return;
@@ -951,7 +1067,7 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}${thumbMalo}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${accionesHtml}</td>
                     `;
                     tr.style.cursor = 'pointer';
@@ -964,6 +1080,21 @@
                     tbodyHuerfanas.appendChild(tr);
                     visiblesH += 1;
                 });
+
+                setTimeout(() => {
+                    try {
+                        tbodyHuerfanas.querySelectorAll('img.insp-thumb-malo').forEach(img => {
+                            if (img.dataset.boundClick === '1') return;
+                            img.dataset.boundClick = '1';
+                            img.addEventListener('click', (ev) => {
+                                try { ev.stopPropagation(); } catch {}
+                                const u = String(img.getAttribute('data-src') || img.getAttribute('src') || '').trim();
+                                if (u) window.open(u, '_blank');
+                            });
+                        });
+                    } catch {}
+                    resolverThumbsMalo();
+                }, 0);
 
                 if (msgHuerfanas) {
                     msgHuerfanas.style.display = (visiblesH === 0 && (filtroEstado !== 'PENDIENTE')) ? 'block' : 'none';
@@ -1034,6 +1165,11 @@
                     if (!actividadId) return;
 
                     const nuevo = sel.value || '';
+                    if (!esAsignable(nuevo)) {
+                        alert('No se puede asignar a supop@pc-t.com.mx porque es visor (solo lectura). Asigna a un usuario operativo.');
+                        try { sel.value = ''; } catch {}
+                        return;
+                    }
 
                     try {
                         const { getFirestore, doc, updateDoc } = await import(
@@ -1331,6 +1467,11 @@
                     const inspId = sel.getAttribute('data-insp-id') || '';
                     if (!inspId) return;
                     const nuevo = String(sel.value || '').trim();
+                    if (!esAsignable(nuevo)) {
+                        alert('No se puede asignar a supop@pc-t.com.mx porque es visor (solo lectura). Asigna a un usuario operativo.');
+                        try { sel.value = ''; } catch {}
+                        return;
+                    }
                     try {
                         const { getFirestore, doc, updateDoc } = await import(
                             'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -1386,6 +1527,10 @@
                     const nuevo = String(selAsgH.value || '').trim();
                     if (!nuevo) {
                         alert('Selecciona a quién asignar.');
+                        return;
+                    }
+                    if (!esAsignable(nuevo)) {
+                        alert('No se puede asignar a supop@pc-t.com.mx porque es visor (solo lectura). Asigna a un usuario operativo.');
                         return;
                     }
                     const ids = Array.from(document.querySelectorAll('.insp-select-fila-huerfana:checked'))

@@ -168,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isSupervisor = role === 'supervisor';
                     const isInspector = role === 'inspector';
                     const isCapturista = role === 'capturista';
+                    const isVisor = role === 'visor';
 
                     function ensureInvreNavLink(visible) {
                         try {
@@ -208,6 +209,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         (isInspector && currentPage === 'index.html') ||
                         allowedNavPages.has(currentPage);
                     setNavVisible(shouldShowByRole);
+
+                    // Visor: mantener navegación solo en páginas permitidas
+                    if (isVisor) {
+                        setNavVisible(allowedNavPages.has(currentPage));
+                    }
 
                     // Inventario (invre.html): solo admin/director/supervisor
                     ensureInvreNavLink(isAdmin || isDirector || isSupervisor);
@@ -251,6 +257,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Para inspector/capturista: ocultar actividadmin en la navegación
                     if (isInspector || isCapturista) {
                         document.querySelectorAll('a[href*="actividadmin"]').forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = 'none';
+                        });
+                    }
+
+                    // Visor: ocultar rutas de registro (solo lectura)
+                    if (isVisor) {
+                        document.querySelectorAll(
+                            'a[href="pruebas.html"], a[href="inspeccion.html"], a[href="actividad.html"]'
+                        ).forEach(a => {
                             const li = a.closest('li') || a;
                             li.style.display = 'none';
                         });

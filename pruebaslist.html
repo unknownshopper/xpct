@@ -110,6 +110,12 @@
 
     <main style="max-width: 100%; margin: 0; padding: 0;">
         <section class="pruebaslist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin:0 0 0.5rem;">
+                <a href="index.html" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; color:#111827; font-weight:800; font-size:0.95rem; padding:0.25rem 0.5rem; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff;">
+                    <span aria-hidden="true">←</span>
+                    <span>Inicio</span>
+                </a>
+            </div>
             <h1 style="text-align:center; font-size:2.25rem; font-weight:800; letter-spacing:0.02em; margin:0.25rem 0 0.75rem; color:#111827;">
                 VISOR DE PND Y CALIBRACIONES
             </h1>
@@ -295,7 +301,7 @@
                     <button id="btn-pruebas-refresh" title="Actualizar desde servidor">Actualizar</button>
                     <button id="btn-pruebas-more" title="Cargar más resultados">Cargar más</button>
                     <button id="btn-pruebas-ver-todas" title="Cargar todas las pruebas (bajo demanda)">Ver todas</button>
-                    <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Registrar prueba(s)</button>
+                    <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Actualizar prueba(s)</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
@@ -734,6 +740,7 @@
             window.isSupervisor = role === 'supervisor';
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
+            window.isVisor = role === 'visor';
             window.isAuxger = role === 'auxger';
         } catch {}
 
@@ -741,6 +748,29 @@
 
         // Permisos por rol
         const permitirEliminar = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+
+        // Visor: solo lectura (sin selección, sin acciones)
+        try {
+            if (window.isVisor) {
+                const idsOcultar = [
+                    'btn-pruebas-registrar',
+                    'btn-pruebas-eliminar',
+                    'btn-pruebas-export-csv',
+                    'btn-pruebas-more',
+                    'btn-pruebas-ver-todas',
+                    'btn-pruebas-refresh',
+                    'btn-pruebas-import-csv',
+                    'btn-pruebas-delete-csv',
+                    'pruebas-select-todos'
+                ];
+                idsOcultar.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+                const buscar = document.getElementById('pruebas-buscar');
+                if (buscar) buscar.placeholder = 'Buscar por equipo, producto, técnico, reporte...';
+            }
+        } catch {}
 
         // Ajustar encabezado: la columna de selección se usa para exportar y debe permanecer visible
 
@@ -1068,6 +1098,13 @@
         const permitirEliminar = !!(window.isAdmin || window.isDirector);
         // Ocultar botón eliminar si no tiene permiso. La cabecera de selección se mantiene visible para exportar.
         if (btnEliminar) btnEliminar.style.display = permitirEliminar ? '' : 'none';
+
+        // "Actualizar prueba(s)": solo admin y usuarios específicos (sgi/jalcz)
+        try {
+            const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
+            const permitirActualizar = !!(window.isAdmin || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx');
+            if (btnRegistrar) btnRegistrar.style.display = permitirActualizar ? '' : 'none';
+        } catch {}
 
         // Import CSV para admin o director
         if (btnImportCsv) btnImportCsv.style.display = ((window.isAdmin || window.isDirector || window.isAuxger) ? '' : 'none');

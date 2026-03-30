@@ -206,6 +206,17 @@
                 window.isDirector = role === 'director';
                 window.isInspector = role === 'inspector';
                 window.isCapturista = role === 'capturista';
+                window.isVisor = role === 'visor';
+
+                // Visor: no debe registrar
+                if (window.isVisor) {
+                    try {
+                        const btnGuardar = document.getElementById('btn-guardar-prueba');
+                        if (btnGuardar) btnGuardar.style.display = 'none';
+                    } catch {}
+                    window.location.href = 'pruebaslist.html';
+                    return;
+                }
 
                 // Acceso permitido: admin, director, inspector, capturista
                 // Inspector puede registrar pruebas (modo offline-first con lista local del día)

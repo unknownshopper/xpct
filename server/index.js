@@ -200,6 +200,19 @@ function buildHtml({ lista60, lista30, lista15 }) {
   `;
 }
 
+function getMailRecipients() {
+  const toRaw = process.env.MAIL_TO || '';
+  const extraRaw = process.env.MAIL_TO_EXTRA || '';
+  const merged = `${toRaw};${extraRaw}`;
+  const toList = Array.from(new Set(
+    merged
+      .split(/[;,]/)
+      .map(s => s.trim())
+      .filter(Boolean)
+  ));
+  return { toList };
+}
+
 async function enviarCorreo({ html, subject }) {
   const host = (process.env.SMTP_HOST || '').trim();
   const port = parseInt(String(process.env.SMTP_PORT || '587').trim(), 10);
@@ -212,8 +225,7 @@ async function enviarCorreo({ html, subject }) {
   const fromAddress = process.env.MAIL_FROM || user;
   const from = { name: process.env.MAIL_FROM_NAME || 'PCT Alertas', address: fromAddress };
   // Parse recipient list (comma/semicolon separated) and build SMTP envelope with plain addresses
-  const toRaw = process.env.MAIL_TO || '';
-  const toList = toRaw.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+  const { toList } = getMailRecipients();
   if (!toList.length) {
     throw new Error('MAIL_TO is empty or invalid');
   }
@@ -253,7 +265,7 @@ async function enviarCorreo({ html, subject }) {
   return info;
 }
 
-async function calcularYEnviar({ testMode = false }) {
+async function calcularYEnviar({ testMode = false, force = false }) {
   ensureAdmin();
   const db = admin.firestore();
   const ultimas = await queryUltimasAnuales();
@@ -272,12 +284,12 @@ async function calcularYEnviar({ testMode = false }) {
       const trackSnap = await trackRef.get();
       const t = trackSnap.exists ? trackSnap.data() : {};
       if (bucket === '60_30') {
-        if (!t.notif60At) {
+        if (force || !t.notif60At) {
           lista60.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
           if (!testMode) await trackRef.set({ ...t, notif60At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } else if (bucket === '30_15') {
-        if (!t.notif30At) {
+        if (force || !t.notif30At) {
           lista30.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
           if (!testMode) await trackRef.set({ ...t, notif30At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
@@ -303,7 +315,8 @@ async function calcularYEnviar({ testMode = false }) {
   const html = buildHtml({ lista60, lista30, lista15 });
   const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
   await enviarCorreo({ html, subject });
-  return { sent: true, empty: false, counts: { c60: lista60.length, c30: lista30.length, c15: lista15.length } };
+  const { toList } = getMailRecipients();
+  return { sent: true, empty: false, counts: { c60: lista60.length, c30: lista30.length, c15: lista15.length }, to: toList };
 }
 
 const app = express();
@@ -320,7 +333,8 @@ app.use(cors({
 app.post('/api/send-alerts', async (req, res) => {
   try {
     const testMode = String(req.query.test || 'false') === 'true';
-    const out = await calcularYEnviar({ testMode });
+    const force = String(req.query.force || 'false') === 'true' || String(req.query.force || '0') === '1';
+    const out = await calcularYEnviar({ testMode, force });
     res.json(out);
   } catch (e) {
     res.status(500).json({ error: 'send_failed', detail: String(e && e.message ? e.message : e) });

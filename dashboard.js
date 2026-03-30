@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const spanPruebas = document.getElementById('dash-pruebas');
+    const elTimelinePruebas = document.getElementById('dash-pruebas-timeline');
     const spanInspecciones = document.getElementById('dash-inspecciones');
     const spanInvre = document.getElementById('dash-equipos-invre');
     const spanInvre2 = document.getElementById('dash-registros-invre2');
@@ -113,6 +114,96 @@ document.addEventListener('DOMContentLoaded', () => {
     if (spanPruebas) {
         spanPruebas.textContent = 'Cargando...';
 
+        function renderTimelinePruebas({ totalAnual, pv60, pv30, pv15, vencidas, cero, items60, items30, items15 }) {
+            if (!elTimelinePruebas) return;
+            try {
+                const total = Number(totalAnual || 0);
+                const a60 = Number(pv60 || 0);
+                const a30 = Number(pv30 || 0);
+                const a15 = Number(pv15 || 0);
+                const venc = Number(vencidas || 0);
+                const z = Number(cero || 0);
+                const denom = Math.max(1, total);
+
+                const pct = (n) => {
+                    const v = Math.round((Math.max(0, Number(n || 0)) / denom) * 100);
+                    return `${Math.max(0, Math.min(100, v))}%`;
+                };
+
+                const escAttr = (v) => {
+                    const s = String(v == null ? '' : v);
+                    return s
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
+                };
+
+                const makeDotsFromItems = (items, color) => {
+                    const arr = Array.isArray(items) ? items : [];
+                    const n = Math.max(0, Math.min(2000, arr.length));
+                    let html = '';
+                    for (let i = 0; i < n; i += 1) {
+                        const it = arr[i] || {};
+                        const equipo = (it.equipo || '').toString().trim();
+                        const proxima = (it.proxima || '').toString().trim();
+                        const dias = Number.isFinite(Number(it.dias)) ? Number(it.dias) : '';
+                        const tt = `${equipo || '(sin equipo)'} | Próxima: ${proxima || '—'} | Días: ${dias}`;
+                        html += `<span title="${escAttr(tt)}" style="width:8px; height:8px; border-radius:999px; background:${color}; display:inline-block;"></span>`;
+                    }
+                    return html;
+                };
+
+                elTimelinePruebas.innerHTML = `
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+                        <div style="font-size:0.9rem; color:#111827; font-weight:700;">Total anual: <span style=\"font-weight:900;\">${total}</span></div>
+                        <div style="font-size:0.85rem; color:#6b7280; display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                            <span>Vencidas: <strong style=\"color:#b91c1c;\">${venc}</strong></span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:0.6rem;">
+                        <div style="margin-top:0.75rem; display:grid; grid-template-columns: 92px 1fr; gap:0.5rem 0.75rem; align-items:flex-start;">
+                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">60–31: ${a60}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(items60, '#2563eb')}</div>
+
+                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">30–16: ${a30}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(items30, '#f59e0b')}</div>
+
+                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">15–1: ${a15}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(items15, '#ef4444')}</div>
+                        </div>
+
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.55rem; font-size:0.85rem; color:#334155;">
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <span style="width:10px; height:10px; border-radius:3px; background:#94a3b8; display:inline-block;"></span>
+                                <span>Sin pruebas próximas: <strong>${Math.max(0, total - a60 - a30 - a15)}</strong></span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <span style="width:10px; height:10px; border-radius:3px; background:#2563eb; display:inline-block;"></span>
+                                <span>60–31: <strong>${a60}</strong></span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <span style="width:10px; height:10px; border-radius:3px; background:#f59e0b; display:inline-block;"></span>
+                                <span>30–16: <strong>${a30}</strong></span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <span style="width:10px; height:10px; border-radius:3px; background:#ef4444; display:inline-block;"></span>
+                                <span>15–1: <strong>${a15}</strong></span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <span style="width:10px; height:10px; border-radius:3px; background:#111827; display:inline-block;"></span>
+                                <span>☠️: <strong>${z}</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch {
+                try { elTimelinePruebas.textContent = '—'; } catch {}
+            }
+        }
+
         function parseProxima(str) {
             if (!str) return null;
             const s = String(str).trim();
@@ -177,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let totalAnual = '—';
                 let totalPostTrabajo = '—';
                 let totalReparacion = '—';
+                let totalVencidas = '—';
 
                 try {
                     let snap = await getDocsFromCache(colRef);
@@ -187,7 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         total = snap.size;
                         try { setCachedNumber('pct_pruebas_total_cached', total); } catch {}
                     }
-                    let pv60 = 0, pv30 = 0, pv15 = 0, tAn=0, tPT=0, tRep=0;
+                    let pv60 = 0, pv30 = 0, pv15 = 0, tAn=0, tPT=0, tRep=0, tVenc=0, tZero=0;
+                    const items60 = [];
+                    const items30 = [];
+                    const items15 = [];
                     snap.forEach(doc => {
                         const data = doc.data() || {};
                         const proximaStr = data.proxima || '';
@@ -203,15 +298,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         const diffMs = dProx.getTime() - hoy.getTime();
                         let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
                         // Alineado a pruebaslist: 60–31, 30–16, 15–1 (0 y vencidas no entran en buckets)
-                        if (dias < 1) return;
+                        if (dias === 0) { tZero += 1; return; }
+                        if (dias < 0) { tVenc += 1; return; }
                         if (dias > 60) return;
-                        if (dias >= 31 && dias <= 60) pv60 += 1;
-                        else if (dias >= 16 && dias <= 30) pv30 += 1;
-                        else if (dias >= 1 && dias <= 15) pv15 += 1;
+                        const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
+                        if (dias >= 31 && dias <= 60) {
+                            pv60 += 1;
+                            if (items60.length < 2000) items60.push({ equipo, proxima: proximaStr, dias });
+                        } else if (dias >= 16 && dias <= 30) {
+                            pv30 += 1;
+                            if (items30.length < 2000) items30.push({ equipo, proxima: proximaStr, dias });
+                        } else if (dias >= 1 && dias <= 15) {
+                            pv15 += 1;
+                            if (items15.length < 2000) items15.push({ equipo, proxima: proximaStr, dias });
+                        }
                     });
                     porVencer60 = pv60; porVencer30 = pv30; porVencer15 = pv15;
                     totalAnual = tAn; totalPostTrabajo = tPT; totalReparacion = tRep;
-                } catch {}
+                    totalVencidas = tVenc;
+
+                    renderTimelinePruebas({ totalAnual, pv60, pv30, pv15, vencidas: totalVencidas, cero: tZero, items60, items30, items15 });
+                } catch {
+                    try {
+                        if (elTimelinePruebas) elTimelinePruebas.textContent = '—';
+                    } catch {}
+                }
 
                 spanPruebas.innerHTML = `
                     <div class="dash-stats" aria-label="Resumen de pruebas">
