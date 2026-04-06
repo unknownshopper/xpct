@@ -74,7 +74,7 @@
                     <div class="dash-card-value" id="rango-15">0</div>
                 </div>
                 <div id="card-0" class="dash-card" style="cursor:pointer;">
-                    <div class="dash-card-label">0 días (vencidas)</div>
+                    <div class="dash-card-label">💀 0 días (vencidas)</div>
                     <div class="dash-card-value" id="rango-0">0</div>
                 </div>
             </section>
@@ -84,11 +84,15 @@
                     <h2 id="listado-titulo" style="margin:0; font-size:1.05rem;">Listado</h2>
                     <div id="listado-contador" style="font-size:0.9rem; color:#6b7280;"></div>
                 </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                    <button id="btn-descargar-csv" type="button">Descargar CSV</button>
+                </div>
                 <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
                     <table id="tabla-rangos" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:760px;">
                         <thead>
                             <tr style="background:#f3f4f6;">
                                 <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th style="text-align:left; padding:0.4rem;">Serial</th>
                                 <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Días</th>
@@ -127,6 +131,7 @@
     const seccionListado = document.getElementById('seccion-listado');
     const listadoTitulo = document.getElementById('listado-titulo');
     const listadoContador = document.getElementById('listado-contador');
+    const btnDescargarCsv = document.getElementById('btn-descargar-csv');
     const tbodyRangos = document.getElementById('tbody-rangos');
     const msgSinRango = document.getElementById('msg-sin-rango');
 
@@ -137,6 +142,42 @@
         const d = new Date();
         d.setHours(0,0,0,0);
         return d;
+    }
+
+    function escapeCsvCell(v) {
+        const s = String(v ?? '');
+        if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
+            return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+    }
+
+    function descargarCsvRango() {
+        if (!_rangoActivo) return;
+        const visibles = _items
+            .filter(it => perteneceARango(it, _rangoActivo))
+            .sort((a, b) => (a.dias - b.dias) || String(a.equipo).localeCompare(String(b.equipo)));
+
+        const header = ['equipo', 'serial', 'prueba', 'proxima', 'dias'];
+        const rows = visibles.map(it => ([
+            it.equipo || '',
+            it.serial || '',
+            it.prueba || '',
+            it.proxima ? formateaDDMMAA(it.proxima) : '',
+            (typeof it.dias === 'number' && !isNaN(it.dias)) ? String(it.dias) : ''
+        ]));
+
+        const csv = [header.join(','), ...rows.map(r => r.map(escapeCsvCell).join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const safeRange = _rangoActivo;
+        a.download = `pruebas_rango_${safeRange}_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2500);
     }
 
     function parseFechaRealizacion(str) {
@@ -215,7 +256,7 @@
         if (r === '60') return '60–31 días';
         if (r === '30') return '30–16 días';
         if (r === '15') return '15–1 días';
-        if (r === '0') return '0 días (vencidas)';
+        if (r === '0') return '💀 0 días (vencidas)';
         return 'Listado';
     }
 
@@ -246,11 +287,13 @@
         tbodyRangos.innerHTML = '';
         if (msgSinRango) msgSinRango.style.display = visibles.length ? 'none' : 'block';
         if (listadoContador) listadoContador.textContent = `${visibles.length} equipo${visibles.length === 1 ? '' : 's'}`;
+        if (btnDescargarCsv) btnDescargarCsv.disabled = (visibles.length === 0);
 
         visibles.forEach(it => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="padding:0.4rem; font-weight:700;">${String(it.equipo || '').trim()}</td>
+                <td style="padding:0.4rem;">${String(it.serial || '').trim()}</td>
                 <td style="padding:0.4rem;">${String(it.prueba || '').trim()}</td>
                 <td style="padding:0.4rem;">${it.proxima ? formateaDDMMAA(it.proxima) : ''}</td>
                 <td style="padding:0.4rem;">${String(it.dias)}</td>
@@ -311,6 +354,7 @@
             if (isNaN(dias)) return;
             items.push({
                 equipo: String(r.equipo || '').trim(),
+                serial: String(r.numeroSerie || r.serial || '').trim(),
                 prueba: String(r.pruebaTipo || r.prueba || '').trim(),
                 proxima: prox,
                 dias
@@ -348,6 +392,7 @@
     if (card30) card30.addEventListener('click', () => toggleRango('30'));
     if (card15) card15.addEventListener('click', () => toggleRango('15'));
     if (card0)  card0.addEventListener('click', () => toggleRango('0'));
+    if (btnDescargarCsv) btnDescargarCsv.addEventListener('click', descargarCsvRango);
 
     if (btnLogout) {
         btnLogout.addEventListener('click', async () => {
