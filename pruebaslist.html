@@ -80,6 +80,7 @@
                     <ul class="nav-dropdown">
                         <li><a href="pruebas.html">Registrar prueba</a></li>
                         <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                        <li><a href="pruebasrangos.html">Rangos</a></li>
                     </ul>
                 </li>
 
@@ -291,6 +292,29 @@
                 <!-- Left: search -->
                 <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                     <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
+                    <div style="position:relative;">
+                        <button id="btn-pruebas-rangos" type="button" style="padding:0.45rem 0.75rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">Rangos</button>
+                        <div id="panel-pruebas-rangos" style="display:none; position:absolute; left:0; top:calc(100% + 6px); z-index:30; min-width:360px; max-width:520px; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,0.18); padding:0.75rem;">
+                            <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.5rem;">
+                                <div class="dash-card" id="card-rango-60" style="cursor:pointer;">
+                                    <div class="dash-card-label">60–31 días</div>
+                                    <div class="dash-card-value" id="card-rango-60-val">0</div>
+                                </div>
+                                <div class="dash-card" id="card-rango-30" style="cursor:pointer;">
+                                    <div class="dash-card-label">30–16 días</div>
+                                    <div class="dash-card-value" id="card-rango-30-val">0</div>
+                                </div>
+                                <div class="dash-card" id="card-rango-15" style="cursor:pointer;">
+                                    <div class="dash-card-label">15–1 días</div>
+                                    <div class="dash-card-value" id="card-rango-15-val">0</div>
+                                </div>
+                                <div class="dash-card" id="card-rango-0" style="cursor:pointer;">
+                                    <div class="dash-card-label">0 días (vencidas)</div>
+                                    <div class="dash-card-value" id="card-rango-0-val">0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Right: actions -->
                 <div class="actividad-toolbar-right" style="display:flex; gap:0.5rem; margin-left:auto;">
@@ -966,6 +990,17 @@
         const chip0 = document.getElementById('chip-0');
         let filtroRango = null; // 'gt60' | '60' | '30' | '15' | '0' | null
 
+        const btnRangos = document.getElementById('btn-pruebas-rangos');
+        const panelRangos = document.getElementById('panel-pruebas-rangos');
+        const cardR60 = document.getElementById('card-rango-60');
+        const cardR30 = document.getElementById('card-rango-30');
+        const cardR15 = document.getElementById('card-rango-15');
+        const cardR0 = document.getElementById('card-rango-0');
+        const cardR60Val = document.getElementById('card-rango-60-val');
+        const cardR30Val = document.getElementById('card-rango-30-val');
+        const cardR15Val = document.getElementById('card-rango-15-val');
+        const cardR0Val = document.getElementById('card-rango-0-val');
+
         // Inspector: ocultar chips/resúmenes y evitar filtros (solo lista recientes 32h)
         const seccionChipsAlertas = document.getElementById('seccion-chips-alertas');
         const seccionChipsPeriodo = document.getElementById('seccion-chips-periodo');
@@ -974,6 +1009,8 @@
             if (seccionChipsAlertas) seccionChipsAlertas.style.display = 'none';
             if (seccionChipsPeriodo) seccionChipsPeriodo.style.display = 'none';
             if (seccionResumenEquipo) seccionResumenEquipo.style.display = 'none';
+            if (btnRangos) btnRangos.style.display = 'none';
+            if (panelRangos) panelRangos.style.display = 'none';
             filtroRango = null;
         }
 
@@ -3723,6 +3760,13 @@
                 if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
             }
 
+            try {
+                if (cardR60Val) cardR60Val.textContent = String(cntChip60);
+                if (cardR30Val) cardR30Val.textContent = String(cntChip30);
+                if (cardR15Val) cardR15Val.textContent = String(cntChip15);
+                if (cardR0Val)  cardR0Val.textContent  = String(cntChip0);
+            } catch {}
+
             // Reiniciar checkbox de selección global
             if (chkSelectTodos) chkSelectTodos.checked = false;
 
@@ -3743,6 +3787,18 @@
             if (filtroRango === '30' && chip30) chip30.classList.add('chip-active');
             if (filtroRango === '15' && chip15) chip15.classList.add('chip-active');
             if (filtroRango === '0' && chip0) chip0.classList.add('chip-active');
+
+            try {
+                const mark = (el, active) => {
+                    if (!el) return;
+                    el.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
+                    el.style.fontWeight = active ? '700' : '';
+                };
+                mark(cardR60, filtroRango === '60');
+                mark(cardR30, filtroRango === '30');
+                mark(cardR15, filtroRango === '15');
+                mark(cardR0, filtroRango === '0');
+            } catch {}
         }
 
         function toggleFiltro(r) {
@@ -3750,6 +3806,52 @@
             actualizarChipsUI();
             render();
         }
+
+        function setFiltroDesdeRango(r) {
+            filtroRango = r;
+            actualizarChipsUI();
+            render();
+        }
+
+        function togglePanelRangos(forceOpen = null) {
+            if (!panelRangos) return;
+            const isOpen = panelRangos.style.display !== 'none';
+            const nextOpen = (forceOpen === null) ? !isOpen : !!forceOpen;
+            panelRangos.style.display = nextOpen ? 'block' : 'none';
+        }
+
+        if (btnRangos && !btnRangos.dataset.bound) {
+            btnRangos.dataset.bound = '1';
+            btnRangos.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                togglePanelRangos();
+            });
+        }
+        if (panelRangos && !panelRangos.dataset.bound) {
+            panelRangos.dataset.bound = '1';
+            panelRangos.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+        if (!window.isInspector && !document.body.dataset.pruebasRangosOutsideBound) {
+            document.body.dataset.pruebasRangosOutsideBound = '1';
+            document.addEventListener('click', () => {
+                togglePanelRangos(false);
+            });
+        }
+        if (cardR60) cardR60.addEventListener('click', () => { toggleFiltro('60'); togglePanelRangos(false); });
+        if (cardR30) cardR30.addEventListener('click', () => { toggleFiltro('30'); togglePanelRangos(false); });
+        if (cardR15) cardR15.addEventListener('click', () => { toggleFiltro('15'); togglePanelRangos(false); });
+        if (cardR0)  cardR0.addEventListener('click', () => { toggleFiltro('0');  togglePanelRangos(false); });
+
+        try {
+            const sp = new URLSearchParams(window.location.search || '');
+            const r = (sp.get('rango') || '').trim();
+            if (r === '60' || r === '30' || r === '15' || r === '0') {
+                setFiltroDesdeRango(r);
+            }
+        } catch {}
 
         if (chipGT60) chipGT60.addEventListener('click', () => toggleFiltro('gt60'));
         if (chip60)  chip60.addEventListener('click', () => toggleFiltro('60'));

@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const allowedNavPages = new Set([
         'pruebas.html',
         'pruebaslist.html',
+        'pruebasrangos.html',
         'inspeccion.html',
         'inspectlist.html',
         'invre.html'
@@ -40,6 +41,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     navMain.addEventListener('click', (event) => {
+        const subTrigger = event.target.closest('.nav-item-has-subdropdown > a');
+        if (subTrigger) {
+            event.preventDefault();
+            event.stopPropagation();
+            const subItem = subTrigger.parentElement;
+            const yaAbiertoSub = subItem.classList.contains('is-open');
+            // Cerrar otros submenus dentro del mismo dropdown
+            try {
+                const parentDropdown = subItem.closest('.nav-dropdown') || navMain;
+                parentDropdown.querySelectorAll('.nav-item-has-subdropdown.is-open').forEach(el => {
+                    if (el !== subItem) el.classList.remove('is-open');
+                });
+            } catch {}
+            if (!yaAbiertoSub) subItem.classList.add('is-open');
+            else subItem.classList.remove('is-open');
+            return;
+        }
+
         const trigger = event.target.closest('.nav-item-has-dropdown > a');
         if (!trigger) return;
 
@@ -51,6 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Cerrar todos
         navMain.querySelectorAll('.nav-item-has-dropdown.is-open').forEach(el => {
+            el.classList.remove('is-open');
+        });
+
+        // Cerrar submenus
+        navMain.querySelectorAll('.nav-item-has-subdropdown.is-open').forEach(el => {
             el.classList.remove('is-open');
         });
 
