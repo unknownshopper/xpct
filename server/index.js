@@ -15,6 +15,17 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 const PORT = process.env.PORT || 8080;
 const TZ = process.env.TZ || 'America/Mexico_City';
 
+function normEquipoKey(v) {
+  let t = (v || '').toString();
+  t = t.replace(/\u00A0/g, ' ');
+  t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+  return t.toUpperCase().trim();
+}
+
+function normPruebaKey(v) {
+  return (v || '').toString().toUpperCase().trim();
+}
+
 function parseFecha(str) {
   if (!str) return null;
   // Firestore Timestamp
@@ -137,8 +148,12 @@ async function queryUltimasAnuales() {
     const periodo = (data.periodo || '').toString().trim().toUpperCase();
     // Backward compat: sin periodo => tratar como ANUAL
     if (periodo && periodo !== 'ANUAL') return;
-    const equipo = (data.equipo || data.equipoId || data.activo || '').toString().trim() || doc.id;
+    const equipoRaw = (data.equipo || data.equipoId || data.activo || '').toString().trim();
+    const equipoDisplay = equipoRaw || doc.id;
+    const equipoKey = normEquipoKey(equipoRaw);
     const prueba = (data.prueba || data.pruebaTipo || '').toString().trim();
+    const pruebaKey = normPruebaKey(prueba || 'ANUAL');
+    const serial = (data.numeroSerie || data.serial || '').toString().trim();
     const fechaReal = parseFecha(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
     let proxima = parseFecha(data.proxima || '');
     // Derivar próxima a partir de fechaReal + 1 año si falta
@@ -148,9 +163,23 @@ async function queryUltimasAnuales() {
       d.setHours(0, 0, 0, 0);
       if (!isNaN(d.getTime())) proxima = d;
     }
-    const key = `${equipo}__${(prueba || 'ANUAL').toUpperCase()}`;
+
+    let failReason = '';
+    if (!equipoRaw) failReason = 'SIN_EQUIPO';
+    if (!proxima) failReason = failReason || 'SIN_PROXIMA';
+
+    const key = `${equipoKey || normEquipoKey(equipoDisplay)}__${pruebaKey}`;
     const current = porEquipoPrueba.get(key);
-    const payload = { docId: doc.id, equipo, prueba, fechaReal, proxima, raw: data };
+    const payload = {
+      docId: doc.id,
+      equipo: equipoDisplay,
+      serial,
+      prueba: pruebaKey,
+      fechaReal,
+      proxima,
+      failReason,
+      raw: data
+    };
     if (!current) {
       porEquipoPrueba.set(key, payload);
     } else {
@@ -181,20 +210,24 @@ function clasificarDias(proxima) {
   return { dias, bucket: 'otras' };
 }
 
-function buildHtml({ lista60, lista30, lista15 }) {
+function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
   const fmt = d => (d ? DateTime.fromJSDate(d).setZone(TZ).toFormat('dd/LL/yyyy') : '—');
   const estadoFromDias = dias => (dias < 0 ? 'Vencida' : 'Vigente');
-  const section = (titulo, items) => {
+  const section = (titulo, items, opts = {}) => {
     if (!items.length) return '';
+    const includeEstado = opts.includeEstado !== false;
+    const includeMotivo = !!opts.includeMotivo;
     const rows = items
       .sort((a, b) => a.dias - b.dias)
       .map(x => `
         <tr>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.equipo}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.serial || '—'}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.prueba || '—'}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${fmt(x.proxima)}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.dias}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${estadoFromDias(x.dias)}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${(x.dias ?? '—')}</td>
+          ${includeEstado ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${typeof x.dias === 'number' ? estadoFromDias(x.dias) : '—'}</td>` : ''}
+          ${includeMotivo ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${x.failReason || '—'}</td>` : ''}
         </tr>
       `).join('');
     return `
@@ -203,10 +236,12 @@ function buildHtml({ lista60, lista30, lista15 }) {
         <thead>
           <tr>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Equipo</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Serial</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Prueba / Calib.</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Próxima</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Días</th>
-            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Estado</th>
+            ${includeEstado ? '<th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Estado</th>' : ''}
+            ${includeMotivo ? '<th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Motivo</th>' : ''}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -229,6 +264,8 @@ function buildHtml({ lista60, lista30, lista15 }) {
       ${section('60–31 días', lista60)}
       ${section('30–16 días', lista30)}
       ${section('15–1 días (envío diario)', lista15)}
+      ${section('💀 0 días (vencidas)', lista0)}
+      ${section('Fallidos', listaFail, { includeMotivo: true })}
     </div>
   `;
 
@@ -322,36 +359,48 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   const lista60 = [];
   const lista30 = [];
   const lista15 = [];
+  const lista0 = [];
+  const listaFail = [];
 
   for (const reg of ultimas) {
-    const { dias, bucket } = clasificarDias(reg.proxima);
     const equipoKey = reg.equipo || reg.docId;
-    const pruebaKey = (reg.prueba || 'ANUAL').toUpperCase();
+    const pruebaKey = normPruebaKey(reg.prueba || 'ANUAL');
+
+    if (reg.failReason) {
+      listaFail.push({ equipo: equipoKey, serial: reg.serial, prueba: pruebaKey, proxima: reg.proxima, dias: null, failReason: reg.failReason });
+      continue;
+    }
+
+    const { dias, bucket } = clasificarDias(reg.proxima);
+    if (bucket === 'vencidas') {
+      lista0.push({ equipo: equipoKey, serial: reg.serial, prueba: pruebaKey, proxima: reg.proxima, dias });
+      continue;
+    }
     if (bucket === '60_30' || bucket === '30_15' || bucket === '15_0') {
-      const trackId = `${equipoKey}__${pruebaKey}`;
+      const trackId = `${normEquipoKey(equipoKey)}__${pruebaKey}`;
       const trackRef = db.collection('alertas_pruebas').doc(trackId);
       const trackSnap = await trackRef.get();
       const t = trackSnap.exists ? trackSnap.data() : {};
       if (bucket === '60_30') {
-        lista60.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
+        lista60.push({ equipo: equipoKey, serial: reg.serial, prueba: pruebaKey, proxima: reg.proxima, dias });
         if ((force || !t.notif60At) && !testMode) {
           await trackRef.set({ ...t, notif60At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } else if (bucket === '30_15') {
-        lista30.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
+        lista30.push({ equipo: equipoKey, serial: reg.serial, prueba: pruebaKey, proxima: reg.proxima, dias });
         if ((force || !t.notif30At) && !testMode) {
           await trackRef.set({ ...t, notif30At: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } else if (bucket === '15_0') {
-        lista15.push({ equipo: equipoKey, prueba: reg.prueba, proxima: reg.proxima, dias });
+        lista15.push({ equipo: equipoKey, serial: reg.serial, prueba: pruebaKey, proxima: reg.proxima, dias });
         if (!testMode) await trackRef.set({ ...t, notif15LastAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
       }
     }
   }
 
-  if (!lista60.length && !lista30.length && !lista15.length) {
+  if (!lista60.length && !lista30.length && !lista15.length && !lista0.length && !listaFail.length) {
     if (testMode) {
-      const html = buildHtml({ lista60, lista30, lista15 });
+      const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
       const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
       await enviarCorreo({ html, subject });
       const { toList } = getMailRecipients();
@@ -362,11 +411,16 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   
 
   
-  const html = buildHtml({ lista60, lista30, lista15 });
+  const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
   const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
   await enviarCorreo({ html, subject });
   const { toList } = getMailRecipients();
-  return { sent: true, empty: false, counts: { c60: lista60.length, c30: lista30.length, c15: lista15.length }, to: toList };
+  return {
+    sent: true,
+    empty: false,
+    counts: { c60: lista60.length, c30: lista30.length, c15: lista15.length, c0: lista0.length, cFail: listaFail.length },
+    to: toList
+  };
 }
 
 const app = express();

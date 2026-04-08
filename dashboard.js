@@ -206,10 +206,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function parseProxima(str) {
             if (!str) return null;
+            // Firestore Timestamp
+            if (str && typeof str === 'object' && typeof str.toDate === 'function') {
+                const d = str.toDate();
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+            // Date instancia
+            if (str instanceof Date) {
+                const d = new Date(str);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+            // Milliseconds
+            if (typeof str === 'number' && isFinite(str)) {
+                const d = new Date(str);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+
             const s = String(str).trim();
             if (!s) return null;
 
-            // Formato dd/mm/aa
+            // Formato dd/mm/aa o dd/mm/aaaa
             if (s.includes('/')) {
                 const partes = s.split('/');
                 if (partes.length !== 3) return null;
@@ -218,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mm = parseInt(mmStr, 10);
                 const aa = parseInt(aaStr, 10);
                 if (!dd || !mm || isNaN(aa)) return null;
-                const year = aa < 100 ? 2000 + aa : aa;
+                const year = aaStr.length <= 2 ? (2000 + aa) : aa;
                 const d = new Date(year, mm - 1, dd);
                 if (isNaN(d.getTime())) return null;
                 d.setHours(0, 0, 0, 0);
@@ -241,6 +263,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isNaN(d.getTime())) return null;
             d.setHours(0, 0, 0, 0);
             return d;
+        }
+
+        function parseFechaRealizacion(str) {
+            return parseProxima(str);
+        }
+
+        function normEquipoKey(v) {
+            let t = (v || '').toString();
+            t = t.replace(/\u00A0/g, ' ');
+            t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+            return t.toUpperCase().trim();
+        }
+
+        function normPruebaKey(v) {
+            return (v || '').toString().toUpperCase().trim();
         }
 
         (async () => {
@@ -283,34 +320,60 @@ document.addEventListener('DOMContentLoaded', () => {
                     const items60 = [];
                     const items30 = [];
                     const items15 = [];
+
+                    // Tomar SOLO la última ANUAL por equipo+tipo
+                    const latest = new Map();
                     snap.forEach(doc => {
                         const data = doc.data() || {};
-                        const proximaStr = data.proxima || '';
                         const periodoStr = (data.periodo || '').toString().trim().toUpperCase();
                         if (periodoStr === 'ANUAL' || periodoStr === '') tAn += 1;
                         else if (periodoStr === 'POST-TRABAJO') tPT += 1;
                         else if (periodoStr === 'REPARACION') tRep += 1;
 
-                        // Rangos de vencimiento: solo aplican a ANUAL (evita contaminar con proxima residual en otros periodos)
                         if (!(periodoStr === 'ANUAL' || periodoStr === '')) return;
-                        const dProx = parseProxima(proximaStr);
+
+                        const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
+                        if (!equipo) return;
+                        const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
+                        const key = `${normEquipoKey(equipo)}__${tipo}`;
+
+                        const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
+                        const prev = latest.get(key);
+                        if (!prev) {
+                            latest.set(key, { data, equipo, fr });
+                            return;
+                        }
+                        const a = prev.fr ? prev.fr.getTime() : 0;
+                        const b = fr ? fr.getTime() : 0;
+                        if (b >= a) latest.set(key, { data, equipo, fr });
+                    });
+
+                    latest.forEach(({ data, equipo, fr }) => {
+                        let dProx = parseProxima(data.proxima || '');
+                        if (!dProx && fr) {
+                            const d = new Date(fr);
+                            d.setFullYear(d.getFullYear() + 1);
+                            d.setHours(0,0,0,0);
+                            if (!isNaN(d.getTime())) dProx = d;
+                        }
                         if (!dProx) return;
+
                         const diffMs = dProx.getTime() - hoy.getTime();
-                        let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
-                        // Alineado a pruebaslist: 60–31, 30–16, 15–1 (0 y vencidas no entran en buckets)
+                        const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
                         if (dias === 0) { tZero += 1; return; }
                         if (dias < 0) { tVenc += 1; return; }
                         if (dias > 60) return;
-                        const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
+
+                        const proximaTxt = (typeof data.proxima === 'string') ? data.proxima : '';
                         if (dias >= 31 && dias <= 60) {
                             pv60 += 1;
-                            if (items60.length < 2000) items60.push({ equipo, proxima: proximaStr, dias });
+                            if (items60.length < 2000) items60.push({ equipo, proxima: proximaTxt, dias });
                         } else if (dias >= 16 && dias <= 30) {
                             pv30 += 1;
-                            if (items30.length < 2000) items30.push({ equipo, proxima: proximaStr, dias });
+                            if (items30.length < 2000) items30.push({ equipo, proxima: proximaTxt, dias });
                         } else if (dias >= 1 && dias <= 15) {
                             pv15 += 1;
-                            if (items15.length < 2000) items15.push({ equipo, proxima: proximaStr, dias });
+                            if (items15.length < 2000) items15.push({ equipo, proxima: proximaTxt, dias });
                         }
                     });
                     porVencer60 = pv60; porVencer30 = pv30; porVencer15 = pv15;
