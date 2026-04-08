@@ -3152,7 +3152,8 @@
                 utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
             };
 
-            // Clasificar por buckets por REGISTRO (prueba), no por equipo
+            // Clasificar por buckets usando SOLO la última ANUAL por equipo + tipo (alineado a Rangos/Correo)
+            const latestAnualPorEquipoTipo = new Map();
             (Array.isArray(historico) ? historico : []).forEach(reg => {
                 const periodo = (reg.periodo || '').toString().trim().toUpperCase();
                 // Solo ANUAL define próxima (y por tanto, vigencia)
@@ -3160,17 +3161,37 @@
                 const cat = categoriaPrueba(reg);
                 if (!cat) return;
                 if (!isScopedIndicator(reg)) return;
+
+                const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                if (!eqK) return;
+                const tipo = (typeof normalizaPrueba === 'function')
+                    ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
+                    : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
+                const key = `${eqK}__${tipo}`;
+
+                const fr = (reg._fechaRealDate instanceof Date)
+                    ? reg._fechaRealDate
+                    : parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
+
+                const prev = latestAnualPorEquipoTipo.get(key);
+                if (!prev) {
+                    latestAnualPorEquipoTipo.set(key, { reg, fr, cat });
+                } else {
+                    const a = prev.fr ? prev.fr.getTime() : 0;
+                    const b = fr ? fr.getTime() : 0;
+                    if (b >= a) latestAnualPorEquipoTipo.set(key, { reg, fr, cat });
+                }
+            });
+
+            latestAnualPorEquipoTipo.forEach(({ reg, fr, cat }) => {
+                if (!reg || !cat) return;
                 let prox = parseProxima(reg.proxima || '');
                 // Si no hay 'proxima' pero es ANUAL, intentar derivarla de fechaRealizacion + 12 meses
-                if (!prox) {
-                    const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
-                    // Backward compat: sin periodo => tratar como ANUAL
-                    if ((periodo === 'ANUAL' || !periodo) && fr) {
-                        const d = new Date(fr);
-                        d.setFullYear(d.getFullYear() + 1);
-                        d.setHours(0,0,0,0);
-                        if (!isNaN(d.getTime())) prox = d;
-                    }
+                if (!prox && fr) {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0,0,0,0);
+                    if (!isNaN(d.getTime())) prox = d;
                 }
                 if (!prox) return;
                 const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
@@ -3339,6 +3360,9 @@
             let cntChip30 = 0;   // 30–16
             let cntChip15 = 0;   // 15–1
             let cntChip0 = 0;    // 0 (vencidas)
+
+            // Alinear chips con backend/Rangos: usar solo la última ANUAL por equipo + tipo de prueba
+            const latestIndic = new Map();
 
             const filasVisibles = [];
 
@@ -3543,23 +3567,31 @@
                     diasParaProxima = String(dias);
                 }
 
-                // Contar alertas por PRUEBA (no por equipo), solo vigentes; rangos: 60–31, 30–16, 15–1
-                // esAnualReg ya calculado arriba
+                // Chips (solo última ANUAL por equipo+tipo): recolectar candidato
                 const scopedForIndicators = isScopedIndicator(reg);
-                if (scopedForIndicators && esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 1) {
-                    if (diasNum >= 31 && diasNum <= 60) {
-                        cntChip60 += 1;
-                    } else if (diasNum >= 16 && diasNum <= 30) {
-                        cntChip30 += 1;
-                    } else if (diasNum >= 1 && diasNum <= 15) {
-                        cntChip15 += 1;
+                if (scopedForIndicators && esAnualReg && !esHistoricoReg) {
+                    const eqK2 = normEquipoKey(reg.equipo);
+                    const tipo = (typeof normalizaPrueba === 'function')
+                        ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
+                        : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
+                    const key = `${eqK2}__${tipo}`;
+                    const prev = latestIndic.get(key);
+
+                    // dias para chips: usar valor real (sin clamp) y estado
+                    let diasChip = null;
+                    if (proximaBase) {
+                        const hoy = hoySinHora();
+                        const diffMs = proximaBase.getTime() - hoy.getTime();
+                        diasChip = Math.round(diffMs / (1000 * 60 * 60 * 24));
                     }
-                }
-                if (scopedForIndicators && esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum > 60) {
-                    cntChipGT60 += 1;
-                }
-                if (scopedForIndicators && esAnualReg && estado === 'VENCIDA') {
-                    cntChip0 += 1;
+
+                    if (!prev || (reg._fechaRealDate && prev.fechaMs !== null && reg._fechaRealDate.getTime() > prev.fechaMs)) {
+                        latestIndic.set(key, {
+                            fechaMs: reg._fechaRealDate ? reg._fechaRealDate.getTime() : null,
+                            estado,
+                            dias: diasChip
+                        });
+                    }
                 }
 
                 // Aplicar filtro por periodo si está activo
@@ -3752,6 +3784,27 @@
 
             const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
             const lblAlert0 = document.getElementById('pruebas-alert-0');
+
+            // Recalcular chips desde la última ANUAL por equipo+tipo
+            try {
+                cntChipGT60 = 0;
+                cntChip60 = 0;
+                cntChip30 = 0;
+                cntChip15 = 0;
+                cntChip0 = 0;
+                latestIndic.forEach(v => {
+                    if (!v) return;
+                    if (v.estado === 'VENCIDA') { cntChip0 += 1; return; }
+                    if (v.estado !== 'VIGENTE') return;
+                    const d = v.dias;
+                    if (d === null || typeof d !== 'number' || isNaN(d)) return;
+                    if (d > 60) cntChipGT60 += 1;
+                    else if (d >= 31 && d <= 60) cntChip60 += 1;
+                    else if (d >= 16 && d <= 30) cntChip30 += 1;
+                    else if (d >= 1 && d <= 15) cntChip15 += 1;
+                });
+            } catch {}
+
             if (!_csvPreviewActive) {
                 if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
                 if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);

@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rangos de pruebas</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        #rangos-cards {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1rem;
+            align-items: stretch;
+        }
+        @media (max-width: 980px) {
+            #rangos-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+            #rangos-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -60,7 +74,7 @@
                 Selecciona un rango para ver únicamente los equipos/pruebas correspondientes.
             </p>
 
-            <section class="dashboard-cards" style="margin-bottom: 1rem;">
+            <section id="rangos-cards" class="dashboard-cards" style="margin-bottom: 1rem;">
                 <div id="card-60" class="dash-card" style="cursor:pointer;">
                     <div class="dash-card-label">60–31 días</div>
                     <div class="dash-card-value" id="rango-60">0</div>
@@ -74,8 +88,9 @@
                     <div class="dash-card-value" id="rango-15">0</div>
                 </div>
                 <div id="card-0" class="dash-card" style="cursor:pointer;">
-                    <div class="dash-card-label">💀 0 días (vencidas)</div>
+                    <div class="dash-card-label">💀 0 + Fallidos</div>
                     <div class="dash-card-value" id="rango-0">0</div>
+                    <div style="margin-top:0.25rem; font-size:0.78rem; color:#6b7280;">Fallidos: <span id="rango-fail">0</span></div>
                 </div>
             </section>
 
@@ -85,6 +100,10 @@
                     <div id="listado-contador" style="font-size:0.9rem; color:#6b7280;"></div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                    <div id="tabs-0-fail" style="display:none; margin-right:auto; gap:0.5rem; flex-wrap:wrap;">
+                        <button id="tab-vencidas" type="button">Vencidas</button>
+                        <button id="tab-fallidos" type="button">Fallidos</button>
+                    </div>
                     <button id="btn-descargar-csv" type="button">Descargar CSV</button>
                 </div>
                 <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
@@ -96,6 +115,7 @@
                                 <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Días</th>
+                                <th id="th-motivo" style="text-align:left; padding:0.4rem; display:none;">Motivo</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-rangos"></tbody>
@@ -127,6 +147,9 @@
     const card30 = document.getElementById('card-30');
     const card15 = document.getElementById('card-15');
     const card0 = document.getElementById('card-0');
+    const tabs0Fail = document.getElementById('tabs-0-fail');
+    const tabVencidas = document.getElementById('tab-vencidas');
+    const tabFallidos = document.getElementById('tab-fallidos');
 
     const seccionListado = document.getElementById('seccion-listado');
     const listadoTitulo = document.getElementById('listado-titulo');
@@ -134,9 +157,11 @@
     const btnDescargarCsv = document.getElementById('btn-descargar-csv');
     const tbodyRangos = document.getElementById('tbody-rangos');
     const msgSinRango = document.getElementById('msg-sin-rango');
+    const thMotivo = document.getElementById('th-motivo');
 
     let _items = [];
-    let _rangoActivo = null; // '60' | '30' | '15' | '0' | null
+    let _rangoActivo = null; // '60' | '30' | '15' | '0' | 'fail' | null
+    let _combo0FailActivo = false;
 
     function hoySinHora() {
         const d = new Date();
@@ -156,16 +181,28 @@
         if (!_rangoActivo) return;
         const visibles = _items
             .filter(it => perteneceARango(it, _rangoActivo))
-            .sort((a, b) => (a.dias - b.dias) || String(a.equipo).localeCompare(String(b.equipo)));
+            .sort((a, b) => {
+                if (_rangoActivo === 'fail') {
+                    return String(a.equipo).localeCompare(String(b.equipo)) || String(a.prueba).localeCompare(String(b.prueba));
+                }
+                return (a.dias - b.dias) || String(a.equipo).localeCompare(String(b.equipo));
+            });
 
-        const header = ['equipo', 'serial', 'prueba', 'proxima', 'dias'];
-        const rows = visibles.map(it => ([
-            it.equipo || '',
-            it.serial || '',
-            it.prueba || '',
-            it.proxima ? formateaDDMMAA(it.proxima) : '',
-            (typeof it.dias === 'number' && !isNaN(it.dias)) ? String(it.dias) : ''
-        ]));
+        const esFallidos = (_rangoActivo === 'fail');
+        const header = esFallidos
+            ? ['equipo', 'serial', 'prueba', 'proxima', 'dias', 'motivo']
+            : ['equipo', 'serial', 'prueba', 'proxima', 'dias'];
+        const rows = visibles.map(it => {
+            const base = [
+                it.equipo || '',
+                it.serial || '',
+                it.prueba || '',
+                it.proxima ? formateaDDMMAA(it.proxima) : '',
+                (typeof it.dias === 'number' && !isNaN(it.dias)) ? String(it.dias) : ''
+            ];
+            if (esFallidos) base.push(it.failReason || '');
+            return base;
+        });
 
         const csv = [header.join(','), ...rows.map(r => r.map(escapeCsvCell).join(','))].join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -182,6 +219,27 @@
 
     function parseFechaRealizacion(str) {
         if (!str) return null;
+        // Firestore Timestamp
+        if (str && typeof str === 'object' && typeof str.toDate === 'function') {
+            const d = str.toDate();
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0,0,0,0);
+            return d;
+        }
+        // Date instancia
+        if (str instanceof Date) {
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0,0,0,0);
+            return d;
+        }
+        // Milliseconds
+        if (typeof str === 'number' && isFinite(str)) {
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0,0,0,0);
+            return d;
+        }
         const s = String(str).trim();
         if (!s) return null;
         if (s.includes('/')) {
@@ -192,7 +250,7 @@
             const mm = parseInt(mmStr, 10);
             const aa = parseInt(aaStr, 10);
             if (!dd || !mm || isNaN(aa)) return null;
-            const year = aa < 100 ? 2000 + aa : aa;
+            const year = aaStr.length <= 2 ? (2000 + aa) : aa;
             const d = new Date(year, mm - 1, dd);
             if (isNaN(d.getTime())) return null;
             d.setHours(0,0,0,0);
@@ -206,6 +264,27 @@
 
     function parseProxima(str) {
         if (!str) return null;
+        // Firestore Timestamp
+        if (str && typeof str === 'object' && typeof str.toDate === 'function') {
+            const d = str.toDate();
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0,0,0,0);
+            return d;
+        }
+        // Date instancia
+        if (str instanceof Date) {
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0,0,0,0);
+            return d;
+        }
+        // Milliseconds
+        if (typeof str === 'number' && isFinite(str)) {
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0,0,0,0);
+            return d;
+        }
         const s = String(str).trim();
         if (!s) return null;
         if (s.includes('/')) {
@@ -216,7 +295,7 @@
             const mm = parseInt(mmStr, 10);
             const aa = parseInt(aaStr, 10);
             if (!dd || !mm || isNaN(aa)) return null;
-            const year = aa < 100 ? 2000 + aa : aa;
+            const year = aaStr.length <= 2 ? (2000 + aa) : aa;
             const d = new Date(year, mm - 1, dd);
             if (isNaN(d.getTime())) return null;
             d.setHours(0,0,0,0);
@@ -249,7 +328,20 @@
         mark(card60, _rangoActivo === '60');
         mark(card30, _rangoActivo === '30');
         mark(card15, _rangoActivo === '15');
-        mark(card0,  _rangoActivo === '0');
+        mark(card0,  _combo0FailActivo && (_rangoActivo === '0' || _rangoActivo === 'fail'));
+    }
+
+    function actualizarTabs0Fail() {
+        if (!tabs0Fail) return;
+        const show = _combo0FailActivo && (_rangoActivo === '0' || _rangoActivo === 'fail');
+        tabs0Fail.style.display = show ? 'flex' : 'none';
+        const markTab = (el, active) => {
+            if (!el) return;
+            el.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
+            el.style.fontWeight = active ? '700' : '';
+        };
+        markTab(tabVencidas, _rangoActivo === '0');
+        markTab(tabFallidos, _rangoActivo === 'fail');
     }
 
     function tituloPorRango(r) {
@@ -257,12 +349,16 @@
         if (r === '30') return '30–16 días';
         if (r === '15') return '15–1 días';
         if (r === '0') return '💀 0 días (vencidas)';
+        if (r === 'fail') return 'Fallidos';
         return 'Listado';
     }
 
     function perteneceARango(item, r) {
         if (!item) return false;
+        if (item.failReason) return (r === 'fail');
+        if (r === 'fail') return false;
         const dias = item.dias;
+        if (typeof dias !== 'number' || isNaN(dias)) return false;
         if (r === '0') return dias <= 0;
         if (dias <= 0) return false;
         if (r === '60') return dias >= 31 && dias <= 60;
@@ -280,9 +376,17 @@
         seccionListado.style.display = '';
         if (listadoTitulo) listadoTitulo.textContent = tituloPorRango(_rangoActivo);
 
+        const esFallidos = (_rangoActivo === 'fail');
+        if (thMotivo) thMotivo.style.display = esFallidos ? '' : 'none';
+
         const visibles = _items
             .filter(it => perteneceARango(it, _rangoActivo))
-            .sort((a, b) => (a.dias - b.dias) || String(a.equipo).localeCompare(String(b.equipo)));
+            .sort((a, b) => {
+                if (_rangoActivo === 'fail') {
+                    return String(a.equipo).localeCompare(String(b.equipo)) || String(a.prueba).localeCompare(String(b.prueba));
+                }
+                return (a.dias - b.dias) || String(a.equipo).localeCompare(String(b.equipo));
+            });
 
         tbodyRangos.innerHTML = '';
         if (msgSinRango) msgSinRango.style.display = visibles.length ? 'none' : 'block';
@@ -291,20 +395,46 @@
 
         visibles.forEach(it => {
             const tr = document.createElement('tr');
+            const motivoCell = esFallidos
+                ? `<td style="padding:0.4rem;">${String(it.failReason || '').trim()}</td>`
+                : '';
             tr.innerHTML = `
                 <td style="padding:0.4rem; font-weight:700;">${String(it.equipo || '').trim()}</td>
                 <td style="padding:0.4rem;">${String(it.serial || '').trim()}</td>
                 <td style="padding:0.4rem;">${String(it.prueba || '').trim()}</td>
                 <td style="padding:0.4rem;">${it.proxima ? formateaDDMMAA(it.proxima) : ''}</td>
                 <td style="padding:0.4rem;">${String(it.dias)}</td>
+                ${motivoCell}
             `;
             tbodyRangos.appendChild(tr);
         });
     }
 
     function toggleRango(r) {
-        _rangoActivo = (_rangoActivo === r) ? null : r;
+        const mismo = (_rangoActivo === r);
+        if (r === '0') {
+            if (_combo0FailActivo && (_rangoActivo === '0' || _rangoActivo === 'fail')) {
+                _combo0FailActivo = false;
+                _rangoActivo = null;
+            } else {
+                _combo0FailActivo = true;
+                _rangoActivo = '0';
+            }
+        } else {
+            _combo0FailActivo = false;
+            _rangoActivo = mismo ? null : r;
+        }
         actualizarTarjetasActivas();
+        actualizarTabs0Fail();
+        renderListado();
+    }
+
+    function setTab0Fail(tab) {
+        if (!_combo0FailActivo) return;
+        if (tab !== '0' && tab !== 'fail') return;
+        _rangoActivo = tab;
+        actualizarTarjetasActivas();
+        actualizarTabs0Fail();
         renderListado();
     }
 
@@ -313,20 +443,32 @@
         const lbl30 = document.getElementById('rango-30');
         const lbl15 = document.getElementById('rango-15');
         const lbl0  = document.getElementById('rango-0');
+        const lblFail = document.getElementById('rango-fail');
 
         const db = getFirestore();
         const snap = await getDocs(collection(db, 'pruebas'));
 
         // Agrupar por equipo + tipo de prueba tomando el registro más reciente (fecha realización)
         const latest = new Map();
+        const fallidos = [];
         snap.forEach(doc => {
-            const r = doc.data() || {};
+            const r = { ...(doc.data() || {}), _id: doc.id };
             const periodo = String(r.periodo || '').trim().toUpperCase();
             const esAnual = (periodo === 'ANUAL' || !periodo);
             if (!esAnual) return;
 
             const equipo = String(r.equipo || '').trim();
-            if (!equipo) return;
+            if (!equipo) {
+                fallidos.push({
+                    equipo: String(r._id || '').trim(),
+                    serial: String(r.numeroSerie || r.serial || '').trim(),
+                    prueba: String(r.pruebaTipo || r.prueba || '').trim(),
+                    proxima: null,
+                    dias: '',
+                    failReason: 'SIN_EQUIPO'
+                });
+                return;
+            }
             const pruebaTipo = normKey(r.pruebaTipo || r.prueba || 'ANUAL');
             const key = `${normKey(equipo)}__${pruebaTipo}`;
 
@@ -343,13 +485,34 @@
         });
 
         const hoy = hoySinHora();
-        let c60 = 0, c30 = 0, c15 = 0, c0 = 0;
+        let c60 = 0, c30 = 0, c15 = 0, c0 = 0, cFail = 0;
 
         const items = [];
 
         latest.forEach(r => {
-            const prox = parseProxima(r.proxima || '');
-            if (!prox) return;
+            let prox = parseProxima(r.proxima || '');
+            if (!prox) {
+                const fr = parseFechaRealizacion(r.fechaRealizacion || r.fechaPrueba || '');
+                if (fr) {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0,0,0,0);
+                    if (!isNaN(d.getTime())) prox = d;
+                }
+            }
+            if (!prox) {
+                const rawProx = String(r.proxima || '').trim();
+                const motivo = rawProx ? 'PROXIMA_INVALIDA' : 'SIN_PROXIMA';
+                fallidos.push({
+                    equipo: String(r.equipo || '').trim(),
+                    serial: String(r.numeroSerie || r.serial || '').trim(),
+                    prueba: String(r.pruebaTipo || r.prueba || '').trim(),
+                    proxima: null,
+                    dias: '',
+                    failReason: motivo
+                });
+                return;
+            }
             const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
             if (isNaN(dias)) return;
             items.push({
@@ -366,12 +529,14 @@
             else if (dias >= 1 && dias <= 15) c15 += 1;
         });
 
-        _items = items;
+        cFail = fallidos.length;
+        _items = [...items, ...fallidos];
 
         if (lbl60) lbl60.textContent = String(c60);
         if (lbl30) lbl30.textContent = String(c30);
         if (lbl15) lbl15.textContent = String(c15);
         if (lbl0)  lbl0.textContent  = String(c0);
+        if (lblFail) lblFail.textContent = String(cFail);
 
         actualizarTarjetasActivas();
         renderListado();
@@ -393,6 +558,8 @@
     if (card15) card15.addEventListener('click', () => toggleRango('15'));
     if (card0)  card0.addEventListener('click', () => toggleRango('0'));
     if (btnDescargarCsv) btnDescargarCsv.addEventListener('click', descargarCsvRango);
+    if (tabVencidas) tabVencidas.addEventListener('click', () => setTab0Fail('0'));
+    if (tabFallidos) tabFallidos.addEventListener('click', () => setTab0Fail('fail'));
 
     if (btnLogout) {
         btnLogout.addEventListener('click', async () => {

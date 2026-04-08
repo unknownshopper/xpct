@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
@@ -6,12 +6,38 @@ import { DateTime } from 'luxon';
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const PORT = process.env.PORT || 8080;
 const TZ = process.env.TZ || 'America/Mexico_City';
 
 function parseFecha(str) {
   if (!str) return null;
+  // Firestore Timestamp
+  if (str && typeof str === 'object' && typeof str.toDate === 'function') {
+    const d = str.toDate();
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  // Date instancia
+  if (str instanceof Date) {
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  // Milliseconds
+  if (typeof str === 'number' && isFinite(str)) {
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
   const s = String(str).trim();
   if (!s) return null;
   if (s.includes('/')) {
@@ -22,7 +48,7 @@ function parseFecha(str) {
     const mm = parseInt(mmStr, 10);
     const aa = parseInt(aaStr, 10);
     if (!dd || !mm || isNaN(aa)) return null;
-    const year = aa < 100 ? 2000 + aa : aa;
+    const year = aaStr.length <= 2 ? (2000 + aa) : aa;
     const d = new Date(year, mm - 1, dd);
     if (isNaN(d.getTime())) return null;
     d.setHours(0, 0, 0, 0);
@@ -113,7 +139,7 @@ async function queryUltimasAnuales() {
     if (periodo && periodo !== 'ANUAL') return;
     const equipo = (data.equipo || data.equipoId || data.activo || '').toString().trim() || doc.id;
     const prueba = (data.prueba || data.pruebaTipo || '').toString().trim();
-    const fechaReal = parseFecha(data.fechaRealizacion || data.fecha || '');
+    const fechaReal = parseFecha(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
     let proxima = parseFecha(data.proxima || '');
     // Derivar próxima a partir de fechaReal + 1 año si falta
     if (!proxima && fechaReal) {
