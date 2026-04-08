@@ -243,7 +243,12 @@
         function esAsignable(email) {
             const e = String(email || '').trim().toLowerCase();
             if (!e) return true;
-            if (e === 'supop@pc-t.com.mx') return false;
+            if (e === 'supop@pc-t.com.mx') {
+                const asignador = String(window.currentUserEmail || '').trim().toLowerCase();
+                if (asignador === 'sgi@pc-t.com.mx') return true;
+                if (window.isAdmin || window.isDirector || window.isSupervisor) return true;
+                return false;
+            }
             return true;
         }
 
@@ -1167,7 +1172,7 @@
 
                     const nuevo = sel.value || '';
                     if (!esAsignable(nuevo)) {
-                        alert('No se puede asignar a supop@pc-t.com.mx porque es visor (solo lectura). Asigna a un usuario operativo.');
+                        alert('No se puede asignar a supop@pc-t.com.mx. Solo sgi@pc-t.com.mx (y admin/director/supervisor) pueden asignarlo.');
                         try { sel.value = ''; } catch {}
                         return;
                     }
@@ -1469,7 +1474,7 @@
                     if (!inspId) return;
                     const nuevo = String(sel.value || '').trim();
                     if (!esAsignable(nuevo)) {
-                        alert('No se puede asignar a supop@pc-t.com.mx porque es visor (solo lectura). Asigna a un usuario operativo.');
+                        alert('No se puede asignar a supop@pc-t.com.mx. Solo sgi@pc-t.com.mx (y admin/director/supervisor) pueden asignarlo.');
                         try { sel.value = ''; } catch {}
                         return;
                     }
@@ -1531,7 +1536,7 @@
                         return;
                     }
                     if (!esAsignable(nuevo)) {
-                        alert('No se puede asignar a supop@pc-t.com.mx porque es visor (solo lectura). Asigna a un usuario operativo.');
+                        alert('No se puede asignar a supop@pc-t.com.mx. Solo sgi@pc-t.com.mx (y admin/director/supervisor) pueden asignarlo.');
                         return;
                     }
                     const ids = Array.from(document.querySelectorAll('.insp-select-fila-huerfana:checked'))
