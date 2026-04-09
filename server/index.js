@@ -490,6 +490,44 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, now: DateTime.now().setZone(TZ).toISO() });
 });
 
+function scheduleDailyAlerts() {
+  const enabled = String(process.env.ALERT_DAILY || '').trim() === '1';
+  if (!enabled) return;
+
+  const timeRaw = String(process.env.ALERT_TIME || '07:00').trim();
+  const m = timeRaw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  const hh = m ? parseInt(m[1], 10) : 7;
+  const mm = m ? parseInt(m[2], 10) : 0;
+
+  const planNext = () => {
+    const now = DateTime.now().setZone(TZ);
+    let next = now.set({ hour: hh, minute: mm, second: 0, millisecond: 0 });
+    if (next <= now) next = next.plus({ days: 1 });
+    const waitMs = Math.max(1000, next.toMillis() - now.toMillis());
+
+    if (process.env.SMTP_DEBUG === '1') {
+      try { console.log('ALERT_DAILY scheduled', { tz: TZ, time: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, next: next.toISO(), waitMs }); } catch {}
+    }
+
+    setTimeout(async () => {
+      try {
+        const out = await calcularYEnviar({ testMode: false, force: false });
+        if (process.env.SMTP_DEBUG === '1') {
+          try { console.log('ALERT_DAILY result:', out); } catch {}
+        }
+      } catch (e) {
+        console.error('ALERT_DAILY failed:', e && e.message ? e.message : e);
+      } finally {
+        planNext();
+      }
+    }, waitMs);
+  };
+
+  planNext();
+}
+
+scheduleDailyAlerts();
+
 // If RUN_ONCE is set, execute and exit (useful for schedulers/CI)
 if (process.env.RUN_ONCE) {
   const mode = String(process.env.RUN_ONCE).toLowerCase();

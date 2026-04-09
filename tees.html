@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEEs (T1/T2)</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+    @page {
+        margin: 14mm 12mm;
+    }
+    @media print {
+        header,
+        .nav-toggle,
+        .nav-main,
+        .user-info,
+        #tees-controles {
+            display: none !important;
+        }
+        #tees-print-header {
+            display: flex !important;
+        }
+        #tees-table-wrap {
+            height: auto !important;
+            overflow: visible !important;
+            border: none !important;
+        }
+        thead tr {
+            position: static !important;
+        }
+        main {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        section.detalle-equipo {
+            border: none !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+        }
+        table {
+            font-size: 11px !important;
+        }
+        tr {
+            page-break-inside: avoid;
+        }
+    }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                        <li><a href="pruebasrangos.html">Rangos</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <div id="tees-print-header" style="display:none; align-items:center; gap:12px; margin:0 0 10px 0; padding:0;">
+        <img src="img/logopctch.png" alt="Logo PCT" style="height:34px; width:auto;" />
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="font-weight:900; color:#0f172a; font-size:14px; line-height:1.15;">TEEs (T1 / T2) existentes</div>
+            <div style="font-size:11px; color:#64748b; line-height:1.15;">Generado desde docs/invre.csv</div>
+        </div>
+    </div>
+
+    <main style="margin: 0; padding: 0.5rem 0.5rem 1rem 0.5rem;">
+        <section class="detalle-equipo" style="padding: 0.75rem 0.75rem 0.5rem; max-width: 100%;">
+            <h2>TEEs (T1 / T2) existentes</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Listado generado desde <code>docs/invre.csv</code> filtrando <strong>PRODUCTO</strong> que contiene <strong>TEE</strong> (incluye T1 y T2).
+            </p>
+
+            <div id="tees-controles" style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:0.5rem;">
+                <div style="min-width:240px; flex:1;">
+                    <label for="tees-filtro" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Buscar</label>
+                    <input id="tees-filtro" type="text" placeholder="Equipo, serial, descripción, figura..." style="width:100%; padding:0.35rem 0.5rem; border-radius:0.4rem; border:1px solid #cbd5e1; font-size:0.85rem;" />
+                </div>
+                <div style="min-width:240px;">
+                    <label for="tees-figura" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Figura (PRODUCTO)</label>
+                    <select id="tees-figura" style="width:100%; padding:0.35rem 0.5rem; border-radius:0.4rem; border:1px solid #cbd5e1; font-size:0.85rem;">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div style="min-width:140px;">
+                    <label for="tees-tipo" style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Tipo</label>
+                    <select id="tees-tipo" style="width:100%; padding:0.35rem 0.5rem; border-radius:0.4rem; border:1px solid #cbd5e1; font-size:0.85rem;">
+                        <option value="">Todos</option>
+                        <option value="T1">T1</option>
+                        <option value="T2">T2</option>
+                    </select>
+                </div>
+                <div style="min-width:200px;">
+                    <label style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Agrupar</label>
+                    <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:#0f172a; user-select:none;">
+                        <input id="tees-agrupar-figura" type="checkbox" />
+                        Agrupar por figura
+                    </label>
+                </div>
+                <div style="min-width:220px;">
+                    <label style="display:block; font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">PDF</label>
+                    <button id="btn-tees-pdf" type="button" style="width:100%; padding:0.45rem 0.65rem; border-radius:0.55rem; border:1px solid #0ea5e9; background:#0ea5e9; color:white; font-weight:800; cursor:pointer;">
+                        Imprimir / Descargar PDF
+                    </button>
+                </div>
+                <div style="min-width:180px;">
+                    <div style="font-size:0.8rem; color:#4b5563; margin-bottom:0.15rem;">Conteo</div>
+                    <div id="tees-contador" style="font-weight:800; color:#0f172a;">--</div>
+                </div>
+            </div>
+
+            <div id="tees-table-wrap" style="height: calc(100vh - 220px); overflow:auto; border:1px solid #e5e7eb; border-radius:0.5rem; margin-top:0.5rem;">
+                <table style="width:100%; min-width:780px; border-collapse:collapse; font-size:0.85rem; table-layout:auto;">
+                    <thead>
+                        <tr style="background:#f8fafc; position:sticky; top:0; z-index:2;">
+                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e5e7eb;">Equipo</th>
+                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e5e7eb;">Serial</th>
+                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e5e7eb;">Descripción</th>
+                            <th id="tees-th-figura" style="text-align:left; padding:0.5rem; border-bottom:1px solid #e5e7eb; cursor:pointer; user-select:none;" title="Click para agrupar / desagrupar por figura">Figura</th>
+                            <th style="text-align:left; padding:0.5rem; border-bottom:1px solid #e5e7eb;">Tipo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tees-tbody"></tbody>
+                </table>
+            </div>
+
+            <p id="tees-msg" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">No se encontraron TEEs.</p>
+        </section>
+    </main>
+
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const auth = window.auth;
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            window.location.href = 'website.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        try {
+            const tok = await user.getIdTokenResult();
+            const role = (tok && tok.claims && tok.claims.role) ? String(tok.claims.role) : '';
+            const isAdmin = role === 'admin';
+            const isDirector = role === 'director';
+            const isSupervisor = role === 'supervisor';
+
+            if (!(isAdmin || isDirector || isSupervisor)) {
+                window.location.href = 'index.html';
+            }
+        } catch {
+            window.location.href = 'index.html';
+        }
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'website.html';
+            }
+        });
+    }
+    </script>
+
+    <script src="nav.js"></script>
+    <script src="utils.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const inputFiltro = document.getElementById('tees-filtro');
+        const selFigura = document.getElementById('tees-figura');
+        const selTipo = document.getElementById('tees-tipo');
+        const chkAgruparFigura = document.getElementById('tees-agrupar-figura');
+        const thFigura = document.getElementById('tees-th-figura');
+        const btnPdf = document.getElementById('btn-tees-pdf');
+        const tbody = document.getElementById('tees-tbody');
+        const msg = document.getElementById('tees-msg');
+        const lblCont = document.getElementById('tees-contador');
+
+        let items = [];
+
+        function norm(v) {
+            return String(v || '').trim().toLowerCase();
+        }
+
+        function tipoDesdeTexto(txt) {
+            const t = String(txt || '').toUpperCase().trim();
+            if (!t) return '';
+            if (/(^|-)T1(-|$)/.test(t)) return 'T1';
+            if (/(^|-)T2(-|$)/.test(t)) return 'T2';
+            if (t.includes(' T1 ')) return 'T1';
+            if (t.includes(' T2 ')) return 'T2';
+            return '';
+        }
+
+        function derivarTipo({ equipo = '', serial = '', descripcion = '' } = {}) {
+            return (
+                tipoDesdeTexto(equipo) ||
+                tipoDesdeTexto(serial) ||
+                tipoDesdeTexto(descripcion) ||
+                ''
+            );
+        }
+
+        function setSelectOptions(selectEl, values) {
+            if (!selectEl) return;
+            const cur = String(selectEl.value || '');
+            const base = selectEl.querySelector('option[value=""]');
+            selectEl.innerHTML = '';
+            if (base) {
+                selectEl.appendChild(base);
+            } else {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Todas';
+                selectEl.appendChild(opt);
+            }
+            (values || []).forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                selectEl.appendChild(opt);
+            });
+            try { selectEl.value = cur; } catch {}
+        }
+
+        function render() {
+            const q = norm(inputFiltro ? inputFiltro.value : '');
+            const filtroFigura = String(selFigura ? selFigura.value : '').trim();
+            const filtroTipo = String(selTipo ? selTipo.value : '').trim();
+            const agruparFigura = !!(chkAgruparFigura && chkAgruparFigura.checked);
+
+            const visibles = (items || []).filter(it => {
+                if (!q) return true;
+                const hay = `${it.equipo} ${it.serial} ${it.descripcion} ${it.figura} ${it.tipo}`.toLowerCase();
+                return hay.includes(q);
+            }).filter(it => {
+                if (!filtroFigura) return true;
+                return String(it.figura || '').trim() === filtroFigura;
+            }).filter(it => {
+                if (!filtroTipo) return true;
+                return String(it.tipo || '').trim() === filtroTipo;
+            });
+
+            if (lblCont) lblCont.textContent = String(visibles.length);
+
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (!visibles.length) {
+                if (msg) msg.style.display = 'block';
+                return;
+            }
+            if (msg) msg.style.display = 'none';
+
+            const frag = document.createDocumentFragment();
+
+            const appendRow = (it) => {
+                const tr = document.createElement('tr');
+                const desc = it.tipo ? `${it.tipo} - ${it.descripcion || ''}` : (it.descripcion || '');
+                tr.innerHTML = `
+                    <td style="padding:0.45rem 0.5rem; border-bottom:1px solid #f1f5f9; font-weight:700; color:#0f172a;">${it.equipo || ''}</td>
+                    <td style="padding:0.45rem 0.5rem; border-bottom:1px solid #f1f5f9;">${it.serial || ''}</td>
+                    <td style="padding:0.45rem 0.5rem; border-bottom:1px solid #f1f5f9;">${desc}</td>
+                    <td style="padding:0.45rem 0.5rem; border-bottom:1px solid #f1f5f9;">${it.figura || ''}</td>
+                    <td style="padding:0.45rem 0.5rem; border-bottom:1px solid #f1f5f9;">${it.tipo || ''}</td>
+                `;
+                frag.appendChild(tr);
+            };
+
+            if (!agruparFigura) {
+                visibles.forEach(appendRow);
+                tbody.appendChild(frag);
+                return;
+            }
+
+            const grupos = new Map();
+            visibles.forEach(it => {
+                const k = String(it.figura || '').trim() || '(Sin figura)';
+                if (!grupos.has(k)) grupos.set(k, []);
+                grupos.get(k).push(it);
+            });
+
+            Array.from(grupos.keys()).sort((a, b) => a.localeCompare(b)).forEach(k => {
+                const list = grupos.get(k) || [];
+                const trH = document.createElement('tr');
+                trH.innerHTML = `
+                    <td colspan="5" style="padding:0.5rem 0.5rem; border-bottom:1px solid #e5e7eb; background:#f8fafc; font-weight:900; color:#0f172a;">
+                        ${k} <span style="font-weight:700; color:#64748b;">(${list.length})</span>
+                    </td>
+                `;
+                frag.appendChild(trH);
+                list.forEach(appendRow);
+            });
+
+            tbody.appendChild(frag);
+        }
+
+        function cargar() {
+            fetch('docs/invre.csv')
+                .then(r => {
+                    if (!r.ok) throw new Error('No se pudo cargar invre.csv');
+                    return r.text();
+                })
+                .then(texto => {
+                    const lineas = String(texto || '').split(/\r?\n/).filter(l => l.trim() !== '');
+                    if (!lineas.length) {
+                        items = [];
+                        render();
+                        return;
+                    }
+
+                    const headers = window.parseCSVLine ? window.parseCSVLine(lineas[0]) : String(lineas[0]).split(',');
+                    const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+                    const idxSerial = headers.indexOf('SERIAL');
+                    const idxDesc = headers.indexOf('DESCRIPCION');
+                    const idxProd = headers.indexOf('PRODUCTO');
+                    const idxEdo = headers.indexOf('EDO') >= 0 ? headers.indexOf('EDO') : headers.indexOf('ESTADO');
+
+                    items = lineas.slice(1)
+                        .map(l => window.parseCSVLine ? window.parseCSVLine(l) : String(l).split(','))
+                        .map(cols => {
+                            const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
+                            const serial = idxSerial >= 0 ? (cols[idxSerial] || '') : '';
+                            const descripcion = idxDesc >= 0 ? (cols[idxDesc] || '') : '';
+                            const figura = idxProd >= 0 ? (cols[idxProd] || '') : '';
+                            const edo = idxEdo >= 0 ? (cols[idxEdo] || '') : '';
+                            const tipo = derivarTipo({ equipo, serial, descripcion });
+                            return { equipo, serial, descripcion, figura, edo, tipo };
+                        })
+                        .filter(it => it && it.equipo)
+                        .filter(it => {
+                            const fig = String(it.figura || '').toUpperCase();
+                            return fig.includes('TEE');
+                        })
+                        .filter(it => {
+                            const edo = String(it.edo || '').trim().toUpperCase();
+                            if (!edo) return true;
+                            return edo === 'ON';
+                        })
+                        .sort((a, b) => String(a.equipo || '').localeCompare(String(b.equipo || '')));
+
+                    try {
+                        const figuras = Array.from(new Set((items || []).map(x => String(x.figura || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+                        setSelectOptions(selFigura, figuras);
+                    } catch {}
+
+                    render();
+                })
+                .catch(err => {
+                    console.error(err);
+                    items = [];
+                    render();
+                });
+        }
+
+        if (inputFiltro) {
+            inputFiltro.addEventListener('input', () => render());
+        }
+
+        if (selFigura) {
+            selFigura.addEventListener('change', () => render());
+        }
+
+        if (selTipo) {
+            selTipo.addEventListener('change', () => render());
+        }
+
+        if (chkAgruparFigura) {
+            chkAgruparFigura.addEventListener('change', () => render());
+        }
+
+        if (thFigura) {
+            thFigura.addEventListener('click', () => {
+                if (chkAgruparFigura) {
+                    chkAgruparFigura.checked = !chkAgruparFigura.checked;
+                }
+                render();
+            });
+        }
+
+        if (btnPdf) {
+            btnPdf.addEventListener('click', () => {
+                try {
+                    window.print();
+                } catch (e) {
+                    console.error('No se pudo imprimir', e);
+                }
+            });
+        }
+
+        cargar();
+    });
+    </script>
+</body>
+</html>
