@@ -487,23 +487,86 @@ app.post('/api/test-smtp', async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, now: DateTime.now().setZone(TZ).toISO() });
+  const base = { ok: true, now: DateTime.now().setZone(TZ).toISO() };
+  if (process.env.SMTP_DEBUG === '1') {
+    try {
+      res.json({
+        ...base,
+        alertDaily: {
+          enabled: String(process.env.ALERT_DAILY || '').trim() === '1',
+          time: String(process.env.ALERT_TIME || '07:00').trim(),
+          lastRunIso: globalThis.__pctAlertDailyLastRunIso || null,
+          nextRunIso: globalThis.__pctAlertDailyNextRunIso || null,
+        }
+      });
+      return;
+    } catch {}
+  }
+  res.json(base);
 });
 
 function scheduleDailyAlerts() {
   const enabled = String(process.env.ALERT_DAILY || '').trim() === '1';
   if (!enabled) return;
 
+  const statePath = path.resolve(__dirname, '.alert_daily_state.json');
+  const loadState = () => {
+    try {
+      if (!fs.existsSync(statePath)) return { lastSentDay: '' };
+      const raw = fs.readFileSync(statePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : { lastSentDay: '' };
+    } catch {
+      return { lastSentDay: '' };
+    }
+  };
+  const saveState = (st) => {
+    try { fs.writeFileSync(statePath, JSON.stringify(st || { lastSentDay: '' })); } catch {}
+  };
+
   const timeRaw = String(process.env.ALERT_TIME || '07:00').trim();
   const m = timeRaw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
   const hh = m ? parseInt(m[1], 10) : 7;
   const mm = m ? parseInt(m[2], 10) : 0;
 
+  const state = loadState();
+  const dayKey = (dt) => dt.toFormat('yyyy-LL-dd');
+  let running = false;
+
+  const runOnce = async ({ reason } = {}) => {
+    if (running) return;
+    running = true;
+    const now = DateTime.now().setZone(TZ);
+    globalThis.__pctAlertDailyLastRunIso = now.toISO();
+    try {
+      const out = await calcularYEnviar({ testMode: false, force: false });
+      state.lastSentDay = dayKey(now);
+      saveState(state);
+      if (process.env.SMTP_DEBUG === '1') {
+        try { console.log('ALERT_DAILY result:', out, { reason }); } catch {}
+      }
+    } catch (e) {
+      console.error('ALERT_DAILY failed:', e && e.message ? e.message : e);
+    } finally {
+      running = false;
+    }
+  };
+
   const planNext = () => {
     const now = DateTime.now().setZone(TZ);
-    let next = now.set({ hour: hh, minute: mm, second: 0, millisecond: 0 });
+    const todayTarget = now.set({ hour: hh, minute: mm, second: 0, millisecond: 0 });
+    const todayKey = dayKey(now);
+    const alreadySentToday = String(state.lastSentDay || '') === todayKey;
+
+    if (!alreadySentToday && now > todayTarget) {
+      void runOnce({ reason: 'catch_up_missed_window' });
+    }
+
+    let next = todayTarget;
     if (next <= now) next = next.plus({ days: 1 });
     const waitMs = Math.max(1000, next.toMillis() - now.toMillis());
+
+    globalThis.__pctAlertDailyNextRunIso = next.toISO();
 
     if (process.env.SMTP_DEBUG === '1') {
       try { console.log('ALERT_DAILY scheduled', { tz: TZ, time: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, next: next.toISO(), waitMs }); } catch {}
@@ -511,12 +574,7 @@ function scheduleDailyAlerts() {
 
     setTimeout(async () => {
       try {
-        const out = await calcularYEnviar({ testMode: false, force: false });
-        if (process.env.SMTP_DEBUG === '1') {
-          try { console.log('ALERT_DAILY result:', out); } catch {}
-        }
-      } catch (e) {
-        console.error('ALERT_DAILY failed:', e && e.message ? e.message : e);
+        await runOnce({ reason: 'scheduled' });
       } finally {
         planNext();
       }
