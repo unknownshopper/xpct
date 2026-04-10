@@ -1,0 +1,16 @@
+/* TEAM */
+Empresa: Proveedora y Comercializadora Tabasqueña S.A. de C.V. (PCT)
+Contacto: logistica@pc-t.com.mx
+
+/* SITE */
+Nombre: PCT - Sitio público
+URL: https://unknownshopper.github.io/xpct/website.html
+Aviso: https://unknownshopper.github.io/xpct/aviso.html
+Sitemap: https://unknownshopper.github.io/xpct/sitemap.xml
+Idioma: es-MX
+
+/* THANKS */
+A todo el equipo operativo y administrativo de PCT.
+
+/* NOTES */
+Este sitio incluye contenido público y un acceso privado a un sistema interno.
