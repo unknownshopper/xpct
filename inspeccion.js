@@ -1438,7 +1438,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Duplicar 'Área de sellado' -> 'Área de sellado A' y 'Área de sellado B' para productos aplicables (CA, CE, DSA, Brida de paso)
         const productoStr = (get(idxProducto) || '').toString().toUpperCase();
-        const aplicaCaraAB = /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b/.test(productoStr);
+        const equipoStr = String(valor || '').toUpperCase();
+        const descripcionStr = (get(idxDescripcion) || '').toString().toUpperCase();
+        const aplicaCaraAB = /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b/.test(
+            `${productoStr} ${equipoStr} ${descripcionStr}`
+        );
         const normParam = (s) => (s || '')
             .toString()
             .toLowerCase()

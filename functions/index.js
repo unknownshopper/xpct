@@ -1,19 +1,21 @@
-import dotenv from 'dotenv';
-import express from 'express';
-import cors from 'cors';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { setGlobalOptions } from 'firebase-functions/v2/options';
+import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { DateTime } from 'luxon';
-import admin from 'firebase-admin';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+setGlobalOptions({ region: 'us-central1' });
 
-const PORT = process.env.PORT || 8080;
 const TZ = process.env.TZ || 'America/Mexico_City';
+
+function extractEmailAddress(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  const m = s.match(/<\s*([^>\s]+@[^>\s]+)\s*>/);
+  if (m && m[1]) return m[1].trim();
+  if (s.includes('@') && !s.includes(' ')) return s;
+  return s;
+}
 
 function normEquipoKey(v) {
   let t = (v || '').toString();
@@ -28,21 +30,18 @@ function normPruebaKey(v) {
 
 function parseFecha(str) {
   if (!str) return null;
-  // Firestore Timestamp
   if (str && typeof str === 'object' && typeof str.toDate === 'function') {
     const d = str.toDate();
     if (isNaN(d.getTime())) return null;
     d.setHours(0, 0, 0, 0);
     return d;
   }
-  // Date instancia
   if (str instanceof Date) {
     const d = new Date(str);
     if (isNaN(d.getTime())) return null;
     d.setHours(0, 0, 0, 0);
     return d;
   }
-  // Milliseconds
   if (typeof str === 'number' && isFinite(str)) {
     const d = new Date(str);
     if (isNaN(d.getTime())) return null;
@@ -73,90 +72,30 @@ function parseFecha(str) {
 
 function ensureAdmin() {
   if (admin.apps && admin.apps.length) return;
-
-  const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (json) {
-    try {
-      const creds = JSON.parse(json);
-      try {
-        if (creds && typeof creds.private_key === 'string') {
-          creds.private_key = creds.private_key
-            .replace(/\\n/g, '\n')
-            .replace(/\r\n/g, '\n')
-            .trim();
-        }
-      } catch {}
-      admin.initializeApp({ credential: admin.credential.cert(creds) });
-      return;
-    } catch {}
-  }
-
-  // Fallback: try local serviceAccount.json when env JSON is missing/invalid
-  try {
-    const localPath = path.resolve(process.cwd(), 'serviceAccount.json');
-    if (fs.existsSync(localPath)) {
-      const raw = fs.readFileSync(localPath, 'utf8');
-      const creds = JSON.parse(raw);
-      admin.initializeApp({ credential: admin.credential.cert(creds) });
-      return;
-    }
-  } catch {}
-
   admin.initializeApp();
-}
-
-async function verifyFirebaseIdToken(req) {
-  const authHeader = String(req.headers.authorization || '').trim();
-  const m = authHeader.match(/^Bearer\s+(.+)$/i);
-  const token = m ? m[1] : '';
-  if (!token) {
-    const e = new Error('missing_token');
-    e.code = 'missing_token';
-    throw e;
-  }
-  ensureAdmin();
-  return admin.auth().verifyIdToken(token);
-}
-
-function requireAdminEmail(emailLower) {
-  const expected = (emailLower || '').toLowerCase().trim();
-  return async (req, res, next) => {
-    try {
-      const decoded = await verifyFirebaseIdToken(req);
-      const actual = String(decoded.email || '').toLowerCase().trim();
-      if (!actual || actual !== expected) {
-        return res.status(403).json({ error: 'forbidden' });
-      }
-      req.user = decoded;
-      next();
-    } catch (e) {
-      const code = e && e.code ? e.code : 'unauthorized';
-      res.status(401).json({ error: 'unauthorized', code });
-    }
-  };
 }
 
 async function queryUltimasAnuales() {
   const db = admin.firestore();
   const snap = await db.collection('pruebas').get();
   const porEquipoPrueba = new Map();
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
 
   snap.forEach(doc => {
     const data = doc.data() || {};
     const periodo = (data.periodo || '').toString().trim().toUpperCase();
-    // Backward compat: sin periodo => tratar como ANUAL
     if (periodo && periodo !== 'ANUAL') return;
+
     const equipoRaw = (data.equipo || data.equipoId || data.activo || '').toString().trim();
     const equipoDisplay = equipoRaw || doc.id;
     const equipoKey = normEquipoKey(equipoRaw);
+
     const prueba = (data.prueba || data.pruebaTipo || '').toString().trim();
     const pruebaKey = normPruebaKey(prueba || 'ANUAL');
+
     const serial = (data.numeroSerie || data.serial || '').toString().trim();
     const fechaReal = parseFecha(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
+
     let proxima = parseFecha(data.proxima || '');
-    // Derivar próxima a partir de fechaReal + 1 año si falta
     if (!proxima && fechaReal) {
       const d = new Date(fechaReal);
       d.setFullYear(d.getFullYear() + 1);
@@ -180,6 +119,7 @@ async function queryUltimasAnuales() {
       failReason,
       raw: data
     };
+
     if (!current) {
       porEquipoPrueba.set(key, payload);
     } else {
@@ -198,11 +138,6 @@ function clasificarDias(proxima) {
   hoy.setHours(0, 0, 0, 0);
   const diff = proxima.getTime() - hoy.getTime();
   const dias = Math.round(diff / (1000 * 60 * 60 * 24));
-  // Alinear rangos con UI (pruebaslist):
-  // - Vencidas: 0 o menos
-  // - 1–15
-  // - 16–30
-  // - 31–60
   if (dias <= 0) return { dias, bucket: 'vencidas' };
   if (dias >= 31 && dias <= 60) return { dias, bucket: '60_30' };
   if (dias >= 16 && dias <= 30) return { dias, bucket: '30_15' };
@@ -249,10 +184,8 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
     `;
   };
 
-  // Header with logo (CID must be attached when sending)
   const headerHtml = `
     <div style="padding:12px 0 8px; display:flex; align-items:center; gap:12px;">
-      <img src="cid:logo_pctch" alt="PCT" style="height:36px; width:auto; display:block;" />
       <div style="font-size:18px; font-weight:600; color:#111827;">Alertas de pruebas por vencer</div>
     </div>
   `;
@@ -269,7 +202,6 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
     </div>
   `;
 
-  // Confidentiality footer
   const footerHtml = `
     <div style="margin-top:16px; padding-top:10px; border-top:1px solid #e5e7eb;">
       <p style="margin:0; font-size:11px; color:#6b7280; line-height:1.35;">
@@ -304,31 +236,19 @@ async function enviarCorreo({ html, subject }) {
   const port = parseInt(String(process.env.SMTP_PORT || '587').trim(), 10);
   const user = (process.env.SMTP_USER || '').trim();
   const pass = String(process.env.SMTP_PASS || '');
+
   if (!host || !host.includes('.')) throw new Error('SMTP_HOST is invalid or empty');
   if (!port || Number.isNaN(port)) throw new Error('SMTP_PORT is invalid');
   if (!user) throw new Error('SMTP_USER is empty');
-  // Build sender with display name without requiring config changes
-  const fromAddress = process.env.MAIL_FROM || user;
-  const from = { name: process.env.MAIL_FROM_NAME || 'PCT Alertas', address: fromAddress };
-  // Parse recipient list (comma/semicolon separated) and build SMTP envelope with plain addresses
+
+  const fromRaw = (process.env.MAIL_FROM || '').trim();
+  const fromName = (process.env.MAIL_FROM_NAME || 'PCT Alertas').trim();
+  const from = fromRaw ? fromRaw : { name: fromName, address: user };
+  const fromAddress = extractEmailAddress(fromRaw || user);
+
   const { toList } = getMailRecipients();
-  if (!toList.length) {
-    throw new Error('MAIL_TO is empty or invalid');
-  }
-  // Try to attach local logo image if present (logopctch.png only)
-  // When running from server/ (npm start), the image usually lives at ../img/logopctch.png
-  // If you run from the project root, img/logopctch.png will be used.
-  const candidates = [
-    path.resolve(process.cwd(), 'img/logopctch.png'),
-    path.resolve(process.cwd(), '../img/logopctch.png'),
-  ];
-  let foundLogo = null;
-  for (const p of candidates) {
-    try { if (fs.existsSync(p)) { foundLogo = p; break; } } catch {}
-  }
-  const attachments = foundLogo
-    ? [{ filename: path.basename(foundLogo), path: foundLogo, cid: 'logo_pctch' }]
-    : [];
+  if (!toList.length) throw new Error('MAIL_TO is empty or invalid');
+
   const transporter = nodemailer.createTransport({
     host,
     port,
@@ -337,18 +257,14 @@ async function enviarCorreo({ html, subject }) {
     logger: process.env.SMTP_DEBUG === '1',
     debug: process.env.SMTP_DEBUG === '1'
   });
-  const info = await transporter.sendMail({
+
+  return transporter.sendMail({
     from,
     to: toList.join(', '),
     subject,
     html,
-    attachments,
     envelope: { from: fromAddress, to: toList }
   });
-  if (process.env.SMTP_DEBUG === '1') {
-    try { console.log('SMTP sendMail info:', { messageId: info.messageId, accepted: info.accepted, rejected: info.rejected }); } catch {}
-  }
-  return info;
 }
 
 async function calcularYEnviar({ testMode = false, force = false }) {
@@ -376,11 +292,13 @@ async function calcularYEnviar({ testMode = false, force = false }) {
       lista0.push({ equipo: equipoKey, serial: reg.serial, prueba: pruebaKey, proxima: reg.proxima, dias });
       continue;
     }
+
     if (bucket === '60_30' || bucket === '30_15' || bucket === '15_0') {
       const trackId = `${normEquipoKey(equipoKey)}__${pruebaKey}`;
       const trackRef = db.collection('alertas_pruebas').doc(trackId);
       const trackSnap = await trackRef.get();
       const t = trackSnap.exists ? trackSnap.data() : {};
+
       if (bucket === '60_30') {
         lista60.push({ equipo: equipoKey, serial: reg.serial, prueba: pruebaKey, proxima: reg.proxima, dias });
         if ((force || !t.notif60At) && !testMode) {
@@ -398,23 +316,21 @@ async function calcularYEnviar({ testMode = false, force = false }) {
     }
   }
 
+  const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
+  const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
+
   if (!lista60.length && !lista30.length && !lista15.length && !lista0.length && !listaFail.length) {
     if (testMode) {
-      const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
-      const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
       await enviarCorreo({ html, subject });
       const { toList } = getMailRecipients();
       return { sent: true, empty: true, to: toList };
     }
     return { sent: false, empty: true };
   }
-  
 
-  
-  const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
-  const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
   await enviarCorreo({ html, subject });
   const { toList } = getMailRecipients();
+
   return {
     sent: true,
     empty: false,
@@ -423,64 +339,17 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   };
 }
 
-const app = express();
-app.use(express.json());
-// Enable CORS for local dev UI (port 2200) and same-origin
-app.use(cors({
-  origin: [
-    'http://localhost:2200',
-    'http://127.0.0.1:2200',
-  ],
-  methods: ['GET','POST','OPTIONS'],
-}));
-
-// Audit log (admin-only)
-app.get('/api/audit', requireAdminEmail('the@unknownshoppers.com'), async (req, res) => {
-  try {
-    ensureAdmin();
-    const db = admin.firestore();
-    const limitN = Math.min(Math.max(parseInt(String(req.query.limit || '200'), 10) || 200, 1), 500);
-    const startAfterMs = parseInt(String(req.query.startAfterMs || ''), 10);
-    const email = String(req.query.email || '').trim().toLowerCase();
-
-    let q = db.collection('audit_logs');
-    if (email) q = q.where('email', '==', email);
-    q = q.orderBy('at', 'desc').limit(limitN);
-    if (!Number.isNaN(startAfterMs) && startAfterMs > 0) {
-      q = q.startAfter(admin.firestore.Timestamp.fromMillis(startAfterMs));
-    }
-
-    const snap = await q.get();
-    const items = snap.docs.map(d => {
-      const data = d.data() || {};
-      const atMs = data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : null;
-      return { id: d.id, ...data, atMs };
-    });
-    res.json({ ok: true, items });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: 'audit_failed', detail: String(e && e.message ? e.message : e) });
+export const sendAlertsDaily = onSchedule(
+  {
+    schedule: '0 7 * * *',
+    timeZone: TZ,
+    retryCount: 2,
+    memory: '512MiB',
+    timeoutSeconds: 120,
+    secrets: ['SMTP_PASS', 'SMTP_USER'],
+  },
+  async () => {
+    const out = await calcularYEnviar({ testMode: false, force: false });
+    console.log('sendAlertsDaily result:', out);
   }
-});
-
-app.get('/api/health', (req, res) => {
-  const base = { ok: true, now: DateTime.now().setZone(TZ).toISO() };
-  if (process.env.SMTP_DEBUG === '1') {
-    try {
-      res.json({
-        ...base,
-        alertDaily: {
-          enabled: String(process.env.ALERT_DAILY || '').trim() === '1',
-          time: String(process.env.ALERT_TIME || '07:00').trim(),
-          lastRunIso: globalThis.__pctAlertDailyLastRunIso || null,
-          nextRunIso: globalThis.__pctAlertDailyNextRunIso || null,
-        }
-      });
-      return;
-    } catch {}
-  }
-  res.json(base);
-});
-
-app.listen(PORT, () => {
-  // no-op
-});
+);
