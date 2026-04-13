@@ -1440,7 +1440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const productoStr = (get(idxProducto) || '').toString().toUpperCase();
         const equipoStr = String(valor || '').toUpperCase();
         const descripcionStr = (get(idxDescripcion) || '').toString().toUpperCase();
-        const aplicaCaraAB = /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b/.test(
+        const aplicaCaraAB = /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b|\bDSA\b|\bSSA\b|\bTEE\b|TEES/.test(
             `${productoStr} ${equipoStr} ${descripcionStr}`
         );
         const normParam = (s) => (s || '')
