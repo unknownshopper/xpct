@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de inspecciones (Tablet)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                        <li><a href="pruebasrangos.html">Rangos</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                        <li><a href="manualinspec.html" class="active">Manual (Tablet)</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main style="max-width: 980px; margin: 0 auto; padding: 18px 14px;">
+        <section style="background:#ffffff; border:1px solid #e5e7eb; border-radius:14px; padding:16px;">
+            <h1 style="margin:0 0 10px;">Manual de inspecciones (Tablet)</h1>
+            <p style="margin:0; color:#475569;">
+                Este manual describe el proceso recomendado para realizar inspecciones desde tablet.
+                Está orientado a usuarios con rol de <strong>inspector</strong> (y perfiles autorizados).
+            </p>
+        </section>
+
+        <section style="margin-top:14px; background:#ffffff; border:1px solid #e5e7eb; border-radius:14px; padding:16px;">
+            <h2 style="margin:0 0 10px;">Antes de empezar</h2>
+            <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">1) Internet y sesión</div>
+                    <div style="color:#0f172a;">
+                        Asegúrate de tener conexión a Internet al menos para iniciar sesión.
+                        Si vas a trabajar en campo, inicia sesión <strong>antes</strong> de salir.
+                    </div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">2) Permisos del navegador</div>
+                    <div style="color:#0f172a;">
+                        Permite:
+                        <div style="margin-top:6px;">
+                            <div><strong>Cámara</strong> (para evidencia y observaciones).</div>
+                            <div><strong>Ubicación</strong> (si aplica para registro).</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">3) Recomendación de uso</div>
+                    <div style="color:#0f172a;">
+                        Usa el navegador Chrome (o equivalente) y mantén la pestaña abierta durante la captura.
+                        Evita cambiar entre muchas apps mientras guardas.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section style="margin-top:14px; background:#ffffff; border:1px solid #e5e7eb; border-radius:14px; padding:16px;">
+            <h2 style="margin:0 0 10px;">Flujo de inspección (paso a paso)</h2>
+
+            <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Paso 1: Abrir “Nueva inspección”</div>
+                    <div style="color:#0f172a;">
+                        En el menú ve a:
+                        <div style="margin-top:6px;"><strong>Inspecciones</strong> → <strong>Nueva inspección</strong></div>
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Paso 2: Elegir tipo de inspección</div>
+                    <div style="color:#0f172a;">
+                        Selecciona uno:
+                        <div style="margin-top:6px;">
+                            <div><strong>Pre-trabajo</strong></div>
+                            <div><strong>Post-trabajo</strong></div>
+                            <div><strong>Recepción</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Paso 3: Seleccionar equipo</div>
+                    <div style="color:#0f172a;">
+                        En el campo <strong>Equipo</strong> escribe el código (ej. PUP, XO, etc.) o parte de la descripción.
+                        En tablet se muestra un listado para seleccionar.
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Paso 4: Revisar el “Detalle del equipo”</div>
+                    <div style="color:#0f172a;">
+                        Verifica:
+                        <div style="margin-top:6px;">
+                            <div><strong>Equipo / activo</strong></div>
+                            <div><strong>Producto</strong> y <strong>Descripción</strong></div>
+                            <div><strong>Serial</strong></div>
+                        </div>
+                        Si el equipo no coincide, regresa y selecciona el correcto.
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Paso 5: Inspeccionar parámetros</div>
+                    <div style="color:#0f172a;">
+                        En la tabla de parámetros:
+                        <div style="margin-top:6px;">
+                            <div><strong>BUENO / MALO</strong>: marca el estado.</div>
+                            <div><strong>Tipo de daño</strong>: aparece cuando marcas MALO. Selecciona el daño y, si aplica, describe en “OTRO”.</div>
+                            <div><strong>Evidencia</strong>: toma o sube foto cuando sea necesario.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Lados A/B y TEES</div>
+                    <div style="color:#0f172a;">
+                        Algunos equipos requieren revisar más de un lado.
+                        <div style="margin-top:6px;">
+                            <div><strong>A/B</strong>: verás parámetros duplicados como “Área de sellado A/B” y “Espárragos y tuercas A/B”.</div>
+                            <div><strong>TEES</strong>: pueden mostrar 3 lados según el tipo (por ejemplo un patrón tipo HMH/HHM/MMH).</div>
+                        </div>
+                        Revisa y captura cada lado por separado.
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Paso 6: Observaciones</div>
+                    <div style="color:#0f172a;">
+                        Al final puedes:
+                        <div style="margin-top:6px;">
+                            <div><strong>Escribir observaciones generales</strong>.</div>
+                            <div><strong>Tomar/Subir una foto</strong> de observaciones si aplica.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">Paso 7: Guardar inspección</div>
+                    <div style="color:#0f172a;">
+                        Presiona <strong>Guardar inspección</strong>.
+                        Espera a que termine.
+                        Si hay problemas de conexión, el sistema puede dejar la inspección pendiente para sincronizar.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section style="margin-top:14px; background:#ffffff; border:1px solid #e5e7eb; border-radius:14px; padding:16px;">
+            <h2 style="margin:0 0 10px;">Problemas comunes</h2>
+            <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">No aparece el equipo</div>
+                    <div style="color:#0f172a;">
+                        Verifica ortografía del código, intenta buscar por una parte del código o descripción.
+                        Si el equipo no está cargado en inventario, reporta a supervisión.
+                    </div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">No se puede tomar foto</div>
+                    <div style="color:#0f172a;">
+                        Revisa permisos de cámara en el navegador.
+                        Si hay más de una cámara, intenta “Cambiar cámara” cuando aparezca.
+                    </div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px;">
+                    <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">No guardó / quedó pendiente</div>
+                    <div style="color:#0f172a;">
+                        Mantén la sesión abierta, revisa conexión, y vuelve a intentar.
+                        Si la inspección quedó pendiente, se intentará sincronizar cuando haya Internet.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section style="margin-top:14px; background:#ffffff; border:1px solid #e5e7eb; border-radius:14px; padding:16px;">
+            <h2 style="margin:0 0 10px;">Accesos rápidos</h2>
+            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                <button class="btn" type="button" id="btn-descargar-manual">Descargar manual (PDF)</button>
+                <a class="btn" href="inspeccion.html" style="text-decoration:none;">Ir a nueva inspección</a>
+                <a class="btn" href="inspectlist.html" style="text-decoration:none;">Ver inspecciones guardadas</a>
+            </div>
+        </section>
+    </main>
+
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const auth = window.auth;
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            window.location.href = 'website.html';
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        try {
+            const token = await user.getIdTokenResult(true);
+            const role = (token?.claims?.role) || null;
+            window.userRole = role;
+            window.isAdmin = role === 'admin';
+            window.isDirector = role === 'director';
+            window.isSupervisor = role === 'supervisor';
+            window.isInspector = role === 'inspector';
+            window.isCapturista = role === 'capturista';
+
+            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista)) {
+                window.location.href = 'website.html';
+                return;
+            }
+        } catch {
+            try { await signOut(auth); } catch {}
+            window.location.href = 'website.html';
+        }
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'website.html';
+            }
+        });
+    }
+
+    const btnDescargar = document.getElementById('btn-descargar-manual');
+    if (btnDescargar) {
+        btnDescargar.addEventListener('click', () => {
+            try {
+                window.print();
+            } catch {}
+        });
+    }
+    </script>
+
+    <script src="nav.js"></script>
+</body>
+</html>
