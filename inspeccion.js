@@ -1426,9 +1426,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const nombresAuto = ['activo', 'serial', 'descripción', 'descripcion', 'diámetro', 'diametro', 'conexión', 'conexion', 'longitud'];
 
         // Filtrar automáticos y eliminar duplicados por nombre normalizado
+        const normDedupeKey = (s) => (s || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
         const vistos = new Set();
         const parametrosInspeccion = parametrosBrutos.filter(p => {
-            const base = (p || '').toLowerCase().trim();
+            const base = normDedupeKey(p);
             if (!base) return false;
             if (nombresAuto.some(auto => base.startsWith(auto))) return false;
             if (vistos.has(base)) return false;
@@ -1440,8 +1446,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const productoStr = (get(idxProducto) || '').toString().toUpperCase();
         const equipoStr = String(valor || '').toUpperCase();
         const descripcionStr = (get(idxDescripcion) || '').toString().toUpperCase();
-        const aplicaCaraAB = /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b|\bDSA\b|\bSSA\b|\bTEE\b|TEES/.test(
-            `${productoStr} ${equipoStr} ${descripcionStr}`
+        const textoEquipo = `${productoStr} ${equipoStr} ${descripcionStr}`;
+        const esTee = /\bTEE\b|TEES/.test(textoEquipo);
+        const aplicaCaraAB = !esTee && /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b|\bDSA\b|\bSSA\b/.test(
+            textoEquipo
         );
         const normParam = (s) => (s || '')
             .toString()
@@ -1450,16 +1458,59 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/[\u0300-\u036f]/g, '')
             .trim();
         const parametrosRender = (() => {
-            if (!aplicaCaraAB) return parametrosInspeccion.slice();
+            if (!esTee && !aplicaCaraAB) return parametrosInspeccion.slice();
+
+            const tipoTeeRaw = (get(idxTipo1) || '').toString().toUpperCase().trim();
+            const teeLados = /^[A-Z]{3}$/.test(tipoTeeRaw) ? tipoTeeRaw.split('') : ['1', '2', '3'];
+
+            // Normalizar detección de parámetros base
+            const isAreaSellado = (np) => np.startsWith('area de sellado');
+            const isEsparragosTuercas = (np) => {
+                if (!np) return false;
+                if (np.includes('esparragos') && np.includes('tuercas')) return true;
+                if (np.startsWith('esparragosytuercas')) return true;
+                if (np.includes('esparragosytuercas')) return true;
+                return false;
+            };
+
+            // Para equipos A/B: intercalar Área de sellado y Espárragos/Tuercas como A luego B
+            if (aplicaCaraAB) {
+                const resto = [];
+                let tieneSellado = false;
+                let tieneEsp = false;
+
+                parametrosInspeccion.forEach(p => {
+                    const np = normParam(p);
+                    if (isAreaSellado(np)) {
+                        tieneSellado = true;
+                        return;
+                    }
+                    if (isEsparragosTuercas(np)) {
+                        tieneEsp = true;
+                        return;
+                    }
+                    resto.push(p);
+                });
+
+                const out = [];
+                if (tieneSellado) out.push('Área de sellado A');
+                if (tieneEsp) out.push('Espárragos y tuercas A');
+                if (tieneSellado) out.push('Área de sellado B');
+                if (tieneEsp) out.push('Espárragos y tuercas B');
+                return out.concat(resto);
+            }
+
+            // TEES: 3 lados desde el tipo (p.ej. HMH)
             const out = [];
             parametrosInspeccion.forEach(p => {
                 const np = normParam(p);
-                if (np.startsWith('area de sellado')) {
-                    out.push('Área de sellado A');
-                    out.push('Área de sellado B');
-                } else {
-                    out.push(p);
+                if (isAreaSellado(np)) {
+                    out.push(`Área de sellado 1 (${teeLados[0] || '1'})`);
+                    out.push(`Área de sellado 2 (${teeLados[1] || '2'})`);
+                    out.push(`Área de sellado 3 (${teeLados[2] || '3'})`);
+                    return;
                 }
+                out.push(p);
             });
             return out;
         })();
