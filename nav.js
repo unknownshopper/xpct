@@ -9,8 +9,54 @@ document.addEventListener('DOMContentLoaded', () => {
         'pruebasrangos.html',
         'inspeccion.html',
         'inspectlist.html',
-        'invre.html'
+        'invre.html',
+        'manualinspec.html',
+        'manualpruebas.html'
     ]);
+
+    function ensureManualesNavDropdown() {
+        try {
+            const navUl = navMain.querySelector(':scope > ul');
+            if (!navUl) return;
+
+            // Evitar duplicados
+            const existing = Array.from(navUl.querySelectorAll(':scope > li.nav-item-has-dropdown > a'))
+                .find(a => ((a.textContent || '').trim().toLowerCase() === 'manuales'));
+            if (existing) return;
+
+            const li = document.createElement('li');
+            li.className = 'nav-item-has-dropdown';
+
+            const aTop = document.createElement('a');
+            aTop.href = '#';
+            aTop.textContent = 'Manuales';
+            li.appendChild(aTop);
+
+            const dd = document.createElement('ul');
+            dd.className = 'nav-dropdown';
+
+            const liIns = document.createElement('li');
+            const aIns = document.createElement('a');
+            aIns.href = 'manualinspec.html';
+            aIns.textContent = 'Manual de inspecciones';
+            if (currentPage === 'manualinspec.html') aIns.classList.add('active');
+            liIns.appendChild(aIns);
+
+            const liPr = document.createElement('li');
+            const aPr = document.createElement('a');
+            aPr.href = 'manualpruebas.html';
+            aPr.textContent = 'Manual de pruebas';
+            if (currentPage === 'manualpruebas.html') aPr.classList.add('active');
+            liPr.appendChild(aPr);
+
+            dd.appendChild(liIns);
+            dd.appendChild(liPr);
+            li.appendChild(dd);
+
+            // Insertar al final del menú
+            navUl.appendChild(li);
+        } catch {}
+    }
 
     function currentPageKey() {
         const parts = (location.pathname || '')
@@ -34,6 +80,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Default: mostrar navbar solo en páginas específicas (el rol puede ampliar esto)
     setNavVisible(allowedNavPages.has(currentPage));
+
+    // Asegurar acceso a manuales en el menú
+    ensureManualesNavDropdown();
 
     // Asegurar que todos los dropdowns inicien colapsados
     navMain.querySelectorAll('.nav-item-has-dropdown').forEach(el => {

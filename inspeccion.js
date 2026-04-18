@@ -1442,6 +1442,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return true;
         });
 
+        // Regla: Anillo retenedor solo aplica a PUP 4 206 (lista/rango confirmado)
+        const equipoStrUpper = String(valor || '').toUpperCase();
+        const descUpper = (get(idxDescripcion) || '').toString().toUpperCase();
+        const esPup = /^PCT-PUP-\d{3,4}$/.test(equipoStrUpper);
+        const es4206 = /\b4\s*206\b/.test(descUpper);
+        let pupNum = null;
+        if (esPup) {
+            const m = equipoStrUpper.match(/^PCT-PUP-(\d{3,4})$/);
+            if (m) pupNum = parseInt(m[1], 10);
+        }
+        const pup4206ConAnillo = !!(esPup && es4206 && typeof pupNum === 'number' && !isNaN(pupNum) && pupNum >= 317 && pupNum <= 446);
+        const parametrosInspeccionFiltrados = pup4206ConAnillo
+            ? parametrosInspeccion
+            : parametrosInspeccion.filter(p => {
+                const np = normParam(p);
+                if (!np) return true;
+                return !np.includes('anillo retenedor');
+            });
+
         // Duplicar 'Área de sellado' -> 'Área de sellado A' y 'Área de sellado B' para productos aplicables (CA, CE, DSA, Brida de paso)
         const productoStr = (get(idxProducto) || '').toString().toUpperCase();
         const equipoStr = String(valor || '').toUpperCase();
@@ -1458,7 +1477,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/[\u0300-\u036f]/g, '')
             .trim();
         const parametrosRender = (() => {
-            if (!esTee && !aplicaCaraAB) return parametrosInspeccion.slice();
+            if (!esTee && !aplicaCaraAB) return parametrosInspeccionFiltrados.slice();
 
             const tipoTeeRaw = (get(idxTipo1) || '').toString().toUpperCase().trim();
             const teeLados = /^[A-Z]{3}$/.test(tipoTeeRaw) ? tipoTeeRaw.split('') : ['1', '2', '3'];
@@ -1479,7 +1498,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let tieneSellado = false;
                 let tieneEsp = false;
 
-                parametrosInspeccion.forEach(p => {
+                parametrosInspeccionFiltrados.forEach(p => {
                     const np = normParam(p);
                     if (isAreaSellado(np)) {
                         tieneSellado = true;
@@ -1502,7 +1521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // TEES: 3 lados desde el tipo (p.ej. HMH)
             const out = [];
-            parametrosInspeccion.forEach(p => {
+            parametrosInspeccionFiltrados.forEach(p => {
                 const np = normParam(p);
                 if (isAreaSellado(np)) {
                     out.push(`Área de sellado 1 (${teeLados[0] || '1'})`);
