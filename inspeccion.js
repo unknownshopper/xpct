@@ -84,11 +84,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function normFormatoKey(s) {
         try {
-            return String(s || '')
+            let out = String(s || '')
                 .toUpperCase()
+                .replace(/\u00A0/g, ' ')
+                .replace(/[\u200B-\u200D\uFEFF]+/g, '')
                 .replace(/\s+/g, ' ')
                 .replace(/\s*\/\s*/g, '/')
                 .trim();
+
+            // Normalizar variantes de TEE:
+            // Inventario: "TEE 1 (HXMXM)" -> Formato: "TEE H X M X M"
+            // Inventario: "TEE 2 (MXHXH)" -> Formato: "TEE M X H X H"
+            out = out.replace(/\bTEE\s*\d+\s*\(([^)]+)\)/g, (_m, grupo) => {
+                const raw = String(grupo || '').replace(/[^A-Z]/g, '');
+                const chars = raw.split('').filter(c => c === 'H' || c === 'M');
+                if (!chars.length) return 'TEE';
+                return `TEE ${chars.join(' X ')}`;
+            });
+
+            return out;
         } catch {
             return String(s || '').trim().toUpperCase();
         }
@@ -1309,7 +1323,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     // Cargar formatos de inspección
-    fetch('docs/forxmat.csv')
+    fetch('docs/forxmat.csv', { cache: 'no-store' })
         .then(response => {
             if (!response.ok) {
                 throw new Error('No se pudo cargar forxmat.csv');
