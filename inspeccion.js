@@ -1205,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Cargar inventario de equipos
-    fetch('docs/INVENTARIOTOTAL04-202602.csv')
+    fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' })
         .then(response => {
             if (!response.ok) {
                 throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
@@ -1215,6 +1215,17 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(texto => {
             const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
             if (lineas.length === 0) return;
+
+            const cleanStr = (v) => {
+                try {
+                    return String(v || '')
+                        .replace(/\u00A0/g, ' ')
+                        .replace(/[\u200B-\u200D\uFEFF]+/g, '')
+                        .trim();
+                } catch {
+                    return '';
+                }
+            };
 
             headers = parseCSVLine(lineas[0]);
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
@@ -1238,19 +1249,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (override) edoEfectivo = String(override).trim().toUpperCase();
                 if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') return;
 
+                const equipoIdClean = cleanStr(equipoId);
+                const descripcionClean = cleanStr(descripcion);
+                const serialClean = cleanStr(serial);
+
                 equiposActivos.push({
-                    equipoId: (equipoId || '').toString().trim(),
-                    descripcion: (descripcion || '').toString().trim(),
-                    serial: (serial || '').toString().trim(),
+                    equipoId: equipoIdClean,
+                    descripcion: descripcionClean,
+                    serial: serialClean,
                     equipoKey: equipoIdKey,
-                    descKey: normKey(descripcion),
-                    serialKey: normKey(serial)
+                    descKey: normKey(descripcionClean),
+                    serialKey: normKey(serialClean)
                 });
 
                 if (datalistEquipos) {
                     const option = document.createElement('option');
-                    option.value = (equipoId || '').toString().trim();
-                    option.label = (serial || '').toString().trim() || (descripcion || '').toString().trim();
+                    option.value = equipoIdClean;
+                    option.label = serialClean || descripcionClean;
                     datalistEquipos.appendChild(option);
                 }
             });
