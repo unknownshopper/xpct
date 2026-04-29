@@ -1466,6 +1466,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const m = equipoStrUpper.match(/^PCT-PUP-(\d{3,4})$/);
             if (m) pupNum = parseInt(m[1], 10);
         }
+        const normParam = (s) => (s || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
         const pup4206ConAnillo = !!(esPup && es4206 && typeof pupNum === 'number' && !isNaN(pupNum) && pupNum >= 317 && pupNum <= 446);
         const parametrosInspeccionFiltrados = pup4206ConAnillo
             ? parametrosInspeccion
@@ -1484,12 +1490,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const aplicaCaraAB = !esTee && /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b|\bDSA\b|\bSSA\b/.test(
             textoEquipo
         );
-        const normParam = (s) => (s || '')
-            .toString()
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .trim();
         const parametrosRender = (() => {
             if (!esTee && !aplicaCaraAB) return parametrosInspeccionFiltrados.slice();
 
