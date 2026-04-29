@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (spanPruebas) {
         spanPruebas.textContent = 'Cargando...';
 
-        function renderTimelinePruebas({ totalAnual, pv60, pv30, pv15, vencidas, cero, items60, items30, items15 }) {
+        function renderTimelinePruebas({ totalAnual, pv60, pv30, pv15, vencidas, cero, items60, items30, items15, itemsZero }) {
             if (!elTimelinePruebas) return;
             try {
                 const total = Number(totalAnual || 0);
@@ -173,12 +173,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">15–1: ${a15}</div>
                             <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(items15, '#ef4444')}</div>
+
+                            <div style="font-size:0.85rem; color:#111827; font-weight:900; white-space:nowrap;">☠️ 0: ${z}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(itemsZero, '#111827')}</div>
                         </div>
 
                         <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.55rem; font-size:0.85rem; color:#334155;">
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="width:10px; height:10px; border-radius:3px; background:#94a3b8; display:inline-block;"></span>
-                                <span>Sin pruebas próximas: <strong>${Math.max(0, total - a60 - a30 - a15)}</strong></span>
+                                <span>Sin pruebas próximas: <strong>${Math.max(0, total - a60 - a30 - a15 - z)}</strong></span>
                             </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="width:10px; height:10px; border-radius:3px; background:#2563eb; display:inline-block;"></span>
@@ -315,40 +318,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (snap && typeof snap.size === 'number') {
                         total = snap.size;
                         try { setCachedNumber('pct_pruebas_total_cached', total); } catch {}
-                    }
-                    let pv60 = 0, pv30 = 0, pv15 = 0, tAn=0, tPT=0, tRep=0, tVenc=0, tZero=0;
-                    const items60 = [];
-                    const items30 = [];
-                    const items15 = [];
 
-                    // Tomar SOLO la última ANUAL por equipo+tipo
-                    const latest = new Map();
-                    snap.forEach(doc => {
-                        const data = doc.data() || {};
-                        const periodoStr = (data.periodo || '').toString().trim().toUpperCase();
-                        if (periodoStr === 'ANUAL' || periodoStr === '') tAn += 1;
-                        else if (periodoStr === 'POST-TRABAJO') tPT += 1;
-                        else if (periodoStr === 'REPARACION') tRep += 1;
+                        let pv60 = 0, pv30 = 0, pv15 = 0, tAn = 0, tPT = 0, tRep = 0, tZero = 0;
+                        const items60 = [];
+                        const items30 = [];
+                        const items15 = [];
+                        const itemsZero = [];
+                        const latest = new Map();
 
-                        if (!(periodoStr === 'ANUAL' || periodoStr === '')) return;
+                        snap.forEach(docSnap => {
+                            const data = docSnap.data() || {};
 
-                        const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
-                        if (!equipo) return;
-                        const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
-                        const key = `${normEquipoKey(equipo)}__${tipo}`;
+                            const periodoStr = (data.periodo || '').toString().trim().toUpperCase();
+                            if (periodoStr === 'ANUAL' || periodoStr === '') tAn += 1;
+                            else if (periodoStr === 'POST-TRABAJO') tPT += 1;
+                            else if (periodoStr === 'REPARACION') tRep += 1;
 
-                        const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
-                        const prev = latest.get(key);
-                        if (!prev) {
-                            latest.set(key, { data, equipo, fr });
-                            return;
-                        }
-                        const a = prev.fr ? prev.fr.getTime() : 0;
-                        const b = fr ? fr.getTime() : 0;
-                        if (b >= a) latest.set(key, { data, equipo, fr });
-                    });
+                            if (!(periodoStr === 'ANUAL' || periodoStr === '')) return;
 
-                    latest.forEach(({ data, equipo, fr }) => {
+                            const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
+                            if (!equipo) return;
+                            const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
+                            const key = `${normEquipoKey(equipo)}__${tipo}`;
+
+                            const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
+                            const prev = latest.get(key);
+                            if (!prev) {
+                                latest.set(key, { data, equipo, fr });
+                                return;
+                            }
+                            const a = prev.fr ? prev.fr.getTime() : 0;
+                            const b = fr ? fr.getTime() : 0;
+                            if (b >= a) latest.set(key, { data, equipo, fr });
+                        });
+
+                        latest.forEach(({ data, equipo, fr }) => {
                         let dProx = parseProxima(data.proxima || '');
                         if (!dProx && fr) {
                             const d = new Date(fr);
@@ -358,29 +362,37 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         if (!dProx) return;
 
-                        const diffMs = dProx.getTime() - hoy.getTime();
-                        const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
-                        if (dias === 0) { tZero += 1; return; }
-                        if (dias < 0) { tVenc += 1; return; }
-                        if (dias > 60) return;
+                            const diffMs = dProx.getTime() - hoy.getTime();
+                            const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                            // Requisito: las vencidas deben aparecer en ☠️ 0
+                            if (dias <= 0) {
+                                tZero += 1;
+                                const proximaTxt = (typeof data.proxima === 'string') ? data.proxima : '';
+                                if (itemsZero.length < 2000) itemsZero.push({ equipo, proxima: proximaTxt, dias });
+                                return;
+                            }
+                            if (dias > 60) return;
 
-                        const proximaTxt = (typeof data.proxima === 'string') ? data.proxima : '';
-                        if (dias >= 31 && dias <= 60) {
-                            pv60 += 1;
-                            if (items60.length < 2000) items60.push({ equipo, proxima: proximaTxt, dias });
-                        } else if (dias >= 16 && dias <= 30) {
-                            pv30 += 1;
-                            if (items30.length < 2000) items30.push({ equipo, proxima: proximaTxt, dias });
-                        } else if (dias >= 1 && dias <= 15) {
-                            pv15 += 1;
-                            if (items15.length < 2000) items15.push({ equipo, proxima: proximaTxt, dias });
-                        }
-                    });
-                    porVencer60 = pv60; porVencer30 = pv30; porVencer15 = pv15;
-                    totalAnual = tAn; totalPostTrabajo = tPT; totalReparacion = tRep;
-                    totalVencidas = tVenc;
+                            const proximaTxt = (typeof data.proxima === 'string') ? data.proxima : '';
+                            if (dias >= 31 && dias <= 60) {
+                                pv60 += 1;
+                                if (items60.length < 2000) items60.push({ equipo, proxima: proximaTxt, dias });
+                            } else if (dias >= 16 && dias <= 30) {
+                                pv30 += 1;
+                                if (items30.length < 2000) items30.push({ equipo, proxima: proximaTxt, dias });
+                            } else if (dias >= 1 && dias <= 15) {
+                                pv15 += 1;
+                                if (items15.length < 2000) items15.push({ equipo, proxima: proximaTxt, dias });
+                            }
+                        });
 
-                    renderTimelinePruebas({ totalAnual, pv60, pv30, pv15, vencidas: totalVencidas, cero: tZero, items60, items30, items15 });
+                        porVencer60 = pv60; porVencer30 = pv30; porVencer15 = pv15;
+                        totalAnual = tAn; totalPostTrabajo = tPT; totalReparacion = tRep;
+                        // Mantener el contador "Vencidas" consistente con el bucket ☠️
+                        totalVencidas = tZero;
+
+                        renderTimelinePruebas({ totalAnual, pv60, pv30, pv15, vencidas: totalVencidas, cero: tZero, items60, items30, items15, itemsZero });
+                    }
                 } catch {
                     try {
                         if (elTimelinePruebas) elTimelinePruebas.textContent = '—';
@@ -392,6 +404,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="dash-stat-row">
                             <span class="row-left">📦 <span>Total</span></span>
                             <span class="badge gray">${total}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">☠️ <span>0 días (vencidas)</span></span>
+                            <span class="badge black">${totalVencidas}</span>
                         </div>
                         <div class="dash-stat-row">
                             <span class="row-left">🟦 <span>60–31 días</span></span>

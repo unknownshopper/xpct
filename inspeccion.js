@@ -96,7 +96,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Inventario: "TEE 1 (HXMXM)" -> Formato: "TEE H X M X M"
             // Inventario: "TEE 2 (MXHXH)" -> Formato: "TEE M X H X H"
             out = out.replace(/\bTEE\s*\d+\s*\(([^)]+)\)/g, (_m, grupo) => {
-                const raw = String(grupo || '').replace(/[^A-Z]/g, '');
+                // Si viene como "HXMXH O MXHXH", tomar el primer patrón.
+                const g0 = String(grupo || '').toUpperCase();
+                const first = g0.split(/\bO\b/)[0] || g0;
+                const raw = String(first || '').replace(/[^A-Z]/g, '');
                 const chars = raw.split('').filter(c => c === 'H' || c === 'M');
                 if (!chars.length) return 'TEE';
                 return `TEE ${chars.join(' X ')}`;
@@ -1476,11 +1479,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const reporte = get(idxReporte);
         const reporteNorm = normFormatoKey(reporte);
-        const formatoLista = (reporte && formatosPorCodigo[reporte])
+        let formatoLista = (reporte && formatosPorCodigo[reporte])
             ? formatosPorCodigo[reporte]
             : (reporteNorm && formatosPorCodigo[reporteNorm])
                 ? formatosPorCodigo[reporteNorm]
                 : null;
+
+        // TEEs: algunos reportes vienen como "TEE 2 (HXMXH O MXHXH)" y el catálogo de formatos
+        // puede existir solo para una de las variantes (p.ej. "TEE M X H X H").
+        // Intentar ambas variantes antes de concluir que no hay parámetros.
+        if (!formatoLista) {
+            try {
+                const repStr = String(reporte || '').toUpperCase();
+                const m = repStr.match(/\bTEE\s*\d+\s*\(([^)]+)\)/);
+                if (m && m[0] && m[1] && /\bO\b/.test(m[1])) {
+                    const parts = m[1].split(/\bO\b/).map(p => String(p || '').trim()).filter(Boolean);
+                    const toPattern = (p) => {
+                        const raw = String(p || '').toUpperCase().replace(/[^A-Z]/g, '');
+                        const chars = raw.split('').filter(c => c === 'H' || c === 'M');
+                        return chars.length ? `TEE ${chars.join(' X ')}` : 'TEE';
+                    };
+                    for (const p of parts) {
+                        const repAlt = repStr.replace(m[0], toPattern(p));
+                        const k = normFormatoKey(repAlt);
+                        if (k && formatosPorCodigo[k]) {
+                            formatoLista = formatosPorCodigo[k];
+                            break;
+                        }
+                    }
+                }
+            } catch {}
+        }
         const parametrosBrutos = Array.isArray(formatoLista)
             ? formatoLista.filter(p => p && p.length > 0)
             : [];

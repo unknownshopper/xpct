@@ -826,6 +826,7 @@ main {
 .badge.amber { background: #fffbeb; border-color: #fde68a; color: #b45309; }
 .badge.red { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 .badge.gray { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
+.badge.black { background: #0f172a; border-color: #0f172a; color: #ffffff; }
 
 .dashboard-links {
     display: flex;
