@@ -1258,6 +1258,13 @@ document.addEventListener('DOMContentLoaded', () => {
             inventarioCargado = true;
             // Intentar inicializar desde actividadId si aplica
             inicializarDesdeActividadUrl();
+            // Si el usuario ya seleccionó/escribió un equipo antes de terminar de cargar el CSV,
+            // refrescar la ficha y parámetros ahora que el inventario ya está listo.
+            try {
+                if (inputEquipo && inputEquipo.value && inputEquipo.value.trim()) {
+                    actualizarDetalleDesdeInput();
+                }
+            } catch {}
             // Intentar auto-PDF si viene en la URL (usa la inspección existente)
             aplicarInspeccionExistenteAutoPdf();
             // Solo lectura (si viene view=1)
@@ -1314,6 +1321,13 @@ document.addEventListener('DOMContentLoaded', () => {
             aplicarInspeccionExistenteAutoPdf();
             // Solo lectura (si viene view=1)
             aplicarInspeccionExistenteSoloLectura();
+            // Si el usuario ya seleccionó/escribió un equipo antes de terminar de cargar forxmat.csv,
+            // refrescar la ficha y parámetros ahora que los formatos ya están listos.
+            try {
+                if (inputEquipo && inputEquipo.value && inputEquipo.value.trim()) {
+                    actualizarDetalleDesdeInput();
+                }
+            } catch {}
         })
         .catch(err => {
             console.error(err);
