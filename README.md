@@ -414,6 +414,7 @@ Definición de roles y su alcance en la aplicación. Inspector y Capturista comp
   - inspector01@pc-t.com.mx → Rol: inspector → Nombre: Inspector
   - the@unknownshoppers.com → Rol: admin → Nombre: admin
   - jalcz@pc-t.com.mx → Rol: admin → Nombre: JALCZ
+  - operaciones@pc-t.com.mx → Rol: admin → Nombre: Operaciones
   - lgmt@pc-t.com.mx → Rol: director → Nombre: LGMT
 
 - **admin**

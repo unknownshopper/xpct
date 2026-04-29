@@ -31,6 +31,8 @@ async function main() {
   await setRole('sgi@pc-t.com.mx', 'supervisor');
   await setRole('auxger@pc-t.com.mx', 'capturista');
   await setRole('lgmt@pc-t.com.mx', 'director');
+  await setRole('jalcz@pc-t.com.mx', 'admin');
+  await setRole('operaciones@pc-t.com.mx', 'admin');
 
   console.log('Listo. Espera propagación 1-2 minutos y haz logout/login.');
   process.exit(0);

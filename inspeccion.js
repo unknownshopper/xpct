@@ -1844,6 +1844,19 @@ document.addEventListener('DOMContentLoaded', () => {
             `
             : '';
 
+        const con1Val = get(idxCon1);
+        const con2Val = get(idxCon2);
+        const con3Val = get(idxCon3);
+        const showVal = (v) => {
+            const s = (v == null) ? '' : String(v);
+            const t = s.trim();
+            return t ? t : '—';
+        };
+        const hasVal = (v) => {
+            const s = (v == null) ? '' : String(v);
+            return !!s.trim();
+        };
+
         detalleContenedor.innerHTML = `
             <div class="detalle-grid">
                 <div class="detalle-item">
@@ -1872,8 +1885,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="detalle-item">
                     <div class="detalle-item-label">Conexión 1</div>
-                    <div class="detalle-item-valor">${get(idxCon1)}</div>
+                    <div class="detalle-item-valor">${showVal(con1Val)}</div>
                 </div>
+                ${hasVal(con2Val) ? `
+                <div class="detalle-item">
+                    <div class="detalle-item-label">Conexión 2</div>
+                    <div class="detalle-item-valor">${showVal(con2Val)}</div>
+                </div>
+                ` : ''}
+                ${hasVal(con3Val) ? `
+                <div class="detalle-item">
+                    <div class="detalle-item-label">Conexión 3</div>
+                    <div class="detalle-item-valor">${showVal(con3Val)}</div>
+                </div>
+                ` : ''}
                 <div class="detalle-item">
                     <div class="detalle-item-label">Presión 1</div>
                     <div class="detalle-item-valor">${get(idxPres1)}</div>

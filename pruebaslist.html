@@ -1139,7 +1139,7 @@
         // "Actualizar prueba(s)": solo admin y usuarios específicos (sgi/jalcz)
         try {
             const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-            const permitirActualizar = !!(window.isAdmin || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx');
+            const permitirActualizar = !!(window.isAdmin || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
             if (btnRegistrar) btnRegistrar.style.display = permitirActualizar ? '' : 'none';
         } catch {}
 
