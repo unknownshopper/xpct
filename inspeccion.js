@@ -151,9 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const safeEquipo = escapeHtml(equipoId);
                 const equipoTxt = escapeHtml(equipoId);
                 const serialTxt = serial ? escapeHtml(serial) : '';
-                const header = serialTxt
-                    ? `<div><strong>${equipoTxt}</strong> <span style="margin-left:8px; font-size:0.88em; color:#0f172a;">${serialTxt}</span></div>`
-                    : `<div><strong>${equipoTxt}</strong></div>`;
+                const serialLine = serialTxt
+                    ? `<div style="margin-top:2px; font-size:0.88em; color:#0f172a;">SERIAL: ${serialTxt}</div>`
+                    : `<div style="margin-top:2px; font-size:0.88em; color:#64748b;">SIN SERIAL</div>`;
+                const header = `<div><strong>${equipoTxt}</strong></div>${serialLine}`;
                 return `<div class="equipo-dropdown-item" data-equipo="${safeEquipo}">${header}</div>`;
             })
             .join('');
@@ -1282,7 +1283,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (datalistEquipos) {
                     const option = document.createElement('option');
                     option.value = equipoIdClean;
-                    option.label = serialClean || descripcionClean;
+                    option.label = serialClean ? `SERIAL: ${serialClean}` : 'SIN SERIAL';
                     datalistEquipos.appendChild(option);
                 }
             });
