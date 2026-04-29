@@ -188,9 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const certPorSerial = {};
     const certPorEquipo = {};
 
-    fetch('docs/invre.csv')
+    fetch('docs/INVENTARIOTOTAL04-2026.csv')
         .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar invre.csv');
+            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-2026.csv');
             return r.text();
         })
         .then(texto => {

@@ -622,7 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {}
 
             try {
-                const r = await fetch('docs/invre.csv');
+                const r = await fetch('docs/INVENTARIOTOTAL04-2026.csv');
                 const t = r.ok ? await r.text() : '';
                 if (!t) return;
 
@@ -630,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!lineas.length) return;
 
                 const headersLocal = parseCSVLine(lineas[0]);
-                // En invre.csv la columna de estado se llama "EDO"
+                // La columna de estado se llama "EDO"
                 const idxEstado = headersLocal.indexOf('EDO');
                 const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
                 const idxSerial = headersLocal.indexOf('SERIAL');

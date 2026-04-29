@@ -1,5 +1,6 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2/options';
+import { onRequest } from 'firebase-functions/v2/https';
 import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { DateTime } from 'luxon';
@@ -242,7 +243,7 @@ async function enviarCorreo({ html, subject }) {
   if (!user) throw new Error('SMTP_USER is empty');
 
   const fromRaw = (process.env.MAIL_FROM || '').trim();
-  const fromName = (process.env.MAIL_FROM_NAME || 'PCT Alertas').trim();
+  const fromName = (process.env.MAIL_FROM_NAME || 'PCT Notificaciones').trim();
   const from = fromRaw ? fromRaw : { name: fromName, address: user };
   const fromAddress = extractEmailAddress(fromRaw || user);
 
@@ -351,5 +352,34 @@ export const sendAlertsDaily = onSchedule(
   async () => {
     const out = await calcularYEnviar({ testMode: false, force: false });
     console.log('sendAlertsDaily result:', out);
+  }
+);
+
+export const sendAlertsManual = onRequest(
+  {
+    secrets: ['SMTP_PASS', 'SMTP_USER', 'ALERTS_RUN_KEY'],
+    timeoutSeconds: 120,
+    memory: '512MiB',
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const key = (req.query.key || req.get('x-alerts-key') || '').toString();
+      const expected = (process.env.ALERTS_RUN_KEY || '').toString();
+      if (!expected || key !== expected) {
+        res.status(401).send('Unauthorized');
+        return;
+      }
+
+      const out = await calcularYEnviar({ testMode: false, force: true });
+      res.status(200).json(out);
+    } catch (err) {
+      console.error('sendAlertsManual error:', err);
+      res.status(500).send(err?.message || String(err));
+    }
   }
 );

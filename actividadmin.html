@@ -533,7 +533,7 @@
 
     (async () => {
         try {
-            const resp = await fetch('docs/invre.csv');
+            const resp = await fetch('docs/INVENTARIOTOTAL04-2026.csv');
             if (!resp.ok) return;
             const texto = await resp.text();
             const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');

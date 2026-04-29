@@ -56,10 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => console.error(err));
 
-    // Mapa de info (serial, propiedad, material) por EQUIPO desde invre.csv
-    fetch('docs/invre.csv')
+    // Mapa de info (serial, propiedad, material) por EQUIPO desde inventario
+    fetch('docs/INVENTARIOTOTAL04-2026.csv')
         .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar invre.csv');
+            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-2026.csv');
             return r.text();
         })
         .then(texto => {
@@ -311,10 +311,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
 
-    // Cargar inventario (invre.csv) para datalist y datos automáticos
-    fetch('docs/invre.csv')
+    // Cargar inventario para datalist y datos automáticos
+    fetch('docs/INVENTARIOTOTAL04-2026.csv')
         .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar invre.csv');
+            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-2026.csv');
             return r.text();
         })
         .then(texto => {
