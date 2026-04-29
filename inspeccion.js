@@ -1267,7 +1267,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const equipoIdClean = cleanStr(equipoId);
                 const descripcionClean = cleanStr(descripcion);
-                const serialClean = cleanStr(serial);
+                const serialCleanRaw = cleanStr(serial);
+                const serialClean = serialCleanRaw || equipoIdClean;
 
                 equiposActivos.push({
                     equipoId: equipoIdClean,
