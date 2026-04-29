@@ -25,10 +25,9 @@ function parseCSVLine(linea) {
         }
     }
 
-    if (actual.length > 0) {
-        resultado.push(actual.trim());
-        actual = '';
-    }
+    // Siempre empujar el último campo aunque venga vacío.
+    resultado.push(actual.trim());
+    actual = '';
 
     return resultado;
 }

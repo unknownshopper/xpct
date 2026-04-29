@@ -1233,7 +1233,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxEdo = headers.indexOf('EDO');
             const idxSerial = getIdxSerial(headers);
 
-            equipos = lineas.slice(1).map(linea => parseCSVLine(linea));
+            equipos = lineas.slice(1).map(linea => {
+                const cols = parseCSVLine(linea);
+                // Asegurar que todas las filas tengan el mismo número de columnas que el header.
+                // Evita que índices como SERIAL queden fuera de rango cuando la fila termina "corta".
+                if (cols.length < headers.length) {
+                    cols.length = headers.length;
+                    for (let i = 0; i < cols.length; i++) {
+                        if (typeof cols[i] === 'undefined') cols[i] = '';
+                    }
+                }
+                return cols;
+            });
+
+            try {
+                window.__invHeaders = headers;
+                window.__invEquipos = equipos;
+            } catch {}
 
             // Poblar datalist (usar overrides de estado; solo equipos con estado efectivo ON)
             equiposActivos = [];
