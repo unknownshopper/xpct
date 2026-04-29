@@ -2107,6 +2107,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     const bf = b.finPeriodo ? parseFechaDdMmAaListado(b.finPeriodo) : null;
                     return (af?af.getTime():0) - (bf?bf.getTime():0);
                 });
+
+                // Sincronía visual entre "Terminación del servicio" y el tabulador de periodos
+                try {
+                    if (inpTerm) {
+                        inpTerm.style.outline = '';
+                        inpTerm.title = '';
+                    }
+                    const last = arr.length ? arr[arr.length - 1] : null;
+                    const lastFinal = [...arr].reverse().find(p => String(p.tipoPeriodo || '').toUpperCase().trim() === 'FINAL') || null;
+                    const finTab = (lastFinal?.finPeriodo || last?.finPeriodo || '').toString().trim();
+                    const finSrv = (inpTerm?.value || '').toString().trim();
+
+                    // Guardar metadatos del tabulador para reusarlos al guardar (evita lecturas extra)
+                    try {
+                        if (!window.__actlistPeriodosMeta) window.__actlistPeriodosMeta = {};
+                        window.__actlistPeriodosMeta[String(actividadId || '')] = {
+                            hasFinal: !!lastFinal,
+                            finTab,
+                        };
+                    } catch {}
+
+                    // Si el servicio no tiene terminación pero sí hay periodos, sugerirla auto-llenando
+                    if (inpTerm && !finSrv && finTab) {
+                        inpTerm.value = finTab;
+                    }
+
+                    // Si hay discrepancia, resaltarlo sin sobreescribir
+                    if (inpTerm && finSrv && finTab && finSrv !== finTab) {
+                        inpTerm.style.outline = '2px solid #f59e0b';
+                        inpTerm.title = `Discrepancia: terminación del servicio (${finSrv}) vs fin del periodo (${finTab}).`;
+                    }
+                } catch {}
+
                 arr.forEach(p => {
                     const dIni = p.inicioPeriodo ? parseFechaDdMmAaListado(p.inicioPeriodo) : null;
                     const dFin = p.finPeriodo ? parseFechaDdMmAaListado(p.finPeriodo) : null;
@@ -2144,13 +2177,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Persistir
                 try {
-                    const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const { getFirestore, doc, updateDoc, collection, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
                     const db = getFirestore();
-                    const ref = doc(db, 'actividades', modalId);
+                    const actId = (typeof modalId === 'string') ? modalId.trim() : '';
+                    if (!actId) throw new Error('modalId inválido');
+
+                    // Determinar si la terminación debe considerarse FINAL según los periodos
+                    let esFinal = false;
+                    try {
+                        const meta = window.__actlistPeriodosMeta ? window.__actlistPeriodosMeta[actId] : null;
+                        if (meta && typeof meta.hasFinal === 'boolean') {
+                            esFinal = meta.hasFinal;
+                        } else {
+                            const colPer = collection(db, 'actividadPeriodos');
+                            const q = query(colPer, where('actividadId', '==', actId));
+                            const snapPer = await getDocs(q);
+                            snapPer.forEach(d => {
+                                const p = d.data() || {};
+                                const tipo = String(p.tipoPeriodo || '').toUpperCase().trim();
+                                if (tipo === 'FINAL') esFinal = true;
+                            });
+                        }
+                    } catch {}
+
+                    const ref = doc(db, 'actividades', actId);
                     await updateDoc(ref, {
                         inicioServicio: nuevoInicio,
                         terminacionServicio: nuevaTerm,
-                        // Editar desde listado no decide definitivo; se deja sin terminacionEsFinal
+                        terminacionEsFinal: !!(nuevaTerm && esFinal),
                     });
                 } catch (e) {
                     console.error('Error al actualizar fechas desde tabulador listado', e);
@@ -2165,7 +2219,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (perAgregar) {
             perAgregar.addEventListener('click', async () => {
                 try {
-                    if (!modalId) { alert('Abre un registro primero.'); return; }
+                    const actId = (typeof modalId === 'string') ? modalId.trim() : '';
+                    if (!actId) { alert('Abre un registro primero.'); return; }
                     const inicio = (perInicio?.value || '').trim();
                     const fin = (perFin?.value || '').trim();
                     const tipo = (perTipo?.value || 'PARCIAL');
@@ -2179,7 +2234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const col = collection(db, 'actividadPeriodos');
                     const inicioOrdenable = dIni.getTime();
                     await addDoc(col, {
-                        actividadId: modalId,
+                        actividadId: actId,
                         inicioPeriodo: inicio,
                         finPeriodo: fin,
                         inicioPeriodoOrdenable: inicioOrdenable,
@@ -2194,7 +2249,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     // Actualizar flags en actividad según tipo
-                    const refAct = doc(db, 'actividades', modalId);
+                    const refAct = doc(db, 'actividades', actId);
                     if (tipo === 'FINAL') {
                         await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: true });
                         inpTerm.value = fin;
@@ -2208,7 +2263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (perFin) perFin.value = '';
                     }
 
-                    await cargarPeriodosListado(modalId);
+                    await cargarPeriodosListado(actId);
                     await cargarActividadDesdeFirestoreParaListado();
                 } catch (e) {
                     console.error('No se pudo agregar periodo desde listado', e);
