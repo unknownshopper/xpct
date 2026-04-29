@@ -1462,6 +1462,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const idxDiam1 = headers.indexOf('DIAMETRO 1');
         const idxTipo1 = headers.indexOf('TIPO 1');
         const idxCon1 = headers.indexOf('CONEXIÓN 1');
+        const idxCon2 = headers.indexOf('CONEXIÓN 2');
+        const idxCon3 = headers.indexOf('CONEXIÓN 3');
         const idxPres1 = headers.indexOf('PRESION 1');
         const idxX1 = headers.indexOf('X 1');
         const idxServicio = headers.indexOf('SERVICIO');
@@ -1540,8 +1542,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const parametrosRender = (() => {
             if (!esTee && !aplicaCaraAB) return parametrosInspeccionFiltrados.slice();
 
+            const connLetters = (v) => {
+                const t = (v || '').toString().toUpperCase().trim();
+                if (t === 'H' || t === 'M') return t;
+                return '';
+            };
+
+            // Para TEEs, preferir las letras H/M desde CONEXIÓN 1/2/3 (como vienen en el CSV).
+            // Fallback: intentar inferir desde TIPO 1 si viniera como 'HMH' (caso antiguo).
+            const c1 = connLetters(get(idxCon1));
+            const c2 = connLetters(get(idxCon2));
+            const c3 = connLetters(get(idxCon3));
             const tipoTeeRaw = (get(idxTipo1) || '').toString().toUpperCase().trim();
-            const teeLados = /^[A-Z]{3}$/.test(tipoTeeRaw) ? tipoTeeRaw.split('') : ['1', '2', '3'];
+            const fromTipo = /^[A-Z]{3}$/.test(tipoTeeRaw) ? tipoTeeRaw.split('') : [];
+            const teeLados = (c1 && c2 && c3)
+                ? [c1, c2, c3]
+                : (fromTipo.length === 3 ? fromTipo : ['1', '2', '3']);
 
             // Normalizar detección de parámetros base
             const isAreaSellado = (np) => np.startsWith('area de sellado');
