@@ -1848,7 +1848,7 @@
 
         async function cargarInventarioDesdeCsv() {
             try {
-                const resp = await fetch('docs/INVENTARIOTOTAL04-2026.csv');
+                const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv');
                 if (!resp.ok) return;
                 const texto = await resp.text();
                 const parsed = parseCsv(texto);

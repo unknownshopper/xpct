@@ -57,9 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => console.error(err));
 
     // Mapa de info (serial, propiedad, material) por EQUIPO desde inventario
-    fetch('docs/INVENTARIOTOTAL04-2026.csv')
+    fetch('docs/INVENTARIOTOTAL04-202602.csv')
         .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-2026.csv');
+            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
             return r.text();
         })
         .then(texto => {
@@ -312,9 +312,9 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
 
     // Cargar inventario para datalist y datos automáticos
-    fetch('docs/INVENTARIOTOTAL04-2026.csv')
+    fetch('docs/INVENTARIOTOTAL04-202602.csv')
         .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-2026.csv');
+            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
             return r.text();
         })
         .then(texto => {

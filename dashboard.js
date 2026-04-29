@@ -622,7 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {}
 
             try {
-                const r = await fetch('docs/INVENTARIOTOTAL04-2026.csv');
+                const r = await fetch('docs/INVENTARIOTOTAL04-202602.csv');
                 const t = r.ok ? await r.text() : '';
                 if (!t) return;
 

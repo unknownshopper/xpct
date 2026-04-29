@@ -1205,10 +1205,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Cargar inventario de equipos
-    fetch('docs/INVENTARIOTOTAL04-2026.csv')
+    fetch('docs/INVENTARIOTOTAL04-202602.csv')
         .then(response => {
             if (!response.ok) {
-                throw new Error('No se pudo cargar INVENTARIOTOTAL04-2026.csv');
+                throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
             }
             return response.text();
         })

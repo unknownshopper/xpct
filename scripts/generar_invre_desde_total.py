@@ -16,8 +16,15 @@ def write_csv(path: Path, rows):
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    src = root / 'docs' / 'INVENTARIOTOTAL04-2026.csv'
+    docs_dir = root / 'docs'
+    src = docs_dir / 'INVENTARIOTOTAL04-202602.csv'
     invre = root / 'docs' / 'invre.csv'
+
+    if not src.exists():
+        # Fallback: elegir el INVENTARIOTOTAL04-*.csv más reciente (por nombre/orden lexicográfico)
+        candidates = sorted(docs_dir.glob('INVENTARIOTOTAL04-*.csv'))
+        if candidates:
+            src = candidates[-1]
 
     if not src.exists():
         raise SystemExit(f'No existe: {src}')
