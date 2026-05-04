@@ -548,6 +548,43 @@
       modal.style.display = 'flex';
     }
 
+    // Deep-link: abrir tabulador directamente desde URL (ej: actividoc -> actividadmin)
+    // Formato: actividadmin.html?tabulador=1&actividadId=...
+    async function tryOpenFromUrl() {
+      try {
+        const params = new URLSearchParams(window.location.search || '');
+        const want = (params.get('tabulador') || '').toString().trim();
+        const actId = (params.get('actividadId') || '').toString().trim();
+        if (!want || want !== '1' || !actId) return;
+
+        // Esperar a que la tabla de actividades se renderice.
+        const deadline = Date.now() + 12000;
+        let tr = null;
+        while (Date.now() < deadline) {
+          tr = tbodyActividad.querySelector(`tr[data-id="${CSS.escape(actId)}"]`);
+          if (tr) break;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        if (!tr) {
+          console.warn('[tabulador] No se encontró actividad para abrir desde URL:', actId);
+          return;
+        }
+
+        const cliente = tr.getAttribute('data-cliente') || '';
+        const area = tr.getAttribute('data-area') || '';
+        const ubicacion = tr.getAttribute('data-ubicacion') || '';
+        const equipo = tr.getAttribute('data-equipo') || '';
+        const precioDiario = Number(tr.getAttribute('data-precioequipo') || 0);
+        const os = tr.getAttribute('data-os') || '';
+        const inicioServicio = tr.getAttribute('data-inicio') || '';
+        const terminacionServicio = tr.getAttribute('data-terminacion') || '';
+
+        await abrirModal({ id: actId, cliente, area, ubicacion, equipo, precioDiario, os, inicioServicio, terminacionServicio });
+      } catch (e) {
+        console.warn('[tabulador] No se pudo abrir desde URL', e);
+      }
+    }
+
     function formatearFechaDdMmAa(date) {
       const d = date.getUTCDate().toString().padStart(2, '0');
       const m = (date.getUTCMonth() + 1).toString().padStart(2, '0');
@@ -719,6 +756,9 @@
         printWindow.print();
       });
     }
+
+    // Ejecutar deep-link al final del init
+    tryOpenFromUrl();
   }
 
   if (document.readyState === 'loading') {

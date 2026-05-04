@@ -149,6 +149,88 @@
         </section>
     </main>
 
+    <div id="doc-modal-tabulador" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:80;">
+        <div style="background:white; max-width:900px; width:95%; max-height:90vh; overflow:auto; border-radius:0.5rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:1rem 1.25rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <div>
+                    <h2 style="margin:0; font-size:1.1rem; font-weight:600;">Tabulador de facturación</h2>
+                    <p id="doc-tabulador-header" style="margin:0.15rem 0 0; font-size:0.85rem; color:#4b5563;"></p>
+                </div>
+                <div>
+                    <button id="doc-tabulador-imprimir" type="button" style="font-size:0.8rem; margin-right:0.5rem;">Imprimir</button>
+                    <button id="doc-tabulador-cerrar" type="button" style="font-size:0.8rem;">Cerrar</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom:0.75rem; padding:0.75rem; background:#f9fafb; border-radius:0.5rem; border:1px solid #e5e7eb;">
+                <h3 style="margin:0 0 0.5rem; font-size:0.95rem; font-weight:500;">Nuevo período</h3>
+                <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+                    <div style="flex:1 1 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Inicio período</label>
+                        <input id="doc-per-inicio" type="text" placeholder="__/__/__" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:1 1 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Fin período</label>
+                        <input id="doc-per-fin" type="text" placeholder="__/__/__" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:0 0 110px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Tipo</label>
+                        <select id="doc-per-tipo" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                            <option value="PARCIAL">PARCIAL</option>
+                            <option value="FINAL">FINAL</option>
+                        </select>
+                    </div>
+                    <div style="flex:0 0 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Tarifa diaria</label>
+                        <input id="doc-per-tarifa" type="number" min="0" step="1" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:0 0 70px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Días</label>
+                        <input id="doc-per-dias" type="number" min="0" step="1" readonly style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db; background:#f3f4f6;">
+                    </div>
+                    <div style="flex:0 0 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Importe</label>
+                        <input id="doc-per-importe" type="number" min="0" step="1" readonly style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db; background:#f3f4f6;">
+                    </div>
+                    <div style="flex:1 1 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Factura</label>
+                        <input id="doc-per-factura" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:1 1 120px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">OC</label>
+                        <input id="doc-per-oc" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:1 1 240px;">
+                        <label style="font-size:0.75rem; color:#4b5563;">Observaciones</label>
+                        <input id="doc-per-obs" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+                    </div>
+                    <div style="flex:0 0 auto;">
+                        <button id="doc-per-limpiar" type="button" style="margin-top:1rem; font-size:0.8rem; margin-right:0.35rem; background:#fff7ed; border:1px solid #fed7aa;">Limpiar tabulador</button>
+                        <button id="doc-per-guardar" type="button" style="margin-top:1rem; font-size:0.8rem;">Agregar período</button>
+                    </div>
+                </div>
+            </div>
+
+            <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                <thead>
+                    <tr style="background:#f3f4f6;">
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Inicio</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Fin</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">Días</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">Tarifa</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">Importe</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Tipo</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">OC</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Factura</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Observaciones</th>
+                        <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="doc-tabulador-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
     <script src="config.local.js"></script>
     <script type="module" src="firebase-init.js"></script>
     <script src="nav.js"></script>
@@ -161,6 +243,24 @@
         let mapaPeriodos = new Map();
         const selectedIds = new Set();
         let uiFocus = '';
+
+        const tabModal = document.getElementById('doc-modal-tabulador');
+        const tabHeader = document.getElementById('doc-tabulador-header');
+        const tabTbody = document.getElementById('doc-tabulador-tbody');
+        const tabInicio = document.getElementById('doc-per-inicio');
+        const tabFin = document.getElementById('doc-per-fin');
+        const tabTipo = document.getElementById('doc-per-tipo');
+        const tabTarifa = document.getElementById('doc-per-tarifa');
+        const tabDias = document.getElementById('doc-per-dias');
+        const tabImporte = document.getElementById('doc-per-importe');
+        const tabFactura = document.getElementById('doc-per-factura');
+        const tabOc = document.getElementById('doc-per-oc');
+        const tabObs = document.getElementById('doc-per-obs');
+        const btnTabCerrar = document.getElementById('doc-tabulador-cerrar');
+        const btnTabImprimir = document.getElementById('doc-tabulador-imprimir');
+        const btnTabGuardar = document.getElementById('doc-per-guardar');
+        const btnTabLimpiar = document.getElementById('doc-per-limpiar');
+        let actividadTab = null;
 
         function norm(s) {
             return (s || '').toString().trim();
@@ -253,10 +353,231 @@
             return digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
         }
 
+        function diasActividad(reg) {
+            try {
+                const iniStr = (reg && reg.inicioServicio ? String(reg.inicioServicio) : '').trim();
+                const dIni = iniStr ? parseFechaDdMmAa(iniStr) : null;
+                if (!dIni) return '';
+
+                const id = reg && reg.id ? String(reg.id) : '';
+                const info = id ? mapaPeriodos.get(id) : null;
+                const finStr = (info && info.ultimoFin ? String(info.ultimoFin) : (reg && reg.terminacionServicio ? String(reg.terminacionServicio) : '')).trim();
+                const dFin = finStr ? parseFechaDdMmAa(finStr) : null;
+
+                const end = dFin || new Date();
+                // Normalizar end a medianoche para que el cálculo sea estable.
+                try { end.setHours(0, 0, 0, 0); } catch {}
+
+                const start = new Date(dIni.getTime());
+                try { start.setHours(0, 0, 0, 0); } catch {}
+
+                const diffMs = end.getTime() - start.getTime();
+                const diffDias = Math.floor(diffMs / 86400000);
+                const dias = diffDias >= 0 ? (diffDias + 1) : 0;
+                return dias ? String(dias) : '';
+            } catch {
+                return '';
+            }
+        }
+
         function computeInicioMeta(ddmmaa) {
             const d = parseFechaDdMmAa(ddmmaa);
             if (!d) return null;
             return { inicioTs: d.getTime(), anioInicio: d.getFullYear() };
+        }
+
+        function recalcularTabPeriodo() {
+            if (!tabInicio || !tabFin || !tabTarifa || !tabDias || !tabImporte) return;
+            const ini = (tabInicio.value || '').trim();
+            const fin = (tabFin.value || '').trim();
+            const tarifa = Number(tabTarifa.value || 0);
+            const dIni = ini ? parseFechaDdMmAa(ini) : null;
+            const dFin = fin ? parseFechaDdMmAa(fin) : null;
+            let dias = 0;
+            if (dIni && dFin) {
+                const diffMs = dFin.getTime() - dIni.getTime();
+                const diffDias = Math.floor(diffMs / 86400000);
+                if (diffDias >= 0) dias = diffDias + 1;
+            }
+            tabDias.value = dias ? String(dias) : '';
+            const importe = dias && tarifa ? dias * tarifa : 0;
+            tabImporte.value = importe ? String(importe) : '';
+        }
+
+        async function cargarPeriodosActividad(actividadId) {
+            try {
+                const { getFirestore, collection, query, where, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const col = collection(db, 'actividadPeriodos');
+                const q = query(col, where('actividadId', '==', String(actividadId)));
+                const snap = await getDocs(q);
+                const res = [];
+                snap.forEach((d) => res.push({ id: d.id, ...d.data() }));
+                res.sort((a, b) => {
+                    const ai = a.inicioPeriodoOrdenable || 0;
+                    const bi = b.inicioPeriodoOrdenable || 0;
+                    if (ai !== bi) return ai - bi;
+                    const fa = a.finPeriodo ? parseFechaDdMmAa(a.finPeriodo) : null;
+                    const fb = b.finPeriodo ? parseFechaDdMmAa(b.finPeriodo) : null;
+                    const ta = fa ? fa.getTime() : 0;
+                    const tb = fb ? fb.getTime() : 0;
+                    return ta - tb;
+                });
+                return res;
+            } catch (e) {
+                console.error('No se pudieron cargar períodos', e);
+                return [];
+            }
+        }
+
+        function renderTabulador(periodos) {
+            if (!tabTbody) return;
+            tabTbody.innerHTML = '';
+            let totalDias = 0;
+            (periodos || []).forEach((p) => {
+                const diasMostrar = Number(p.diasFacturados || 0) || 0;
+                totalDias += diasMostrar;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.inicioPeriodo || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.finPeriodo || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${diasMostrar || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${p.tarifaDiaria || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; text-align:right;">${p.importe || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.tipoPeriodo || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.oc || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.factura || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb;">${p.observaciones || ''}</td>
+                    <td style="padding:0.3rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                        <button type="button" class="doc-per-eliminar" data-id="${p.id}" style="font-size:0.7rem; color:#b91c1c;">Eliminar</button>
+                    </td>
+                `;
+                tabTbody.appendChild(tr);
+            });
+
+            const trTot = document.createElement('tr');
+            trTot.innerHTML = `
+                <td style="padding:0.35rem; border-top:2px solid #e5e7eb; font-weight:700;" colspan="2">TOTAL</td>
+                <td style="padding:0.35rem; border-top:2px solid #e5e7eb; text-align:right; font-weight:700;">${totalDias || ''}</td>
+                <td style="padding:0.35rem; border-top:2px solid #e5e7eb;" colspan="7"></td>
+            `;
+            tabTbody.appendChild(trTot);
+        }
+
+        async function abrirTabulador(actividadId) {
+            const id = String(actividadId || '').trim();
+            if (!id || !tabModal || !tabHeader) return;
+            const reg = (Array.isArray(listaActividad) ? listaActividad : []).find(r => String(r.id || '') === id) || null;
+            if (!reg) { alert('No se encontró la actividad.'); return; }
+            actividadTab = reg;
+
+            const equiposArr = Array.isArray(reg.equipos) && reg.equipos.length ? reg.equipos : (reg.equipo ? [reg.equipo] : []);
+            const equipoTxt = equiposArr.join(', ');
+
+            const periodos = await cargarPeriodosActividad(id);
+            const ultimo = periodos && periodos.length ? periodos[periodos.length - 1] : null;
+            const finMostrar = (ultimo && ultimo.finPeriodo) ? ultimo.finPeriodo : (reg.terminacionServicio || '');
+            tabHeader.textContent = `${reg.cliente || ''} / ${reg.area || ''} / ${reg.ubicacion || ''} / ${equipoTxt}  —  OS: ${reg.os || ''}  |  Servicio: ${reg.inicioServicio || ''} ${finMostrar ? '→ ' + finMostrar : ''}`;
+
+            if (tabTarifa) tabTarifa.value = (reg.precio != null && reg.precio !== '') ? String(reg.precio) : '';
+            if (tabDias) tabDias.value = '';
+            if (tabImporte) tabImporte.value = '';
+            if (tabFactura) tabFactura.value = '';
+            if (tabOc) tabOc.value = '';
+            if (tabObs) tabObs.value = '';
+
+            if (periodos && periodos.length) {
+                renderTabulador(periodos);
+                if (tabInicio) {
+                    if (ultimo && ultimo.finPeriodo && (ultimo.tipoPeriodo || '') !== 'FINAL') {
+                        const dFin = parseFechaDdMmAa(ultimo.finPeriodo);
+                        if (dFin) {
+                            dFin.setDate(dFin.getDate() + 1);
+                            const dd = String(dFin.getDate()).padStart(2, '0');
+                            const mm = String(dFin.getMonth() + 1).padStart(2, '0');
+                            const aa = String(dFin.getFullYear()).slice(-2);
+                            tabInicio.value = `${dd}/${mm}/${aa}`;
+                        } else {
+                            tabInicio.value = (reg.inicioServicio || '');
+                        }
+                    } else {
+                        tabInicio.value = (reg.inicioServicio || '');
+                    }
+                }
+                if (tabFin) tabFin.value = '';
+            } else {
+                if (tabInicio) tabInicio.value = (reg.inicioServicio || '');
+                if (tabFin) tabFin.value = (reg.terminacionServicio || '');
+                renderTabulador([]);
+            }
+
+            recalcularTabPeriodo();
+            tabModal.style.display = 'flex';
+        }
+
+        async function limpiarTabuladorActual() {
+            if (!actividadTab || !actividadTab.id) return;
+            const existentes = await cargarPeriodosActividad(actividadTab.id);
+            if (!existentes.length) { renderTabulador([]); return; }
+            const ok = confirm(`¿Eliminar TODOS los períodos del tabulador?\nOS: ${actividadTab.os || actividadTab.id}\nPeríodos: ${existentes.length}`);
+            if (!ok) return;
+            try {
+                const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                const batch = writeBatch(db);
+                existentes.forEach(p => { if (p.id) batch.delete(doc(db, 'actividadPeriodos', p.id)); });
+                await batch.commit();
+                renderTabulador([]);
+            } catch (e) {
+                console.error(e);
+                alert('No se pudo limpiar el tabulador.');
+            }
+        }
+
+        async function eliminarPeriodo(pid) {
+            if (!pid || !actividadTab) return;
+            if (!confirm('¿Eliminar este período?')) return;
+            try {
+                const { getFirestore, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = getFirestore();
+                await deleteDoc(doc(db, 'actividadPeriodos', String(pid)));
+                const periodos = await cargarPeriodosActividad(actividadTab.id);
+                renderTabulador(periodos);
+                await cargarPeriodos();
+                render();
+            } catch (e) {
+                console.error(e);
+                alert('No se pudo eliminar el período.');
+            }
+        }
+
+        function printTabulador() {
+            if (!actividadTab) return;
+            const w = window.open('', '_blank');
+            if (!w) return;
+            const titulo = `Tabulador - ${(actividadTab.cliente || '')} / ${(actividadTab.area || '')}`;
+            const tablaElem = document.getElementById('doc-tabulador-tbody');
+            const tablaHtml = tablaElem && tablaElem.parentElement ? tablaElem.parentElement.outerHTML : '';
+            w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titulo}</title>
+                <style>
+                    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#111827;padding:16px;}
+                    h1{font-size:18px;margin-bottom:4px;}
+                    p{margin:2px 0 8px 0;font-size:11px;}
+                    table{width:100%;border-collapse:collapse;font-size:11px;}
+                    th,td{border:1px solid #d1d5db;padding:4px;text-align:left;}
+                    th{background:#f3f4f6;}
+                </style>
+            </head><body>`);
+            w.document.write(`<h1>${titulo}</h1>`);
+            w.document.write(`<p>OS: ${(actividadTab.os || '')}</p>`);
+            w.document.write(`<p>Inicio servicio: ${(actividadTab.inicioServicio || '')} &nbsp;&nbsp; Terminación servicio: ${(actividadTab.terminacionServicio || '')}</p>`);
+            w.document.write(tablaHtml);
+            w.document.write('</body></html>');
+            w.document.close();
+            w.focus();
+            w.print();
         }
         function getEmailLower() {
             try {
@@ -271,8 +592,16 @@
             const info = id ? mapaPeriodos.get(id) : null;
             const finTxt = (info && info.ultimoFin ? info.ultimoFin : (reg.terminacionServicio || '')).toString().trim();
             if (!finTxt) return { estado: 'ABIERTO', fin: '' };
-            const esFinal = info && info.ultimoTipo ? (String(info.ultimoTipo).toUpperCase().trim() === 'FINAL') : (reg.terminacionEsFinal === true);
-            return { estado: esFinal ? 'FINAL' : 'PARCIAL', fin: finTxt };
+
+            const f1 = (reg && reg.factura != null) ? String(reg.factura) : '';
+            const f2 = (reg && reg.estCot != null) ? String(reg.estCot) : '';
+            const pendienteAdmin = /\bPENDIENTE\b/i.test(f1) || /\bPENDIENTE\b/i.test(f2);
+
+            const esFinal = info && info.ultimoTipo
+                ? (String(info.ultimoTipo).toUpperCase().trim() === 'FINAL')
+                : (reg.terminacionEsFinal === true);
+
+            return { estado: esFinal ? 'FINAL' : 'PARCIAL', fin: finTxt, pendienteAdmin };
         }
 
         async function ensureAccess() {
@@ -508,7 +837,7 @@
                 if (!byOc.has(oc)) byOc.set(oc, new Map());
                 const byOs = byOc.get(oc);
                 if (!byOs.has(os)) byOs.set(os, []);
-                byOs.get(os).push({ ...reg, __estado: estadoInfo.estado });
+                byOs.get(os).push({ ...reg, __estado: estadoInfo.estado, __pendienteAdmin: !!estadoInfo.pendienteAdmin });
             }
 
             let ocCount = 0;
@@ -639,6 +968,7 @@
                                 <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Inicio</th>
                                 <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Terminación</th>
                                 <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Precio</th>
+                                <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Días</th>
                                 <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">OS / OC</th>
                                 <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Factura / Est-Cot</th>
                                 <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Estado</th>
@@ -652,12 +982,17 @@
                         const equiposArr = Array.isArray(a.equipos) && a.equipos.length ? a.equipos : (a.equipo ? [a.equipo] : []);
                         const equiposTxt = equiposArr.join(', ');
                         const estado = a.__estado;
+                        const pendAdm = !!a.__pendienteAdmin;
+                        const extraPend = pendAdm
+                            ? ' <span class="badge amber" style="padding:0.08rem 0.45rem; font-size:0.7rem;">PEND</span>'
+                            : '';
                         const stBadge = estado === 'FINAL'
-                            ? '<span class="badge gray">FINAL</span>'
-                            : (estado === 'PARCIAL' ? '<span class="badge blue">PARCIAL</span>' : '<span class="badge amber">ABIERTO</span>');
+                            ? `<span class="badge gray">FINAL</span>${extraPend}`
+                            : (estado === 'PARCIAL' ? `<span class="badge blue">PARCIAL</span>${extraPend}` : `<span class="badge amber">ABIERTO</span>${extraPend}`);
                         const id = String(a.id || '');
                         const fin = (a.terminacionServicio || '').toString().trim();
                         const ini = (a.inicioServicio || '').toString().trim();
+                        const diasTxt = diasActividad(a);
                         const precio = (a.precio != null && a.precio !== '') ? String(a.precio) : '';
                         const osVal = (a.os || '').toString().trim();
                         const ocVal = (a.ordenSuministro || '').toString().trim();
@@ -681,8 +1016,13 @@
                                     <input type="checkbox" class="doc-chk-final" data-id="${id}" ${esFinalFlag ? 'checked' : ''}> FINAL
                                 </label>
                             </td>
+                            <td style="padding:6px 4px; border-top:1px solid #e5e7eb;">
+                                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                                    <input type="number" min="0" step="1" class="doc-inp-precio" data-id="${id}" value="${precio}" style="font-size:0.8rem; width:80px;">
+                                </div>
+                            </td>
                             <td style="padding:6px 4px; border-top:1px solid #e5e7eb; white-space:nowrap;">
-                                <input type="number" min="0" step="1" class="doc-inp-precio" data-id="${id}" value="${precio}" style="font-size:0.8rem; width:90px;">
+                                <span style="font-size:0.85rem; color:#111827;">${diasTxt}</span>
                             </td>
                             <td style="padding:6px 4px; border-top:1px solid #e5e7eb;">
                                 <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
@@ -698,7 +1038,7 @@
                             </td>
                             <td style="padding:6px 4px; border-top:1px solid #e5e7eb;">${stBadge}</td>
                             <td style="padding:6px 4px; border-top:1px solid #e5e7eb; text-align:right;">
-                                <a href="actividadmin.html" data-actid="${id}" style="font-size:0.85rem;">Abrir</a>
+                                <a href="#" class="doc-open-tabulador" data-actid="${id}" style="font-size:0.85rem;">Abrir</a>
                             </td>
                         `;
                         tbody.appendChild(tr);
@@ -882,6 +1222,117 @@
             if (inp) inp.addEventListener('input', () => render());
             const sel = document.getElementById('doc-solo-abiertas');
             if (sel) sel.addEventListener('change', () => render());
+
+            const list = document.getElementById('doc-list');
+            if (list) {
+                list.addEventListener('click', (ev) => {
+                    const a = ev.target.closest('a.doc-open-tabulador');
+                    if (!a) return;
+                    ev.preventDefault();
+                    const id = a.getAttribute('data-actid') || '';
+                    abrirTabulador(id);
+                });
+            }
+
+            if (tabTbody) {
+                tabTbody.addEventListener('click', (ev) => {
+                    const btn = ev.target.closest('button.doc-per-eliminar');
+                    if (!btn) return;
+                    const pid = btn.getAttribute('data-id') || '';
+                    eliminarPeriodo(pid);
+                });
+            }
+
+            if (tabInicio) tabInicio.addEventListener('input', () => { tabInicio.value = fmtFechaInput(tabInicio.value); recalcularTabPeriodo(); });
+            if (tabFin) tabFin.addEventListener('input', () => { tabFin.value = fmtFechaInput(tabFin.value); recalcularTabPeriodo(); });
+            if (tabTarifa) tabTarifa.addEventListener('input', recalcularTabPeriodo);
+
+            if (btnTabCerrar && tabModal) btnTabCerrar.addEventListener('click', () => { tabModal.style.display = 'none'; });
+            if (btnTabImprimir) btnTabImprimir.addEventListener('click', printTabulador);
+            if (btnTabLimpiar) btnTabLimpiar.addEventListener('click', limpiarTabuladorActual);
+
+            if (btnTabGuardar) {
+                btnTabGuardar.addEventListener('click', async () => {
+                    if (!actividadTab || !actividadTab.id) return;
+                    const inicio = (tabInicio ? tabInicio.value.trim() : '');
+                    const fin = (tabFin ? tabFin.value.trim() : '');
+                    const tipo = (tabTipo ? tabTipo.value || 'PARCIAL' : 'PARCIAL');
+                    const tarifa = Number(tabTarifa ? tabTarifa.value || 0 : 0);
+                    const dias = Number(tabDias ? tabDias.value || 0 : 0);
+                    const importe = Number(tabImporte ? tabImporte.value || 0 : 0);
+                    const factura = tabFactura ? tabFactura.value.trim() : '';
+                    const oc = tabOc ? tabOc.value.trim() : '';
+                    const obs = tabObs ? tabObs.value.trim() : '';
+
+                    const dIni = inicio ? parseFechaDdMmAa(inicio) : null;
+                    const dFin = fin ? parseFechaDdMmAa(fin) : null;
+                    if (!dIni || !dFin) { alert('Inicio y fin de período son obligatorios (dd/mm/aa)'); return; }
+                    if (dFin < dIni) { alert('La fecha fin no puede ser anterior a la fecha inicio'); return; }
+
+                    try {
+                        const { getFirestore, collection, addDoc, serverTimestamp, doc, updateDoc } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        const col = collection(db, 'actividadPeriodos');
+                        await addDoc(col, {
+                            actividadId: actividadTab.id,
+                            inicioPeriodo: inicio,
+                            finPeriodo: fin,
+                            inicioPeriodoOrdenable: dIni.getTime(),
+                            diasFacturados: dias,
+                            tarifaDiaria: tarifa,
+                            importe,
+                            tipoPeriodo: tipo,
+                            factura,
+                            oc,
+                            observaciones: obs,
+                            creadoEn: serverTimestamp(),
+                        });
+
+                        try {
+                            const refAct = doc(db, 'actividades', actividadTab.id);
+                            if (tipo === 'FINAL') {
+                                await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: true });
+                                actividadTab.terminacionServicio = fin;
+                                actividadTab.terminacionEsFinal = true;
+                            } else if (tipo === 'PARCIAL') {
+                                await updateDoc(refAct, { terminacionServicio: fin, terminacionEsFinal: false });
+                                actividadTab.terminacionServicio = fin;
+                                actividadTab.terminacionEsFinal = false;
+                            }
+                        } catch (e) {
+                            console.error('No se pudo actualizar terminacionServicio', e);
+                        }
+
+                        const periodos = await cargarPeriodosActividad(actividadTab.id);
+                        renderTabulador(periodos);
+                        await cargarPeriodos();
+                        render();
+
+                        if (tipo === 'PARCIAL' && tabInicio && tabFin) {
+                            const dFinNext = parseFechaDdMmAa(fin);
+                            if (dFinNext) {
+                                dFinNext.setDate(dFinNext.getDate() + 1);
+                                const dd = String(dFinNext.getDate()).padStart(2, '0');
+                                const mm = String(dFinNext.getMonth() + 1).padStart(2, '0');
+                                const aa = String(dFinNext.getFullYear()).slice(-2);
+                                tabInicio.value = `${dd}/${mm}/${aa}`;
+                            }
+                            tabFin.value = '';
+                            if (tabDias) tabDias.value = '';
+                            if (tabImporte) tabImporte.value = '';
+                            if (tabFactura) tabFactura.value = '';
+                            if (tabOc) tabOc.value = '';
+                            if (tabObs) tabObs.value = '';
+                            recalcularTabPeriodo();
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert('No se pudo guardar el período.');
+                    }
+                });
+            }
 
             // Formato de fecha en panel batch
             const inpBatchIni = document.getElementById('doc-batch-inicio');
