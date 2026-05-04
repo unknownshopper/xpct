@@ -244,6 +244,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isCapturista = role === 'capturista';
                     const isVisor = role === 'visor';
 
+                    function ensureActividocNavLink(visible) {
+                        try {
+                            // Buscar el dropdown de "Actividad"
+                            const actTop = Array.from(document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown > a'))
+                                .find(a => ((a.textContent || '').trim().toLowerCase() === 'actividad'));
+                            const actLi = actTop ? (actTop.closest('li') || null) : null;
+                            const dd = actLi ? actLi.querySelector(':scope > ul.nav-dropdown') : null;
+                            if (!dd) return;
+
+                            const existing = dd.querySelector('a[href="actividoc.html"]');
+                            if (visible) {
+                                if (existing) {
+                                    const li = existing.closest('li') || existing;
+                                    li.style.display = '';
+                                    return;
+                                }
+                                const li = document.createElement('li');
+                                const a = document.createElement('a');
+                                a.href = 'actividoc.html';
+                                a.textContent = 'Admin (OC/OS)';
+                                a.className = 'nav-admin-only';
+                                if (currentPage === 'actividoc.html') a.classList.add('active');
+                                li.appendChild(a);
+
+                                // Insertar debajo de "Administración" si existe
+                                const adminA = dd.querySelector('a[href="actividadmin.html"]');
+                                const adminLi = adminA ? (adminA.closest('li') || null) : null;
+                                if (adminLi && adminLi.nextSibling) dd.insertBefore(li, adminLi.nextSibling);
+                                else if (adminLi) dd.appendChild(li);
+                                else dd.appendChild(li);
+                            } else {
+                                if (!existing) return;
+                                const li = existing.closest('li') || existing;
+                                li.style.display = 'none';
+                            }
+                        } catch {}
+                    }
+
                     function ensureInvreNavLink(visible) {
                         try {
                             const navUl = navMain.querySelector(':scope > ul');
@@ -291,6 +329,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Inventario (invre.html): solo admin/director/supervisor
                     ensureInvreNavLink(isAdmin || isDirector || isSupervisor);
+
+                    // Admin (OC/OS): solo admin/director
+                    ensureActividocNavLink(isAdmin || isDirector);
 
                     // En dashboard: ocultar KPIs solo para inspector (UI reducida)
                     if (currentPage === 'index.html' && isInspector) {
