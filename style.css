@@ -790,6 +790,19 @@ main {
     gap: 0.5rem;
     font-size: 0.95rem;
     font-weight: 500;
+    max-width: 360px;
+}
+
+.dash-stat-row:nth-child(odd) {
+    background: rgba(15, 23, 42, 0.03);
+    border-radius: 8px;
+    padding: 0.2rem 0.35rem;
+}
+
+.dash-stat-row:nth-child(even) {
+    background: rgba(59, 130, 246, 0.04);
+    border-radius: 8px;
+    padding: 0.2rem 0.35rem;
 }
 
 .dash-stat-row .row-left {
@@ -827,6 +840,15 @@ main {
 .badge.red { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 .badge.gray { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
 .badge.black { background: #0f172a; border-color: #0f172a; color: #ffffff; }
+
+/* Actividad OC/OS: zebra striping for readability */
+.doc-os-table tbody tr:nth-child(odd) {
+    background: rgba(15, 23, 42, 0.02);
+}
+
+.doc-os-table tbody tr:nth-child(even) {
+    background: rgba(59, 130, 246, 0.03);
+}
 
 .dashboard-links {
     display: flex;
