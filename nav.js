@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'inspeccion.html',
         'inspectlist.html',
         'invre.html',
+        'actividoc.html',
         'manualinspec.html',
         'manualpruebas.html'
     ]);
@@ -319,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // Ocultar enlaces directos a páginas de actividad
                             document.querySelectorAll(
-                                'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="trazabilidades.html"]'
+                                'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="actividoc.html"], a[href*="trazabilidades.html"]'
                             ).forEach(a => {
                                 const li = a.closest('li') || a;
                                 li.style.display = 'none';
@@ -330,6 +331,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Para inspector/capturista: ocultar actividadmin en la navegación
                     if (isInspector || isCapturista) {
                         document.querySelectorAll('a[href*="actividadmin"]').forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = 'none';
+                        });
+                        document.querySelectorAll('a[href*="actividoc"]').forEach(a => {
                             const li = a.closest('li') || a;
                             li.style.display = 'none';
                         });
@@ -359,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Ocultar enlaces sueltos a páginas de actividad si existieran en otros lugares del menú
                         document.querySelectorAll(
-                            'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="trazabilidades.html"]'
+                            'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="actividoc.html"], a[href*="trazabilidades.html"]'
                         ).forEach(a => {
                             const li = a.closest('li') || a;
                             li.style.display = 'none';
@@ -387,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Ocultar enlaces sueltos a páginas de actividad si existieran en otros lugares del menú
                         document.querySelectorAll(
-                            'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="trazabilidades.html"]'
+                            'a[href*="actividad.html"], a[href*="actividadlist.html"], a[href*="actividadmin.html"], a[href*="actividoc.html"], a[href*="trazabilidades.html"]'
                         ).forEach(a => {
                             const li = a.closest('li') || a;
                             li.style.display = 'none';

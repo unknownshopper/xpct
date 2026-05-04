@@ -1662,16 +1662,36 @@ document.addEventListener('DOMContentLoaded', () => {
         })();
 
         // Catálogos de tipo de daño según el nombre del parámetro
-        function obtenerTiposDano(nombreParametro) {
+        function obtenerTiposDano(nombreParametro, opts) {
             const base = (nombreParametro || '').toLowerCase();
+            const o = opts || {};
 
             // Fleje: usar BUENO/MALO y si es MALO, permitir seleccionar tipo de daño
             if (base.includes('fleje')) {
+                // Algunos equipos no llevan fleje pero sí rótulo/identificador
+                if (o.usarRotuloEnLugarDeFleje) {
+                    return [
+                        '',
+                        'DEFORMADO',
+                        'NO LEGIBLE',
+                        'SIN ROTULO'
+                    ];
+                }
                 return [
                     '',
                     'DEFORMADO',
                     'NO LEGIBLE',
                     'SIN FLEJE'
+                ];
+            }
+
+            // Rótulo / Identificador
+            if (base.includes('rotulo') || base.includes('rótulo') || base.includes('identificador')) {
+                return [
+                    '',
+                    'DEFORMADO',
+                    'NO LEGIBLE',
+                    'SIN ROTULO'
                 ];
             }
 
@@ -1764,6 +1784,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
         }
 
+        const equipoSinFlejeConRotulo = /BRIDA CIEGA|BRIDA DE PRUEBA|BRIDA DE PASO|BRIDA ADAPTADORA/.test(textoEquipo);
+
         const parametrosHtml = parametrosRender.length
             ? `
                 <div class="parametros-inspeccion">
@@ -1777,11 +1799,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         ${parametrosRender.map((p, idx) => {
                             const baseNombre = (p || '').toLowerCase();
+                            const esFleje = baseNombre.includes('fleje');
+                            const nombreMostrar = (esFleje && equipoSinFlejeConRotulo) ? 'Rótulo / Identificador' : p;
                             // Caso especial: Recubrimiento no lleva selector de daños, solo BUENO/MALO
                             if (baseNombre.includes('recubrimiento')) {
                                 return `
                             <div class="parametros-fila">
-                                <div class="col-nombre">${p}</div>
+                                <div class="col-nombre">${nombreMostrar}</div>
                                 <div class="col-estado">
                                     <div class="estado-switch" data-param-idx="${idx}">
                                         <input type="checkbox" class="estado-switch-input" aria-label="Estado malo" data-idx="${idx}">
@@ -1805,10 +1829,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                             }
 
-                            const tiposDano = obtenerTiposDano(p);
+                            const tiposDano = obtenerTiposDano(p, { usarRotuloEnLugarDeFleje: (esFleje && equipoSinFlejeConRotulo) });
                             return `
                             <div class="parametros-fila">
-                                <div class="col-nombre">${p}</div>
+                                <div class="col-nombre">${nombreMostrar}</div>
                                 <div class="col-estado">
                                     <div class="estado-switch" data-param-idx="${idx}">
                                         <input type="checkbox" class="estado-switch-input" aria-label="Estado malo" data-idx="${idx}">
