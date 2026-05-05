@@ -147,6 +147,87 @@ document.addEventListener('DOMContentLoaded', () => {
             const insp = { id: snap.id, ...snap.data() };
             inspeccionEditData = insp;
 
+            // Resolver URLs de evidencias/testimonio cuando el documento solo tiene path/nombre (sin URL)
+            let inspConUrls = insp;
+            try {
+                const params = Array.isArray(inspConUrls.parametros) ? inspConUrls.parametros : [];
+                const needsParams = params.some(p => p && ((p.evidenciaPath) || (p.evidenciaNombre)) && !p.evidenciaUrl);
+                const needsObs = !!(
+                    ((inspConUrls.observacionesFotoPath || inspConUrls.observacionesFotoNombre) && !inspConUrls.observacionesFotoUrl)
+                );
+
+                if (needsParams || needsObs) {
+                    const { getStorage, ref: stRef, getDownloadURL } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
+                    );
+                    const storage = getStorage();
+
+                    const inspId = String(inspConUrls.id || '').trim();
+                    const actId = String(inspConUrls.actividadId || '').trim();
+                    const localId = String(inspConUrls.localId || '').trim();
+                    const inspIdQs = String(inspIdUrl || '').trim();
+
+                    const resolverDesdeCandidatos = async (candidatos) => {
+                        const cands = Array.isArray(candidatos) ? candidatos.filter(Boolean) : [];
+                        if (!cands.length) return '';
+                        for (let pass = 0; pass < 2; pass++) {
+                            for (const path of cands) {
+                                try {
+                                    const url = await getDownloadURL(stRef(storage, path));
+                                    if (url) return url;
+                                } catch {}
+                            }
+                            if (pass === 0) await new Promise(r => setTimeout(r, 300));
+                        }
+                        return '';
+                    };
+
+                    if (needsParams) {
+                        const nextParams = await Promise.all(params.map(async (p) => {
+                            try {
+                                if (!p || p.evidenciaUrl) return p;
+                                const candidatos = [];
+                                const pathDirecto = String(p.evidenciaPath || '').trim();
+                                if (pathDirecto) candidatos.push(pathDirecto);
+
+                                const name = String(p.evidenciaNombre || '').trim();
+                                if (name) {
+                                    if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                    if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                    if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                    if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                }
+
+                                const url = await resolverDesdeCandidatos(candidatos);
+                                return url ? { ...(p || {}), evidenciaUrl: url } : p;
+                            } catch {
+                                return p;
+                            }
+                        }));
+                        inspConUrls = { ...(inspConUrls || {}), parametros: nextParams };
+                    }
+
+                    if (needsObs) {
+                        const candidatos = [];
+                        const pathDirecto = String(inspConUrls.observacionesFotoPath || '').trim();
+                        if (pathDirecto) candidatos.push(pathDirecto);
+
+                        const name = String(inspConUrls.observacionesFotoNombre || '').trim();
+                        if (name) {
+                            if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                            if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                            if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                            if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                        }
+
+                        const url = await resolverDesdeCandidatos(candidatos);
+                        if (url) {
+                            inspConUrls = { ...(inspConUrls || {}), observacionesFotoUrl: url };
+                        }
+                    }
+                }
+            } catch {}
+
             const equipo = (insp.equipo || '').toString().trim();
             if (equipo) {
                 inputEquipo.value = equipo;
@@ -168,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch { return false; }
             }, 6500, 120);
 
-            const prevParams = Array.isArray(insp.parametros) ? insp.parametros : [];
+            const prevParams = Array.isArray(inspConUrls.parametros) ? inspConUrls.parametros : [];
             const normKey = (s) => String(s || '')
                 .toLowerCase()
                 .normalize('NFD')
@@ -214,12 +295,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             try {
-                const obsTxt = (insp.observacionesManual || '').toString();
+                const obsTxt = (inspConUrls.observacionesManual || '').toString();
                 const inpObs = document.getElementById('insp-obs-text');
                 if (inpObs) inpObs.value = obsTxt;
             } catch {}
             try {
-                const obsUrl = (insp.observacionesFotoUrl || '').toString().trim();
+                const obsUrl = (inspConUrls.observacionesFotoUrl || '').toString().trim();
                 const imgObsPrev = document.getElementById('insp-obs-prev');
                 if (imgObsPrev && obsUrl) {
                     imgObsPrev.src = obsUrl;
