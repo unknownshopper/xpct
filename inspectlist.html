@@ -835,7 +835,7 @@
 
                     const accionesHtml = (insp) ? `
                             <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
-                            ${(window.isAdmin || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
+                            ${(window.isAdmin || window.isSupervisor || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
                             ${(() => {
                                 const t = (insp?.tipoInspeccion || '').toString().trim().toUpperCase();
                                 const obs = (insp?.observaciones || '').toString().trim();
@@ -1326,7 +1326,7 @@
                     const actividadId = tr.getAttribute('data-actividad-id') || '';
                     if (!inspId && !actividadId) return;
 
-                    if (window.isAdmin) {
+                    if (window.isAdmin || window.isSupervisor) {
                         if (actividadId) {
                             window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
                             return;
