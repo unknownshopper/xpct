@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const fotosTomadas = {}; // idx -> { blob }
     let fotoObs = null; // { blob }
 
+    let inspeccionEditData = null;
+
     const isAndroid = (() => {
         try { return /android/i.test(navigator.userAgent || ''); } catch { return false; }
     })();
@@ -108,6 +110,124 @@ document.addEventListener('DOMContentLoaded', () => {
             return out;
         } catch {
             return String(s || '').trim().toUpperCase();
+        }
+    }
+
+    async function aplicarInspeccionExistenteEditable() {
+        try {
+            if (isViewMode) return;
+
+            const paramsUrl = new URLSearchParams(window.location.search || '');
+            const inspIdUrl = (paramsUrl.get('inspId') || '').trim();
+            if (!inspIdUrl) return;
+
+            // Esperar a que inventario y formatos estén listos para que se rendericen los parámetros
+            const esperar = async (cond, msTotal = 6500, paso = 120) => {
+                const t0 = Date.now();
+                while (Date.now() - t0 < msTotal) {
+                    try {
+                        if (cond()) return true;
+                    } catch {}
+                    await new Promise(r => setTimeout(r, paso));
+                }
+                return false;
+            };
+
+            await esperar(() => inventarioCargado && formatosCargados);
+
+            const { getFirestore, doc, getDoc } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
+
+            const refInsp = doc(db, 'inspecciones', inspIdUrl);
+            const snap = await getDoc(refInsp);
+            if (!snap.exists()) return;
+
+            const insp = { id: snap.id, ...snap.data() };
+            inspeccionEditData = insp;
+
+            const equipo = (insp.equipo || '').toString().trim();
+            if (equipo) {
+                inputEquipo.value = equipo;
+                try { inputEquipo.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+                try { actualizarDetalleDesdeInput(); } catch {}
+            }
+
+            if (tipoInspeccionSelect) {
+                const t = (insp.tipoInspeccion || '').toString().trim().toUpperCase();
+                if (t) {
+                    tipoInspeccionSelect.value = t;
+                    try { tipoInspeccionSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+                }
+            }
+
+            await esperar(() => {
+                try {
+                    return !!(detalleContenedor && detalleContenedor.querySelectorAll('.parametros-fila').length);
+                } catch { return false; }
+            }, 6500, 120);
+
+            const prevParams = Array.isArray(insp.parametros) ? insp.parametros : [];
+            const normKey = (s) => String(s || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const prevByName = new Map(prevParams.map(p => [normKey(p && p.nombre), p]));
+
+            const filas = Array.from(detalleContenedor.querySelectorAll('.parametros-fila'));
+            filas.forEach((filaHtml, idx) => {
+                try {
+                    const nombreUi = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
+                    const prev = (prevParams[idx]) || prevByName.get(normKey(nombreUi)) || null;
+                    if (!prev) return;
+
+                    const estado = String(prev.estado || '').trim().toUpperCase();
+                    const sw = filaHtml.querySelector('.estado-switch-input');
+                    if (sw) {
+                        sw.checked = (estado === 'MALO');
+                        try { sw.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+                    }
+
+                    const colDano = filaHtml.querySelector('.col-dano');
+                    const selDano = colDano ? colDano.querySelector(`select[name="param-${idx}-dano"]`) : null;
+                    const inpOtro = colDano ? colDano.querySelector(`input[name="param-${idx}-dano-otro"]`) : null;
+                    const tipoDano = String(prev.tipoDano || '').trim();
+                    if (selDano && tipoDano) {
+                        selDano.value = tipoDano;
+                        try { selDano.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+                    }
+                    if (inpOtro) {
+                        const det = String(prev.detalleOtro || '').trim();
+                        if (det) inpOtro.value = det;
+                    }
+
+                    const evidUrl = String(prev.evidenciaUrl || '').trim();
+                    const imgPrev = document.getElementById(`preview-foto-${idx}`);
+                    if (imgPrev && evidUrl) {
+                        imgPrev.src = evidUrl;
+                        imgPrev.style.display = '';
+                    }
+                } catch {}
+            });
+
+            try {
+                const obsTxt = (insp.observacionesManual || '').toString();
+                const inpObs = document.getElementById('insp-obs-text');
+                if (inpObs) inpObs.value = obsTxt;
+            } catch {}
+            try {
+                const obsUrl = (insp.observacionesFotoUrl || '').toString().trim();
+                const imgObsPrev = document.getElementById('insp-obs-prev');
+                if (imgObsPrev && obsUrl) {
+                    imgObsPrev.src = obsUrl;
+                    imgObsPrev.style.display = '';
+                }
+            } catch {}
+        } catch (e) {
+            console.warn('No se pudo aplicar inspección existente en modo edición', e);
         }
     }
 
@@ -1326,15 +1446,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     // Cargar formatos de inspección
-    fetch('docs/forxmat.csv', { cache: 'no-store' })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('No se pudo cargar forxmat.csv');
-            }
-            return response.text();
-        })
-        .then(texto => {
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+    fetch('docs/forxmat.csv')
+        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar forxmat.csv')))
+        .then(txt => {
+            const lineas = txt.split(/\r?\n/).filter(l => l.trim() !== '');
             let formatoActual = '';
 
             Object.keys(formatosPorCodigo).forEach(k => delete formatosPorCodigo[k]);
@@ -1371,6 +1486,8 @@ document.addEventListener('DOMContentLoaded', () => {
             aplicarInspeccionExistenteAutoPdf();
             // Solo lectura (si viene view=1)
             aplicarInspeccionExistenteSoloLectura();
+            // Edición (si viene inspId sin view=1)
+            aplicarInspeccionExistenteEditable();
             // Si el usuario ya seleccionó/escribió un equipo antes de terminar de cargar forxmat.csv,
             // refrescar la ficha y parámetros ahora que los formatos ya están listos.
             try {
@@ -2347,6 +2464,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         else currentFacing = (currentFacing === 'environment' ? 'user' : 'environment');
                     } catch {
                         currentFacing = (currentFacing === 'environment' ? 'user' : 'environment');
+                        currentDeviceId = '';
                     }
                 } else {
                     currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
@@ -2490,8 +2608,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const yy = String(ahora.getFullYear()).slice(-2);
                 const HH = String(ahora.getHours()).padStart(2, '0');
                 const MM = String(ahora.getMinutes()).padStart(2, '0');
-                const fechaSafe = `${dd}-${mm}-${yy}`;
-                const horaSafe = `${HH}:${MM}`;
                 const equipo = equipoSel || 'SIN_EQUIPO';
                 const tipoInspeccionSel = (document.getElementById('inspeccion-tipo')?.value || '').toString();
                 let usuario = '';
@@ -2542,7 +2658,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div style="text-align:right;">
                             <div style="margin-bottom:4px;"><strong>Fecha:</strong> ${dd}/${mm}/20${yy}</div>
-                            <div style="margin-bottom:4px;"><strong>Hora:</strong> ${horaSafe} hrs</div>
+                            <div style="margin-bottom:4px;"><strong>Hora:</strong> ${HH}:${MM}</div>
                             ${usuario ? `<div><strong>Usuario:</strong> ${usuario}</div>` : ''}
                             <div style="margin-top:8px; font-size:11px; color:#4b5563;">
                                 <div><strong>Parámetros:</strong> ${totalParametros}</div>
@@ -2810,7 +2926,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx));
 
-                const scaleFactor = canvas.width / wrapperWidthCss;
                 const avoidRanges = avoidRangesCss.map(r => ({
                     start: Math.floor(r.start * scaleFactor),
                     end: Math.ceil(r.end * scaleFactor)
@@ -3006,7 +3121,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const get = (idx) => (idx >= 0 && idx < fila.length ? fila[idx] : '');
 
-            const localId = generarIdLocal('insp');
+            const paramsUrlSave = new URLSearchParams(window.location.search || '');
+            const inspIdUrlSave = (paramsUrlSave.get('inspId') || '').trim();
+            const localId = inspIdUrlSave || generarIdLocal('insp');
+            const isEditingExisting = !!inspIdUrlSave;
             const parametrosCapturados = [];
             const fotosParaSubir = [];
             const obsTextoManual = (document.getElementById('insp-obs-text')?.value || '').toString().trim();
@@ -3014,6 +3132,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const obsFotoBlob = (fotoObs && fotoObs.blob) ? fotoObs.blob : (inputObsFoto && inputObsFoto.files && inputObsFoto.files[0] ? inputObsFoto.files[0] : null);
             let obsFotoNombre = '';
             let obsFotoPath = '';
+
+            const prevParams = Array.isArray(inspeccionEditData && inspeccionEditData.parametros) ? inspeccionEditData.parametros : [];
+            const prevObsFotoNombre = (inspeccionEditData && inspeccionEditData.observacionesFotoNombre) ? String(inspeccionEditData.observacionesFotoNombre) : '';
+            const prevObsFotoPath = (inspeccionEditData && inspeccionEditData.observacionesFotoPath) ? String(inspeccionEditData.observacionesFotoPath) : '';
+            const prevObsFotoUrl = (inspeccionEditData && inspeccionEditData.observacionesFotoUrl) ? String(inspeccionEditData.observacionesFotoUrl) : '';
             const filas = document.querySelectorAll('.parametros-fila');
             filas.forEach((filaHtml, idx) => {
                 const nombre = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
@@ -3049,6 +3172,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         fotosParaSubir.push({ idx, nombre, file: fotoBlob, evidenciaNombre });
                     }
                 }
+
+                // Preservar evidencia previa si estamos editando y no se adjuntó una nueva
+                if (isEditingExisting && estado && estado.toUpperCase() === 'MALO' && !evidenciaNombre) {
+                    const prev = (prevParams && prevParams[idx]) ? prevParams[idx] : null;
+                    if (prev) {
+                        const prevNombre = (prev.evidenciaNombre != null) ? String(prev.evidenciaNombre) : '';
+                        const prevPath = (prev.evidenciaPath != null) ? String(prev.evidenciaPath) : '';
+                        if (prevNombre || prevPath) {
+                            evidenciaNombre = prevNombre;
+                            evidenciaPath = prevPath;
+                        }
+                    }
+                }
+
                 parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro, hasEvidencia: !!evidenciaNombre, evidenciaNombre, evidenciaPath });
             });
 
@@ -3063,6 +3200,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const equipoIdObs = get(idxEquipo) || 'SIN_EQUIPO';
                 obsFotoNombre = `${equipoIdObs}-${ddObs}${mmObs}${yyObs}-${HHObs}${MMObs}${SSObs}-observaciones.jpg`;
                 obsFotoPath = `inspecciones/${localId}/${obsFotoNombre}`;
+            }
+
+            // Preservar evidencia de observaciones previa si no se adjuntó nueva
+            if (!obsFotoBlob && isEditingExisting && (prevObsFotoNombre || prevObsFotoPath || prevObsFotoUrl)) {
+                if (!obsFotoNombre) obsFotoNombre = prevObsFotoNombre;
+                if (!obsFotoPath) obsFotoPath = prevObsFotoPath;
             }
 
             // Validaciones requeridas por parámetro
