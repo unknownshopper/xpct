@@ -151,7 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
             let inspConUrls = insp;
             try {
                 const params = Array.isArray(inspConUrls.parametros) ? inspConUrls.parametros : [];
-                const needsParams = params.some(p => p && ((p.evidenciaPath) || (p.evidenciaNombre)) && !p.evidenciaUrl);
+                const needsParams = params.some(p => p && (
+                    (((p.evidenciaPath) || (p.evidenciaNombre)) && !p.evidenciaUrl) ||
+                    (((p.evidenciaPath2) || (p.evidenciaNombre2)) && !p.evidenciaUrl2)
+                ));
                 const needsObs = !!(
                     ((inspConUrls.observacionesFotoPath || inspConUrls.observacionesFotoNombre) && !inspConUrls.observacionesFotoUrl)
                 );
@@ -185,21 +188,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (needsParams) {
                         const nextParams = await Promise.all(params.map(async (p) => {
                             try {
-                                if (!p || p.evidenciaUrl) return p;
-                                const candidatos = [];
-                                const pathDirecto = String(p.evidenciaPath || '').trim();
-                                if (pathDirecto) candidatos.push(pathDirecto);
+                                if (!p) return p;
 
-                                const name = String(p.evidenciaNombre || '').trim();
-                                if (name) {
-                                    if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
-                                    if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
-                                    if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
-                                    if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                const next = { ...(p || {}) };
+
+                                if (!next.evidenciaUrl && (next.evidenciaPath || next.evidenciaNombre)) {
+                                    const candidatos = [];
+                                    const pathDirecto = String(next.evidenciaPath || '').trim();
+                                    if (pathDirecto) candidatos.push(pathDirecto);
+
+                                    const name = String(next.evidenciaNombre || '').trim();
+                                    if (name) {
+                                        if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                        if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                        if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                        if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                    }
+                                    const url = await resolverDesdeCandidatos(candidatos);
+                                    if (url) next.evidenciaUrl = url;
                                 }
 
-                                const url = await resolverDesdeCandidatos(candidatos);
-                                return url ? { ...(p || {}), evidenciaUrl: url } : p;
+                                if (!next.evidenciaUrl2 && (next.evidenciaPath2 || next.evidenciaNombre2)) {
+                                    const candidatos = [];
+                                    const pathDirecto = String(next.evidenciaPath2 || '').trim();
+                                    if (pathDirecto) candidatos.push(pathDirecto);
+
+                                    const name = String(next.evidenciaNombre2 || '').trim();
+                                    if (name) {
+                                        if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                        if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                        if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                        if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                    }
+                                    const url = await resolverDesdeCandidatos(candidatos);
+                                    if (url) next.evidenciaUrl2 = url;
+                                }
+
+                                return next;
                             } catch {
                                 return p;
                             }
@@ -290,6 +315,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (imgPrev && evidUrl) {
                         imgPrev.src = evidUrl;
                         imgPrev.style.display = '';
+                    }
+
+                    const evidUrl2 = String(prev.evidenciaUrl2 || '').trim();
+                    const imgPrev2 = document.getElementById(`preview-foto2-${idx}`);
+                    if (imgPrev2 && evidUrl2) {
+                        imgPrev2.src = evidUrl2;
+                        imgPrev2.style.display = '';
                     }
                 } catch {}
             });
@@ -628,7 +660,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Resolver URLs de evidencias si solo viene evidenciaNombre (para mostrar thumbnails)
             try {
                 const params = Array.isArray(insp.parametros) ? insp.parametros : [];
-                const needs = params.some(p => p && ((p.evidenciaPath) || (p.evidenciaNombre)) && !p.evidenciaUrl);
+                const needs = params.some(p => p && (
+                    (((p.evidenciaPath) || (p.evidenciaNombre)) && !p.evidenciaUrl) ||
+                    (((p.evidenciaPath2) || (p.evidenciaNombre2)) && !p.evidenciaUrl2)
+                ));
                 if (needs && insp && insp.id) {
                     const { getStorage, ref: stRef, getDownloadURL } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
@@ -641,37 +676,61 @@ document.addEventListener('DOMContentLoaded', () => {
                     const actIdQs = String(actividadIdUrl || '').trim();
                     const nextParams = await Promise.all(params.map(async (p) => {
                         try {
-                            if (!p || p.evidenciaUrl) return p;
-                            const candidatos = [];
-                            const pathDirecto = String(p.evidenciaPath || '').trim();
-                            if (pathDirecto) candidatos.push(pathDirecto);
+                            if (!p) return p;
 
-                            const name = String(p.evidenciaNombre || '').trim();
-                            if (name) {
-                                if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
-                                if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
-                                if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
-                                if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
-                                if (actIdQs) candidatos.push(`inspecciones/${actIdQs}/${name}`);
-                            }
+                            const next = { ...(p || {}) };
 
-                            if (!candidatos.length) return p;
-
-                            for (let pass = 0; pass < 2; pass++) {
-                                for (const path of candidatos) {
-                                    try {
-                                        const url = await getDownloadURL(stRef(storage, path));
-                                        if (url) return { ...(p || {}), evidenciaUrl: url };
-                                    } catch (e) {
-                                        const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
-                                        console.warn('No se pudo resolver evidencia desde Storage', { path, code });
+                            const resolver = async (candidatos) => {
+                                const cands = Array.isArray(candidatos) ? candidatos.filter(Boolean) : [];
+                                if (!cands.length) return '';
+                                for (let pass = 0; pass < 2; pass++) {
+                                    for (const path of cands) {
+                                        try {
+                                            const url = await getDownloadURL(stRef(storage, path));
+                                            if (url) return url;
+                                        } catch (e) {
+                                            const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                                            console.warn('No se pudo resolver evidencia desde Storage', { path, code });
+                                        }
                                     }
+                                    if (pass === 0) await new Promise(r => setTimeout(r, 350));
                                 }
-                                if (pass === 0) {
-                                    await new Promise(r => setTimeout(r, 350));
+                                return '';
+                            };
+
+                            if (!next.evidenciaUrl && (next.evidenciaPath || next.evidenciaNombre)) {
+                                const candidatos = [];
+                                const pathDirecto = String(next.evidenciaPath || '').trim();
+                                if (pathDirecto) candidatos.push(pathDirecto);
+                                const name = String(next.evidenciaNombre || '').trim();
+                                if (name) {
+                                    if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                    if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                    if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                    if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                    if (actIdQs) candidatos.push(`inspecciones/${actIdQs}/${name}`);
                                 }
+                                const url = await resolver(candidatos);
+                                if (url) next.evidenciaUrl = url;
                             }
-                            return p;
+
+                            if (!next.evidenciaUrl2 && (next.evidenciaPath2 || next.evidenciaNombre2)) {
+                                const candidatos = [];
+                                const pathDirecto = String(next.evidenciaPath2 || '').trim();
+                                if (pathDirecto) candidatos.push(pathDirecto);
+                                const name = String(next.evidenciaNombre2 || '').trim();
+                                if (name) {
+                                    if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                    if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                    if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                    if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                    if (actIdQs) candidatos.push(`inspecciones/${actIdQs}/${name}`);
+                                }
+                                const url = await resolver(candidatos);
+                                if (url) next.evidenciaUrl2 = url;
+                            }
+
+                            return next;
                         } catch (e) {
                             const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
                             console.warn('No se pudo resolver evidencia (inesperado)', { code });
@@ -708,6 +767,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const evidenciaUrl = ok(p && p.evidenciaUrl);
                         const evidenciaNombre = ok(p && p.evidenciaNombre);
                         const evidenciaPath = ok(p && p.evidenciaPath);
+                        const evidenciaUrl2 = ok(p && p.evidenciaUrl2);
+                        const evidenciaNombre2 = ok(p && p.evidenciaNombre2);
+                        const evidenciaPath2 = ok(p && p.evidenciaPath2);
                         const danoTxt = (estado === 'MALO') ? (detalleOtro || tipoDano || '') : '';
                         const badge = estado === 'MALO'
                             ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; font-size:12px; font-weight:700;">MALO</span>'
@@ -715,26 +777,54 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; font-weight:700;">NO LEGIBLE</span>'
                                 : '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; border:1px solid #bbf7d0; color:#166534; font-size:12px; font-weight:700;">BUENO</span>');
 
-                        const evidenciaHtml = (evidenciaUrl || evidenciaNombre || evidenciaPath)
+                        const evidenciaHtml = (evidenciaUrl || evidenciaNombre || evidenciaPath || evidenciaUrl2 || evidenciaNombre2 || evidenciaPath2)
                             ? `
                                 <div style="margin-top:8px;">
                                     <div style="font-size:12px; color:#475569; margin-bottom:6px;">Evidencia</div>
-                                    <img
-                                        src="${evidenciaUrl ? evidenciaUrl : ''}"
-                                        alt="Evidencia"
-                                        class="insp-evid-thumb"
-                                        data-full="${evidenciaUrl ? evidenciaUrl : ''}"
-                                        data-evidencia-path="${evidenciaPath}"
-                                        data-evidencia-nombre="${evidenciaNombre}"
-                                        crossorigin="anonymous"
-                                        referrerpolicy="no-referrer"
-                                        loading="eager"
-                                        decoding="sync"
-                                        style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${evidenciaUrl ? '' : 'display:none;'}"
-                                        onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
-                                    />
-                                    <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${evidenciaUrl ? 'display:none;' : ''}">
-                                        ${evidenciaNombre ? `Evidencia: ${evidenciaNombre}` : (evidenciaPath ? 'Evidencia' : '')}
+                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                        <div style="min-width:220px; max-width:220px; flex:1;">
+                                            <div style="font-size:11px; color:#64748b; margin-bottom:4px;">Foto 1</div>
+                                            <img
+                                                src="${evidenciaUrl ? evidenciaUrl : ''}"
+                                                alt="Evidencia"
+                                                class="insp-evid-thumb"
+                                                data-full="${evidenciaUrl ? evidenciaUrl : ''}"
+                                                data-evidencia-path="${evidenciaPath}"
+                                                data-evidencia-nombre="${evidenciaNombre}"
+                                                crossorigin="anonymous"
+                                                referrerpolicy="no-referrer"
+                                                loading="eager"
+                                                decoding="sync"
+                                                style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${evidenciaUrl ? '' : 'display:none;'}"
+                                                onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
+                                            />
+                                            <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${evidenciaUrl ? 'display:none;' : ''}">
+                                                ${evidenciaNombre ? `Evidencia: ${evidenciaNombre}` : (evidenciaPath ? 'Evidencia' : '')}
+                                            </div>
+                                        </div>
+
+                                        ${(evidenciaUrl2 || evidenciaNombre2 || evidenciaPath2) ? `
+                                        <div style="min-width:220px; max-width:220px; flex:1;">
+                                            <div style="font-size:11px; color:#64748b; margin-bottom:4px;">Foto 2</div>
+                                            <img
+                                                src="${evidenciaUrl2 ? evidenciaUrl2 : ''}"
+                                                alt="Evidencia"
+                                                class="insp-evid-thumb"
+                                                data-full="${evidenciaUrl2 ? evidenciaUrl2 : ''}"
+                                                data-evidencia-path="${evidenciaPath2}"
+                                                data-evidencia-nombre="${evidenciaNombre2}"
+                                                crossorigin="anonymous"
+                                                referrerpolicy="no-referrer"
+                                                loading="eager"
+                                                decoding="sync"
+                                                style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${evidenciaUrl2 ? '' : 'display:none;'}"
+                                                onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
+                                            />
+                                            <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${evidenciaUrl2 ? 'display:none;' : ''}">
+                                                ${evidenciaNombre2 ? `Evidencia: ${evidenciaNombre2}` : (evidenciaPath2 ? 'Evidencia' : '')}
+                                            </div>
+                                        </div>
+                                        ` : ''}
                                     </div>
                                 </div>
                               `
@@ -1984,6 +2074,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const equipoSinFlejeConRotulo = /BRIDA CIEGA|BRIDA DE PRUEBA|BRIDA DE PASO|BRIDA ADAPTADORA/.test(textoEquipo);
 
+        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+
         const parametrosHtml = parametrosRender.length
             ? `
                 <div class="parametros-inspeccion">
@@ -2022,6 +2114,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
                                     <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+
+                                    <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
+                                        <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
+                                        <button type="button" class="btn btn-subir-foto2" data-idx="${idx}">Subir foto 2</button>
+                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
+                                    </div>
+                                    <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                 </div>
                             </div>
                         `;
@@ -2057,6 +2156,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
                                     <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+
+                                    <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
+                                        <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
+                                        <button type="button" class="btn btn-subir-foto2" data-idx="${idx}">Subir foto 2</button>
+                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
+                                    </div>
+                                    <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                 </div>
                             </div>
                         `;
@@ -2225,6 +2331,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnSubir = colEvid ? colEvid.querySelector('.btn-subir-foto') : null;
             const imgPrev = document.getElementById(`preview-foto-${idx}`);
 
+            const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+            const inputFoto2 = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto2"]`) : null;
+            const btnTomar2 = colEvid ? colEvid.querySelector('.btn-tomar-foto2') : null;
+            const btnSubir2 = colEvid ? colEvid.querySelector('.btn-subir-foto2') : null;
+            const imgPrev2 = document.getElementById(`preview-foto2-${idx}`);
+
             const getEstadoActual = () => {
                 let estado = '';
                 radios.forEach(r => { if (r.checked) estado = r.value; });
@@ -2294,6 +2406,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (inputFoto) inputFoto.disabled = false;
                         if (btnTomar) btnTomar.disabled = false;
                         if (btnSubir) btnSubir.disabled = false;
+
+                        // Slot 2 solo si rol lo permite
+                        if (inputFoto2) inputFoto2.disabled = !puedeSubirEvidencia2;
+                        if (btnTomar2) btnTomar2.disabled = !puedeSubirEvidencia2;
+                        if (btnSubir2) btnSubir2.disabled = !puedeSubirEvidencia2;
                     }
                 } else {
                     if (colDano) colDano.style.display = 'none';
@@ -2315,6 +2432,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (btnTomar) btnTomar.disabled = true;
                         if (btnSubir) btnSubir.disabled = true;
                         if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+
+                        if (inputFoto2) { inputFoto2.disabled = true; try { inputFoto2.value = ''; } catch {} }
+                        if (btnTomar2) btnTomar2.disabled = true;
+                        if (btnSubir2) btnSubir2.disabled = true;
+                        if (imgPrev2) { imgPrev2.src = ''; imgPrev2.style.display = 'none'; }
+
                         delete fotosTomadas[idx];
                     }
                 }
@@ -2355,7 +2478,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnTomar.addEventListener('click', async () => {
                     try {
                         await abrirCamaraParaIndice(idx, (blob) => {
-                            fotosTomadas[idx] = { blob };
+                            fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob };
                             try { if (inputFoto) inputFoto.value = ''; } catch {}
                             if (imgPrev) {
                                 imgPrev.src = URL.createObjectURL(blob);
@@ -2364,6 +2487,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     } catch (e) {
                         console.warn('No se pudo capturar foto', e);
+                    }
+                });
+            }
+
+            // Handler para tomar foto 2 con cámara (solo SGI/supervisor/director/admin)
+            if (btnTomar2) {
+                btnTomar2.addEventListener('click', async () => {
+                    try {
+                        if (!puedeSubirEvidencia2) return;
+                        await abrirCamaraParaIndice(idx, (blob) => {
+                            fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: blob };
+                            try { if (inputFoto2) inputFoto2.value = ''; } catch {}
+                            if (imgPrev2) {
+                                imgPrev2.src = URL.createObjectURL(blob);
+                                imgPrev2.style.display = '';
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('No se pudo capturar foto 2', e);
                     }
                 });
             }
@@ -2379,13 +2521,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const file = inputFoto.files && inputFoto.files[0] ? inputFoto.files[0] : null;
                         if (!file) return;
-                        delete fotosTomadas[idx];
+                        fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob: null };
                         if (imgPrev) {
                             imgPrev.src = URL.createObjectURL(file);
                             imgPrev.style.display = '';
                         }
                     } catch (e) {
                         console.warn('No se pudo leer la foto seleccionada', e);
+                    }
+                });
+            }
+
+            // Handler para subir foto 2 desde galería / archivos
+            if (btnSubir2 && inputFoto2) {
+                btnSubir2.addEventListener('click', () => {
+                    if (!puedeSubirEvidencia2) return;
+                    try { inputFoto2.click(); } catch {}
+                });
+            }
+            if (inputFoto2) {
+                inputFoto2.addEventListener('change', () => {
+                    try {
+                        if (!puedeSubirEvidencia2) return;
+                        const file = inputFoto2.files && inputFoto2.files[0] ? inputFoto2.files[0] : null;
+                        if (!file) return;
+                        fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: null };
+                        if (imgPrev2) {
+                            imgPrev2.src = URL.createObjectURL(file);
+                            imgPrev2.style.display = '';
+                        }
+                    } catch (e) {
+                        console.warn('No se pudo leer la foto 2 seleccionada', e);
                     }
                 });
             }
@@ -3228,8 +3394,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const inputOtro = filaHtml.querySelector(`input[name="param-${idx}-dano-otro"]`);
                 const detalleOtro = inputOtro ? (inputOtro.value || '').trim() : '';
                 const inputFoto = filaHtml.querySelector(`input[name="param-${idx}-foto"]`);
+                const inputFoto2 = filaHtml.querySelector(`input[name="param-${idx}-foto2"]`);
                 let evidenciaNombre = '';
                 let evidenciaPath = '';
+                let evidenciaNombre2 = '';
+                let evidenciaPath2 = '';
                 if (estado && estado.toUpperCase() === 'MALO') {
                     const fotoBlob = (fotosTomadas[idx]?.blob) || (inputFoto && inputFoto.files && inputFoto.files[0]) || null;
                     if (fotoBlob) {
@@ -3250,7 +3419,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         const idxSafe = String(idx).padStart(2, '0');
                         evidenciaNombre = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}.jpg`;
                         evidenciaPath = `inspecciones/${localId}/${evidenciaNombre}`;
-                        fotosParaSubir.push({ idx, nombre, file: fotoBlob, evidenciaNombre });
+                        fotosParaSubir.push({ idx, slot: 1, nombre, file: fotoBlob, evidenciaNombre });
+                    }
+
+                    // Foto 2 (solo SGI/supervisor/director/admin)
+                    const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                    const fotoBlob2 = puedeSubirEvidencia2
+                        ? ((fotosTomadas[idx]?.blob2) || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]) || null)
+                        : null;
+                    if (fotoBlob2) {
+                        const ahora = new Date();
+                        const dd = String(ahora.getDate()).padStart(2, '0');
+                        const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                        const yy = String(ahora.getFullYear()).slice(-2);
+                        const fechaSafe = `${dd}-${mm}-${yy}`;
+                        const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
+                        const slug = String(nombre || '')
+                            .toLowerCase()
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/^-+|-+$/g, '')
+                            .slice(0, 28);
+                        const idxSafe = String(idx).padStart(2, '0');
+                        evidenciaNombre2 = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}-2.jpg`;
+                        evidenciaPath2 = `inspecciones/${localId}/${evidenciaNombre2}`;
+                        fotosParaSubir.push({ idx, slot: 2, nombre, file: fotoBlob2, evidenciaNombre: evidenciaNombre2 });
                     }
                 }
 
@@ -3267,7 +3461,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                parametrosCapturados.push({ nombre, estado, tipoDano, detalleOtro, hasEvidencia: !!evidenciaNombre, evidenciaNombre, evidenciaPath });
+                // Preservar evidencia 2 previa si estamos editando y no se adjuntó una nueva
+                if (isEditingExisting && estado && estado.toUpperCase() === 'MALO' && !evidenciaNombre2) {
+                    const prev = (prevParams && prevParams[idx]) ? prevParams[idx] : null;
+                    if (prev) {
+                        const prevNombre2 = (prev.evidenciaNombre2 != null) ? String(prev.evidenciaNombre2) : '';
+                        const prevPath2 = (prev.evidenciaPath2 != null) ? String(prev.evidenciaPath2) : '';
+                        if (prevNombre2 || prevPath2) {
+                            evidenciaNombre2 = prevNombre2;
+                            evidenciaPath2 = prevPath2;
+                        }
+                    }
+                }
+
+                parametrosCapturados.push({
+                    nombre,
+                    estado,
+                    tipoDano,
+                    detalleOtro,
+                    hasEvidencia: !!evidenciaNombre,
+                    evidenciaNombre,
+                    evidenciaPath,
+                    evidenciaNombre2,
+                    evidenciaPath2,
+                });
             });
 
             if (obsFotoBlob) {
@@ -3504,27 +3721,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Subir evidencias (fotos) a Storage y luego persistir evidenciaUrl/evidenciaPath en Firestore
                     const storage = getStorage();
                     if (Array.isArray(fotosParaSubir) && fotosParaSubir.length) {
-                        const urlsPorIdx = {};
+                        const urlsPorKey = {};
                         for (const f of fotosParaSubir) {
                             const name = (f && f.evidenciaNombre)
                                 ? String(f.evidenciaNombre)
                                 : `foto-${String(f && f.idx != null ? f.idx : '')}.jpg`;
+                            const slot = (f && f.slot != null) ? String(f.slot) : '1';
                             // Usar la misma carpeta que evidenciaPath (localId)
                             const pth = `inspecciones/${localId}/${name}`;
                             const stRef = ref(storage, pth);
                             await uploadBytes(stRef, f.file);
                             const url = await getDownloadURL(stRef);
-                            urlsPorIdx[String(f.idx)] = url;
+                            urlsPorKey[`${String(f.idx)}-${slot}`] = url;
                         }
 
                         const nextParams = (parametrosCapturados || []).map((p, idx) => {
-                            const u = urlsPorIdx[String(idx)] || '';
-                            if (!u) return p;
-                            const name = (p && p.evidenciaNombre) ? String(p.evidenciaNombre) : '';
-                            const evidenciaPath = (p && p.evidenciaPath)
-                                ? String(p.evidenciaPath)
-                                : (name ? `inspecciones/${localId}/${name}` : '');
-                            return { ...(p || {}), evidenciaUrl: u, evidenciaPath };
+                            const u1 = urlsPorKey[`${String(idx)}-1`] || '';
+                            const u2 = urlsPorKey[`${String(idx)}-2`] || '';
+                            if (!u1 && !u2) return p;
+
+                            const next = { ...(p || {}) };
+                            if (u1) {
+                                const name = (next && next.evidenciaNombre) ? String(next.evidenciaNombre) : '';
+                                const evidenciaPath = (next && next.evidenciaPath)
+                                    ? String(next.evidenciaPath)
+                                    : (name ? `inspecciones/${localId}/${name}` : '');
+                                next.evidenciaUrl = u1;
+                                next.evidenciaPath = evidenciaPath;
+                            }
+                            if (u2) {
+                                const name2 = (next && next.evidenciaNombre2) ? String(next.evidenciaNombre2) : '';
+                                const evidenciaPath2 = (next && next.evidenciaPath2)
+                                    ? String(next.evidenciaPath2)
+                                    : (name2 ? `inspecciones/${localId}/${name2}` : '');
+                                next.evidenciaUrl2 = u2;
+                                next.evidenciaPath2 = evidenciaPath2;
+                            }
+                            return next;
                         });
 
                         // Guardar URLs resueltas en el documento (merge)
