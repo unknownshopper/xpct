@@ -755,65 +755,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function generarOsAutomatico(equipo, inicioServicioTexto) {
-        // Formato de OS: PCT-YY-XXX
-        //  - PCT: prefijo fijo
-        //  - YY: últimos 2 dígitos del año del inicio de servicio
-        //  - XXX: consecutivo de 3 dígitos dentro de ese año
-        // Regla de negocio: la OS es por cliente+ubicación y se mantiene idéntica aunque cruce de año.
-        // Implementación:
-        // 1) Si existe alguna actividad ABIERTA (sin terminación) con mismo cliente+ubicación, reutilizar su OS.
-        // 2) Si no existe abierta, generar una nueva OS tomando el consecutivo MAX para ese cliente+ubicación (sin importar año)
-        //    y aumentando +1. El prefijo usa YY del inicio actual, pero el consecutivo es global por cliente+ubicación.
+        // Formato de OS: {OC}-NN
+        //  - OC: la OC interna vigente (campo oc / ordenSuministro al crear)
+        //  - NN: consecutivo de 2 dígitos dentro de esa OC
+        // Regla: para una misma OC interna, reutilizar la OS abierta si existe; si no, tomar el máximo NN usado y +1.
 
-        const partes = (inicioServicioTexto || '').split('/');
-        if (partes.length !== 3) return '';
-        const aaStr = partes[2];
-        const aa = parseInt(aaStr, 10);
-        if (isNaN(aa)) return '';
-        const yy = String(aa).padStart(2, '0');
+        const ocSel = ((document.getElementById('act-orden-suministro') || {}).value || '').toString().trim();
+        if (!ocSel) return '';
 
-        // Cliente y Ubicación actuales del formulario
-        const clienteSel = (document.getElementById('act-cliente') || {}).value || '';
-        const ubicacionSel = (document.getElementById('act-ubicacion') || {}).value || '';
+        const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`^${esc(ocSel)}-(\\d{2,})$`);
 
-        const cliKey = (clienteSel || '').toString().trim().toUpperCase();
-        const ubiKey = (ubicacionSel || '').toString().trim().toUpperCase();
-
-        // 1) Reutilizar OS abierta si existe
-        const abierta = listaActividad.find(reg => {
-            const cli = (reg.cliente || '').toString().trim().toUpperCase();
-            const ubi = (reg.ubicacion || '').toString().trim().toUpperCase();
+        // Reutilizar OS abierta si existe (misma OC interna)
+        const abierta = (Array.isArray(listaActividad) ? listaActividad : []).find(reg => {
             const term = (reg.terminacionServicio || '').toString().trim();
             const os = (reg.os || '').toString().trim();
-            return cli === cliKey && ubi === ubiKey && !term && !!os;
+            const ocInt = ((reg.oc || reg.ordenSuministro || '')).toString().trim();
+            return ocInt === ocSel && !term && !!os;
         });
         if (abierta && abierta.os) return abierta.os;
 
-        // 2) Generar nueva: tomar máximo consecutivo usado por cliente+ubicación, sin importar año
-        const existentesAll = listaActividad
-            .filter(reg => {
-                const cli = (reg.cliente || '').toString().trim().toUpperCase();
-                const ubi = (reg.ubicacion || '').toString().trim().toUpperCase();
-                return cli === cliKey && ubi === ubiKey && !!(reg.os || '').toString().trim();
-            })
-            .map(reg => (reg.os || '').toString().trim());
-
-        let maxConsecGlobal = 0;
-        existentesAll.forEach(os => {
-            // Espera formato PCT-YY-XXX
-            const m = os.match(/^PCT-\d{2}-(\d{3})$/);
+        // Generar nueva: máximo sufijo NN dentro de esa OC interna
+        let maxN = 0;
+        (Array.isArray(listaActividad) ? listaActividad : []).forEach(reg => {
+            const ocInt = ((reg.oc || reg.ordenSuministro || '')).toString().trim();
+            if (ocInt !== ocSel) return;
+            const os = (reg.os || '').toString().trim();
+            const m = os.match(re);
             if (!m) return;
-            const num = parseInt(m[1], 10);
-            if (!isNaN(num) && num > maxConsecGlobal) maxConsecGlobal = num;
+            const n = parseInt(m[1], 10);
+            if (!isNaN(n) && n > maxN) maxN = n;
         });
 
-        const siguiente = maxConsecGlobal + 1;
-        const consecutivo = String(siguiente).padStart(3, '0');
-        const prefijo = `PCT-${yy}-`;
-        const nuevaOs = `${prefijo}${consecutivo}`;
-        return nuevaOs;
-
-        // (bloque anterior reemplazado por lógica global por cliente+ubicación)
+        const siguiente = maxN + 1;
+        const suf = String(siguiente).padStart(2, '0');
+        return `${ocSel}-${suf}`;
     }
 
     function generarOcAutomatica(equipo, inicioServicioTexto) {
@@ -821,8 +797,8 @@ document.addEventListener('DOMContentLoaded', () => {
         //  - 4301: prefijo fijo
         //  - YY: últimos 2 dígitos del año del inicio de servicio
         //  - NNNN: consecutivo de 4 dígitos dentro de ese año
-        // El consecutivo se lleva por combinación (cliente, equipo, año),
-        // alineado con la lógica usada en trazabilidades.html para ocPorPeriodo.
+        // El consecutivo se lleva por combinación (cliente, ubicación, año)
+        // para garantizar la regla operativa: 1 OC interna = 1 ubicación.
 
         const partes = (inicioServicioTexto || '').split('/');
         if (partes.length !== 3) return '';
@@ -832,18 +808,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const yy = String(aa).padStart(2, '0');
 
         const clienteSel = (document.getElementById('act-cliente') || {}).value || '';
-        const equipoSel = (equipo || '').toString();
-        if (!clienteSel || !equipoSel) return '';
+        const ubicSel = (document.getElementById('act-ubicacion') || {}).value || '';
+        if (!clienteSel || !ubicSel) return '';
 
         const prefijo = `4301${yy}`;
 
-        // Buscar OCs existentes en actividades para misma combinación cliente+equipo+año
+        // Buscar OCs existentes en actividades para misma combinación cliente+ubicación+año
         const existentes = listaActividad
             .filter(reg => {
                 const cli = (reg.cliente || '').toString();
-                const eq = (reg.equipo || '').toString();
+                const ubi = (reg.ubicacion || '').toString();
                 const ini = (reg.inicioServicio || '').toString();
-                if (cli !== clienteSel || eq !== equipoSel) return false;
+                if (cli !== clienteSel || ubi !== ubicSel) return false;
                 return ini.endsWith(`/${yy}`);
             })
             .map(reg => (reg.ordenSuministro || reg.oc || '').toString().trim())
@@ -929,16 +905,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const eqRef = (equiposSeleccionados && equiposSeleccionados.length) ? equiposSeleccionados[0] : '';
             const inicioSrv = base.inicioServicio || '';
 
-            // OS
-            if (!base.os) {
-                const osAuto = generarOsAutomatico(eqRef, inicioSrv);
-                if (osAuto) {
-                    const inp = document.getElementById('act-os');
-                    if (inp) inp.value = osAuto;
-                    base.os = osAuto;
-                }
-            }
-
             // OC
             if (!base.ordenSuministro) {
                 const ocAuto = generarOcAutomatica(eqRef, inicioSrv);
@@ -946,6 +912,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const inp = document.getElementById('act-orden-suministro');
                     if (inp) inp.value = ocAuto;
                     base.ordenSuministro = ocAuto;
+                }
+            }
+
+            // OS (derivada de OC interna)
+            if (!base.os) {
+                const osAuto = generarOsAutomatico(eqRef, inicioSrv);
+                if (osAuto) {
+                    const inp = document.getElementById('act-os');
+                    if (inp) inp.value = osAuto;
+                    base.os = osAuto;
                 }
             }
 
@@ -1078,6 +1054,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ...base,
                     os: osFinal,
                     ordenSuministro: ocFinal,
+                    oc: ocFinal,
                     equipo: eq,
                     descripcion,
                     fechaRegistro: ahora,

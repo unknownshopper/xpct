@@ -138,6 +138,15 @@
                         <button type="button" id="adm-aplicar-fecha-lote" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Aplicar fecha a selección</button>
                     </div>
                 </div>
+
+                <div style="display:flex; flex-direction:column;">
+                    <label style="font-size:0.75rem; color:#4b5563;">OC interna</label>
+                    <button type="button" id="adm-migrar-oc-interna" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Migrar/limpiar OC interna</button>
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                    <label style="font-size:0.75rem; color:#4b5563;">OS</label>
+                    <button type="button" id="adm-normalizar-os" style="font-size:0.75rem; padding:0.3rem 0.5rem;">Normalizar OS ({OC}-NN)</button>
+                </div>
             </div>
             <div class="actividad-toolbar-right" style="font-size: 0.85rem; color:#4b5563; display:flex; gap:0.5rem; align-items:center;">
                 <button id="adm-btn-actualizar" type="button" title="Actualizar desde servidor" style="font-size:0.8rem; padding:0.3rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#f9fafb; cursor:pointer;">
@@ -178,8 +187,21 @@
               .detalle-equipo table tbody td:nth-child(2) {
                 display: table-cell !important;
               }
+              .tabla-inspecciones-wrapper {
+                position: relative;
+                overflow-x: auto;
+                overflow-y: visible;
+              }
+
+              .tabla-inspecciones-wrapper thead th {
+                position: sticky;
+                top: 0;
+                z-index: 50;
+                background: #f3f4f6;
+                box-shadow: 0 2px 0 rgba(15, 23, 42, 0.08);
+              }
             </style>
-            <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
+            <div class="tabla-inspecciones-wrapper">
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
                     <thead>
                         <tr style="background:#f3f4f6;">
@@ -198,7 +220,7 @@
                             <th style="text-align:center; padding:0.4rem;">Precio</th>
                             <th style="text-align:center; padding:0.4rem;">Ingreso acumulado</th>
                             <th style="text-align:center; padding:0.4rem;">OS</th>
-                            <th style="text-align:center; padding:0.4rem;">OC</th>
+                            <th style="text-align:center; padding:0.4rem;">OC cliente</th>
                             <th style="text-align:center; padding:0.4rem;">Est-Cot</th>
                             <th style="text-align:center; padding:0.4rem;">Factura</th>
                             <th style="text-align:left; padding:0.4rem;">Acciones</th>
@@ -208,6 +230,10 @@
                     <tbody id="adm-tbody-actividad">
                     </tbody>
                 </table>
+            </div>
+
+            <div id="adm-sticky-head" style="position:fixed; display:none; z-index:999; background:#f3f4f6; overflow:hidden; border-bottom:1px solid #e5e7eb; box-shadow:0 2px 0 rgba(15, 23, 42, 0.08);">
+                <div id="adm-sticky-head-inner" style="overflow:hidden;"></div>
             </div>
             <p id="adm-msg-vacio" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                 No hay registros de actividad todavía.
@@ -1235,6 +1261,113 @@
             }
         }
 
+        // Sticky header robusto (no depende de position:sticky, que falla en tablas grandes/overflow)
+        function ensureStickyHeader() {
+            if (window.__admStickyHeader) return window.__admStickyHeader;
+
+            const sticky = document.getElementById('adm-sticky-head');
+            const stickyInner = document.getElementById('adm-sticky-head-inner');
+            const wrapper = document.querySelector('.tabla-inspecciones-wrapper');
+            const table = wrapper ? wrapper.querySelector('table') : null;
+            const thead = table ? table.querySelector('thead') : null;
+            if (!sticky || !stickyInner || !wrapper || !table || !thead) return null;
+
+            let clonedHead = null;
+
+            function buildClone() {
+                stickyInner.innerHTML = '';
+                const clonedTable = document.createElement('table');
+                clonedTable.style.cssText = 'border-collapse:collapse; font-size:0.9rem; min-width:900px; width:100%;';
+                clonedHead = thead.cloneNode(true);
+                clonedTable.appendChild(clonedHead);
+                stickyInner.appendChild(clonedTable);
+
+                try {
+                    const origThs = Array.from(thead.querySelectorAll('th'));
+                    const cloneThs = Array.from(clonedHead.querySelectorAll('th'));
+                    cloneThs.forEach((th, i) => {
+                        th.style.cursor = origThs[i] && origThs[i].style && origThs[i].style.cursor ? origThs[i].style.cursor : '';
+                        th.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            const target = origThs[i];
+                            if (target) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                        });
+                    });
+
+                    const origChk = document.getElementById('adm-select-todos');
+                    const cloneChk = clonedHead.querySelector('#adm-select-todos');
+                    if (origChk && cloneChk) {
+                        cloneChk.removeAttribute('id');
+                        cloneChk.addEventListener('change', () => {
+                            origChk.checked = cloneChk.checked;
+                            origChk.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                    }
+                } catch {}
+            }
+
+            function syncGeometry() {
+                if (!clonedHead) return;
+                const rect = wrapper.getBoundingClientRect();
+                const hdrH = thead.getBoundingClientRect().height || 0;
+
+                sticky.style.left = `${Math.max(0, rect.left)}px`;
+                sticky.style.width = `${Math.max(0, rect.width)}px`;
+                sticky.style.top = `0px`;
+                sticky.style.height = `${hdrH}px`;
+
+                const origThs = Array.from(thead.querySelectorAll('th'));
+                const cloneThs = Array.from(clonedHead.querySelectorAll('th'));
+                origThs.forEach((th, i) => {
+                    const w = th.getBoundingClientRect().width;
+                    if (cloneThs[i]) cloneThs[i].style.width = `${w}px`;
+                });
+
+                const sl = wrapper.scrollLeft || 0;
+                stickyInner.style.marginLeft = `${-sl}px`;
+                stickyInner.style.width = `${table.scrollWidth}px`;
+            }
+
+            function shouldShow() {
+                const tbody = table.querySelector('tbody');
+                const tableRect = table.getBoundingClientRect();
+                const hdrH = thead.getBoundingClientRect().height || 0;
+                const inView = tableRect.bottom > hdrH && tableRect.top < 0;
+                const hasRows = !!(tbody && tbody.children && tbody.children.length);
+                return inView && hasRows;
+            }
+
+            function onTick() {
+                if (shouldShow()) {
+                    sticky.style.display = '';
+                    syncGeometry();
+                } else {
+                    sticky.style.display = 'none';
+                }
+            }
+
+            buildClone();
+            onTick();
+
+            window.addEventListener('scroll', onTick, { passive: true });
+            window.addEventListener('resize', onTick);
+            wrapper.addEventListener('scroll', () => {
+                if (sticky.style.display !== 'none') syncGeometry();
+            }, { passive: true });
+
+            const api = {
+                refresh: () => {
+                    try { buildClone(); } catch {}
+                    onTick();
+                }
+            };
+            window.__admStickyHeader = api;
+            return api;
+        }
+
+        try { ensureStickyHeader(); } catch {}
+
         function renderTabla() {
             const tbody = document.getElementById('adm-tbody-actividad');
             const msgVacio = document.getElementById('adm-msg-vacio');
@@ -1427,13 +1560,55 @@
                 return true;
             });
 
-            // Ordenar para agrupar visualmente, dando prioridad a actividades abiertas (sin terminación)
+            // Ordenar para agrupar visualmente.
+            // Regla: los ABIERTOS deben permanecer arriba, sin romper agrupación por OC/OS.
+            // Importante: el estado real se deriva de actividadPeriodos si existe (mismo criterio que el render).
+            const estadoPeso = (reg) => {
+                const id = reg.id;
+                const infoPer = mapaPeriodos.get(id);
+                const termTexto = infoPer?.ultimoFin ? infoPer.ultimoFin : (reg.terminacionServicio || '');
+                const fin = (termTexto || '').toString().trim();
+                if (!fin) return 0; // abierta
+                const esFinal = infoPer?.ultimoTipo ? (infoPer.ultimoTipo === 'FINAL') : (reg.terminacionEsFinal === true);
+                return esFinal ? 2 : 1; // parcial (1) / final (2)
+            };
+
+            // Precalcular qué OCs/OS tienen abiertos (O(n)) para evitar .some() dentro del sort
+            const ocTieneAbierto = new Map();
+            const osTieneAbierto = new Map(); // key `${ocKey}||${osKey}`
+            listaFiltrada.forEach(r => {
+                const ocKey = ((r.oc || r.ordenSuministro || '')).toString().trim().toUpperCase() || 'SIN OC';
+                const osKey = ((r.os || '')).toString().trim().toUpperCase() || 'SIN OS';
+                const w = estadoPeso(r);
+                if (w === 0) {
+                    ocTieneAbierto.set(ocKey, true);
+                    osTieneAbierto.set(`${ocKey}||${osKey}`, true);
+                }
+            });
+
+            // 1) OCs con al menos un abierto arriba
+            // 2) Dentro de OC, OS con al menos un abierto arriba
+            // 3) Dentro de OS, abiertos primero, luego parciales, luego finales
             const listaOrdenada = [...listaFiltrada].sort((a, b) => {
-                const estadoPeso = (reg) => {
-                    const fin = (reg.terminacionServicio || '').toString().trim();
-                    if (!fin) return 0; // abierta
-                    return reg.terminacionEsFinal ? 2 : 1; // parcial (1) / final (2)
-                };
+                const ocA = (a.oc || a.ordenSuministro || '').toString().trim().toUpperCase();
+                const ocB = (b.oc || b.ordenSuministro || '').toString().trim().toUpperCase();
+                const ocKeyA = ocA || 'SIN OC';
+                const ocKeyB = ocB || 'SIN OC';
+
+                const osA = (a.os || '').toString().trim().toUpperCase();
+                const osB = (b.os || '').toString().trim().toUpperCase();
+                const osKeyA = osA || 'SIN OS';
+                const osKeyB = osB || 'SIN OS';
+
+                const ocOpenA = ocTieneAbierto.get(ocKeyA) ? 1 : 0;
+                const ocOpenB = ocTieneAbierto.get(ocKeyB) ? 1 : 0;
+                if (ocOpenA !== ocOpenB) return ocOpenB - ocOpenA;
+                if (ocKeyA !== ocKeyB) return ocKeyA < ocKeyB ? -1 : 1;
+
+                const osOpenA = osTieneAbierto.get(`${ocKeyA}||${osKeyA}`) ? 1 : 0;
+                const osOpenB = osTieneAbierto.get(`${ocKeyB}||${osKeyB}`) ? 1 : 0;
+                if (osOpenA !== osOpenB) return osOpenB - osOpenA;
+                if (osKeyA !== osKeyB) return osKeyA < osKeyB ? -1 : 1;
 
                 const ea = estadoPeso(a);
                 const eb = estadoPeso(b);
@@ -1475,6 +1650,17 @@
                 return 0;
             });
 
+            // Precalcular ubicaciones por OC (regla: 1 OC interna/cliente = 1 ubicación)
+            const mapaUbicPorOc = new Map();
+            for (const reg of listaOrdenada) {
+                const ocKey = (reg.oc || reg.ordenSuministro || '').toString().trim().toUpperCase() || 'SIN OC';
+                if (!mapaUbicPorOc.has(ocKey)) mapaUbicPorOc.set(ocKey, new Set());
+                const u = (reg.ubicacion || '').toString().trim().toUpperCase() || 'SIN UBIC';
+                mapaUbicPorOc.get(ocKey).add(u);
+            }
+
+            let ocActual = '';
+            let osActual = '';
             let clienteActual = '';
             let areaActual = '';
             let ubicacionActual = '';
@@ -1492,6 +1678,7 @@
                 const termTexto = infoPer?.ultimoFin ? infoPer.ultimoFin : (reg.terminacionServicio || '');
                 const os = reg.os || '';
                 const oc = reg.ordenSuministro || '';
+                const ocGrupo = reg.oc || oc;
                 const estCot = reg.estCot || '';
                 const factura = reg.factura || '';
                 const precio = Number(reg.precio || 0);
@@ -1577,6 +1764,54 @@
                     if (precioPorEquipo > 0) {
                         sumaPrecios += precioPorEquipo;
                         cuentaPrecios += 1;
+                    }
+
+                    // Agrupar por OC / OS (similar a actividoc) antes de cliente/área/ubicación
+                    {
+                        const ocKey = (ocGrupo || '').toString().trim().toUpperCase() || 'SIN OC';
+                        const osKey = (os || '').toString().trim().toUpperCase() || 'SIN OS';
+                        if (ocKey !== ocActual) {
+                            ocActual = ocKey;
+                            osActual = '';
+                            clienteActual = '';
+                            areaActual = '';
+                            ubicacionActual = '';
+                            const trGrupoOc = document.createElement('tr');
+                            trGrupoOc.className = 'adm-group-oc';
+                            trGrupoOc.innerHTML = `
+                                <td colspan="15" style="padding:0.55rem 0.75rem; background:#0f172a; font-weight:800; font-size:0.9rem; color:#f9fafb; border-top:2px solid #0b1220; border-bottom:1px solid #0b1220; text-transform:uppercase; letter-spacing:0.03em;">
+                                    OC interna: ${ocActual}
+                                </td>
+                            `;
+                            tbody.appendChild(trGrupoOc);
+
+                            const setUbic = mapaUbicPorOc.get(ocActual);
+                            if (setUbic && setUbic.size > 1) {
+                                const trWarnOc = document.createElement('tr');
+                                const ubicList = Array.from(setUbic.values()).sort().join(', ');
+                                trWarnOc.className = 'adm-group-oc-warn';
+                                trWarnOc.innerHTML = `
+                                    <td colspan="15" style="padding:0.35rem 0.75rem; background:#fff7ed; color:#9a3412; border-bottom:1px solid #fed7aa; font-weight:700; font-size:0.82rem;">
+                                        ⚠ Esta OC tiene múltiples ubicaciones/pozos: ${ubicList}
+                                    </td>
+                                `;
+                                tbody.appendChild(trWarnOc);
+                            }
+                        }
+                        if (osKey !== osActual) {
+                            osActual = osKey;
+                            clienteActual = '';
+                            areaActual = '';
+                            ubicacionActual = '';
+                            const trGrupoOs = document.createElement('tr');
+                            trGrupoOs.className = 'adm-group-os';
+                            trGrupoOs.innerHTML = `
+                                <td colspan="15" style="padding:0.4rem 0.75rem; background:#111827; font-weight:700; font-size:0.85rem; color:#e5e7eb; border-bottom:1px solid #0f172a; letter-spacing:0.02em;">
+                                    OS: ${osActual}
+                                </td>
+                            `;
+                            tbody.appendChild(trGrupoOs);
+                        }
                     }
 
                     // Insertar encabezados de agrupación por cliente, área y ubicación cuando cambien
@@ -1958,7 +2193,18 @@
                             const id = chk.getAttribute('data-id');
                             if (!id) continue;
                             const ref = doc(db, 'actividades', id);
-                            batch.update(ref, updates);
+                            const regLocal = listaActividad.find(r => r.id === id);
+                            if (updates.ordenSuministro !== undefined && regLocal && !(regLocal.oc || '').toString().trim()) {
+                                const prevOc = (regLocal.ordenSuministro || '').toString().trim();
+                                const nextOc = (updates.ordenSuministro || '').toString().trim();
+                                if (prevOc && nextOc && prevOc !== nextOc) {
+                                    batch.update(ref, { ...updates, oc: prevOc });
+                                } else {
+                                    batch.update(ref, updates);
+                                }
+                            } else {
+                                batch.update(ref, updates);
+                            }
                             count++;
                             if (count % 400 === 0) { await batch.commit(); batch = writeBatch(db); }
                         }
@@ -1970,7 +2216,14 @@
                             const reg = listaActividad.find(r => r.id === id);
                             if (!reg) return;
                             if (updates.os !== undefined) reg.os = updates.os;
-                            if (updates.ordenSuministro !== undefined) reg.ordenSuministro = updates.ordenSuministro;
+                            if (updates.ordenSuministro !== undefined) {
+                                const prevOc = (reg.ordenSuministro || '').toString().trim();
+                                const nextOc = (updates.ordenSuministro || '').toString().trim();
+                                if (!(reg.oc || '').toString().trim() && prevOc && nextOc && prevOc !== nextOc) {
+                                    reg.oc = prevOc;
+                                }
+                                reg.ordenSuministro = updates.ordenSuministro;
+                            }
                             if (updates.estCot !== undefined) reg.estCot = updates.estCot;
                             if (updates.factura !== undefined) reg.factura = updates.factura;
                         });
@@ -2001,11 +2254,308 @@
                 RENTAS: listRentas,
             };
 
+            window.__admRenderTabla = renderTabla;
+            try { if (window.__admStickyHeader && typeof window.__admStickyHeader.refresh === 'function') window.__admStickyHeader.refresh(); } catch {}
+
             // Wire botón aplicar rango (una vez)
             if (!window.__admRangoBtnWired) {
                 const btnR = document.getElementById('adm-aplicar-rango');
                 if (btnR) btnR.addEventListener('click', () => renderTabla());
                 window.__admRangoBtnWired = true;
+            }
+
+            // Wire migración de OC interna (una vez)
+            if (!window.__admOcInternaWired) {
+                const btnMig = document.getElementById('adm-migrar-oc-interna');
+                if (btnMig) {
+                    btnMig.addEventListener('click', async () => {
+                        if (!(window.isAdmin || window.isDirector)) { alert('Solo admin o director pueden migrar la OC interna.'); return; }
+
+                        const base = Array.isArray(listaActividad) ? listaActividad : [];
+                        if (!base.length) { alert('No hay actividades cargadas.'); return; }
+
+                        const ocKeyOf = (reg) => (reg.oc || reg.ordenSuministro || '').toString().trim().toUpperCase() || 'SIN OC';
+                        const ubicKeyOf = (reg) => (reg.ubicacion || '').toString().trim().toUpperCase() || 'SIN UBIC';
+                        const getYy = (reg) => {
+                            const ini = (reg.inicioServicio || '').toString().trim();
+                            const d = parseFechaDdMmAa(ini);
+                            if (!d) return '';
+                            return String(d.getFullYear()).slice(-2);
+                        };
+
+                        const getYyFromOc = (ocStr) => {
+                            const s = (ocStr || '').toString().trim();
+                            const m = s.match(/^4301(\d{2})\d{4}$/);
+                            return m ? m[1] : '';
+                        };
+
+                        const getOcCliente = (reg) => (reg.ordenSuministro || '').toString().trim().toUpperCase();
+
+                        // Paso 1: backfill de OC interna faltante (oc := ordenSuministro actual)
+                        // Esto evita que la UI siga agrupando por fallback.
+                        const preUpdatesById = new Map();
+                        for (const reg of base) {
+                            const has = (reg.oc || '').toString().trim();
+                            const ocCli = getOcCliente(reg);
+                            if (!has && ocCli) {
+                                preUpdatesById.set(reg.id, { oc: ocCli });
+                            }
+                        }
+
+                        // Paso 2: conflicto real de negocio: una OC interna/cliente no debe tener múltiples ubicaciones
+                        const ocToUbics = new Map();
+                        for (const reg of base) {
+                            const ocK = ((reg.oc || '').toString().trim().toUpperCase()) || ocKeyOf(reg);
+                            if (!ocToUbics.has(ocK)) ocToUbics.set(ocK, new Set());
+                            ocToUbics.get(ocK).add(ubicKeyOf(reg));
+                        }
+
+                        const conflictOcs = Array.from(ocToUbics.entries())
+                            .filter(([ocK, setU]) => ocK && ocK !== 'SIN OC' && setU && setU.size > 1)
+                            .map(([ocK]) => ocK);
+
+                        if (!conflictOcs.length) {
+                            alert('No se detectaron conflictos de OC interna con múltiples ubicaciones.');
+                            return;
+                        }
+
+                        const totalPre = preUpdatesById.size;
+                        const msg = `Se detectaron ${conflictOcs.length} OC(s) interna(s) con múltiples ubicaciones.\n\nTambién se aplicará backfill a ${totalPre} registro(s) sin OC interna (oc := ordenSuministro).\n\nEsto NO cambia la OC del cliente (ordenSuministro).\n\n¿Deseas continuar?`;
+                        if (!confirm(msg)) return;
+
+                        const maxByYy = new Map();
+                        for (const reg of base) {
+                            const oc = (reg.oc || reg.ordenSuministro || '').toString().trim().toUpperCase();
+                            const yy = getYy(reg) || getYyFromOc(oc);
+                            if (!yy) continue;
+                            const pref = `4301${yy}`;
+                            if (!oc.startsWith(pref)) continue;
+                            const suf = oc.slice(pref.length);
+                            const num = parseInt(suf, 10);
+                            if (!isFinite(num)) continue;
+                            const prev = maxByYy.get(yy) || 0;
+                            if (num > prev) maxByYy.set(yy, num);
+                        }
+                        const nextOc = (yy) => {
+                            const cur = maxByYy.get(yy) || 0;
+                            const nxt = cur + 1;
+                            maxByYy.set(yy, nxt);
+                            return `4301${yy}${String(nxt).padStart(4, '0')}`;
+                        };
+
+                        const updatesById = new Map(preUpdatesById);
+                        for (const ocK of conflictOcs) {
+                            const regs = base.filter(r => ocKeyOf(r) === ocK);
+                            if (!regs.length) continue;
+
+                            const byUbi = new Map();
+                            for (const r of regs) {
+                                const u = ubicKeyOf(r);
+                                if (!byUbi.has(u)) byUbi.set(u, []);
+                                byUbi.get(u).push(r);
+                            }
+                            const ubis = Array.from(byUbi.keys());
+                            if (ubis.length <= 1) continue;
+
+                            // Mantener la OC original en la ubicación con más registros (minimiza cambios)
+                            ubis.sort((a, b) => {
+                                const ca = (byUbi.get(a) || []).length;
+                                const cb = (byUbi.get(b) || []).length;
+                                if (cb !== ca) return cb - ca;
+                                return String(a).localeCompare(String(b));
+                            });
+                            const keepUbi = ubis[0];
+
+                            for (const u of ubis) {
+                                const arr = byUbi.get(u) || [];
+                                if (!arr.length) continue;
+
+                                if (u === keepUbi) {
+                                    for (const r of arr) {
+                                        const cur = (r.oc || '').toString().trim().toUpperCase();
+                                        if (cur !== ocK) updatesById.set(r.id, { oc: ocK });
+                                    }
+                                    continue;
+                                }
+
+                                const seedOc = ocK;
+                                const yy = getYy(arr[0]) || getYyFromOc(seedOc) || getYyFromOc(getOcCliente(arr[0]));
+                                if (!yy) continue;
+                                const newOc = nextOc(yy);
+                                for (const r of arr) {
+                                    updatesById.set(r.id, { oc: newOc });
+                                }
+                            }
+                        }
+
+                        if (!updatesById.size) {
+                            alert('No se generaron cambios (no fue posible determinar nuevas OCs).');
+                            return;
+                        }
+
+                        try {
+                            const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                            const db = getFirestore();
+                            let batch = writeBatch(db);
+                            let count = 0;
+                            for (const [id, upd] of updatesById.entries()) {
+                                if (!id) continue;
+                                const ref = doc(db, 'actividades', id);
+                                batch.update(ref, upd);
+                                count += 1;
+                                if (count % 400 === 0) { await batch.commit(); batch = writeBatch(db); }
+                            }
+                            await batch.commit();
+
+                            for (const [id, upd] of updatesById.entries()) {
+                                const reg = base.find(r => r.id === id);
+                                if (!reg) continue;
+                                if (upd.oc !== undefined) reg.oc = upd.oc;
+                            }
+
+                            alert(`Listo. Se actualizaron ${updatesById.size} actividad(es) con OC interna corregida.`);
+                            renderTabla();
+                        } catch (e) {
+                            console.error('Error migrando OC interna', e);
+                            alert('No se pudo completar la migración. Intenta de nuevo.');
+                        }
+                    });
+                }
+                window.__admOcInternaWired = true;
+            }
+
+            // Wire normalización de OS por OC interna (una vez)
+            if (!window.__admOsNormWired) {
+                const btnOs = document.getElementById('adm-normalizar-os');
+                if (btnOs) {
+                    btnOs.addEventListener('click', async () => {
+                        if (!(window.isAdmin || window.isDirector)) { alert('Solo admin o director pueden normalizar OS.'); return; }
+                        if (!window.db) { alert('Firestore no disponible.'); return; }
+
+                        const regs = Array.isArray(listaActividad) ? listaActividad : [];
+                        if (!regs.length) { alert('No hay registros cargados.'); return; }
+
+                        const confirmar = confirm('Esto convertirá OS existentes al formato {OC interna}-NN para los registros cargados. ¿Continuar?');
+                        if (!confirmar) return;
+
+                        const getOcInt = (r) => ((r.oc || r.ordenSuministro || '')).toString().trim();
+                        const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                        // Mapa por OC interna → (OS vieja → OS nueva)
+                        const updatesById = new Map();
+
+                        const ocToRegs = new Map();
+                        regs.forEach(r => {
+                            const ocInt = getOcInt(r);
+                            if (!ocInt) return;
+                            if (!ocToRegs.has(ocInt)) ocToRegs.set(ocInt, []);
+                            ocToRegs.get(ocInt).push(r);
+                        });
+
+                        ocToRegs.forEach((arr, ocInt) => {
+                            const re = new RegExp(`^${esc(ocInt)}-(\\d{2,})$`);
+
+                            // 1) Detectar sufijos ya usados en esta OC (si ya hay algunos bien formados)
+                            const used = new Set();
+                            arr.forEach(r => {
+                                const os = (r.os || '').toString().trim();
+                                const m = os.match(re);
+                                if (m) {
+                                    const n = parseInt(m[1], 10);
+                                    if (!isNaN(n) && n > 0) used.add(n);
+                                }
+                            });
+
+                            const nextN = () => {
+                                let n = 1;
+                                while (used.has(n)) n++;
+                                used.add(n);
+                                return n;
+                            };
+
+                            // 2) Estabilizar: misma OS vieja dentro de la misma OC → mismo sufijo
+                            const oldToNew = new Map();
+                            const keyOld = (os) => (os || '').toString().trim();
+
+                            // Orden determinista: por fecha inicio (si existe) y luego por id
+                            const toTs = (r) => {
+                                const v = (r.inicioTs || 0);
+                                const n = typeof v === 'number' ? v : parseInt(v, 10);
+                                return isNaN(n) ? 0 : n;
+                            };
+                            const sorted = arr.slice().sort((a,b) => {
+                                const ta = toTs(a);
+                                const tb = toTs(b);
+                                if (ta !== tb) return ta - tb;
+                                return String(a.id || '').localeCompare(String(b.id || ''));
+                            });
+
+                            sorted.forEach(r => {
+                                const osOld = keyOld(r.os);
+
+                                // Si ya está en formato correcto para esta OC, no tocar
+                                if (osOld && re.test(osOld)) return;
+
+                                // Si OS vieja está vacía, usar llave especial por registro (para que cada vacío sea su propio consecutivo)
+                                const mapKey = osOld || `__EMPTY__:${r.id}`;
+
+                                if (!oldToNew.has(mapKey)) {
+                                    const n = nextN();
+                                    const suf = String(n).padStart(2, '0');
+                                    oldToNew.set(mapKey, `${ocInt}-${suf}`);
+                                }
+
+                                const osNew = oldToNew.get(mapKey);
+                                if (osNew && osNew !== osOld) {
+                                    updatesById.set(r.id, { os: osNew });
+                                }
+                            });
+                        });
+
+                        if (!updatesById.size) {
+                            alert('No se detectaron OS para normalizar en los registros cargados.');
+                            return;
+                        }
+
+                        try {
+                            const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                            const db = getFirestore();
+
+                            const chunk = (arr, size) => {
+                                const out = [];
+                                for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+                                return out;
+                            };
+
+                            const entries = Array.from(updatesById.entries());
+                            const parts = chunk(entries, 400);
+                            let total = 0;
+
+                            for (const part of parts) {
+                                const batch = writeBatch(db);
+                                part.forEach(([id, up]) => {
+                                    const ref = doc(window.db, 'actividades', id);
+                                    batch.update(ref, up);
+                                });
+                                await batch.commit();
+                                total += part.length;
+                            }
+
+                            // Reflejar localmente
+                            regs.forEach(r => {
+                                const up = updatesById.get(r.id);
+                                if (up && up.os !== undefined) r.os = up.os;
+                            });
+
+                            alert(`Listo. Se normalizaron OS en ${total} actividad(es).`);
+                            renderTabla();
+                        } catch (e) {
+                            console.error('Error normalizando OS', e);
+                            alert('No se pudo normalizar OS. Revisa consola.');
+                        }
+                    });
+                }
+                window.__admOsNormWired = true;
             }
 
             // Wire click en filas de resumen para abrir modal (una vez)
@@ -2203,8 +2753,16 @@
                     const regLocal = listaActividad.find(r => r.id === id);
                     if (!regLocal) return;
 
+                    const prevOc = (regLocal.ordenSuministro || '').toString().trim();
+                    const hasOcGrupo = (regLocal.oc || '').toString().trim();
+
                     regLocal.ordenSuministro = valor;
-                    await actualizarActividadEnFirestore(id, { ordenSuministro: valor });
+                    if (!hasOcGrupo && prevOc && valor && prevOc !== valor) {
+                        regLocal.oc = prevOc;
+                        await actualizarActividadEnFirestore(id, { oc: prevOc, ordenSuministro: valor });
+                    } else {
+                        await actualizarActividadEnFirestore(id, { ordenSuministro: valor });
+                    }
                 });
             });
 
