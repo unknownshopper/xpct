@@ -92,7 +92,12 @@
                 <span id="insp-pdf-ayuda" style="font-size:0.8rem; color:#6b7280;">Selecciona una o varias inspecciones realizadas.</span>
             </section>
 
-            <div class="tabla-inspecciones-wrapper" id="insp-seccion-principal">
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-pendientes">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
+                    <h3 style="margin:0; font-size:1rem;">Inspecciones próximas a inspeccionar</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-pendientes-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                </div>
+                <div id="insp-pendientes-body">
                 <table id="tabla-inspecciones" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#f3f4f6;">
@@ -118,15 +123,20 @@
                 <p id="mensaje-sin-inspecciones" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay inspecciones registradas todavía.
                 </p>
+                </div>
             </div>
 
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-huerfanas" style="margin-top:0.75rem; display:none;">
-                <h3 style="margin:0.25rem 0 0.5rem; font-size:1rem;">Inspecciones realizadas (sin actividad)</h3>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
+                    <h3 style="margin:0; font-size:1rem;">Inspecciones realizadas (sin actividad)</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-huerfanas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                </div>
+                <div id="insp-huerfanas-body">
                 <div id="insp-acciones-huerfanas" style="display:none; gap:0.5rem; align-items:center; margin:0 0 0.5rem; flex-wrap:wrap;">
                     <select id="insp-assign-huerfanas" style="font-size:0.85rem; padding:0.2rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
                         <option value="">(Asignar a...)</option>
-                        <option value="inspector01@pc-t.com.mx">inspector01@pc-t.com.mx</option>
-                        <option value="inspector02@pc-t.com.mx">inspector02@pc-t.com.mx</option>
+                        <option value="inspector01@pct.com">inspector01@pct.com</option>
+                        <option value="inspector02@pct.com">inspector02@pct.com</option>
                         <option value="capturista@pc-t.com.mx">capturista@pc-t.com.mx</option>
                         <option value="auxger@pc-t.com.mx">auxger@pc-t.com.mx</option>
                     </select>
@@ -154,6 +164,41 @@
                 <p id="mensaje-sin-huerfanas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay inspecciones realizadas sin actividad.
                 </p>
+                </div>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-realizadas" style="margin-top:0.75rem; display:none;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
+                    <h3 style="margin:0; font-size:1rem;">Inspecciones realizadas</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-realizadas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                </div>
+                <div id="insp-realizadas-body">
+                <table id="tabla-inspecciones-realizadas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:center; padding:0.4rem; width:32px;">
+                                <input type="checkbox" id="insp-select-todos-realizadas" title="Seleccionar / deseleccionar todos">
+                            </th>
+                            <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Serial</th>
+                            <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
+                            <th style="text-align:left; padding:0.4rem;">Lugar</th>
+                            <th style="text-align:left; padding:0.4rem;">Evaluación</th>
+                            <th style="text-align:left; padding:0.4rem;">Asignado a</th>
+                            <th style="text-align:left; padding:0.4rem;">Usuario</th>
+                            <th style="text-align:left; padding:0.4rem;">Observaciones</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-inspecciones-realizadas"></tbody>
+                </table>
+                <p id="mensaje-sin-realizadas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                    No hay inspecciones realizadas.
+                </p>
+                </div>
             </div>
         </section>
     </main>
@@ -215,14 +260,18 @@
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('tbody-inspecciones');
+        const tbodyRealizadas = document.getElementById('tbody-inspecciones-realizadas');
         const msg = document.getElementById('mensaje-sin-inspecciones');
+        const msgRealizadas = document.getElementById('mensaje-sin-realizadas');
         const tbodyHuerfanas = document.getElementById('tbody-inspecciones-huerfanas');
         const msgHuerfanas = document.getElementById('mensaje-sin-huerfanas');
         const secHuerfanas = document.getElementById('insp-seccion-huerfanas');
+        const secRealizadas = document.getElementById('insp-seccion-realizadas');
         const inputBuscar = document.getElementById('insp-buscar');
         const lblCont = document.getElementById('insp-contador');
         const chkTodos = document.getElementById('insp-select-todos');
         const chkTodosHuerfanas = document.getElementById('insp-select-todos-huerfanas');
+        const chkTodosRealizadas = document.getElementById('insp-select-todos-realizadas');
         const secAccionesPdf = document.getElementById('insp-acciones-pdf');
         const btnPdfIndividual = document.getElementById('btn-insp-pdf-individual');
         const btnPdfLote = document.getElementById('btn-insp-pdf-lote');
@@ -240,6 +289,22 @@
         // Mapa global actualizado en cada carga, para que los botones PDF siempre usen la data más reciente
         let inspeccionPorActividadGlobal = new Map();
 
+        try {
+            document.querySelectorAll('button.insp-sec-toggle').forEach(btn => {
+                if (btn.dataset.boundToggle === '1') return;
+                btn.dataset.boundToggle = '1';
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-target') || '';
+                    if (!id) return;
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const hidden = el.style.display === 'none';
+                    el.style.display = hidden ? '' : 'none';
+                    btn.textContent = hidden ? 'Contraer' : 'Expandir';
+                });
+            });
+        } catch {}
+
         function esAsignable(email) {
             const e = String(email || '').trim().toLowerCase();
             if (!e) return true;
@@ -250,6 +315,14 @@
                 return false;
             }
             return true;
+        }
+
+        function normInspectorEmail(v) {
+            const e = String(v || '').trim().toLowerCase();
+            if (!e) return '';
+            if (e === 'inspector01@pc-t.com.mx') return 'inspector01@pct.com';
+            if (e === 'inspector02@pc-t.com.mx') return 'inspector02@pct.com';
+            return e;
         }
 
         function escAttr(v) {
@@ -512,11 +585,14 @@
         async function cargarDatos() {
             tbody.innerHTML = '';
             msg.style.display = 'none';
+            if (tbodyRealizadas) tbodyRealizadas.innerHTML = '';
+            if (msgRealizadas) msgRealizadas.style.display = 'none';
             if (tbodyHuerfanas) tbodyHuerfanas.innerHTML = '';
             if (msgHuerfanas) msgHuerfanas.style.display = 'none';
             if (lblCont) lblCont.textContent = '0 registros';
             if (chkTodos) chkTodos.checked = false;
             if (chkTodosHuerfanas) chkTodosHuerfanas.checked = false;
+            if (chkTodosRealizadas) chkTodosRealizadas.checked = false;
             if (cardPendientes) cardPendientes.textContent = '0';
             if (cardRealizadas) cardRealizadas.textContent = '0';
 
@@ -743,11 +819,14 @@
 
             let visibles = 0;
 
-            function renderBloque(esRealizadas) {
+            function renderBloque(esRealizadas, tbodyTarget) {
                 let clienteActualKey = '';
                 let clienteActualLabel = '';
                 let areaActual = '';
                 let lugarActual = '';
+
+                const tbodyLocal = tbodyTarget;
+                if (!tbodyLocal) return;
 
                 if (filtroEstado === 'PENDIENTE' && esRealizadas) return;
                 if (filtroEstado === 'REALIZADA' && !esRealizadas) return;
@@ -817,12 +896,16 @@
 
                     let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
                     if (window.isAdmin || window.isSupervisor) {
-                        const opt = (val, label) => `<option value="${val}" ${asignado === val ? 'selected' : ''}>${label}</option>`;
+                        const asgNorm = normInspectorEmail(asignado);
+                        const opt = (val, label) => {
+                            const vNorm = normInspectorEmail(val);
+                            return `<option value="${val}" ${asgNorm && vNorm && asgNorm === vNorm ? 'selected' : ''}>${label}</option>`;
+                        };
                         asignadoHtml = `
                             <select class="insp-select-asignado" data-actividad-id="${act.id}" style="font-size:0.8rem; padding:0.15rem 0.35rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
                                 <option value="">(Sin asignar)</option>
-                                ${opt('inspector01@pc-t.com.mx', 'inspector01@pc-t.com.mx')}
-                                ${opt('inspector02@pc-t.com.mx', 'inspector02@pc-t.com.mx')}
+                                ${opt('inspector01@pct.com', 'inspector01@pct.com')}
+                                ${opt('inspector02@pct.com', 'inspector02@pct.com')}
                                 ${opt('capturista@pc-t.com.mx', 'capturista@pc-t.com.mx')}
                                 ${opt('auxger@pc-t.com.mx', 'auxger@pc-t.com.mx')}
                             </select>
@@ -835,7 +918,7 @@
 
                     const accionesHtml = (insp) ? `
                             <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
-                            ${(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
+                            ${(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
                             ${(() => {
                                 const t = (insp?.tipoInspeccion || '').toString().trim().toUpperCase();
                                 const obs = (insp?.observaciones || '').toString().trim();
@@ -865,7 +948,7 @@
                                 Cliente: ${clienteActualLabel}
                             </td>
                         `;
-                        tbody.appendChild(trGrupoCliente);
+                        tbodyLocal.appendChild(trGrupoCliente);
                     }
 
                     if (area && area !== areaActual) {
@@ -879,7 +962,7 @@
                                 <span>Área: ${areaActual}</span>
                             </td>
                         `;
-                        tbody.appendChild(trGrupoArea);
+                        tbodyLocal.appendChild(trGrupoArea);
                     }
 
                     if (lugar && lugar !== lugarActual) {
@@ -891,7 +974,7 @@
                                 Ubicación: ${lugarActual}
                             </td>
                         `;
-                        tbody.appendChild(trGrupoUbic);
+                        tbodyLocal.appendChild(trGrupoUbic);
                     }
 
                     const tr = document.createElement('tr');
@@ -969,13 +1052,13 @@
                         });
                     }
 
-                    tbody.appendChild(tr);
+                    tbodyLocal.appendChild(tr);
                     visibles += 1;
                 });
 
                 setTimeout(() => {
                     try {
-                        tbody.querySelectorAll('img.insp-thumb-malo').forEach(img => {
+                        tbodyLocal.querySelectorAll('img.insp-thumb-malo').forEach(img => {
                             if (img.dataset.boundClick === '1') return;
                             img.dataset.boundClick = '1';
                             img.addEventListener('click', (ev) => {
@@ -990,21 +1073,7 @@
             }
 
             // Primero bloque de pendientes
-            renderBloque(false);
-
-            // Insertar separador y luego bloque de realizadas (si hay)
-            const hayRealizadas = Array.from(actividades).some(act => inspeccionPorActividad.has(act.id));
-            if (hayRealizadas) {
-                const trSep = document.createElement('tr');
-                trSep.innerHTML = `
-                    <td colspan="13" style="padding:0.5rem 0.75rem; background:#111827; color:#f9fafb; font-weight:600; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.03em; border-top:2px solid #0f172a; border-bottom:1px solid #0f172a;">
-                        Inspecciones realizadas
-                    </td>
-                `;
-                tbody.appendChild(trSep);
-
-                renderBloque(true);
-            }
+            renderBloque(false, tbody);
 
             // Render de inspecciones huérfanas en sección independiente
             if (secHuerfanas) {
@@ -1064,12 +1133,16 @@
 
                     let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
                     if (window.isAdmin || window.isSupervisor) {
-                        const opt = (val, label) => `<option value="${val}" ${asignado === val ? 'selected' : ''}>${label}</option>`;
+                        const asgNorm = normInspectorEmail(asignado);
+                        const opt = (val, label) => {
+                            const vNorm = normInspectorEmail(val);
+                            return `<option value="${val}" ${asgNorm && vNorm && asgNorm === vNorm ? 'selected' : ''}>${label}</option>`;
+                        };
                         asignadoHtml = `
                             <select class="insp-select-asignado-huerfana" data-insp-id="${insp?.id || ''}" style="font-size:0.8rem; padding:0.15rem 0.35rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
                                 <option value="">(Sin asignar)</option>
-                                ${opt('inspector01@pc-t.com.mx', 'inspector01@pc-t.com.mx')}
-                                ${opt('inspector02@pc-t.com.mx', 'inspector02@pc-t.com.mx')}
+                                ${opt('inspector01@pct.com', 'inspector01@pct.com')}
+                                ${opt('inspector02@pct.com', 'inspector02@pct.com')}
                                 ${opt('capturista@pc-t.com.mx', 'capturista@pc-t.com.mx')}
                                 ${opt('auxger@pc-t.com.mx', 'auxger@pc-t.com.mx')}
                             </select>
@@ -1164,6 +1237,21 @@
                 }
             }
 
+            const hayRealizadas = Array.from(actividades).some(act => inspeccionPorActividad.has(act.id));
+            if (secRealizadas) {
+                const mostrarRealizadas = (filtroEstado !== 'PENDIENTE') && hayRealizadas;
+                secRealizadas.style.display = mostrarRealizadas ? 'block' : 'none';
+            }
+            if (tbodyRealizadas) {
+                renderBloque(true, tbodyRealizadas);
+            }
+            try {
+                if (msgRealizadas) {
+                    const mostrar = (filtroEstado !== 'PENDIENTE') && !hayRealizadas;
+                    msgRealizadas.style.display = mostrar ? 'block' : 'none';
+                }
+            } catch {}
+
             // Hacer tarjetas clicables como filtro rápido
             function actualizarFiltroCards() {
                 if (cardWrapPend) {
@@ -1227,7 +1315,7 @@
                     const actividadId = sel.getAttribute('data-actividad-id') || '';
                     if (!actividadId) return;
 
-                    const nuevo = sel.value || '';
+                    const nuevo = normInspectorEmail(sel.value || '');
                     if (!esAsignable(nuevo)) {
                         alert('No se puede asignar a supop@pc-t.com.mx. Solo sgi@pc-t.com.mx (y admin/director/supervisor) pueden asignarlo.');
                         try { sel.value = ''; } catch {}
@@ -1342,6 +1430,11 @@
                 btn.addEventListener('click', (ev) => {
                     ev.stopPropagation();
                     const actividadId = btn.getAttribute('data-actividad-id') || '';
+                    const inspId = btn.getAttribute('data-insp-id') || '';
+                    if (inspId) {
+                        window.location.href = `inspeccion.html?inspId=${encodeURIComponent(inspId)}`;
+                        return;
+                    }
                     if (!actividadId) return;
                     window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
                 });
@@ -1529,7 +1622,7 @@
                     try { ev.stopPropagation(); } catch {}
                     const inspId = sel.getAttribute('data-insp-id') || '';
                     if (!inspId) return;
-                    const nuevo = String(sel.value || '').trim();
+                    const nuevo = normInspectorEmail(String(sel.value || '').trim());
                     if (!esAsignable(nuevo)) {
                         alert('No se puede asignar a supop@pc-t.com.mx. Solo sgi@pc-t.com.mx (y admin/director/supervisor) pueden asignarlo.');
                         try { sel.value = ''; } catch {}
@@ -1540,10 +1633,10 @@
                             'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                         );
                         const db = getFirestore();
-                        await updateDoc(doc(db, 'inspecciones', inspId), { inspectorAsignado: nuevo });
+                        await updateDoc(doc(db, 'inspecciones', inspId), { inspectorAsignado: normInspectorEmail(nuevo) });
                         try {
                             if (typeof window.pctAudit === 'function') {
-                                await window.pctAudit('inspecciones_assign_inspector_huerfana', { inspId, inspectorAsignado: nuevo }, { throttleKey: `inspecciones_assign_inspector_huerfana_${inspId}` });
+                                await window.pctAudit('inspecciones_assign_inspector_huerfana', { inspId, inspectorAsignado: normInspectorEmail(nuevo) }, { throttleKey: `inspecciones_assign_inspector_huerfana_${inspId}` });
                             }
                         } catch {}
                         cargarDatos();
@@ -1660,6 +1753,22 @@
                 });
             }
 
+            // Seleccionar todos (realizadas)
+            if (chkTodosRealizadas && tbodyRealizadas) {
+                const filasR = tbodyRealizadas.querySelectorAll('.insp-select-fila');
+                chkTodosRealizadas.checked = filasR.length > 0 && Array.from(filasR).every(chk => chk.checked);
+                chkTodosRealizadas.onchange = () => {
+                    const marcado = chkTodosRealizadas.checked;
+                    filasR.forEach(chk => { chk.checked = marcado; });
+                };
+                filasR.forEach(chk => {
+                    chk.addEventListener('change', () => {
+                        const todas = filasR.length > 0 && Array.from(filasR).every(c => c.checked);
+                        chkTodosRealizadas.checked = todas;
+                    });
+                });
+            }
+
             function obtenerSeleccionadasParaPdf() {
                 const seleccion = [];
 
@@ -1675,6 +1784,16 @@
                     tbodyHuerfanas.querySelectorAll('.insp-select-fila-huerfana:checked').forEach(chk => {
                         const inspId = chk.getAttribute('data-insp-id') || '';
                         if (inspId) seleccion.push({ inspId, actividadId: '' });
+                    });
+                }
+
+                if (tbodyRealizadas) {
+                    tbodyRealizadas.querySelectorAll('.insp-select-fila:checked').forEach(chk => {
+                        const actividadId = chk.getAttribute('data-actividad-id') || '';
+                        if (!actividadId) return;
+                        const insp = inspeccionPorActividadGlobal.get(actividadId);
+                        const inspId = insp && insp.id ? String(insp.id) : '';
+                        if (inspId) seleccion.push({ inspId, actividadId });
                     });
                 }
 

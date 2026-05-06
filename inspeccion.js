@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let formatosCargados = false;
     let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
     let guardandoInspeccion = false; // evita doble guardado
-    const fotosTomadas = {}; // idx -> { blob }
+    const fotosTomadas = {}; // idx -> { blob } o { danos: { [DANO]: { blob1, blob2, del1, del2 } } }
     let fotoObs = null; // { blob }
 
     let inspeccionEditData = null;
@@ -134,6 +134,14 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             await esperar(() => inventarioCargado && formatosCargados);
+
+            // Esperar a que el módulo de auth (inspeccion.html) haya poblado roles/claims.
+            // Si no esperamos, puede ocultar controles de Foto 2 (SGI) y desactivar el auto-enrutado.
+            await esperar(() => {
+                try {
+                    return (typeof window.userRole !== 'undefined') && (typeof window.isSupervisor === 'boolean' || typeof window.isAdmin === 'boolean');
+                } catch { return false; }
+            }, 6500, 120);
 
             const { getFirestore, doc, getDoc } = await import(
                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -283,12 +291,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 .trim();
             const prevByName = new Map(prevParams.map(p => [normKey(p && p.nombre), p]));
 
+            const findPrevParam = (nombreUi, idx) => {
+                try {
+                    const k = normKey(nombreUi);
+                    if (k && prevByName.has(k)) return prevByName.get(k);
+                    // Fuzzy: algunos históricos guardaron nombres con variantes (e.g. acentos, sufijos)
+                    if (k) {
+                        const list = Array.isArray(prevParams) ? prevParams : [];
+                        const hit = list.find(p => {
+                            const kn = normKey(p && p.nombre);
+                            if (!kn) return false;
+                            return kn.includes(k) || k.includes(kn);
+                        });
+                        if (hit) return hit;
+                    }
+                    if (typeof idx === 'number' && idx >= 0 && idx < prevParams.length) {
+                        const cand = prevParams[idx];
+                        const kn = normKey(cand && cand.nombre);
+                        // Solo permitir fallback por índice si el nombre coincide razonablemente.
+                        // Evita marcar evidencias en parámetros equivocados cuando cambia el orden entre versiones.
+                        if (!k || !kn) return null;
+                        if (kn === k || kn.includes(k) || k.includes(kn)) return cand;
+                        return null;
+                    }
+                } catch {}
+                return null;
+            };
+
             const filas = Array.from(detalleContenedor.querySelectorAll('.parametros-fila'));
             filas.forEach((filaHtml, idx) => {
                 try {
+                    // Resetear flags por fila para evitar heredar evidencias de otro parámetro por re-render u órdenes distintos
+                    try {
+                        filaHtml.dataset.evid1Exists = '0';
+                        filaHtml.dataset.evid2Exists = '0';
+                        filaHtml.dataset.forceReplaceEvid1 = '0';
+                    } catch {}
+
                     const nombreUi = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
-                    const prev = (prevParams[idx]) || prevByName.get(normKey(nombreUi)) || null;
+                    const prev = findPrevParam(nombreUi, idx);
                     if (!prev) return;
+
+                    try {
+                        filaHtml.__prevParam = prev;
+                    } catch {}
+
+                    try {
+                        filaHtml.__prevEvidenciasPorDano = (prev && prev.evidenciasPorDano && typeof prev.evidenciasPorDano === 'object') ? prev.evidenciasPorDano : {};
+                    } catch {
+                        filaHtml.__prevEvidenciasPorDano = {};
+                    }
+                    try {
+                        const arr = Array.isArray(prev && prev.danosSeleccionados) ? prev.danosSeleccionados : [];
+                        filaHtml.dataset.danosSel = JSON.stringify(arr.map(x => String(x || '').trim().toUpperCase()).filter(Boolean));
+                    } catch {
+                        filaHtml.dataset.danosSel = '[]';
+                    }
+                    try {
+                        // Si viene legacy con un solo tipoDano, usarlo como seleccionado
+                        const legacy = String(prev && prev.tipoDano ? prev.tipoDano : '').trim().toUpperCase();
+                        if (legacy) {
+                            const cur = JSON.parse(filaHtml.dataset.danosSel || '[]');
+                            if (Array.isArray(cur) && !cur.includes(legacy)) {
+                                cur.push(legacy);
+                                filaHtml.dataset.danosSel = JSON.stringify(cur);
+                            }
+                        }
+                    } catch {}
+
+                    // Marcar existencia de evidencias aunque el preview no cargue (para evitar reemplazos accidentales)
+                    try {
+                        const has1 = !!(prev.evidenciaUrl || prev.evidenciaNombre || prev.evidenciaPath);
+                        const has2 = !!(prev.evidenciaUrl2 || prev.evidenciaNombre2 || prev.evidenciaPath2);
+                        filaHtml.dataset.evid1Exists = has1 ? '1' : '0';
+                        filaHtml.dataset.evid2Exists = has2 ? '1' : '0';
+                    } catch {}
 
                     const estado = String(prev.estado || '').trim().toUpperCase();
                     const sw = filaHtml.querySelector('.estado-switch-input');
@@ -317,14 +394,101 @@ document.addEventListener('DOMContentLoaded', () => {
                         imgPrev.style.display = '';
                     }
 
+                    try {
+                        if (imgPrev) {
+                            imgPrev.setAttribute('data-evidencia-path', String(prev.evidenciaPath || '').trim());
+                            imgPrev.setAttribute('data-evidencia-nombre', String(prev.evidenciaNombre || '').trim());
+                        }
+                    } catch {}
+
                     const evidUrl2 = String(prev.evidenciaUrl2 || '').trim();
                     const imgPrev2 = document.getElementById(`preview-foto2-${idx}`);
                     if (imgPrev2 && evidUrl2) {
                         imgPrev2.src = evidUrl2;
                         imgPrev2.style.display = '';
+                        try { imgPrev2.dataset.evidenciaPath = String(prev.evidenciaPath2 || ''); } catch {}
+                        try { imgPrev2.dataset.evidenciaNombre = String(prev.evidenciaNombre2 || ''); } catch {}
                     }
                 } catch {}
             });
+
+            // Fallback de previews en modo edición: si una foto no carga por URL/CORS, traer bytes vía SDK y mostrar blob:
+            try {
+                const { getStorage, ref: stRef, getBytes } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
+                );
+                const storage = getStorage();
+                const inspId = String(inspConUrls && inspConUrls.id ? inspConUrls.id : inspIdUrl).trim();
+                const localId = String(inspConUrls && inspConUrls.localId ? inspConUrls.localId : '').trim();
+                const actId = String(inspConUrls && inspConUrls.actividadId ? inspConUrls.actividadId : '').trim();
+
+                const buildCandidatos = (imgEl, filaHtml) => {
+                    const pathDirecto = String(imgEl.getAttribute('data-evidencia-path') || '').trim();
+                    const nombre = String(imgEl.getAttribute('data-evidencia-nombre') || '').trim();
+                    const candidatos = [];
+                    if (pathDirecto) candidatos.push(pathDirecto);
+                    if (nombre) {
+                        if (inspId) candidatos.push(`inspecciones/${inspId}/${nombre}`);
+                        if (localId) candidatos.push(`inspecciones/${localId}/${nombre}`);
+                        if (actId) candidatos.push(`inspecciones/${actId}/${nombre}`);
+                    }
+                    // Si no hay metadata, pero sabemos que existe, intentar por convención localId/<nombre>
+                    if (!candidatos.length) {
+                        try {
+                            const has1 = filaHtml && filaHtml.dataset && filaHtml.dataset.evid1Exists === '1';
+                            const has2 = filaHtml && filaHtml.dataset && filaHtml.dataset.evid2Exists === '1';
+                            if (has1 || has2) {
+                                // sin nombre no podemos adivinar
+                            }
+                        } catch {}
+                    }
+                    return candidatos;
+                };
+
+                const intentarFallbackImg = async (imgEl, filaHtml) => {
+                    try {
+                        if (!imgEl) return;
+                        if (imgEl.dataset && imgEl.dataset.pctBlobOk === '1') return;
+                        const candidatos = buildCandidatos(imgEl, filaHtml);
+                        if (!candidatos.length) return;
+
+                        let bytes = null;
+                        for (const pth of candidatos) {
+                            try {
+                                bytes = await getBytes(stRef(storage, pth));
+                                if (bytes) break;
+                            } catch {}
+                        }
+                        if (!bytes) return;
+                        const blob = new Blob([bytes], { type: 'image/jpeg' });
+                        const blobUrl = URL.createObjectURL(blob);
+                        imgEl.src = blobUrl;
+                        imgEl.dataset.pctBlobOk = '1';
+                        imgEl.style.display = '';
+                    } catch {}
+                };
+
+                filas.forEach((filaHtml, idx) => {
+                    try {
+                        const img1 = document.getElementById(`preview-foto-${idx}`);
+                        const img2 = document.getElementById(`preview-foto2-${idx}`);
+
+                        if (img1) {
+                            img1.addEventListener('error', () => { intentarFallbackImg(img1, filaHtml); }, { once: true });
+                            // Si ya debería existir pero no se ve, intentar inmediatamente
+                            if (filaHtml.dataset.evid1Exists === '1' && (img1.naturalWidth === 0)) {
+                                intentarFallbackImg(img1, filaHtml);
+                            }
+                        }
+                        if (img2) {
+                            img2.addEventListener('error', () => { intentarFallbackImg(img2, filaHtml); }, { once: true });
+                            if (filaHtml.dataset.evid2Exists === '1' && (img2.naturalWidth === 0)) {
+                                intentarFallbackImg(img2, filaHtml);
+                            }
+                        }
+                    } catch {}
+                });
+            } catch {}
 
             try {
                 const obsTxt = (inspConUrls.observacionesManual || '').toString();
@@ -662,7 +826,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const params = Array.isArray(insp.parametros) ? insp.parametros : [];
                 const needs = params.some(p => p && (
                     (((p.evidenciaPath) || (p.evidenciaNombre)) && !p.evidenciaUrl) ||
-                    (((p.evidenciaPath2) || (p.evidenciaNombre2)) && !p.evidenciaUrl2)
+                    (((p.evidenciaPath2) || (p.evidenciaNombre2)) && !p.evidenciaUrl2) ||
+                    (p.evidenciasPorDano && Object.values(p.evidenciasPorDano || {}).some(ed => ed && (
+                        (((ed.evidenciaPath) || (ed.evidenciaNombre)) && !ed.evidenciaUrl) ||
+                        (((ed.evidenciaPath2) || (ed.evidenciaNombre2)) && !ed.evidenciaUrl2)
+                    )))
                 ));
                 if (needs && insp && insp.id) {
                     const { getStorage, ref: stRef, getDownloadURL } = await import(
@@ -730,6 +898,53 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (url) next.evidenciaUrl2 = url;
                             }
 
+                            try {
+                                const by = (next.evidenciasPorDano && typeof next.evidenciasPorDano === 'object') ? next.evidenciasPorDano : null;
+                                if (by) {
+                                    const nextBy = { ...(by || {}) };
+                                    for (const k of Object.keys(nextBy)) {
+                                        const ed = nextBy[k];
+                                        if (!ed || typeof ed !== 'object') continue;
+                                        const nextEd = { ...(ed || {}) };
+
+                                        if (!nextEd.evidenciaUrl && (nextEd.evidenciaPath || nextEd.evidenciaNombre)) {
+                                            const candidatos = [];
+                                            const pathDirecto = String(nextEd.evidenciaPath || '').trim();
+                                            if (pathDirecto) candidatos.push(pathDirecto);
+                                            const name = String(nextEd.evidenciaNombre || '').trim();
+                                            if (name) {
+                                                if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                                if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                                if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                                if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                                if (actIdQs) candidatos.push(`inspecciones/${actIdQs}/${name}`);
+                                            }
+                                            const url = await resolver(candidatos);
+                                            if (url) nextEd.evidenciaUrl = url;
+                                        }
+
+                                        if (!nextEd.evidenciaUrl2 && (nextEd.evidenciaPath2 || nextEd.evidenciaNombre2)) {
+                                            const candidatos = [];
+                                            const pathDirecto = String(nextEd.evidenciaPath2 || '').trim();
+                                            if (pathDirecto) candidatos.push(pathDirecto);
+                                            const name = String(nextEd.evidenciaNombre2 || '').trim();
+                                            if (name) {
+                                                if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                                if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                                if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                                if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                                                if (actIdQs) candidatos.push(`inspecciones/${actIdQs}/${name}`);
+                                            }
+                                            const url = await resolver(candidatos);
+                                            if (url) nextEd.evidenciaUrl2 = url;
+                                        }
+
+                                        nextBy[k] = nextEd;
+                                    }
+                                    next.evidenciasPorDano = nextBy;
+                                }
+                            } catch {}
+
                             return next;
                         } catch (e) {
                             const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
@@ -770,65 +985,91 @@ document.addEventListener('DOMContentLoaded', () => {
                         const evidenciaUrl2 = ok(p && p.evidenciaUrl2);
                         const evidenciaNombre2 = ok(p && p.evidenciaNombre2);
                         const evidenciaPath2 = ok(p && p.evidenciaPath2);
-                        const danoTxt = (estado === 'MALO') ? (detalleOtro || tipoDano || '') : '';
+                        const danosSel = Array.isArray(p && p.danosSeleccionados)
+                            ? p.danosSeleccionados.map(x => String(x || '').trim()).filter(Boolean)
+                            : [];
+                        const by = (p && p.evidenciasPorDano && typeof p.evidenciasPorDano === 'object') ? p.evidenciasPorDano : null;
+                        const danoTxt = (estado === 'MALO') ? (detalleOtro || (danosSel.length ? danosSel.join(', ') : (tipoDano || '')) || '') : '';
                         const badge = estado === 'MALO'
                             ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; font-size:12px; font-weight:700;">MALO</span>'
                             : (estado === 'NO LEGIBLE'
                                 ? '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; font-weight:700;">NO LEGIBLE</span>'
                                 : '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ecfdf5; border:1px solid #bbf7d0; color:#166534; font-size:12px; font-weight:700;">BUENO</span>');
 
-                        const evidenciaHtml = (evidenciaUrl || evidenciaNombre || evidenciaPath || evidenciaUrl2 || evidenciaNombre2 || evidenciaPath2)
-                            ? `
-                                <div style="margin-top:8px;">
-                                    <div style="font-size:12px; color:#475569; margin-bottom:6px;">Evidencia</div>
-                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                        <div style="min-width:220px; max-width:220px; flex:1;">
-                                            <div style="font-size:11px; color:#64748b; margin-bottom:4px;">Foto 1</div>
-                                            <img
-                                                src="${evidenciaUrl ? evidenciaUrl : ''}"
-                                                alt="Evidencia"
-                                                class="insp-evid-thumb"
-                                                data-full="${evidenciaUrl ? evidenciaUrl : ''}"
-                                                data-evidencia-path="${evidenciaPath}"
-                                                data-evidencia-nombre="${evidenciaNombre}"
-                                                crossorigin="anonymous"
-                                                referrerpolicy="no-referrer"
-                                                loading="eager"
-                                                decoding="sync"
-                                                style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${evidenciaUrl ? '' : 'display:none;'}"
-                                                onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
-                                            />
-                                            <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${evidenciaUrl ? 'display:none;' : ''}">
-                                                ${evidenciaNombre ? `Evidencia: ${evidenciaNombre}` : (evidenciaPath ? 'Evidencia' : '')}
-                                            </div>
-                                        </div>
-
-                                        ${(evidenciaUrl2 || evidenciaNombre2 || evidenciaPath2) ? `
-                                        <div style="min-width:220px; max-width:220px; flex:1;">
-                                            <div style="font-size:11px; color:#64748b; margin-bottom:4px;">Foto 2</div>
-                                            <img
-                                                src="${evidenciaUrl2 ? evidenciaUrl2 : ''}"
-                                                alt="Evidencia"
-                                                class="insp-evid-thumb"
-                                                data-full="${evidenciaUrl2 ? evidenciaUrl2 : ''}"
-                                                data-evidencia-path="${evidenciaPath2}"
-                                                data-evidencia-nombre="${evidenciaNombre2}"
-                                                crossorigin="anonymous"
-                                                referrerpolicy="no-referrer"
-                                                loading="eager"
-                                                decoding="sync"
-                                                style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${evidenciaUrl2 ? '' : 'display:none;'}"
-                                                onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
-                                            />
-                                            <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${evidenciaUrl2 ? 'display:none;' : ''}">
-                                                ${evidenciaNombre2 ? `Evidencia: ${evidenciaNombre2}` : (evidenciaPath2 ? 'Evidencia' : '')}
-                                            </div>
-                                        </div>
-                                        ` : ''}
+                        const renderEvidSlot = ({ url, path, nombre, label }) => {
+                            const u = ok(url).trim();
+                            const pth = ok(path);
+                            const nm = ok(nombre);
+                            return `
+                                <div style="min-width:220px; max-width:220px; flex:1;">
+                                    <div style="font-size:11px; color:#64748b; margin-bottom:4px;">${label}</div>
+                                    <img
+                                        src="${u ? u : ''}"
+                                        alt="Evidencia"
+                                        class="insp-evid-thumb"
+                                        data-full="${u ? u : ''}"
+                                        data-evidencia-path="${pth}"
+                                        data-evidencia-nombre="${nm}"
+                                        crossorigin="anonymous"
+                                        referrerpolicy="no-referrer"
+                                        loading="eager"
+                                        decoding="sync"
+                                        style="max-width:220px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${u ? '' : 'display:none;'}"
+                                        onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
+                                    />
+                                    <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${u ? 'display:none;' : ''}">
+                                        ${nm ? `Evidencia: ${nm}` : (pth ? 'Evidencia' : '')}
                                     </div>
                                 </div>
-                              `
-                            : '';
+                            `;
+                        };
+
+                        const renderEvidencia = ({ titulo, u1, n1, p1, u2, n2, p2 }) => {
+                            const has = !!(ok(u1).trim() || ok(n1).trim() || ok(p1).trim() || ok(u2).trim() || ok(n2).trim() || ok(p2).trim());
+                            if (!has) return '';
+                            return `
+                                <div style="margin-top:8px;">
+                                    <div style="font-size:12px; color:#475569; margin-bottom:6px;">${titulo}</div>
+                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                        ${renderEvidSlot({ url: u1, path: p1, nombre: n1, label: 'Foto 1' })}
+                                        ${(ok(u2).trim() || ok(n2).trim() || ok(p2).trim()) ? renderEvidSlot({ url: u2, path: p2, nombre: n2, label: 'Foto 2' }) : ''}
+                                    </div>
+                                </div>
+                            `;
+                        };
+
+                        let evidenciaHtml = '';
+                        if (estado === 'MALO' && by && danosSel.length) {
+                            const pieces = [];
+                            danosSel.forEach((dkRaw) => {
+                                const dk = String(dkRaw || '').trim().toUpperCase();
+                                if (!dk) return;
+                                const ed = by && by[dk] ? by[dk] : null;
+                                if (!ed) return;
+                                pieces.push(renderEvidencia({
+                                    titulo: `Evidencia · ${dk}`,
+                                    u1: ed.evidenciaUrl,
+                                    n1: ed.evidenciaNombre,
+                                    p1: ed.evidenciaPath,
+                                    u2: ed.evidenciaUrl2,
+                                    n2: ed.evidenciaNombre2,
+                                    p2: ed.evidenciaPath2,
+                                }));
+                            });
+                            evidenciaHtml = pieces.filter(Boolean).join('');
+                        }
+
+                        if (!evidenciaHtml) {
+                            evidenciaHtml = renderEvidencia({
+                                titulo: 'Evidencia',
+                                u1: evidenciaUrl,
+                                n1: evidenciaNombre,
+                                p1: evidenciaPath,
+                                u2: evidenciaUrl2,
+                                n2: evidenciaNombre2,
+                                p2: evidenciaPath2,
+                            });
+                        }
 
                         return `
                             <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff; break-inside:avoid;">
@@ -2114,6 +2355,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
                                     <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                                    <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
+                                    <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
 
                                     <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
                                         <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
@@ -2121,6 +2364,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
                                     </div>
                                     <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                                    <button type="button" class="btn btn-eliminar-foto2" data-idx="${idx}" style="display:none; margin-top:4px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">Eliminar foto 2</button>
                                 </div>
                             </div>
                         `;
@@ -2156,6 +2400,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
                                     <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                                    <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
+
+                                    <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
 
                                     <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
                                         <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
@@ -2163,6 +2410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
                                     </div>
                                     <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                                    <button type="button" class="btn btn-eliminar-foto2" data-idx="${idx}" style="display:none; margin-top:4px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">Eliminar foto 2</button>
                                 </div>
                             </div>
                         `;
@@ -2330,12 +2578,213 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnTomar = colEvid ? colEvid.querySelector('.btn-tomar-foto') : null;
             const btnSubir = colEvid ? colEvid.querySelector('.btn-subir-foto') : null;
             const imgPrev = document.getElementById(`preview-foto-${idx}`);
+            const btnDel1 = colEvid ? colEvid.querySelector('.btn-eliminar-foto') : null;
+            let btnMod1 = colEvid ? colEvid.querySelector('.btn-modificar-foto') : null;
 
-            const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+            const puedeSubirEvidencia2Now = () => {
+                try { return !!(window.isAdmin || window.isDirector || window.isSupervisor); } catch { return false; }
+            };
             const inputFoto2 = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto2"]`) : null;
             const btnTomar2 = colEvid ? colEvid.querySelector('.btn-tomar-foto2') : null;
             const btnSubir2 = colEvid ? colEvid.querySelector('.btn-subir-foto2') : null;
             const imgPrev2 = document.getElementById(`preview-foto2-${idx}`);
+            const btnDel2 = colEvid ? colEvid.querySelector('.btn-eliminar-foto2') : null;
+
+            const tieneChipsDano = !!(danoChipBtns && danoChipBtns.length);
+
+            const normDano = (s) => String(s || '').trim().toUpperCase();
+            const danoSlug = (s) => String(s || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .slice(0, 24);
+
+            const getPrevEvidPorDano = () => {
+                try { return (filaHtml && filaHtml.__prevEvidenciasPorDano) ? filaHtml.__prevEvidenciasPorDano : {}; } catch { return {}; }
+            };
+
+            const getSelDanos = () => {
+                try {
+                    const raw = String(filaHtml.dataset.danosSel || '[]');
+                    const arr = JSON.parse(raw);
+                    if (Array.isArray(arr)) return arr.map(normDano).filter(Boolean);
+                } catch {}
+                return [];
+            };
+            const setSelDanos = (arr) => {
+                try {
+                    const next = Array.isArray(arr) ? arr.map(normDano).filter(Boolean) : [];
+                    filaHtml.dataset.danosSel = JSON.stringify(Array.from(new Set(next)));
+                } catch {
+                    filaHtml.dataset.danosSel = '[]';
+                }
+            };
+            const getActiveDano = () => {
+                try { return normDano(filaHtml.dataset.danoActivo || ''); } catch { return ''; }
+            };
+            const setActiveDano = (d) => {
+                try {
+                    const v = normDano(d);
+                    filaHtml.dataset.danoActivo = v;
+                    if (selectDano) selectDano.value = v;
+                } catch {}
+            };
+
+            const ensureDanoBucket = (d) => {
+                const key = normDano(d);
+                if (!key) return null;
+                fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}) };
+                fotosTomadas[idx].danos = { ...((fotosTomadas[idx] && fotosTomadas[idx].danos) ? fotosTomadas[idx].danos : {}) };
+                fotosTomadas[idx].danos[key] = { ...((fotosTomadas[idx].danos && fotosTomadas[idx].danos[key]) ? fotosTomadas[idx].danos[key] : {}) };
+                return fotosTomadas[idx].danos[key];
+            };
+
+            const danoTieneFoto1 = (d) => {
+                const key = normDano(d);
+                if (!key) return false;
+                try {
+                    const b = fotosTomadas[idx]?.danos?.[key];
+                    if (b && b.del1) return false;
+                    if (b && b.blob1) return true;
+                    const prev = getPrevEvidPorDano();
+                    const p = prev && prev[key];
+                    return !!(p && (p.evidenciaUrl || p.evidenciaNombre || p.evidenciaPath));
+                } catch { return false; }
+            };
+            const danoTieneFoto2 = (d) => {
+                const key = normDano(d);
+                if (!key) return false;
+                try {
+                    const b = fotosTomadas[idx]?.danos?.[key];
+                    if (b && b.del2) return false;
+                    if (b && b.blob2) return true;
+                    const prev = getPrevEvidPorDano();
+                    const p = prev && prev[key];
+                    return !!(p && (p.evidenciaUrl2 || p.evidenciaNombre2 || p.evidenciaPath2));
+                } catch { return false; }
+            };
+
+            const getChipThumbUrls = (d) => {
+                const key = normDano(d);
+                const prev = getPrevEvidPorDano();
+                const p = prev && prev[key] ? prev[key] : null;
+                const b = fotosTomadas[idx]?.danos?.[key] || null;
+
+                const out = { u1: '', u2: '' };
+                try {
+                    if (b && b.blob1) out.u1 = URL.createObjectURL(b.blob1);
+                    else if (p && p.evidenciaUrl) out.u1 = String(p.evidenciaUrl);
+                } catch {}
+                try {
+                    if (b && b.blob2) out.u2 = URL.createObjectURL(b.blob2);
+                    else if (p && p.evidenciaUrl2) out.u2 = String(p.evidenciaUrl2);
+                } catch {}
+                return out;
+            };
+
+            const renderChipThumbs = () => {
+                if (!tieneChipsDano) return;
+                try {
+                    danoChipBtns.forEach(btn => {
+                        const v = normDano(btn.getAttribute('data-val') || '');
+                        if (!v) return;
+                        const has = danoTieneFoto1(v) || danoTieneFoto2(v);
+
+                        let wrap = btn.querySelector('.chip-thumbs');
+                        if (!wrap) {
+                            wrap = document.createElement('span');
+                            wrap.className = 'chip-thumbs';
+                            wrap.style.cssText = 'display:inline-flex; gap:4px; margin-left:8px; vertical-align:middle;';
+                            btn.appendChild(wrap);
+                        }
+
+                        if (!has) {
+                            wrap.innerHTML = '';
+                            wrap.style.display = 'none';
+                            btn.classList.remove('is-occupied');
+                            return;
+                        }
+
+                        wrap.style.display = 'inline-flex';
+                        btn.classList.add('is-occupied');
+
+                        const { u1, u2 } = getChipThumbUrls(v);
+                        const mk = (u) => {
+                            const img = document.createElement('img');
+                            img.src = u;
+                            img.alt = 'thumb';
+                            img.style.cssText = 'width:18px; height:18px; object-fit:cover; border-radius:4px; border:1px solid #e5e7eb;';
+                            img.addEventListener('click', (ev) => {
+                                try { ev.stopPropagation(); } catch {}
+                                try {
+                                    if (!u) return;
+                                    const w = window.open('', '_blank');
+                                    if (w) w.document.write(`<img src="${u}" style="max-width:100%;height:auto;"/>`);
+                                } catch {}
+                            });
+                            return img;
+                        };
+
+                        wrap.innerHTML = '';
+                        if (u1) wrap.appendChild(mk(u1));
+                        if (u2) wrap.appendChild(mk(u2));
+                    });
+                } catch {}
+            };
+
+            const foto1YaExiste = () => {
+                try {
+                    if (filaHtml && filaHtml.dataset && filaHtml.dataset.evid1Exists === '1') return true;
+                    if (!imgPrev) return false;
+                    const src = String(imgPrev.getAttribute('src') || '').trim();
+                    const visible = imgPrev.style.display !== 'none';
+                    return !!(src && visible);
+                } catch { return false; }
+            };
+            const foto2Vacia = () => {
+                try {
+                    if (filaHtml && filaHtml.dataset && filaHtml.dataset.evid2Exists === '1') return false;
+                    if (!imgPrev2) return true;
+                    const src = String(imgPrev2.getAttribute('src') || '').trim();
+                    const visible = imgPrev2.style.display !== 'none';
+                    if (!src) return true;
+                    return !visible;
+                } catch { return true; }
+            };
+
+            const syncUiEvidencias = () => {
+                try {
+                    if (!colEvid) return;
+                    const can2 = puedeSubirEvidencia2Now();
+
+                    if (tieneChipsDano) {
+                        const act = getActiveDano();
+                        // En modo chips, siempre permitir agregar evidencia al chip activo.
+                        if (btnTomar) btnTomar.style.display = '';
+                        if (btnSubir) btnSubir.style.display = '';
+
+                        const has1Act = act ? danoTieneFoto1(act) : false;
+                        const has2Act = act ? danoTieneFoto2(act) : false;
+                        if (btnDel1) btnDel1.style.display = has1Act ? '' : 'none';
+                        if (btnMod1) btnMod1.style.display = (can2 && has1Act) ? '' : 'none';
+                        if (btnDel2) btnDel2.style.display = (can2 && has2Act) ? '' : 'none';
+
+                        // Botones del slot 2: siempre visibles en chip mode si el rol lo permite
+                        if (btnTomar2) btnTomar2.style.display = can2 ? '' : 'none';
+                        if (btnSubir2) btnSubir2.style.display = can2 ? '' : 'none';
+                    } else {
+                        const has1 = foto1YaExiste();
+                        if (btnTomar) btnTomar.style.display = has1 ? 'none' : '';
+                        if (btnSubir) btnSubir.style.display = has1 ? 'none' : '';
+                        if (btnDel1) btnDel1.style.display = has1 ? '' : 'none';
+                        if (btnMod1) btnMod1.style.display = (can2 && has1) ? '' : 'none';
+                        const has2 = !foto2Vacia();
+                        if (btnDel2) btnDel2.style.display = (can2 && has2) ? '' : 'none';
+                    }
+                } catch {}
+            };
 
             const getEstadoActual = () => {
                 let estado = '';
@@ -2359,18 +2808,23 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const actualizarSeleccionChips = () => {
-                if (!selectDano || !danoChipBtns.length) return;
-                const val = (selectDano.value || '').trim().toUpperCase();
+                if (!danoChipBtns.length) return;
+                const sel = tieneChipsDano ? getSelDanos() : [];
+                const act = getActiveDano();
                 danoChipBtns.forEach(btn => {
-                    const btnVal = (btn.getAttribute('data-val') || '').trim().toUpperCase();
-                    if (val && btnVal === val) btn.classList.add('is-selected');
+                    const btnVal = normDano(btn.getAttribute('data-val') || '');
+                    if (sel.includes(btnVal)) btn.classList.add('is-selected');
                     else btn.classList.remove('is-selected');
+                    if (act && btnVal === act) btn.classList.add('is-active');
+                    else btn.classList.remove('is-active');
                 });
+                renderChipThumbs();
             };
 
             const setTipoDanoDesdeChip = (val) => {
-                if (!selectDano) return;
-                selectDano.value = val;
+                const v = normDano(val);
+                if (!v) return;
+                setActiveDano(v);
                 actualizarSeleccionChips();
                 actualizarVisibilidadOtro();
             };
@@ -2407,10 +2861,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (btnTomar) btnTomar.disabled = false;
                         if (btnSubir) btnSubir.disabled = false;
 
+                        if (btnDel1) btnDel1.disabled = false;
+                        syncUiEvidencias();
+
                         // Slot 2 solo si rol lo permite
-                        if (inputFoto2) inputFoto2.disabled = !puedeSubirEvidencia2;
-                        if (btnTomar2) btnTomar2.disabled = !puedeSubirEvidencia2;
-                        if (btnSubir2) btnSubir2.disabled = !puedeSubirEvidencia2;
+                        const can2 = puedeSubirEvidencia2Now();
+                        if (inputFoto2) inputFoto2.disabled = !can2;
+                        if (btnTomar2) btnTomar2.disabled = !can2;
+                        if (btnSubir2) btnSubir2.disabled = !can2;
+                        if (btnDel2) {
+                            btnDel2.disabled = !can2;
+                            btnDel2.style.display = (can2 && imgPrev2 && imgPrev2.style.display !== 'none' && String(imgPrev2.src || '').trim()) ? '' : 'none';
+                        }
                     }
                 } else {
                     if (colDano) colDano.style.display = 'none';
@@ -2432,11 +2894,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (btnTomar) btnTomar.disabled = true;
                         if (btnSubir) btnSubir.disabled = true;
                         if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+                        if (btnDel1) { btnDel1.disabled = true; btnDel1.style.display = 'none'; }
+
+                        try {
+                            if (btnTomar) btnTomar.style.display = '';
+                            if (btnSubir) btnSubir.style.display = '';
+                        } catch {}
 
                         if (inputFoto2) { inputFoto2.disabled = true; try { inputFoto2.value = ''; } catch {} }
                         if (btnTomar2) btnTomar2.disabled = true;
                         if (btnSubir2) btnSubir2.disabled = true;
                         if (imgPrev2) { imgPrev2.src = ''; imgPrev2.style.display = 'none'; }
+                        if (btnDel2) { btnDel2.disabled = true; btnDel2.style.display = 'none'; }
 
                         delete fotosTomadas[idx];
                     }
@@ -2465,8 +2934,53 @@ document.addEventListener('DOMContentLoaded', () => {
             if (danoChipBtns.length) {
                 danoChipBtns.forEach(btn => {
                     btn.addEventListener('click', () => {
-                        const val = btn.getAttribute('data-val') || '';
+                        const val = normDano(btn.getAttribute('data-val') || '');
+                        if (!val) return;
+                        const sel = getSelDanos();
+                        const ya = sel.includes(val);
+
+                        // Si ya está ocupado (tiene evidencia), permitir desmarcar y marcar evidencia para borrado
+                        if (ya && (danoTieneFoto1(val) || danoTieneFoto2(val))) {
+                            try {
+                                const b = ensureDanoBucket(val);
+                                if (b) {
+                                    b.blob1 = null;
+                                    b.blob2 = null;
+                                    b.del1 = true;
+                                    b.del2 = true;
+                                }
+                            } catch {}
+                            setSelDanos(sel.filter(x => x !== val));
+                            const act = getActiveDano();
+                            if (act === val) setActiveDano('');
+                            actualizarSeleccionChips();
+                            renderChipThumbs();
+                            syncUiEvidencias();
+                            return;
+                        }
+
+                        if (ya) {
+                            setSelDanos(sel.filter(x => x !== val));
+                            const act = getActiveDano();
+                            if (act === val) setActiveDano('');
+                            actualizarSeleccionChips();
+                            return;
+                        }
+
+                        // Marcar daño y volverlo activo
+                        sel.push(val);
+                        setSelDanos(sel);
                         setTipoDanoDesdeChip(val);
+                        actualizarSeleccionChips();
+
+                        // Opción B: al marcar un daño, exigir inmediatamente Foto 1
+                        if (!danoTieneFoto1(val)) {
+                            try {
+                                filaHtml.dataset.targetDano = val;
+                                filaHtml.dataset.forceChipFoto1 = '1';
+                                if (inputFoto) inputFoto.click();
+                            } catch {}
+                        }
                     });
                 });
             }
@@ -2478,11 +2992,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnTomar.addEventListener('click', async () => {
                     try {
                         await abrirCamaraParaIndice(idx, (blob) => {
-                            fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob };
-                            try { if (inputFoto) inputFoto.value = ''; } catch {}
-                            if (imgPrev) {
-                                imgPrev.src = URL.createObjectURL(blob);
-                                imgPrev.style.display = '';
+                            try {
+                                const act = getActiveDano();
+                                if (tieneChipsDano && act) {
+                                    const b = ensureDanoBucket(act);
+                                    if (!b) return;
+                                    const can2 = puedeSubirEvidencia2Now();
+                                    const has1 = danoTieneFoto1(act);
+                                    const has2 = danoTieneFoto2(act);
+                                    if (can2 && has1 && !has2) {
+                                        b.blob2 = blob;
+                                        b.del2 = false;
+                                    } else {
+                                        b.blob1 = blob;
+                                        b.del1 = false;
+                                    }
+                                    try { if (inputFoto) inputFoto.value = ''; } catch {}
+                                    try { if (inputFoto2) inputFoto2.value = ''; } catch {}
+                                    renderChipThumbs();
+                                    actualizarSeleccionChips();
+                                    syncUiEvidencias();
+                                    return;
+                                }
+                            } catch {}
+                            // Si ya existe Foto 1 y Foto 2 está vacía (y el rol lo permite), mandar a slot 2 automáticamente
+                            if (puedeSubirEvidencia2Now() && foto1YaExiste() && foto2Vacia()) {
+                                fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: blob, del2: false };
+                                try { if (inputFoto2) inputFoto2.value = ''; } catch {}
+                                if (imgPrev2) {
+                                    imgPrev2.src = URL.createObjectURL(blob);
+                                    imgPrev2.style.display = '';
+                                }
+                                try { filaHtml.dataset.evid2Exists = '1'; } catch {}
+                                if (btnDel2) btnDel2.style.display = '';
+                                syncUiEvidencias();
+                            } else {
+                                fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob, del1: false };
+                                try { if (inputFoto) inputFoto.value = ''; } catch {}
+                                if (imgPrev) {
+                                    imgPrev.src = URL.createObjectURL(blob);
+                                    imgPrev.style.display = '';
+                                }
+                                try { filaHtml.dataset.evid1Exists = '1'; } catch {}
+                                if (btnDel1) btnDel1.style.display = '';
+                                syncUiEvidencias();
                             }
                         });
                     } catch (e) {
@@ -2497,6 +3050,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         if (!puedeSubirEvidencia2) return;
                         await abrirCamaraParaIndice(idx, (blob) => {
+                            try {
+                                const act = getActiveDano();
+                                if (tieneChipsDano && act) {
+                                    const b = ensureDanoBucket(act);
+                                    if (b) {
+                                        b.blob2 = blob;
+                                        b.del2 = false;
+                                    }
+                                    try { if (inputFoto2) inputFoto2.value = ''; } catch {}
+                                    renderChipThumbs();
+                                    actualizarSeleccionChips();
+                                    syncUiEvidencias();
+                                    return;
+                                }
+                            } catch {}
                             fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: blob };
                             try { if (inputFoto2) inputFoto2.value = ''; } catch {}
                             if (imgPrev2) {
@@ -2516,15 +3084,100 @@ document.addEventListener('DOMContentLoaded', () => {
                     try { inputFoto.click(); } catch {}
                 });
             }
+
+            // Modificar foto 1: reemplazar explícitamente el slot 1 (solo SGI/supervisor/director/admin)
+            if (!btnMod1 && colEvid) {
+                btnMod1 = colEvid.querySelector('.btn-modificar-foto');
+            }
+            if (btnMod1 && inputFoto) {
+                btnMod1.addEventListener('click', () => {
+                    try {
+                        if (!puedeSubirEvidencia2Now()) return;
+                        // En modo chips, el reemplazo aplica al chip activo
+                        const act = getActiveDano();
+                        if (tieneChipsDano && act) {
+                            filaHtml.dataset.targetDano = act;
+                            filaHtml.dataset.forceReplaceChipFoto1 = '1';
+                        } else {
+                            filaHtml.dataset.forceReplaceEvid1 = '1';
+                        }
+                        inputFoto.click();
+                    } catch {}
+                });
+            }
             if (inputFoto) {
                 inputFoto.addEventListener('change', () => {
                     try {
                         const file = inputFoto.files && inputFoto.files[0] ? inputFoto.files[0] : null;
                         if (!file) return;
-                        fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob: null };
-                        if (imgPrev) {
-                            imgPrev.src = URL.createObjectURL(file);
-                            imgPrev.style.display = '';
+                        const targetD = normDano(filaHtml.dataset.targetDano || '');
+                        const isChipMode = !!(tieneChipsDano && targetD);
+
+                        // Caso chips: asignar al daño target
+                        if (isChipMode) {
+                            const forceReplaceChip = (filaHtml.dataset.forceReplaceChipFoto1 === '1');
+                            filaHtml.dataset.forceReplaceChipFoto1 = '0';
+                            filaHtml.dataset.forceChipFoto1 = '0';
+                            const bucket = ensureDanoBucket(targetD);
+                            if (!bucket) return;
+
+                            const can2 = puedeSubirEvidencia2Now();
+                            const has1 = danoTieneFoto1(targetD);
+                            const has2 = danoTieneFoto2(targetD);
+
+                            if (!forceReplaceChip && can2 && has1 && !has2) {
+                                bucket.blob2 = file;
+                                bucket.del2 = false;
+                            } else {
+                                bucket.blob1 = file;
+                                bucket.del1 = false;
+                            }
+
+                            try { inputFoto.value = ''; } catch {}
+                            try { filaHtml.dataset.targetDano = ''; } catch {}
+
+                            // Actualizar thumbs y dejar activo
+                            setActiveDano(targetD);
+                            actualizarSeleccionChips();
+                            renderChipThumbs();
+                            return;
+                        }
+
+                        const forceReplace = (filaHtml && filaHtml.dataset && filaHtml.dataset.forceReplaceEvid1 === '1');
+                        if (forceReplace) {
+                            filaHtml.dataset.forceReplaceEvid1 = '0';
+                            fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob: file, del1: false };
+                            try { inputFoto.value = ''; } catch {}
+                            if (imgPrev) {
+                                imgPrev.src = URL.createObjectURL(file);
+                                imgPrev.style.display = '';
+                            }
+                            try { filaHtml.dataset.evid1Exists = '1'; } catch {}
+                            syncUiEvidencias();
+                            return;
+                        }
+                        // Si ya existe Foto 1 y Foto 2 está vacía (y el rol lo permite), mandar a slot 2 automáticamente
+                        if (puedeSubirEvidencia2Now() && foto1YaExiste() && foto2Vacia()) {
+                            fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: file, del2: false };
+                            try { inputFoto.value = ''; } catch {}
+                            try { if (inputFoto2) inputFoto2.value = ''; } catch {}
+                            if (imgPrev2) {
+                                imgPrev2.src = URL.createObjectURL(file);
+                                imgPrev2.style.display = '';
+                            }
+                            try { filaHtml.dataset.evid2Exists = '1'; } catch {}
+                            if (btnDel2) btnDel2.style.display = '';
+                            syncUiEvidencias();
+                        } else {
+                            fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob: file, del1: false };
+                            try { inputFoto.value = ''; } catch {}
+                            if (imgPrev) {
+                                imgPrev.src = URL.createObjectURL(file);
+                                imgPrev.style.display = '';
+                            }
+                            try { filaHtml.dataset.evid1Exists = '1'; } catch {}
+                            if (btnDel1) btnDel1.style.display = '';
+                            syncUiEvidencias();
                         }
                     } catch (e) {
                         console.warn('No se pudo leer la foto seleccionada', e);
@@ -2535,26 +3188,101 @@ document.addEventListener('DOMContentLoaded', () => {
             // Handler para subir foto 2 desde galería / archivos
             if (btnSubir2 && inputFoto2) {
                 btnSubir2.addEventListener('click', () => {
-                    if (!puedeSubirEvidencia2) return;
+                    if (!puedeSubirEvidencia2Now()) return;
                     try { inputFoto2.click(); } catch {}
                 });
             }
             if (inputFoto2) {
                 inputFoto2.addEventListener('change', () => {
                     try {
-                        if (!puedeSubirEvidencia2) return;
+                        if (!puedeSubirEvidencia2Now()) return;
                         const file = inputFoto2.files && inputFoto2.files[0] ? inputFoto2.files[0] : null;
                         if (!file) return;
-                        fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: null };
+                        try {
+                            const act = getActiveDano();
+                            if (tieneChipsDano && act) {
+                                const b = ensureDanoBucket(act);
+                                if (b) {
+                                    b.blob2 = file;
+                                    b.del2 = false;
+                                }
+                                try { inputFoto2.value = ''; } catch {}
+                                renderChipThumbs();
+                                actualizarSeleccionChips();
+                                syncUiEvidencias();
+                                return;
+                            }
+                        } catch {}
+                        fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: file, del2: false };
+                        try { inputFoto2.value = ''; } catch {}
                         if (imgPrev2) {
                             imgPrev2.src = URL.createObjectURL(file);
                             imgPrev2.style.display = '';
                         }
+                        try { filaHtml.dataset.evid2Exists = '1'; } catch {}
+                        if (btnDel2) btnDel2.style.display = '';
+                        syncUiEvidencias();
                     } catch (e) {
                         console.warn('No se pudo leer la foto 2 seleccionada', e);
                     }
                 });
             }
+
+            // Eliminar fotos (marcar para borrar en guardado)
+            if (btnDel1) {
+                btnDel1.addEventListener('click', () => {
+                    try {
+                        const act = getActiveDano();
+                        if (tieneChipsDano && act) {
+                            const b = ensureDanoBucket(act);
+                            if (b) {
+                                b.blob1 = null;
+                                b.del1 = true;
+                            }
+                            // Si ya no hay evidencia, permitir desmarcar luego
+                            renderChipThumbs();
+                            actualizarSeleccionChips();
+                            return;
+                        }
+
+                        fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob: null, del1: true };
+                        if (inputFoto) { try { inputFoto.value = ''; } catch {} }
+                        if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+                        try { filaHtml.dataset.evid1Exists = '0'; } catch {}
+                        btnDel1.style.display = 'none';
+                        syncUiEvidencias();
+                    } catch {}
+                });
+            }
+            if (btnDel2) {
+                btnDel2.addEventListener('click', () => {
+                    try {
+                        if (!puedeSubirEvidencia2Now()) return;
+                        const act = getActiveDano();
+                        if (tieneChipsDano && act) {
+                            const b = ensureDanoBucket(act);
+                            if (b) {
+                                b.blob2 = null;
+                                b.del2 = true;
+                            }
+                            renderChipThumbs();
+                            actualizarSeleccionChips();
+                            return;
+                        }
+
+                        fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: null, del2: true };
+                        if (inputFoto2) { try { inputFoto2.value = ''; } catch {} }
+                        if (imgPrev2) { imgPrev2.src = ''; imgPrev2.style.display = 'none'; }
+                        try { filaHtml.dataset.evid2Exists = '0'; } catch {}
+                        btnDel2.style.display = 'none';
+                        syncUiEvidencias();
+                    } catch {}
+                });
+            }
+
+            // Primera sincronización (si venimos de prefill)
+            try { syncUiEvidencias(); } catch {}
+            try { actualizarSeleccionChips(); } catch {}
         });
 
         // Función para abrir la cámara y capturar una foto
@@ -3395,61 +4123,175 @@ document.addEventListener('DOMContentLoaded', () => {
                 const detalleOtro = inputOtro ? (inputOtro.value || '').trim() : '';
                 const inputFoto = filaHtml.querySelector(`input[name="param-${idx}-foto"]`);
                 const inputFoto2 = filaHtml.querySelector(`input[name="param-${idx}-foto2"]`);
+                const danoChips = filaHtml.querySelector('.dano-chips');
+                const chipBtns = danoChips ? Array.from(danoChips.querySelectorAll('.dano-chip')) : [];
+                const tieneChipsDano = !!(chipBtns && chipBtns.length);
+                const getSelDanos = () => {
+                    try {
+                        const raw = String(filaHtml.dataset.danosSel || '[]');
+                        const arr = JSON.parse(raw);
+                        if (Array.isArray(arr)) return arr.map(x => String(x || '').trim().toUpperCase()).filter(Boolean);
+                    } catch {}
+                    return [];
+                };
                 let evidenciaNombre = '';
                 let evidenciaPath = '';
                 let evidenciaNombre2 = '';
                 let evidenciaPath2 = '';
-                if (estado && estado.toUpperCase() === 'MALO') {
-                    const fotoBlob = (fotosTomadas[idx]?.blob) || (inputFoto && inputFoto.files && inputFoto.files[0]) || null;
-                    if (fotoBlob) {
-                        // Nombre de evidencia: debe ser ÚNICO por parámetro para evitar sobreescritura en Storage
-                        const ahora = new Date();
-                        const dd = String(ahora.getDate()).padStart(2, '0');
-                        const mm = String(ahora.getMonth() + 1).padStart(2, '0');
-                        const yy = String(ahora.getFullYear()).slice(-2);
-                        const fechaSafe = `${dd}-${mm}-${yy}`;
-                        const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
-                        const slug = String(nombre || '')
-                            .toLowerCase()
-                            .normalize('NFD')
-                            .replace(/[\u0300-\u036f]/g, '')
-                            .replace(/[^a-z0-9]+/g, '-')
-                            .replace(/^-+|-+$/g, '')
-                            .slice(0, 28);
-                        const idxSafe = String(idx).padStart(2, '0');
-                        evidenciaNombre = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}.jpg`;
-                        evidenciaPath = `inspecciones/${localId}/${evidenciaNombre}`;
-                        fotosParaSubir.push({ idx, slot: 1, nombre, file: fotoBlob, evidenciaNombre });
-                    }
+                let borrarEvid1 = false;
+                let borrarEvid2 = false;
+                const danosSeleccionados = (tieneChipsDano && (estado || '').toUpperCase() === 'MALO') ? getSelDanos() : [];
+                const evidenciasPorDano = {};
 
-                    // Foto 2 (solo SGI/supervisor/director/admin)
-                    const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
-                    const fotoBlob2 = puedeSubirEvidencia2
-                        ? ((fotosTomadas[idx]?.blob2) || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]) || null)
-                        : null;
-                    if (fotoBlob2) {
+                if (estado && estado.toUpperCase() === 'MALO') {
+                    if (tieneChipsDano) {
+                        // Por chip: cada daño tiene evidencia propia
+                        const prevByDano = (filaHtml && filaHtml.__prevEvidenciasPorDano && typeof filaHtml.__prevEvidenciasPorDano === 'object') ? filaHtml.__prevEvidenciasPorDano : {};
+                        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+
                         const ahora = new Date();
                         const dd = String(ahora.getDate()).padStart(2, '0');
                         const mm = String(ahora.getMonth() + 1).padStart(2, '0');
                         const yy = String(ahora.getFullYear()).slice(-2);
                         const fechaSafe = `${dd}-${mm}-${yy}`;
                         const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
-                        const slug = String(nombre || '')
+                        const slugParam = String(nombre || '')
                             .toLowerCase()
                             .normalize('NFD')
                             .replace(/[\u0300-\u036f]/g, '')
                             .replace(/[^a-z0-9]+/g, '-')
                             .replace(/^-+|-+$/g, '')
-                            .slice(0, 28);
+                            .slice(0, 18);
                         const idxSafe = String(idx).padStart(2, '0');
-                        evidenciaNombre2 = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}-2.jpg`;
-                        evidenciaPath2 = `inspecciones/${localId}/${evidenciaNombre2}`;
-                        fotosParaSubir.push({ idx, slot: 2, nombre, file: fotoBlob2, evidenciaNombre: evidenciaNombre2 });
+
+                        const slugDano = (s) => String(s || '')
+                            .toLowerCase()
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/^-+|-+$/g, '')
+                            .slice(0, 16);
+
+                        (danosSeleccionados || []).forEach((danoKey) => {
+                            const dk = String(danoKey || '').trim().toUpperCase();
+                            if (!dk) return;
+                            let prevD = prevByDano && prevByDano[dk] ? prevByDano[dk] : {};
+                            try {
+                                if ((!prevD || typeof prevD !== 'object' || (!prevD.evidenciaNombre && !prevD.evidenciaPath && !prevD.evidenciaUrl)) && isEditingExisting) {
+                                    const prevParam = (prevParams && prevParams[idx]) ? prevParams[idx] : null;
+                                    const legacyDano = String(prevParam && prevParam.tipoDano ? prevParam.tipoDano : '').trim().toUpperCase();
+                                    if (prevParam && legacyDano && legacyDano === dk) {
+                                        const ln = String(prevParam.evidenciaNombre || '').trim();
+                                        const lp = String(prevParam.evidenciaPath || '').trim();
+                                        const lu = String(prevParam.evidenciaUrl || '').trim();
+                                        const ln2 = String(prevParam.evidenciaNombre2 || '').trim();
+                                        const lp2 = String(prevParam.evidenciaPath2 || '').trim();
+                                        const lu2 = String(prevParam.evidenciaUrl2 || '').trim();
+                                        if (ln || lp || lu || ln2 || lp2 || lu2) {
+                                            prevD = {
+                                                evidenciaNombre: ln,
+                                                evidenciaPath: lp,
+                                                evidenciaUrl: lu,
+                                                evidenciaNombre2: ln2,
+                                                evidenciaPath2: lp2,
+                                                evidenciaUrl2: lu2,
+                                            };
+                                        }
+                                    }
+                                }
+                            } catch {}
+                            const bucket = fotosTomadas[idx]?.danos?.[dk] || {};
+
+                            const del1 = !!bucket.del1;
+                            const del2 = !!bucket.del2;
+
+                            const foto1 = bucket.blob1 || null;
+                            const foto2 = puedeSubirEvidencia2 ? (bucket.blob2 || null) : null;
+
+                            let evidenciaNombre1 = '';
+                            let evidenciaPath1 = '';
+                            let evidenciaNombre22 = '';
+                            let evidenciaPath22 = '';
+
+                            if (foto1) {
+                                evidenciaNombre1 = `${equipoId}-${fechaSafe}-${idxSafe}${slugParam ? '-' + slugParam : ''}-${slugDano(dk)}.jpg`;
+                                evidenciaPath1 = `inspecciones/${localId}/${evidenciaNombre1}`;
+                                fotosParaSubir.push({ idx, dano: dk, slot: 1, nombre, file: foto1, evidenciaNombre: evidenciaNombre1 });
+                            }
+
+                            if (foto2) {
+                                evidenciaNombre22 = `${equipoId}-${fechaSafe}-${idxSafe}${slugParam ? '-' + slugParam : ''}-${slugDano(dk)}-2.jpg`;
+                                evidenciaPath22 = `inspecciones/${localId}/${evidenciaNombre22}`;
+                                fotosParaSubir.push({ idx, dano: dk, slot: 2, nombre, file: foto2, evidenciaNombre: evidenciaNombre22 });
+                            }
+
+                            // Preservar si no viene nueva y no se borró
+                            const out = {
+                                evidenciaNombre: del1 ? '' : (evidenciaNombre1 || String(prevD.evidenciaNombre || '')),
+                                evidenciaPath: del1 ? '' : (evidenciaPath1 || String(prevD.evidenciaPath || '')),
+                                evidenciaNombre2: del2 ? '' : (evidenciaNombre22 || String(prevD.evidenciaNombre2 || '')),
+                                evidenciaPath2: del2 ? '' : (evidenciaPath22 || String(prevD.evidenciaPath2 || '')),
+                                borrarEvid1: del1,
+                                borrarEvid2: del2,
+                            };
+                            evidenciasPorDano[dk] = out;
+                        });
+                    } else {
+                        // Legacy por parámetro (sin chips)
+                        borrarEvid1 = !!(fotosTomadas[idx] && fotosTomadas[idx].del1);
+                        borrarEvid2 = !!(fotosTomadas[idx] && fotosTomadas[idx].del2);
+
+                        const fotoBlob = (fotosTomadas[idx]?.blob) || (inputFoto && inputFoto.files && inputFoto.files[0]) || null;
+                        if (fotoBlob) {
+                            // Nombre de evidencia: debe ser ÚNICO por parámetro para evitar sobreescritura en Storage
+                            const ahora = new Date();
+                            const dd = String(ahora.getDate()).padStart(2, '0');
+                            const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                            const yy = String(ahora.getFullYear()).slice(-2);
+                            const fechaSafe = `${dd}-${mm}-${yy}`;
+                            const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
+                            const slug = String(nombre || '')
+                                .toLowerCase()
+                                .normalize('NFD')
+                                .replace(/[\u0300-\u036f]/g, '')
+                                .replace(/[^a-z0-9]+/g, '-')
+                                .replace(/^-+|-+$/g, '')
+                                .slice(0, 28);
+                            const idxSafe = String(idx).padStart(2, '0');
+                            evidenciaNombre = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}.jpg`;
+                            evidenciaPath = `inspecciones/${localId}/${evidenciaNombre}`;
+                            fotosParaSubir.push({ idx, slot: 1, nombre, file: fotoBlob, evidenciaNombre });
+                        }
+
+                        // Foto 2 (solo SGI/supervisor/director/admin)
+                        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                        const fotoBlob2 = puedeSubirEvidencia2
+                            ? ((fotosTomadas[idx]?.blob2) || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]) || null)
+                            : null;
+                        if (fotoBlob2) {
+                            const ahora = new Date();
+                            const dd = String(ahora.getDate()).padStart(2, '0');
+                            const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                            const yy = String(ahora.getFullYear()).slice(-2);
+                            const fechaSafe = `${dd}-${mm}-${yy}`;
+                            const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
+                            const slug = String(nombre || '')
+                                .toLowerCase()
+                                .normalize('NFD')
+                                .replace(/[\u0300-\u036f]/g, '')
+                                .replace(/[^a-z0-9]+/g, '-')
+                                .replace(/^-+|-+$/g, '')
+                                .slice(0, 28);
+                            const idxSafe = String(idx).padStart(2, '0');
+                            evidenciaNombre2 = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}-2.jpg`;
+                            evidenciaPath2 = `inspecciones/${localId}/${evidenciaNombre2}`;
+                            fotosParaSubir.push({ idx, slot: 2, nombre, file: fotoBlob2, evidenciaNombre: evidenciaNombre2 });
+                        }
                     }
                 }
 
                 // Preservar evidencia previa si estamos editando y no se adjuntó una nueva
-                if (isEditingExisting && estado && estado.toUpperCase() === 'MALO' && !evidenciaNombre) {
+                if (isEditingExisting && estado && estado.toUpperCase() === 'MALO' && !evidenciaNombre && !borrarEvid1) {
                     const prev = (prevParams && prevParams[idx]) ? prevParams[idx] : null;
                     if (prev) {
                         const prevNombre = (prev.evidenciaNombre != null) ? String(prev.evidenciaNombre) : '';
@@ -3462,7 +4304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Preservar evidencia 2 previa si estamos editando y no se adjuntó una nueva
-                if (isEditingExisting && estado && estado.toUpperCase() === 'MALO' && !evidenciaNombre2) {
+                if (isEditingExisting && estado && estado.toUpperCase() === 'MALO' && !evidenciaNombre2 && !borrarEvid2) {
                     const prev = (prevParams && prevParams[idx]) ? prevParams[idx] : null;
                     if (prev) {
                         const prevNombre2 = (prev.evidenciaNombre2 != null) ? String(prev.evidenciaNombre2) : '';
@@ -3472,6 +4314,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             evidenciaPath2 = prevPath2;
                         }
                     }
+                }
+
+                // Si se marcó borrar, forzar vaciado
+                if (borrarEvid1) {
+                    evidenciaNombre = '';
+                    evidenciaPath = '';
+                }
+                if (borrarEvid2) {
+                    evidenciaNombre2 = '';
+                    evidenciaPath2 = '';
                 }
 
                 parametrosCapturados.push({
@@ -3484,6 +4336,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     evidenciaPath,
                     evidenciaNombre2,
                     evidenciaPath2,
+                    borrarEvid1,
+                    borrarEvid2,
+                    danosSeleccionados,
+                    evidenciasPorDano,
                 });
             });
 
@@ -3522,7 +4378,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Exigir tipo de daño solo si el parámetro no es Recubrimiento (o similar sin selector de daño)
                     const baseNombre = (p.nombre || '').toLowerCase();
                     const tieneSelectorDanos = !baseNombre.includes('recubrimiento');
-                    if (tieneSelectorDanos && !p.tipoDano) {
+                    if (tieneSelectorDanos && !p.tipoDano && (!Array.isArray(p.danosSeleccionados) || !p.danosSeleccionados.length)) {
                         alert(`Selecciona el tipo de daño para: ${p.nombre}`);
                         try {
                             btnGuardar.innerHTML = prevBtnHtml;
@@ -3541,16 +4397,92 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     // Foto obligatoria cuando el parámetro es MALO
-                    const inputFoto = document.querySelector(`input[name="param-${i}-foto"]`);
-                    const tieneFoto = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
-                    if (!tieneFoto) {
-                        alert(`Adjunta fotografía de evidencia para: ${p.nombre}`);
-                        try {
-                            btnGuardar.innerHTML = prevBtnHtml;
-                            btnGuardar.disabled = prevBtnDisabled;
-                        } catch {}
-                        guardandoInspeccion = false;
-                        return;
+                    const danoChips = document.querySelectorAll('.parametros-fila')[i]?.querySelector('.dano-chips');
+                    const chipBtns = danoChips ? Array.from(danoChips.querySelectorAll('.dano-chip')) : [];
+                    const tieneChips = !!(chipBtns && chipBtns.length);
+                    if (tieneChips) {
+                        const sel = Array.isArray(p.danosSeleccionados) ? p.danosSeleccionados.map(x => String(x || '').trim().toUpperCase()).filter(Boolean) : [];
+                        for (const dk of sel) {
+                            const bucket = fotosTomadas[i]?.danos?.[dk] || {};
+                            const row = document.querySelectorAll('.parametros-fila')[i];
+                            let prevParam = (row && row.__prevParam) ? row.__prevParam : null;
+                            if (!prevParam) {
+                                try {
+                                    const nombreUi = row ? (row.querySelector('.col-nombre')?.textContent?.trim() || '') : '';
+                                    const normKey = (s) => String(s || '')
+                                        .toLowerCase()
+                                        .normalize('NFD')
+                                        .replace(/[\u0300-\u036f]/g, '')
+                                        .replace(/\s+/g, ' ')
+                                        .trim();
+                                    const k = normKey(nombreUi);
+                                    const list = (inspeccionEditData && Array.isArray(inspeccionEditData.parametros)) ? inspeccionEditData.parametros : [];
+                                    if (k && list.length) {
+                                        const hit = list.find(pp => normKey(pp && pp.nombre) === k) || list.find(pp => {
+                                            const kn = normKey(pp && pp.nombre);
+                                            return kn && (kn.includes(k) || k.includes(kn));
+                                        });
+                                        if (hit) prevParam = hit;
+                                    }
+                                } catch {}
+                            }
+                            if (!prevParam) {
+                                prevParam = (inspeccionEditData && Array.isArray(inspeccionEditData.parametros)) ? inspeccionEditData.parametros[i] : null;
+                            }
+                            const prev = (prevParam && prevParam.evidenciasPorDano && typeof prevParam.evidenciasPorDano === 'object') ? prevParam.evidenciasPorDano : {};
+                            const prevD = prev && prev[dk] ? prev[dk] : {};
+                            let has1 = !!(bucket.blob1 || (prevD.evidenciaNombre || prevD.evidenciaPath || prevD.evidenciaUrl)) && !bucket.del1;
+
+                            // Modo sin migración: si la inspección es legacy (evidencia a nivel parámetro),
+                            // permitir que satisfaga el chip correspondiente al tipoDano guardado.
+                            if (!has1 && isEditingExisting && !bucket.del1) {
+                                try {
+                                    const legacyDano = String(prevParam && prevParam.tipoDano ? prevParam.tipoDano : '').trim().toUpperCase();
+                                    const prevNombre = String(prevParam && prevParam.evidenciaNombre ? prevParam.evidenciaNombre : '').trim();
+                                    const prevPath = String(prevParam && prevParam.evidenciaPath ? prevParam.evidenciaPath : '').trim();
+                                    const prevUrl = String(prevParam && prevParam.evidenciaUrl ? prevParam.evidenciaUrl : '').trim();
+                                    const tieneLegacy = !!(prevNombre || prevPath || prevUrl);
+                                    if (tieneLegacy && (!legacyDano || legacyDano === dk)) {
+                                        has1 = true;
+                                    }
+                                } catch {}
+                            }
+                            if (!has1) {
+                                alert(`Adjunta fotografía de evidencia (Foto 1) para: ${p.nombre} - ${dk}`);
+                                try {
+                                    btnGuardar.innerHTML = prevBtnHtml;
+                                    btnGuardar.disabled = prevBtnDisabled;
+                                } catch {}
+                                guardandoInspeccion = false;
+                                return;
+                            }
+                        }
+                    } else {
+                        const inputFoto = document.querySelector(`input[name="param-${i}-foto"]`);
+                        const del1 = !!(fotosTomadas[i] && fotosTomadas[i].del1);
+                        const tieneNueva = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
+                        let tienePrevia = false;
+                        if (isEditingExisting && !del1) {
+                            try {
+                                const prev = (inspeccionEditData && Array.isArray(inspeccionEditData.parametros)) ? inspeccionEditData.parametros[i] : null;
+                                if (prev) {
+                                    const prevNombre = String(prev.evidenciaNombre || '').trim();
+                                    const prevPath = String(prev.evidenciaPath || '').trim();
+                                    const prevUrl = String(prev.evidenciaUrl || '').trim();
+                                    tienePrevia = !!(prevNombre || prevPath || prevUrl);
+                                }
+                            } catch {}
+                        }
+                        const tieneFoto = !!(tieneNueva || tienePrevia);
+                        if (!tieneFoto) {
+                            alert(`Adjunta fotografía de evidencia para: ${p.nombre}`);
+                            try {
+                                btnGuardar.innerHTML = prevBtnHtml;
+                                btnGuardar.disabled = prevBtnDisabled;
+                            } catch {}
+                            guardandoInspeccion = false;
+                            return;
+                        }
                     }
                 }
             }
@@ -3727,20 +4659,60 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ? String(f.evidenciaNombre)
                                 : `foto-${String(f && f.idx != null ? f.idx : '')}.jpg`;
                             const slot = (f && f.slot != null) ? String(f.slot) : '1';
+                            const danoKey = (f && f.dano != null) ? String(f.dano).trim().toUpperCase() : '';
                             // Usar la misma carpeta que evidenciaPath (localId)
                             const pth = `inspecciones/${localId}/${name}`;
                             const stRef = ref(storage, pth);
                             await uploadBytes(stRef, f.file);
                             const url = await getDownloadURL(stRef);
-                            urlsPorKey[`${String(f.idx)}-${slot}`] = url;
+                            urlsPorKey[`${String(f.idx)}|${danoKey}|${slot}`] = url;
                         }
 
                         const nextParams = (parametrosCapturados || []).map((p, idx) => {
-                            const u1 = urlsPorKey[`${String(idx)}-1`] || '';
-                            const u2 = urlsPorKey[`${String(idx)}-2`] || '';
+                    const next = { ...(p || {}) };
+
+                    const hasChips = Array.isArray(next.danosSeleccionados) && next.danosSeleccionados.length;
+                    if (hasChips) {
+                        const sel = next.danosSeleccionados.map(x => String(x || '').trim().toUpperCase()).filter(Boolean);
+                        const by = (next.evidenciasPorDano && typeof next.evidenciasPorDano === 'object') ? next.evidenciasPorDano : {};
+                        try {
+                            const pruned = {};
+                            sel.forEach((dk) => {
+                                if (by && by[dk]) pruned[dk] = by[dk];
+                            });
+                            next.evidenciasPorDano = pruned;
+                        } catch {
+                            next.evidenciasPorDano = by;
+                        }
+                        sel.forEach((dk) => {
+                            const u1 = urlsPorKey[`${String(idx)}|${dk}|1`] || '';
+                            const u2 = urlsPorKey[`${String(idx)}|${dk}|2`] || '';
+                            if (!u1 && !u2) return;
+                            next.evidenciasPorDano[dk] = { ...(next.evidenciasPorDano[dk] || {}) };
+                            if (u1) {
+                                const name = (next.evidenciasPorDano[dk] && next.evidenciasPorDano[dk].evidenciaNombre) ? String(next.evidenciasPorDano[dk].evidenciaNombre) : '';
+                                const evidenciaPath = (next.evidenciasPorDano[dk] && next.evidenciasPorDano[dk].evidenciaPath)
+                                    ? String(next.evidenciasPorDano[dk].evidenciaPath)
+                                    : (name ? `inspecciones/${localId}/${name}` : '');
+                                next.evidenciasPorDano[dk].evidenciaUrl = u1;
+                                next.evidenciasPorDano[dk].evidenciaPath = evidenciaPath;
+                            }
+                            if (u2) {
+                                const name2 = (next.evidenciasPorDano[dk] && next.evidenciasPorDano[dk].evidenciaNombre2) ? String(next.evidenciasPorDano[dk].evidenciaNombre2) : '';
+                                const evidenciaPath2 = (next.evidenciasPorDano[dk] && next.evidenciasPorDano[dk].evidenciaPath2)
+                                    ? String(next.evidenciasPorDano[dk].evidenciaPath2)
+                                    : (name2 ? `inspecciones/${localId}/${name2}` : '');
+                                next.evidenciasPorDano[dk].evidenciaUrl2 = u2;
+                                next.evidenciasPorDano[dk].evidenciaPath2 = evidenciaPath2;
+                            }
+                        });
+                        return next;
+                    }
+
+                            const u1 = urlsPorKey[`${String(idx)}||1`] || '';
+                            const u2 = urlsPorKey[`${String(idx)}||2`] || '';
                             if (!u1 && !u2) return p;
 
-                            const next = { ...(p || {}) };
                             if (u1) {
                                 const name = (next && next.evidenciaNombre) ? String(next.evidenciaNombre) : '';
                                 const evidenciaPath = (next && next.evidenciaPath)
