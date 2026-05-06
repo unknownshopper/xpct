@@ -409,6 +409,7 @@ Definición de roles y su alcance en la aplicación. Inspector y Capturista comp
 
 - **Cuentas, roles y nombres (referencia)**
   - sgi@pc-t.com.mx → Rol: supervisor → Nombre: Rubén
+  - cop@pc-t.com.mx → Rol: supervisor → Nombre: COP
   - auxger@pc-t.com.mx → Rol: capturista → Nombre: Valeria
   - capturista@pc-t.com.mx → Rol: capturista → Nombre: Capturista
   - inspector01@pct.com → Rol: inspector → Nombre: Inspector

@@ -29,6 +29,7 @@ async function main() {
 
   // Valores por defecto para tus capturistas
   await setRole('sgi@pc-t.com.mx', 'supervisor');
+  await setRole('cop@pc-t.com.mx', 'supervisor');
   await setRole('auxger@pc-t.com.mx', 'capturista');
   await setRole('lgmt@pc-t.com.mx', 'director');
   await setRole('jalcz@pc-t.com.mx', 'admin');
