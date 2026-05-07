@@ -481,6 +481,19 @@ app.get('/api/health', (req, res) => {
   res.json(base);
 });
 
-app.listen(PORT, () => {
-  // no-op
-});
+if (String(process.env.RUN_ONCE || '').trim() === 'send-alerts') {
+  (async () => {
+    try {
+      const out = await calcularYEnviar({ testMode: false, force: false });
+      try { console.log('RUN_ONCE send-alerts result:', out); } catch {}
+      process.exit(0);
+    } catch (e) {
+      console.error('RUN_ONCE send-alerts failed:', e);
+      process.exit(1);
+    }
+  })();
+} else {
+  app.listen(PORT, () => {
+    // no-op
+  });
+}

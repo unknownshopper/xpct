@@ -222,14 +222,22 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
 function getMailRecipients() {
   const toRaw = process.env.MAIL_TO || '';
   const extraRaw = process.env.MAIL_TO_EXTRA || '';
-  const merged = `${toRaw};${extraRaw}`;
+
   const toList = Array.from(new Set(
-    merged
+    toRaw
       .split(/[;,]/)
       .map(s => s.trim())
       .filter(Boolean)
   ));
-  return { toList };
+
+  const bccList = Array.from(new Set(
+    extraRaw
+      .split(/[;,]/)
+      .map(s => s.trim())
+      .filter(Boolean)
+  ));
+
+  return { toList, bccList };
 }
 
 async function enviarCorreo({ html, subject }) {
@@ -247,7 +255,7 @@ async function enviarCorreo({ html, subject }) {
   const from = fromRaw ? fromRaw : { name: fromName, address: user };
   const fromAddress = extractEmailAddress(fromRaw || user);
 
-  const { toList } = getMailRecipients();
+  const { toList, bccList } = getMailRecipients();
   if (!toList.length) throw new Error('MAIL_TO is empty or invalid');
 
   const transporter = nodemailer.createTransport({
@@ -259,12 +267,14 @@ async function enviarCorreo({ html, subject }) {
     debug: process.env.SMTP_DEBUG === '1'
   });
 
+  const envelopeTo = Array.from(new Set([...(toList || []), ...(bccList || [])]));
   return transporter.sendMail({
     from,
     to: toList.join(', '),
+    bcc: bccList.length ? bccList.join(', ') : undefined,
     subject,
     html,
-    envelope: { from: fromAddress, to: toList }
+    envelope: { from: fromAddress, to: envelopeTo }
   });
 }
 
@@ -323,20 +333,21 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   if (!lista60.length && !lista30.length && !lista15.length && !lista0.length && !listaFail.length) {
     if (testMode) {
       await enviarCorreo({ html, subject });
-      const { toList } = getMailRecipients();
-      return { sent: true, empty: true, to: toList };
+      const { toList, bccList } = getMailRecipients();
+      return { sent: true, empty: true, to: toList, bcc: bccList };
     }
     return { sent: false, empty: true };
   }
 
   await enviarCorreo({ html, subject });
-  const { toList } = getMailRecipients();
+  const { toList, bccList } = getMailRecipients();
 
   return {
     sent: true,
     empty: false,
     counts: { c60: lista60.length, c30: lista30.length, c15: lista15.length, c0: lista0.length, cFail: listaFail.length },
-    to: toList
+    to: toList,
+    bcc: bccList
   };
 }
 
