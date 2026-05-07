@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administración Actividad (Admax)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="img/logopctch.png" alt="Logo PCT">
+    </div>
+    <button class="nav-toggle" type="button" aria-label="Abrir menú">&#9776;</button>
+    <nav class="nav-main">
+      <ul>
+        <li><a href="index.html">Inicio</a></li>
+
+        <li class="nav-item-has-dropdown">
+          <a href="#" class="active">Actividad</a>
+          <ul class="nav-dropdown">
+            <li><a href="actividad.html">Registrar actividad</a></li>
+            <li><a href="actividadlist.html">Listado de actividades</a></li>
+            <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+            <li><a href="actividoc.html" class="nav-admin-only">OC / OS</a></li>
+            <li><a href="admax.html" class="nav-admin-only active">Admax</a></li>
+            <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+          </ul>
+        </li>
+
+        <li class="nav-item-has-dropdown">
+          <a href="#">Pruebas</a>
+          <ul class="nav-dropdown">
+            <li><a href="pruebas.html">Registrar prueba</a></li>
+            <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+            <li><a href="pruebasrangos.html">Rangos</a></li>
+          </ul>
+        </li>
+
+        <li class="nav-item-has-dropdown">
+          <a href="#">Inspecciones</a>
+          <ul class="nav-dropdown">
+            <li><a href="inspeccion.html">Nueva inspección</a></li>
+            <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+    <div class="user-info">
+      <span class="user-info-email" id="nav-user-email"></span>
+      <button id="btn-logout">Salir</button>
+    </div>
+  </header>
+
+  <main class="actividad-page actividadlist-wrap">
+    <section class="dash-card" style="margin-bottom: 0.75rem; overflow:visible;">
+      <div class="dash-card-label">Alta rápida (pendiente de OC/OS cliente)</div>
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-top:0.35rem; overflow:visible;">
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-cliente" style="font-size:0.72rem; color:#4b5563;">Cliente</label>
+          <input id="admx-cliente" type="text" placeholder="Cliente" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:240px;">
+          <div id="admx-cliente-sugs" style="margin-top:6px; display:none; position:relative;"></div>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-ubic" style="font-size:0.72rem; color:#4b5563;">Ubicación / Pozo</label>
+          <input id="admx-ubic" type="text" placeholder="Ubicación/Pozo" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:240px;">
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-emb" style="font-size:0.72rem; color:#4b5563;">Fecha de embarque (dd/mm/aa)</label>
+          <input id="admx-emb" type="text" maxlength="8" placeholder="__/__/__" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:160px;">
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-inicio" style="font-size:0.72rem; color:#4b5563;">Inicio servicio (dd/mm/aa)</label>
+          <input id="admx-inicio" type="text" maxlength="8" placeholder="__/__/__" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:140px;">
+        </div>
+        <div style="display:flex; flex-direction:column; flex:1 1 280px;"></div>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-top:10px; overflow:visible;">
+        <div style="display:flex; flex-direction:column; flex:1 1 520px; overflow:visible;">
+          <label for="admx-equipo" style="font-size:0.72rem; color:#4b5563;">Equipo / Activo (Enter o espacio para agregar)</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input id="admx-equipo" type="text" placeholder="PCT-XX-00" style="font-size:0.85rem; padding:0.25rem 0.4rem; flex:1 1 auto; min-width:320px;">
+            <button id="admx-btn-clear-equipos" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; cursor:pointer;">Limpiar</button>
+          </div>
+          <div id="admx-equipo-sugs" style="margin-top:6px; display:none; position:relative;"></div>
+          <div style="margin-top:8px; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden;">
+            <div style="display:grid; grid-template-columns: 220px 1fr 90px; gap:0; padding:8px 10px; font-size:0.75rem; color:#6b7280; background:#f8fafc;">
+              <div>Equipo</div>
+              <div>Descripción</div>
+              <div style="text-align:right;"></div>
+            </div>
+            <div id="admx-equipos-list" style="max-height:220px; overflow:auto;"></div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-oc" style="font-size:0.72rem; color:#4b5563;">OC interna</label>
+          <input id="admx-oc" type="text" placeholder="(auto)" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:200px;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button id="admx-btn-oc" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; cursor:pointer;">Generar OC interna</button>
+          <button id="admx-btn-crear" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #0ea5e9; background:#0ea5e9; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Crear actividades</button>
+        </div>
+      </div>
+
+      <div id="admx-msg" style="margin-top:10px; font-size:0.9rem; color:#6b7280; display:none;"></div>
+    </section>
+
+    <section style="margin:0; padding:0;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:0.25rem 0 0.35rem 0;">
+        <div style="font-weight:700; color:#111827;">Pendientes / Listado (asignar OC/OS por checkbox)</div>
+        <div id="admx-cont" style="font-size:0.85rem; color:#4b5563;"></div>
+      </div>
+      <div style="display:flex; gap:0.5rem; align-items:flex-end; margin:0.35rem 0 0.5rem 0; flex-wrap:wrap;">
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-filtro" style="font-size:0.72rem; color:#4b5563;">Buscar (cliente, ubicación, equipo, OC/OS)</label>
+          <input type="text" id="admx-filtro" placeholder="Buscar…" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:320px;">
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-modo" style="font-size:0.72rem; color:#4b5563;">Mostrar</label>
+          <select id="admx-modo" style="font-size:0.85rem; padding:0.25rem 0.4rem;">
+            <option value="PENDIENTES">Pendientes</option>
+            <option value="SIN_OC">Sin OC cliente</option>
+            <option value="SIN_OS">Sin OS</option>
+            <option value="TODAS">Todas</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-batch-occli" style="font-size:0.72rem; color:#4b5563;">OC cliente</label>
+          <input id="admx-batch-occli" type="text" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:160px;">
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-batch-os" style="font-size:0.72rem; color:#4b5563;">OS ({OC}-NNN)</label>
+          <input id="admx-batch-os" type="text" placeholder="(auto)" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:160px;">
+        </div>
+        <button id="admx-btn-os" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Generar OS</button>
+        <button id="admx-btn-aplicar" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #16a34a; background:#16a34a; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Asignar a selección</button>
+        <button id="admx-btn-refrescar" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; cursor:pointer;">Refrescar</button>
+      </div>
+      <div id="admx-list" style="margin-top:0.5rem;"></div>
+    </section>
+  </main>
+
+  <div id="admx-modal-tabulador" style="position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:80;">
+    <div style="background:white; max-width:900px; width:95%; max-height:90vh; overflow:auto; border-radius:0.5rem; box-shadow:0 10px 40px rgba(15,23,42,0.35); padding:1rem 1.25rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <div>
+          <h2 style="margin:0; font-size:1.1rem; font-weight:600;">Tabulador de facturación</h2>
+          <p id="admx-tabulador-header" style="margin:0.15rem 0 0; font-size:0.85rem; color:#4b5563;"></p>
+        </div>
+        <div>
+          <button id="admx-tabulador-imprimir" type="button" style="font-size:0.8rem; margin-right:0.5rem;">Imprimir</button>
+          <button id="admx-tabulador-cerrar" type="button" style="font-size:0.8rem;">Cerrar</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:0.75rem; padding:0.75rem; background:#f9fafb; border-radius:0.5rem; border:1px solid #e5e7eb;">
+        <h3 style="margin:0 0 0.5rem; font-size:0.95rem; font-weight:500;">Nuevo período</h3>
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
+          <div style="flex:1 1 120px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Inicio período</label>
+            <input id="admx-per-inicio" type="text" placeholder="__/__/__" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+          </div>
+          <div style="flex:1 1 120px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Fin período</label>
+            <input id="admx-per-fin" type="text" placeholder="__/__/__" maxlength="8" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+          </div>
+          <div style="flex:0 0 110px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Tipo</label>
+            <select id="admx-per-tipo" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+              <option value="PARCIAL">PARCIAL</option>
+              <option value="FINAL">FINAL</option>
+            </select>
+          </div>
+          <div style="flex:0 0 120px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Tarifa diaria</label>
+            <input id="admx-per-tarifa" type="number" min="0" step="1" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+          </div>
+          <div style="flex:0 0 70px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Días</label>
+            <input id="admx-per-dias" type="number" min="0" step="1" readonly style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db; background:#f3f4f6;">
+          </div>
+          <div style="flex:0 0 120px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Importe</label>
+            <input id="admx-per-importe" type="number" min="0" step="1" readonly style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db; background:#f3f4f6;">
+          </div>
+          <div style="flex:1 1 120px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Factura</label>
+            <input id="admx-per-factura" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+          </div>
+          <div style="flex:1 1 120px;">
+            <label style="font-size:0.75rem; color:#4b5563;">OC</label>
+            <input id="admx-per-oc" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+          </div>
+          <div style="flex:1 1 240px;">
+            <label style="font-size:0.75rem; color:#4b5563;">Observaciones</label>
+            <input id="admx-per-obs" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
+          </div>
+          <div style="flex:0 0 auto;">
+            <button id="admx-per-limpiar" type="button" style="margin-top:1rem; font-size:0.8rem; margin-right:0.35rem; background:#fff7ed; border:1px solid #fed7aa;">Limpiar tabulador</button>
+            <button id="admx-per-guardar" type="button" style="margin-top:1rem; font-size:0.8rem;">Agregar período</button>
+          </div>
+        </div>
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+        <thead>
+          <tr style="background:#f3f4f6;">
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Inicio</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Fin</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">Días</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">Tarifa</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:right;">Importe</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Tipo</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">OC</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Factura</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Observaciones</th>
+            <th style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="admx-tabulador-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="config.local.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script src="nav.js"></script>
+  <script src="utils.js"></script>
+
+  <script>
+  (function() {
+    const msg = document.getElementById('admx-msg');
+    const inpCliente = document.getElementById('admx-cliente');
+    const clienteSugs = document.getElementById('admx-cliente-sugs');
+    const inpUbic = document.getElementById('admx-ubic');
+    const inpEmb = document.getElementById('admx-emb');
+    const inpInicio = document.getElementById('admx-inicio');
+    const inpEquipo = document.getElementById('admx-equipo');
+    const equipoSugs = document.getElementById('admx-equipo-sugs');
+    const btnClearEquipos = document.getElementById('admx-btn-clear-equipos');
+    const contEquipos = document.getElementById('admx-equipos-list');
+    const inpOc = document.getElementById('admx-oc');
+    const btnGenOc = document.getElementById('admx-btn-oc');
+    const btnCrear = document.getElementById('admx-btn-crear');
+
+    const inpFiltro = document.getElementById('admx-filtro');
+    const selModo = document.getElementById('admx-modo');
+    const inpBatchOcCli = document.getElementById('admx-batch-occli');
+    const inpBatchOs = document.getElementById('admx-batch-os');
+    const btnGenOs = document.getElementById('admx-btn-os');
+    const btnAplicar = document.getElementById('admx-btn-aplicar');
+    const btnRefrescar = document.getElementById('admx-btn-refrescar');
+    const cont = document.getElementById('admx-cont');
+    const list = document.getElementById('admx-list');
+
+    const tabModal = document.getElementById('admx-modal-tabulador');
+    const tabHeader = document.getElementById('admx-tabulador-header');
+    const tabTbody = document.getElementById('admx-tabulador-tbody');
+    const tabInicio = document.getElementById('admx-per-inicio');
+    const tabFin = document.getElementById('admx-per-fin');
+    const tabTipo = document.getElementById('admx-per-tipo');
+    const tabTarifa = document.getElementById('admx-per-tarifa');
+    const tabDias = document.getElementById('admx-per-dias');
+    const tabImporte = document.getElementById('admx-per-importe');
+    const tabFactura = document.getElementById('admx-per-factura');
+    const tabOc = document.getElementById('admx-per-oc');
+    const tabObs = document.getElementById('admx-per-obs');
+    const btnTabCerrar = document.getElementById('admx-tabulador-cerrar');
+    const btnTabImprimir = document.getElementById('admx-tabulador-imprimir');
+    const btnTabGuardar = document.getElementById('admx-per-guardar');
+    const btnTabLimpiar = document.getElementById('admx-per-limpiar');
+    let actividadTab = null;
+
+    let listaActividad = [];
+    let clientesTop = [];
+    let clienteFocus = false;
+
+    let mapaUltimaPruebaTipoPorEquipo = new Map();
+
+    let mapaPeriodosPorActividad = new Map();
+
+    const mapaDescripcionPorEquipo = {};
+    const mapaSerialPorEquipo = {};
+    const infoPorEquipo = {}; // { descripcionUI, descripcion }
+    let equiposSeleccionados = [];
+    let equiposCatalogo = [];
+    let equipoFocus = false;
+
+    const __rmAcc = (s) => (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const __upNoAcc = (s) => __rmAcc((s || '').toString().toUpperCase().trim());
+    function normalizeEquipo(raw) {
+      const t = __upNoAcc(raw).replace(/[-\s]+/g, ' ');
+      const m = t.match(/^PCT\s+([A-Z]{2,3})\s*0?(\d{1,2})$/) ||
+                t.match(/^PCT\s*([A-Z]{2,3})\s*-?\s*0?(\d{1,2})$/) ||
+                t.match(/^PCT([A-Z]{2,3})0?(\d{1,2})$/) ||
+                t.match(/^PCT\s*-\s*([A-Z]{2,3})\s*-\s*0?(\d{1,2})$/);
+      if (m) return `PCT-${m[1]}-${String(m[2]).padStart(2,'0')}`;
+      const m2 = __upNoAcc(raw).match(/^PCT-[A-Z]{2,3}-\d{2}$/);
+      if (m2) return m2[0];
+      return __upNoAcc(raw).replace(/\s+/g, '-');
+    }
+
+    function equipoSearchKey(raw) {
+      const s = __upNoAcc(raw);
+      return s
+        .replace(/^PCT-?/, '')
+        .replace(/[^A-Z0-9]/g, '');
+    }
+
+    function renderEquipoSuggestions() {
+      if (!equipoSugs) return;
+      if (!equipoFocus) {
+        equipoSugs.style.display = 'none';
+        equipoSugs.innerHTML = '';
+        return;
+      }
+
+      const qRaw = (inpEquipo && inpEquipo.value) ? inpEquipo.value : '';
+      const q = equipoSearchKey(qRaw);
+      const src = Array.isArray(equiposCatalogo) ? equiposCatalogo : [];
+
+      let items = [];
+      if (!q) {
+        items = src.slice(0, 20);
+      } else {
+        items = src
+          .filter(eq => equipoSearchKey(eq).includes(q))
+          .slice(0, 30);
+      }
+
+      if (!items.length) {
+        equipoSugs.style.display = 'none';
+        equipoSugs.innerHTML = '';
+        return;
+      }
+
+      equipoSugs.style.display = '';
+      equipoSugs.style.cssText = 'margin-top:6px; display:block; position:relative;';
+
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:absolute; left:0; top:0; width:min(520px, calc(100vw - 40px)); background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.12); overflow:hidden; z-index:60; max-height:260px; overflow:auto;';
+      items.forEach(eq => {
+        const info = infoPorEquipo[eq] || {};
+        const desc = (info.descripcionUI || info.descripcion || mapaDescripcionPorEquipo[eq] || '').toString();
+        const serial = (mapaSerialPorEquipo[eq] || '').toString();
+
+        const row = document.createElement('div');
+        row.style.cssText = 'padding:8px 10px; font-size:0.85rem; color:#111827; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; gap:10px;';
+        const left = document.createElement('div');
+        left.style.cssText = 'white-space:nowrap;';
+        left.innerHTML = serial
+          ? `<div style="font-weight:800;">${eq}</div><div style="font-size:0.75rem; color:#6b7280;">${serial}</div>`
+          : `<div style="font-weight:800;">${eq}</div>`;
+        const right = document.createElement('div');
+        right.style.cssText = 'color:#6b7280; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; text-align:right;';
+        right.textContent = desc;
+        row.appendChild(left);
+        row.appendChild(right);
+
+        row.addEventListener('mousedown', (e) => e.preventDefault());
+        row.addEventListener('mouseenter', () => { row.style.background = '#f8fafc'; });
+        row.addEventListener('mouseleave', () => { row.style.background = '#fff'; });
+        row.addEventListener('click', () => {
+          // Selección desde catálogo = agregar inmediatamente
+          procesarTextoEquipos(eq);
+          if (inpEquipo) inpEquipo.value = '';
+          renderEquipoSuggestions();
+          if (inpEquipo) inpEquipo.focus();
+        });
+
+        wrap.appendChild(row);
+      });
+
+      equipoSugs.innerHTML = '';
+      equipoSugs.appendChild(wrap);
+    }
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    async function waitForFirebase({ timeoutMs = 8000 } = {}) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (window.db) return true;
+        await sleep(50);
+      }
+      return !!window.db;
+    }
+
+    function showMsg(text, isError) {
+      if (!msg) return;
+      msg.style.display = '';
+      msg.style.color = isError ? '#b91c1c' : '#6b7280';
+      msg.textContent = String(text || '');
+    }
+
+    function norm(s) {
+      return (s || '').toString().trim();
+    }
+
+    function normKey(s) {
+      return (s || '').toString().trim().toUpperCase();
+    }
+
+    function updateClientesTop() {
+      const freq = new Map();
+      (Array.isArray(listaActividad) ? listaActividad : []).forEach(r => {
+        const c = norm(r.cliente || '');
+        if (!c) return;
+        const k = normKey(c);
+        freq.set(k, { cliente: c, n: (freq.get(k)?.n || 0) + 1 });
+      });
+
+      clientesTop = Array
+        .from(freq.values())
+        .sort((a, b) => (b.n - a.n) || (normKey(a.cliente) < normKey(b.cliente) ? -1 : 1))
+        .map(x => x.cliente)
+        .slice(0, 50);
+
+      if (clienteFocus) renderClienteSuggestions();
+    }
+
+    function renderClienteSuggestions() {
+      if (!clienteSugs) return;
+      if (!clienteFocus) {
+        clienteSugs.style.display = 'none';
+        clienteSugs.innerHTML = '';
+        return;
+      }
+      const q = normKey(inpCliente && inpCliente.value);
+      const src = Array.isArray(clientesTop) ? clientesTop : [];
+      const items = q
+        ? src.filter(c => normKey(c).includes(q)).slice(0, 20)
+        : src.slice(0, 15);
+
+      if (!items.length) {
+        clienteSugs.style.display = 'none';
+        clienteSugs.innerHTML = '';
+        return;
+      }
+
+      clienteSugs.style.display = '';
+      clienteSugs.style.cssText = 'margin-top:6px; display:block; position:relative;';
+
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:absolute; left:0; top:0; width:240px; max-width:calc(100vw - 40px); background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.12); overflow:hidden; z-index:50;';
+      items.forEach(c => {
+        const row = document.createElement('div');
+        row.textContent = c;
+        row.style.cssText = 'padding:8px 10px; font-size:0.85rem; color:#111827; cursor:pointer; border-bottom:1px solid #f1f5f9;';
+        row.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+        });
+        row.addEventListener('click', () => {
+          if (inpCliente) inpCliente.value = c;
+          clienteFocus = false;
+          renderClienteSuggestions();
+          if (inpUbic) inpUbic.focus();
+        });
+        row.addEventListener('mouseenter', () => { row.style.background = '#f8fafc'; });
+        row.addEventListener('mouseleave', () => { row.style.background = '#fff'; });
+        wrap.appendChild(row);
+      });
+
+      clienteSugs.innerHTML = '';
+      clienteSugs.appendChild(wrap);
+    }
+
+    function parseFechaDdMmAa(str) {
+      const s = norm(str);
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+      if (!m) return null;
+      const dd = Number(m[1]);
+      const mm = Number(m[2]);
+      const aa = Number(m[3]);
+      if (!dd || !mm || aa < 0) return null;
+      const yyyy = 2000 + aa;
+      const d = new Date(yyyy, mm - 1, dd);
+      if (d.getFullYear() !== yyyy || d.getMonth() !== (mm - 1) || d.getDate() !== dd) return null;
+      return d;
+    }
+
+    function parseFechaRealizacionPrueba(reg) {
+      const fr = parseFechaDdMmAa(norm(reg.fechaRealizacion || ''))
+        || parseFechaDdMmAa(norm(reg.fechaPrueba || ''))
+        || parseFechaDdMmAa(norm(reg.fecha || ''));
+      return fr;
+    }
+
+    function normPruebaTipo(raw) {
+      return norm(raw).toUpperCase();
+    }
+
+    async function cargarUltimasPruebas({ maxDocs = 8000 } = {}) {
+      await waitForFirebase();
+      if (!window.db) { mapaUltimaPruebaTipoPorEquipo = new Map(); return; }
+      try {
+        const { getFirestore, collection, getDocs, getDocsFromCache, query, limit, orderBy, startAfter, documentId } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        const colRef = collection(db, 'pruebas');
+
+        const needed = new Set(
+          (Array.isArray(listaActividad) ? listaActividad : [])
+            .map(r => norm(r.equipo || ''))
+            .filter(Boolean)
+        );
+
+        const latest = new Map(); // equipo -> { t, tipo }
+        let lastDoc = null;
+        let loaded = 0;
+        const pageSize = 400;
+
+        while (loaded < maxDocs) {
+          const qBase = lastDoc
+            ? query(colRef, orderBy(documentId()), startAfter(lastDoc), limit(pageSize))
+            : query(colRef, orderBy(documentId()), limit(pageSize));
+
+          let snap = null;
+          try { snap = await getDocsFromCache(qBase); } catch {}
+          if (!snap || snap.empty) snap = await getDocs(qBase);
+
+          if (!snap || snap.empty) break;
+
+          snap.forEach(ds => {
+            const r = ds.data() || {};
+            const eq = norm(r.equipo || r.activo || r['EQUIPO / ACTIVO'] || '');
+            if (!eq) return;
+            if (needed.size && !needed.has(eq)) return;
+            const tipo = normPruebaTipo(r.pruebaTipo || r.prueba || '');
+            if (!tipo) return;
+            const fr = parseFechaRealizacionPrueba(r);
+            const t = fr ? fr.getTime() : 0;
+            const prev = latest.get(eq);
+            if (!prev || t >= prev.t) {
+              latest.set(eq, { t, tipo });
+            }
+          });
+
+          loaded += snap.size;
+          lastDoc = snap.docs[snap.docs.length - 1];
+
+          if (needed.size) {
+            let ok = true;
+            for (const eq of needed) {
+              if (!latest.has(eq)) { ok = false; break; }
+            }
+            if (ok) break;
+          }
+        }
+
+        mapaUltimaPruebaTipoPorEquipo = new Map();
+        latest.forEach((v, eq) => { mapaUltimaPruebaTipoPorEquipo.set(eq, v.tipo); });
+      } catch (e) {
+        console.warn('No se pudieron cargar pruebas para columna Pruebas (admax)', e);
+        mapaUltimaPruebaTipoPorEquipo = new Map();
+      }
+    }
+
+    function fmtFecha(periodoTxt) {
+      return norm(periodoTxt);
+    }
+
+    function diasEntre(inicioTxt, finTxt) {
+      const ini = parseFechaDdMmAa(inicioTxt);
+      const fin = parseFechaDdMmAa(finTxt);
+      if (!ini || !fin) return 0;
+      const a = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate());
+      const b = new Date(fin.getFullYear(), fin.getMonth(), fin.getDate());
+      const diff = Math.floor((b.getTime() - a.getTime()) / 86400000);
+      return diff >= 0 ? (diff + 1) : 0;
+    }
+
+    function recalcPeriodoUI() {
+      const ini = norm(tabInicio && tabInicio.value);
+      const fin = norm(tabFin && tabFin.value);
+      const dias = (ini && fin) ? diasEntre(ini, fin) : 0;
+      if (tabDias) tabDias.value = dias ? String(dias) : '';
+      const tarifa = tabTarifa ? Number(tabTarifa.value || 0) : 0;
+      const imp = (dias && tarifa) ? (dias * tarifa) : 0;
+      if (tabImporte) tabImporte.value = imp ? String(imp) : '';
+    }
+
+    async function cargarPeriodosActividad(actividadId) {
+      try {
+        const { getFirestore, collection, getDocs, query, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        const col = collection(db, 'actividadPeriodos');
+        const q = query(col, where('actividadId', '==', String(actividadId)));
+        const snap = await getDocs(q);
+        const res = [];
+        snap.forEach(ds => {
+          res.push({ id: ds.id, ...(ds.data() || {}) });
+        });
+        res.sort((a, b) => {
+          const da = parseFechaDdMmAa(norm(a.inicioPeriodo || ''));
+          const dbb = parseFechaDdMmAa(norm(b.inicioPeriodo || ''));
+          const ta = da ? da.getTime() : 0;
+          const tb = dbb ? dbb.getTime() : 0;
+          if (ta !== tb) return ta - tb;
+          const fa = norm(a.finPeriodo || '');
+          const fb = norm(b.finPeriodo || '');
+          return fa < fb ? -1 : (fa > fb ? 1 : 0);
+        });
+        return res;
+      } catch (e) {
+        console.error(e);
+        return [];
+      }
+    }
+
+    async function cargarPeriodosParaActividades(idsArr) {
+      await waitForFirebase();
+      if (!window.db) { mapaPeriodosPorActividad = new Map(); return; }
+      const ids = Array.from(new Set((Array.isArray(idsArr) ? idsArr : []).map(x => String(x || '')).filter(Boolean)));
+      if (!ids.length) { mapaPeriodosPorActividad = new Map(); return; }
+
+      try {
+        const { getFirestore, collection, getDocs, query, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        const col = collection(db, 'actividadPeriodos');
+
+        const out = new Map();
+        const chunkSize = 10;
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          const q = query(col, where('actividadId', 'in', chunk));
+          const snap = await getDocs(q);
+          snap.forEach(ds => {
+            const p = { id: ds.id, ...(ds.data() || {}) };
+            const aid = String(p.actividadId || '');
+            if (!aid) return;
+            out.set(aid, (out.get(aid) || []).concat([p]));
+          });
+        }
+
+        // ordenar periodos por fecha inicio real
+        out.forEach((arr, aid) => {
+          arr.sort((a, b) => {
+            const da = parseFechaDdMmAa(norm(a.inicioPeriodo || ''));
+            const dbb = parseFechaDdMmAa(norm(b.inicioPeriodo || ''));
+            const ta = da ? da.getTime() : 0;
+            const tb = dbb ? dbb.getTime() : 0;
+            if (ta !== tb) return ta - tb;
+            const fa = norm(a.finPeriodo || '');
+            const fb = norm(b.finPeriodo || '');
+            return fa < fb ? -1 : (fa > fb ? 1 : 0);
+          });
+        });
+
+        mapaPeriodosPorActividad = out;
+      } catch (e) {
+        console.warn('No se pudieron cargar periodos para tabla (admax)', e);
+        mapaPeriodosPorActividad = new Map();
+      }
+    }
+
+    function renderTabulador(periodos) {
+      if (!tabTbody) return;
+      tabTbody.innerHTML = '';
+      (Array.isArray(periodos) ? periodos : []).forEach(p => {
+        const ini = fmtFecha(p.inicioPeriodo);
+        const fin = fmtFecha(p.finPeriodo);
+        const dias = Number(p.dias || diasEntre(ini, fin) || 0);
+        const tarifa = Number(p.tarifaDiaria || 0);
+        const imp = Number(p.importe || (dias * tarifa) || 0);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${ini}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${fin}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${dias || ''}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${tarifa ? tarifa.toLocaleString('es-MX') : ''}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${imp ? imp.toLocaleString('es-MX') : ''}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${norm(p.tipoPeriodo || '')}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${norm(p.oc || '')}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${norm(p.factura || '')}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9;">${norm(p.observaciones || '')}</td>
+          <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">
+            <button type="button" data-del="${String(p.id || '')}" style="font-size:0.75rem;">Borrar</button>
+          </td>
+        `;
+        const btnDel = tr.querySelector('button[data-del]');
+        if (btnDel) {
+          btnDel.addEventListener('click', async () => {
+            const pid = btnDel.getAttribute('data-del');
+            if (!pid) return;
+            const ok = window.confirm('¿Borrar este período?');
+            if (!ok) return;
+            try {
+              const { getFirestore, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+              const db = getFirestore();
+              await deleteDoc(doc(db, 'actividadPeriodos', String(pid)));
+              const per = await cargarPeriodosActividad(actividadTab.id);
+              renderTabulador(per);
+              try { await cargarPeriodosParaActividades([actividadTab.id]); renderPendientes(); } catch {}
+            } catch (e) {
+              console.error(e);
+              alert('No se pudo borrar el período.');
+            }
+          });
+        }
+        tabTbody.appendChild(tr);
+      });
+    }
+
+    async function abrirTabulador(reg) {
+      actividadTab = reg;
+      if (tabHeader) {
+        const eq = norm(reg.equipo || '');
+        const cli = norm(reg.cliente || '');
+        const oc = norm(reg.oc || '');
+        const os = norm(reg.os || '');
+        tabHeader.textContent = `${cli} · ${eq} · OC ${oc}${os ? ` · OS ${os}` : ''} · ID ${String(reg.id || '')}`;
+      }
+      if (tabModal) tabModal.style.display = 'flex';
+      const per = await cargarPeriodosActividad(reg.id);
+      renderTabulador(per);
+      if (tabInicio) tabInicio.value = norm(reg.inicioServicio || '');
+      if (tabFin) tabFin.value = '';
+      if (tabTipo) tabTipo.value = 'PARCIAL';
+      if (tabTarifa) tabTarifa.value = reg.precio != null ? String(reg.precio) : '';
+      if (tabFactura) tabFactura.value = norm(reg.factura || '');
+      if (tabOc) tabOc.value = norm(reg.ordenSuministro || '');
+      if (tabObs) tabObs.value = '';
+      recalcPeriodoUI();
+    }
+
+    function cerrarTabulador() {
+      if (tabModal) tabModal.style.display = 'none';
+      actividadTab = null;
+    }
+
+    function fmtFechaInput(raw) {
+      const digits = (raw || '').toString().replace(/[^0-9]/g, '').slice(0, 6);
+      if (digits.length <= 2) return digits;
+      if (digits.length <= 4) return digits.slice(0, 2) + '/' + digits.slice(2);
+      return digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
+    }
+
+    function procesarTextoEquipos(texto) {
+      const valorRaw = (texto || '').toString();
+      const partes = valorRaw
+        .split(/[\s,;\n\r\t]+/)
+        .map(v => v.trim())
+        .filter(v => v.length > 0);
+      if (!partes.length) return false;
+
+      let agregado = false;
+      partes.forEach(fragmento => {
+        if (!fragmento) return;
+        const eq = normalizeEquipo(fragmento.split(/\s+/)[0]);
+        if (!eq) return;
+        if (equiposSeleccionados.includes(eq)) return;
+        equiposSeleccionados.push(eq);
+
+        if (!infoPorEquipo[eq]) infoPorEquipo[eq] = {};
+        const autoDesc = mapaDescripcionPorEquipo[eq] || '';
+        if (autoDesc && !infoPorEquipo[eq].descripcionUI) {
+          infoPorEquipo[eq].descripcionUI = autoDesc;
+          infoPorEquipo[eq].descripcion = autoDesc;
+        }
+
+        agregado = true;
+      });
+
+      if (agregado) renderEquiposSeleccionados();
+      return agregado;
+    }
+
+    function renderEquiposSeleccionados() {
+      if (!contEquipos) return;
+      contEquipos.innerHTML = '';
+      equiposSeleccionados
+        .slice()
+        .sort((a, b) => (a < b ? -1 : 1))
+        .forEach(eq => {
+          const info = infoPorEquipo[eq] || {};
+          const row = document.createElement('div');
+          row.style.cssText = 'display:grid; grid-template-columns: 220px 1fr 90px; gap:0; padding:6px 10px; border-top:1px solid #f1f5f9; align-items:center;';
+
+          const colEq = document.createElement('div');
+          colEq.textContent = eq;
+          colEq.style.cssText = 'font-weight:700; color:#111827; white-space:nowrap;';
+
+          const colDesc = document.createElement('input');
+          colDesc.type = 'text';
+          colDesc.value = (info.descripcionUI || info.descripcion || '');
+          colDesc.placeholder = 'Descripción del equipo';
+          colDesc.style.cssText = 'font-size:0.85rem; padding:0.2rem 0.35rem; border:1px solid #e5e7eb; border-radius:8px; width:100%;';
+          colDesc.addEventListener('input', () => {
+            if (!infoPorEquipo[eq]) infoPorEquipo[eq] = {};
+            infoPorEquipo[eq].descripcionUI = colDesc.value;
+            infoPorEquipo[eq].descripcion = colDesc.value;
+          });
+
+          const colAcc = document.createElement('div');
+          colAcc.style.cssText = 'text-align:right;';
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = 'Quitar';
+          btn.style.cssText = 'font-size:0.8rem; padding:2px 8px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; cursor:pointer;';
+          btn.addEventListener('click', () => {
+            equiposSeleccionados = equiposSeleccionados.filter(x => x !== eq);
+            delete infoPorEquipo[eq];
+            renderEquiposSeleccionados();
+          });
+          colAcc.appendChild(btn);
+
+          row.appendChild(colEq);
+          row.appendChild(colDesc);
+          row.appendChild(colAcc);
+          contEquipos.appendChild(row);
+        });
+    }
+
+    async function cargarDescripcionesInventario() {
+      try {
+        const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv');
+        if (!resp.ok) return;
+        const texto = await resp.text();
+        const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+        if (!lineas.length) return;
+
+        const parse = (window && window.parseCSVLine) ? window.parseCSVLine : (line => {
+          const out = [];
+          let cur = '';
+          let q = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+              const next = line[i + 1];
+              if (next === '"') { cur += '"'; i++; continue; }
+              q = !q; continue;
+            }
+            if (ch === ',' && !q) { out.push(cur); cur = ''; continue; }
+            cur += ch;
+          }
+          out.push(cur);
+          return out.map(s => s.trim());
+        });
+
+        const headers = parse(lineas[0]);
+        const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+        const idxDesc = headers.indexOf('DESCRIPCION');
+        const idxSerial = headers.indexOf('SERIAL');
+        if (idxEquipo < 0 || idxDesc < 0) return;
+
+        const setEq = new Set();
+
+        lineas.slice(1).forEach(l => {
+          const cols = parse(l);
+          const eqRaw = (cols[idxEquipo] || '').toString().trim();
+          const eq = normalizeEquipo(eqRaw);
+          const desc = (cols[idxDesc] || '').toString().trim();
+          const serial = (idxSerial >= 0 ? (cols[idxSerial] || '') : '').toString().trim();
+          if (!eq || !desc) return;
+          if (!mapaDescripcionPorEquipo[eq]) mapaDescripcionPorEquipo[eq] = desc;
+          if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
+          setEq.add(eq);
+        });
+
+        equiposCatalogo = Array.from(setEq).sort((a, b) => (a < b ? -1 : 1));
+        renderEquipoSuggestions();
+
+        // backfill para equipos ya agregados
+        equiposSeleccionados.forEach(eq => {
+          const autoDesc = mapaDescripcionPorEquipo[eq] || '';
+          if (!autoDesc) return;
+          if (!infoPorEquipo[eq]) infoPorEquipo[eq] = {};
+          if (!infoPorEquipo[eq].descripcionUI) {
+            infoPorEquipo[eq].descripcionUI = autoDesc;
+            infoPorEquipo[eq].descripcion = autoDesc;
+          }
+        });
+        renderEquiposSeleccionados();
+      } catch (e) {
+        console.warn('No se pudo cargar inventario para descripciones (admax)', e);
+      }
+    }
+
+    function inferYearFromInicio(inicio) {
+      const d = parseFechaDdMmAa(inicio);
+      if (!d) return null;
+      return d.getFullYear();
+    }
+
+    function pad(n, len) {
+      return String(n).padStart(len, '0');
+    }
+
+    function genOcInterna({ cliente, ubicacion, inicioServicio }) {
+      const year = inferYearFromInicio(inicioServicio);
+      if (!year) return '';
+      const yy = String(year).slice(-2);
+      const prefix = `4301${yy}`;
+      const cli = normKey(cliente);
+      const ub = normKey(ubicacion);
+      let maxN = 0;
+      (Array.isArray(listaActividad) ? listaActividad : []).forEach(r => {
+        const oc = normKey(r.oc || '');
+        if (!oc.startsWith(prefix)) return;
+        if (normKey(r.cliente || '') !== cli) return;
+        if (normKey(r.ubicacion || '') !== ub) return;
+        const m = oc.match(new RegExp(`^${prefix}(\\d{4})$`));
+        if (!m) return;
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n) && n > maxN) maxN = n;
+      });
+      const next = maxN + 1;
+      return `${prefix}${pad(next, 4)}`;
+    }
+
+    function genOsDesdeOc(ocInterna) {
+      const oc = norm(ocInterna);
+      if (!oc) return '';
+      const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`^${esc(oc)}-(\\d{3})$`);
+      let maxN = 0;
+      (Array.isArray(listaActividad) ? listaActividad : []).forEach(r => {
+        const ocR = norm(r.oc || '');
+        if (ocR !== oc) return;
+        const os = norm(r.os || '');
+        const m = os.match(re);
+        if (!m) return;
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n) && n > maxN) maxN = n;
+      });
+      const next = maxN + 1;
+      return `${oc}-${pad(next, 3)}`;
+    }
+
+    async function cargarActividades() {
+      await waitForFirebase();
+      if (!window.db) {
+        listaActividad = [];
+        renderPendientes();
+        updateClientesTop();
+        return;
+      }
+      try {
+        const { getFirestore, collection, getDocs, getDocsFromCache, query, orderBy, limit } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        const colRef = collection(db, 'actividades');
+        let snap1 = null;
+        let snap2 = null;
+
+        let q1 = null;
+        try { q1 = query(colRef, orderBy('inicioTs', 'desc'), limit(3000)); } catch { q1 = null; }
+        const q2 = query(colRef, limit(3000));
+
+        try { if (q1) snap1 = await getDocsFromCache(q1); } catch {}
+        try { snap2 = await getDocsFromCache(q2); } catch {}
+
+        if ((!snap1 || snap1.empty) && q1) {
+          try { snap1 = await getDocs(q1); } catch { snap1 = null; }
+        }
+        if (!snap2 || snap2.empty) {
+          snap2 = await getDocs(q2);
+        }
+
+        const map = new Map();
+        (snap1 && snap1.docs ? snap1.docs : []).forEach(d => map.set(d.id, { id: d.id, ...d.data() }));
+        (snap2 && snap2.docs ? snap2.docs : []).forEach(d => {
+          if (!map.has(d.id)) map.set(d.id, { id: d.id, ...d.data() });
+        });
+        listaActividad = Array.from(map.values());
+      } catch (e) {
+        console.error(e);
+        listaActividad = [];
+      }
+      renderPendientes();
+      updateClientesTop();
+      // Periodos para tabla (días/ingreso/estado)
+      try {
+        const ids = (Array.isArray(listaActividad) ? listaActividad : []).map(r => String(r.id || '')).filter(Boolean);
+        await cargarPeriodosParaActividades(ids);
+        renderPendientes();
+      } catch {}
+      // Cargar pruebas con base en equipos presentes y refrescar tabla
+      try {
+        await cargarUltimasPruebas();
+        renderPendientes();
+      } catch {}
+    }
+
+    function isFinalActividad(r) {
+      const id = String((r && r.id) || '');
+      const arr = id ? (mapaPeriodosPorActividad.get(id) || []) : [];
+      if (arr.length) {
+        const hasFinal = arr.some(p => norm(p.tipoPeriodo || '').toUpperCase() === 'FINAL');
+        return !!hasFinal;
+      }
+      // Fallback histórico
+      const term = norm(r.terminacionServicio || '');
+      if (r.terminacionEsFinal === true) return true;
+      if (term) return true;
+      return false;
+    }
+
+    function visibleByModo(r, modoRaw) {
+      const modo = normKey(modoRaw || '');
+      const ocCli = norm(r.ordenSuministro || '');
+      const os = norm(r.os || '');
+
+      if (modo === 'TODAS') return true;
+      if (modo === 'SIN_OC') return !ocCli;
+      if (modo === 'SIN_OS') return !os;
+      if (modo === 'PENDIENTES') {
+        // Pendientes = NO FINAL. Una OC se considera abierta mientras tenga al menos una actividad NO FINAL.
+        return !isFinalActividad(r);
+      }
+      return true;
+    }
+
+    function renderPendientes() {
+      const filtro = normKey(inpFiltro && inpFiltro.value);
+      const modo = normKey(selModo && selModo.value) || 'PENDIENTES';
+      const base = (Array.isArray(listaActividad) ? listaActividad : []).filter(r => visibleByModo(r, modo));
+
+      const estadoServicio = (r) => {
+        const term = norm(r.terminacionServicio || '');
+        if (!term) return 'ABIERTO';
+        return (r.terminacionEsFinal === true) ? 'FINAL' : 'PARCIAL';
+      };
+
+      const estadoDesdePeriodos = (actividadId) => {
+        const arr = mapaPeriodosPorActividad.get(String(actividadId || '')) || [];
+        if (!arr.length) return '';
+        const hasFinal = arr.some(p => norm(p.tipoPeriodo || '').toUpperCase() === 'FINAL');
+        return hasFinal ? 'FINAL' : 'PARCIAL';
+      };
+
+      const resumenPeriodos = (actividadId) => {
+        const arr = mapaPeriodosPorActividad.get(String(actividadId || '')) || [];
+        if (!arr.length) return null;
+        let dias = 0;
+        let imp = 0;
+        arr.forEach(p => {
+          const ini = norm(p.inicioPeriodo || '');
+          const fin = norm(p.finPeriodo || '');
+          const d = Number(p.dias || diasEntre(ini, fin) || 0);
+          const i = Number(p.importe || 0);
+          if (d && !isNaN(d)) dias += d;
+          if (i && !isNaN(i)) imp += i;
+          if ((!i || isNaN(i)) && p.tarifaDiaria != null) {
+            const t = Number(p.tarifaDiaria || 0);
+            if (d && t) imp += (d * t);
+          }
+        });
+        return { dias, importe: imp };
+      };
+
+      const diasEnServicio = (r) => {
+        const ini = parseFechaDdMmAa(norm(r.inicioServicio || ''));
+        if (!ini) return '';
+        const finTxt = norm(r.terminacionServicio || '');
+        const fin = finTxt ? parseFechaDdMmAa(finTxt) : null;
+        const end = fin || new Date();
+        if (!fin) end.setHours(0, 0, 0, 0);
+        const diff = Math.floor((end.getTime() - ini.getTime()) / 86400000);
+        return diff >= 0 ? String(diff + 1) : '';
+      };
+
+      const visibles = filtro
+        ? base.filter(r => {
+          const blob = [r.cliente, r.ubicacion, r.equipo, r.descripcion, r.oc, r.os, r.ordenSuministro]
+            .map(x => normKey(x))
+            .join(' ');
+          return blob.includes(filtro);
+        })
+        : base;
+
+      const byOc = new Map();
+      visibles.forEach(r => {
+        const oc = norm(r.oc || 'SIN_OC');
+        byOc.set(oc, (byOc.get(oc) || []).concat([r]));
+      });
+
+      const ocKeys = Array.from(byOc.keys()).sort((a, b) => {
+        if (a === 'SIN_OC' && b !== 'SIN_OC') return 1;
+        if (b === 'SIN_OC' && a !== 'SIN_OC') return -1;
+        return a < b ? -1 : (a > b ? 1 : 0);
+      });
+
+      const label = (modo === 'TODAS')
+        ? 'total'
+        : (modo === 'SIN_OC' ? 'sin OC' : (modo === 'SIN_OS' ? 'sin OS' : 'pendiente'));
+      if (cont) cont.textContent = `${visibles.length} ${label}${visibles.length === 1 ? '' : 's'} · ${ocKeys.length} OC interna`;
+      if (!list) return;
+      list.innerHTML = '';
+
+      ocKeys.forEach(oc => {
+        const arr = byOc.get(oc) || [];
+        const cliente = norm(arr[0]?.cliente || '');
+        const ubic = norm(arr[0]?.ubicacion || '');
+
+        const box = document.createElement('div');
+        box.style.cssText = 'border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; margin:10px 0; background:#ffffff;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;';
+        const left = document.createElement('div');
+        left.innerHTML = `
+          <div style="font-weight:900; color:#111827; font-size:1.15rem; line-height:1.2;">${cliente} · ${ubic}</div>
+          <div style="font-size:0.88rem; color:#4b5563; margin-top:2px;">OC interna: ${oc} · Pendientes: ${arr.length}</div>
+        `;
+
+        header.appendChild(left);
+        box.appendChild(header);
+
+        const table = document.createElement('table');
+        table.style.cssText = 'width:100%; border-collapse:collapse; margin-top:8px;';
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th style="text-align:center; font-size:0.75rem; color:#6b7280; padding:6px 4px; width:36px;"></th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Cliente</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Equipo / Serial</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Pruebas</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Descripción</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Fecha de embarque</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Inicio del servicio</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Parcial / Final</th>
+              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Días en servicio</th>
+              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Precio</th>
+              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Ingreso acumulado</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">OS</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">OC cliente</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Est-Cot</th>
+              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Factura</th>
+              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+
+        arr
+          .slice()
+          .sort((a, b) => {
+            const ea = normKey(a.equipo || '');
+            const eb = normKey(b.equipo || '');
+            if (ea !== eb) return ea < eb ? -1 : 1;
+            return 0;
+          })
+          .forEach(r => {
+            const stPer = estadoDesdePeriodos(r.id);
+            const st = stPer || estadoServicio(r);
+            const perSum = resumenPeriodos(r.id);
+            const diasTxt = perSum ? String(perSum.dias || '') : diasEnServicio(r);
+            const precio = (r.precio != null && r.precio !== '') ? Number(r.precio) : null;
+            const precioTxt = (precio == null || isNaN(precio)) ? '' : precio.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
+            const eqName = norm(r.equipo || '');
+            const serial = norm(r.serial || mapaSerialPorEquipo[eqName] || '');
+            const eqHtml = serial
+              ? `${eqName}<br><span style="font-size:0.75rem; color:#6b7280;">${serial}</span>`
+              : eqName;
+            const descFallback = norm(r.descripcion || '') || norm(mapaDescripcionPorEquipo[eqName] || '');
+            const pruebaTipo = norm(mapaUltimaPruebaTipoPorEquipo.get(eqName) || '');
+            let ingresoVal = null;
+            if (perSum) {
+              const v = Number(perSum.importe || 0);
+              ingresoVal = (v && !isNaN(v)) ? v : 0;
+            } else {
+              const d = Number(diasTxt || 0);
+              if (precio != null && !isNaN(precio) && precio > 0 && d && !isNaN(d)) {
+                ingresoVal = d * precio;
+              }
+            }
+            const ingresoTxt = (ingresoVal == null)
+              ? '—'
+              : (ingresoVal ? ingresoVal.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }) : '$0');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:center;">
+                <input type="checkbox" data-id="${String(r.id || '')}" data-oc="${oc}">
+              </td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.cliente || '')}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${eqHtml}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${pruebaTipo || 'SIN PRUEBA'}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9;">${descFallback}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.fechaEmbarque || '')}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.inicioServicio || '')}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${st}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${diasTxt}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${precioTxt}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; color:#111827; white-space:nowrap;">${ingresoTxt}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.os || '')}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.ordenSuministro || '')}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.estCot || '')}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.factura || '')}</td>
+              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap; color:#6b7280;">—</td>
+            `;
+            tr.style.cursor = 'pointer';
+            tr.addEventListener('click', (ev) => {
+              const t = ev && ev.target ? ev.target : null;
+              if (t && (t.tagName === 'INPUT' || t.tagName === 'BUTTON' || t.closest('input') || t.closest('button'))) return;
+              abrirTabulador(r);
+            });
+            tbody.appendChild(tr);
+          });
+
+        box.appendChild(table);
+        list.appendChild(box);
+      });
+
+      if (!ocKeys.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:10px; color:#6b7280;';
+        empty.textContent = 'No hay registros para mostrar.';
+        list.appendChild(empty);
+      }
+    }
+
+    function selectedIds() {
+      const chks = Array.from(list.querySelectorAll('input[type="checkbox"][data-id]:checked'));
+      return chks.map(c => String(c.getAttribute('data-id') || '')).filter(Boolean);
+    }
+
+    function selectedOcInternaOrEmpty() {
+      const chks = Array.from(list.querySelectorAll('input[type="checkbox"][data-id]:checked'));
+      const ocs = Array.from(new Set(chks.map(c => norm(c.getAttribute('data-oc') || '')))).filter(Boolean);
+      if (!ocs.length) return '';
+      if (ocs.length === 1) return ocs[0];
+      return '';
+    }
+
+    async function aplicarBatchAsignacion({ ids, ocCliente, os }) {
+      if (!window.db) return;
+      const updates = {};
+      if (ocCliente) updates.ordenSuministro = ocCliente;
+      if (os) updates.os = os;
+      if (!Object.keys(updates).length) return;
+
+      const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const db = getFirestore();
+      let batch = writeBatch(db);
+      let c = 0;
+      ids.forEach(id => {
+        batch.update(doc(db, 'actividades', id), updates);
+        c++;
+        if (c % 400 === 0) {
+          batch.commit();
+          batch = writeBatch(db);
+        }
+      });
+      await batch.commit();
+
+      ids.forEach(id => {
+        const reg = (Array.isArray(listaActividad) ? listaActividad : []).find(r => String(r.id || '') === id);
+        if (reg) Object.assign(reg, updates);
+      });
+    }
+
+    function wireEvents() {
+      if (selModo) {
+        selModo.value = 'TODAS';
+      }
+
+      if (inpCliente) {
+        inpCliente.addEventListener('input', () => renderClienteSuggestions());
+        inpCliente.addEventListener('focus', () => {
+          clienteFocus = true;
+          renderClienteSuggestions();
+        });
+        inpCliente.addEventListener('click', () => {
+          clienteFocus = true;
+          renderClienteSuggestions();
+        });
+        inpCliente.addEventListener('blur', () => {
+          setTimeout(() => {
+            clienteFocus = false;
+            renderClienteSuggestions();
+          }, 200);
+        });
+      }
+
+      if (inpInicio) {
+        inpInicio.addEventListener('input', (e) => {
+          const v = fmtFechaInput(e.target.value);
+          if (v !== e.target.value) e.target.value = v;
+        });
+      }
+
+      if (inpEmb) {
+        inpEmb.addEventListener('input', (e) => {
+          const v = fmtFechaInput(e.target.value);
+          if (v !== e.target.value) e.target.value = v;
+        });
+      }
+
+      if (tabInicio) {
+        tabInicio.addEventListener('input', (e) => {
+          const v = fmtFechaInput(e.target.value);
+          if (v !== e.target.value) e.target.value = v;
+          recalcPeriodoUI();
+        });
+      }
+      if (tabFin) {
+        tabFin.addEventListener('input', (e) => {
+          const v = fmtFechaInput(e.target.value);
+          if (v !== e.target.value) e.target.value = v;
+          recalcPeriodoUI();
+        });
+      }
+      if (tabTarifa) {
+        tabTarifa.addEventListener('input', () => recalcPeriodoUI());
+      }
+
+      if (btnTabCerrar) btnTabCerrar.addEventListener('click', () => cerrarTabulador());
+      if (tabModal) {
+        tabModal.addEventListener('click', (e) => {
+          if (e && e.target === tabModal) cerrarTabulador();
+        });
+      }
+
+      if (btnTabImprimir) {
+        btnTabImprimir.addEventListener('click', () => {
+          try { window.print(); } catch {}
+        });
+      }
+
+      if (btnTabGuardar) {
+        btnTabGuardar.addEventListener('click', async () => {
+          if (!actividadTab || !actividadTab.id) { alert('No hay actividad seleccionada.'); return; }
+          const inicio = norm(tabInicio && tabInicio.value);
+          const fin = norm(tabFin && tabFin.value);
+          const tipo = norm(tabTipo && tabTipo.value) || 'PARCIAL';
+          const tarifa = Number(tabTarifa && tabTarifa.value ? tabTarifa.value : 0);
+          const factura = norm(tabFactura && tabFactura.value);
+          const ocTxt = norm(tabOc && tabOc.value);
+          const obs = norm(tabObs && tabObs.value);
+          if (!inicio || !parseFechaDdMmAa(inicio)) { alert('Inicio inválido.'); return; }
+          if (!fin || !parseFechaDdMmAa(fin)) { alert('Fin inválido.'); return; }
+          const dias = diasEntre(inicio, fin);
+          const importe = (dias && tarifa) ? (dias * tarifa) : 0;
+          try {
+            const { getFirestore, collection, addDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore();
+            const col = collection(db, 'actividadPeriodos');
+            await addDoc(col, {
+              actividadId: actividadTab.id,
+              inicioPeriodo: inicio,
+              finPeriodo: fin,
+              dias,
+              tarifaDiaria: tarifa,
+              importe,
+              tipoPeriodo: tipo,
+              factura,
+              oc: ocTxt,
+              observaciones: obs,
+            });
+            const per = await cargarPeriodosActividad(actividadTab.id);
+            renderTabulador(per);
+            try { await cargarPeriodosParaActividades([actividadTab.id]); renderPendientes(); } catch {}
+            if (tabFin) tabFin.value = '';
+            if (tabObs) tabObs.value = '';
+            recalcPeriodoUI();
+          } catch (e) {
+            console.error(e);
+            alert('No se pudo agregar el período.');
+          }
+        });
+      }
+
+      if (btnTabLimpiar) {
+        btnTabLimpiar.addEventListener('click', async () => {
+          if (!actividadTab || !actividadTab.id) return;
+          const ok = window.confirm('¿Borrar TODOS los períodos de esta actividad?');
+          if (!ok) return;
+          try {
+            const existentes = await cargarPeriodosActividad(actividadTab.id);
+            if (!existentes.length) { renderTabulador([]); return; }
+            const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore();
+            const batch = writeBatch(db);
+            existentes.forEach(p => { if (p.id) batch.delete(doc(db, 'actividadPeriodos', p.id)); });
+            await batch.commit();
+            renderTabulador([]);
+            try { await cargarPeriodosParaActividades([actividadTab.id]); renderPendientes(); } catch {}
+          } catch (e) {
+            console.error(e);
+            alert('No se pudo limpiar el tabulador.');
+          }
+        });
+      }
+
+      if (btnClearEquipos) {
+        btnClearEquipos.addEventListener('click', () => {
+          equiposSeleccionados = [];
+          Object.keys(infoPorEquipo).forEach(k => { delete infoPorEquipo[k]; });
+          renderEquiposSeleccionados();
+          if (inpEquipo) inpEquipo.value = '';
+          if (inpEquipo) inpEquipo.focus();
+        });
+      }
+
+      if (inpEquipo) {
+        inpEquipo.addEventListener('focus', () => {
+          equipoFocus = true;
+          renderEquipoSuggestions();
+        });
+        inpEquipo.addEventListener('click', () => {
+          equipoFocus = true;
+          renderEquipoSuggestions();
+        });
+        inpEquipo.addEventListener('blur', () => {
+          setTimeout(() => {
+            // Al salir del campo: intentar agregar lo que se haya capturado
+            const raw = (inpEquipo.value || '').trim();
+            if (raw) {
+              const ok = procesarTextoEquipos(raw);
+              if (ok) inpEquipo.value = '';
+            }
+            equipoFocus = false;
+            renderEquipoSuggestions();
+          }, 200);
+        });
+        inpEquipo.addEventListener('input', () => renderEquipoSuggestions());
+        inpEquipo.addEventListener('keydown', (e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            const valorActual = (inpEquipo.value || '').trim();
+            if (!valorActual) return;
+            e.preventDefault();
+            const ok = procesarTextoEquipos(inpEquipo.value);
+            if (ok) inpEquipo.value = '';
+          }
+        });
+        inpEquipo.addEventListener('change', () => {
+          const ok = procesarTextoEquipos(inpEquipo.value);
+          if (ok) inpEquipo.value = '';
+        });
+      }
+
+      if (btnGenOc) {
+        btnGenOc.addEventListener('click', () => {
+          const oc = genOcInterna({
+            cliente: norm(inpCliente && inpCliente.value),
+            ubicacion: norm(inpUbic && inpUbic.value),
+            inicioServicio: norm(inpInicio && inpInicio.value)
+          });
+          if (!oc) {
+            showMsg('No se pudo generar OC interna. Revisa Cliente, Ubicación e Inicio (dd/mm/aa).', true);
+            return;
+          }
+          if (inpOc) inpOc.value = oc;
+          showMsg(`OC interna generada: ${oc}`);
+        });
+      }
+
+      if (btnCrear) {
+        btnCrear.addEventListener('click', async () => {
+          try {
+            const cliente = norm(inpCliente && inpCliente.value);
+            const ubic = norm(inpUbic && inpUbic.value);
+            const embarque = norm(inpEmb && inpEmb.value);
+            const inicio = norm(inpInicio && inpInicio.value);
+            const equipos = (Array.isArray(equiposSeleccionados) ? equiposSeleccionados.slice() : []).filter(Boolean);
+            const dEmb = embarque ? parseFechaDdMmAa(embarque) : null;
+            const dIni = parseFechaDdMmAa(inicio);
+
+            if (!cliente) { showMsg('Cliente es requerido.', true); return; }
+            if (!ubic) { showMsg('Ubicación es requerida.', true); return; }
+            if (embarque && !dEmb) { showMsg('Fecha de embarque inválida. Usa dd/mm/aa.', true); return; }
+            if (!dIni) { showMsg('Inicio inválido. Usa dd/mm/aa.', true); return; }
+            if (!equipos.length) { showMsg('Agrega al menos 1 equipo.', true); return; }
+
+            let oc = norm(inpOc && inpOc.value);
+            if (!oc) {
+              oc = genOcInterna({ cliente, ubicacion: ubic, inicioServicio: inicio });
+            }
+            if (!oc) { showMsg('No se pudo generar OC interna.', true); return; }
+
+            if (!window.db) { showMsg('Firestore no está disponible.', true); return; }
+
+            const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore();
+            const col = collection(db, 'actividades');
+
+            const year = inferYearFromInicio(inicio);
+            const embarqueTs = dEmb ? dEmb.getTime() : null;
+            const inicioTs = dIni.getTime();
+
+            for (const eq of equipos) {
+              const infoEq = infoPorEquipo[eq] || {};
+              const descEq = norm(infoEq.descripcionUI || infoEq.descripcion || '');
+              const payload = {
+                cliente,
+                ubicacion: ubic,
+                descripcion: descEq,
+                equipo: eq,
+                equipos: [eq],
+                oc,
+                ordenSuministro: '',
+                os: '',
+                fechaEmbarque: embarque,
+                embarqueTs,
+                inicioServicio: inicio,
+                terminacionServicio: '',
+                terminacionEsFinal: false,
+                creadoEn: serverTimestamp(),
+                inicioTs,
+                anioInicio: year || null,
+              };
+              await addDoc(col, payload);
+            }
+
+            showMsg(`Listo. Se crearon ${equipos.length} actividad(es) en OC interna ${oc}.`);
+
+            equiposSeleccionados = [];
+            Object.keys(infoPorEquipo).forEach(k => { delete infoPorEquipo[k]; });
+            renderEquiposSeleccionados();
+            if (inpOc) inpOc.value = oc;
+
+            await cargarActividades();
+          } catch (e) {
+            console.error(e);
+            showMsg('No se pudieron crear las actividades. Revisa consola.', true);
+          }
+        });
+      }
+
+      if (inpFiltro) {
+        inpFiltro.addEventListener('input', () => renderPendientes());
+      }
+
+      if (selModo) {
+        selModo.addEventListener('change', () => renderPendientes());
+      }
+
+      if (btnRefrescar) {
+        btnRefrescar.addEventListener('click', () => cargarActividades());
+      }
+
+      if (btnGenOs) {
+        btnGenOs.addEventListener('click', () => {
+          const oc = selectedOcInternaOrEmpty();
+          if (!oc) {
+            const hint = norm(inpBatchOs && inpBatchOs.value);
+            if (hint) return;
+            alert('Selecciona actividades de una sola OC interna para generar OS automáticamente.');
+            return;
+          }
+          const os = genOsDesdeOc(oc);
+          if (inpBatchOs) inpBatchOs.value = os;
+        });
+      }
+
+      if (btnAplicar) {
+        btnAplicar.addEventListener('click', async () => {
+          try {
+            const ids = selectedIds();
+            if (!ids.length) { alert('Selecciona al menos 1 fila.'); return; }
+
+            const ocCli = norm(inpBatchOcCli && inpBatchOcCli.value);
+            const os = norm(inpBatchOs && inpBatchOs.value);
+
+            if (!ocCli) { alert('OC cliente es requerida para asignar.'); return; }
+            if (!os) { alert('OS es requerida para asignar.'); return; }
+
+            const confirmOc = (prompt(`Confirma OC cliente escribiéndola tal cual:\n\n${ocCli}`) || '').trim();
+            if (confirmOc !== ocCli) { alert('Confirmación de OC cliente no coincide. Cancelado.'); return; }
+
+            const confirmOs = (prompt(`Confirma OS escribiéndola tal cual:\n\n${os}`) || '').trim();
+            if (confirmOs !== os) { alert('Confirmación de OS no coincide. Cancelado.'); return; }
+
+            await aplicarBatchAsignacion({ ids, ocCliente: ocCli, os });
+            await cargarActividades();
+          } catch (e) {
+            console.error(e);
+            alert('No se pudo asignar OC/OS a la selección.');
+          }
+        });
+      }
+    }
+
+    wireEvents();
+    window.addEventListener('DOMContentLoaded', () => {
+      cargarDescripcionesInventario();
+      cargarActividades();
+    });
+  })();
+  </script>
+</body>
+</html>
