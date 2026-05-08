@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'inspeccion.html',
         'inspectlist.html',
         'invre.html',
+        'servicio.html',
+        'serviciolist.html',
         'actividoc.html',
         'manualinspec.html',
         'manualpruebas.html'
@@ -282,6 +284,81 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch {}
                     }
 
+                    function ensureServicioNavDropdown(visible) {
+                        try {
+                            const navUl = navMain.querySelector(':scope > ul');
+                            if (!navUl) return;
+
+                            const existing = Array.from(navUl.querySelectorAll(':scope > li.nav-item-has-dropdown > a'))
+                                .find(a => ((a.textContent || '').trim().toLowerCase() === 'servicio'));
+
+                            if (!visible) {
+                                if (!existing) return;
+                                const li = existing.closest('li') || existing;
+                                li.style.display = 'none';
+                                return;
+                            }
+
+                            if (existing) {
+                                const li = existing.closest('li') || existing;
+                                li.style.display = '';
+                                try {
+                                    const aNueva = li.querySelector('a[href="servicio.html"]');
+                                    const aList = li.querySelector('a[href="serviciolist.html"]');
+                                    if (aNueva) {
+                                        if (currentPage === 'servicio.html') aNueva.classList.add('active');
+                                        else aNueva.classList.remove('active');
+                                    }
+                                    if (aList) {
+                                        if (currentPage === 'serviciolist.html') aList.classList.add('active');
+                                        else aList.classList.remove('active');
+                                    }
+                                } catch {}
+                                return;
+                            }
+
+                            const li = document.createElement('li');
+                            li.className = 'nav-item-has-dropdown';
+
+                            const aTop = document.createElement('a');
+                            aTop.href = '#';
+                            aTop.textContent = 'Servicio';
+                            if (currentPage === 'servicio.html' || currentPage === 'serviciolist.html') aTop.classList.add('active');
+                            li.appendChild(aTop);
+
+                            const dd = document.createElement('ul');
+                            dd.className = 'nav-dropdown';
+
+                            const liNueva = document.createElement('li');
+                            const aNueva = document.createElement('a');
+                            aNueva.href = 'servicio.html';
+                            aNueva.textContent = 'Nueva orden';
+                            if (currentPage === 'servicio.html') aNueva.classList.add('active');
+                            liNueva.appendChild(aNueva);
+
+                            const liList = document.createElement('li');
+                            const aList = document.createElement('a');
+                            aList.href = 'serviciolist.html';
+                            aList.textContent = 'Órdenes';
+                            if (currentPage === 'serviciolist.html') aList.classList.add('active');
+                            liList.appendChild(aList);
+
+                            dd.appendChild(liNueva);
+                            dd.appendChild(liList);
+                            li.appendChild(dd);
+
+                            const inv = navUl.querySelector('a[href="invre.html"]');
+                            const liInv = inv ? (inv.closest('li') || null) : null;
+                            if (liInv && liInv.nextSibling) navUl.insertBefore(li, liInv.nextSibling);
+                            else {
+                                const inicio = Array.from(navUl.querySelectorAll(':scope > li > a')).find(x => ((x.textContent || '').trim().toLowerCase() === 'inicio'));
+                                const liInicio = inicio ? (inicio.closest('li') || null) : null;
+                                if (liInicio && liInicio.nextSibling) navUl.insertBefore(li, liInicio.nextSibling);
+                                else navUl.appendChild(li);
+                            }
+                        } catch {}
+                    }
+
                     function ensureXActividadNavLink(visible) {
                         try {
                             // Buscar el dropdown de "Actividad"
@@ -378,6 +455,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Inventario (invre.html): solo admin/director/supervisor
                     ensureInvreNavLink(isAdmin || isDirector || isSupervisor);
+
+                    // Servicio: admin/director/supervisor/inspector/capturista (no visor)
+                    ensureServicioNavDropdown(isAdmin || isDirector || isSupervisor || isInspector || isCapturista);
 
                     // Actividoc: admin/director
                     ensureActividocNavLink(isAdmin || isDirector);

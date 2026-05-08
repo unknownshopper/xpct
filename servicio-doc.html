@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documento de orden</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    @media print {
+      header, #doc-actions { display: none !important; }
+      main { padding: 0 !important; }
+      body { background: #fff !important; }
+    }
+
+    .pct-page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      color: #111827;
+      box-sizing: border-box;
+    }
+
+    @media screen {
+      .pct-page {
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        padding: 12px;
+        margin-top: 12px;
+      }
+    }
+
+    @media print {
+      .pct-page {
+        padding: 10mm;
+        border: none;
+        border-radius: 0;
+        margin: 0;
+        page-break-after: always;
+      }
+      .pct-page:last-child { page-break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="img/logopctch.png" alt="Logo PCT">
+    </div>
+    <button class="nav-toggle" type="button" aria-label="Abrir menú">&#9776;</button>
+    <nav class="nav-main">
+      <ul>
+        <li><a href="index.html">Inicio</a></li>
+      </ul>
+    </nav>
+    <div class="user-info">
+      <span class="user-info-email" id="nav-user-email"></span>
+      <button id="btn-logout">Salir</button>
+    </div>
+  </header>
+
+  <main style="margin: 0; padding: 0.5rem 0.5rem 1rem 0.5rem;">
+    <section class="detalle-equipo" style="padding: 0.75rem; max-width: 100%; background:#fff;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0;">Documento de orden</h2>
+          <p id="doc-sub" style="font-size:0.9rem; color:#6b7280; margin:0.2rem 0 0;"></p>
+        </div>
+        <div id="doc-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button id="doc-print" type="button" style="padding:0.55rem 0.85rem; border-radius:0.6rem; border:1px solid #111827; background:#111827; color:#fff; font-weight:900; cursor:pointer;">Imprimir / Guardar PDF</button>
+          <a href="serviciolist.html" style="display:inline-block; padding:0.55rem 0.85rem; border-radius:0.6rem; border:1px solid #d1d5db; background:#fff; text-decoration:none; color:#111827; font-weight:900;">Volver</a>
+        </div>
+      </div>
+
+      <div id="doc-msg" style="margin-top:0.6rem; font-size:0.95rem; color:#6b7280; display:none;"></div>
+
+      <div id="doc-pages" style="margin-top:0.75rem;"></div>
+    </section>
+  </main>
+
+  <script src="config.local.js"></script>
+  <script type="module" src="firebase-init.js"></script>
+  <script src="nav.js"></script>
+  <script src="servicio-doc.js"></script>
+</body>
+</html>
