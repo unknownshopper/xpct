@@ -5,6 +5,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Administración Actividad (Admax)</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .admx-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      table-layout: fixed;
+    }
+    .admx-table thead th {
+      background: #f8fafc;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .admx-table tbody td {
+      border-top: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    .admx-table tbody tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    .admx-table tbody tr:hover {
+      background: #eef2ff;
+    }
+    .admx-table th,
+    .admx-table td {
+      padding: 6px 4px;
+      font-size: 0.78rem;
+      color: #111827;
+    }
+    .admx-table th {
+      font-size: 0.75rem;
+      color: #6b7280;
+      font-weight: 600;
+      text-align: left;
+    }
+    .admx-table .admx-td-nowrap {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .admx-table .admx-td-right {
+      text-align: right;
+    }
+    .admx-table .admx-td-center {
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -135,6 +180,7 @@
         </div>
         <button id="admx-btn-os" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Generar OS</button>
         <button id="admx-btn-aplicar" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #16a34a; background:#16a34a; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Asignar a selección</button>
+        <button id="admx-btn-expand" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Expandir todo</button>
         <button id="admx-btn-refrescar" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; cursor:pointer;">Refrescar</button>
       </div>
       <div id="admx-list" style="margin-top:0.5rem;"></div>
@@ -251,12 +297,49 @@
     const btnGenOs = document.getElementById('admx-btn-os');
     const btnAplicar = document.getElementById('admx-btn-aplicar');
     const btnRefrescar = document.getElementById('admx-btn-refrescar');
+    const btnExpandAll = document.getElementById('admx-btn-expand');
     const cont = document.getElementById('admx-cont');
     const list = document.getElementById('admx-list');
 
     const tabModal = document.getElementById('admx-modal-tabulador');
     const tabHeader = document.getElementById('admx-tabulador-header');
     const tabTbody = document.getElementById('admx-tabulador-tbody');
+
+    // Estado de colapsado por OC (se conserva entre renders)
+    const mapaOcColapsado = new Map();
+
+    function getRenderedOcBoxes() {
+      if (!list) return [];
+      return Array.from(list.querySelectorAll('[data-oc-box="1"]'));
+    }
+
+    function setOcCollapsed(oc, collapsed) {
+      mapaOcColapsado.set(String(oc || ''), !!collapsed);
+      const boxes = getRenderedOcBoxes().filter(b => String(b.getAttribute('data-oc') || '') === String(oc || ''));
+      boxes.forEach(box => {
+        const body = box.querySelector('[data-oc-body="1"]');
+        const caret = box.querySelector('[data-oc-caret="1"]');
+        if (body) body.style.display = collapsed ? 'none' : 'block';
+        if (caret) caret.textContent = collapsed ? '▸' : '▾';
+      });
+    }
+
+    function syncExpandBtnLabel() {
+      if (!btnExpandAll) return;
+      const boxes = getRenderedOcBoxes();
+      if (!boxes.length) {
+        btnExpandAll.textContent = 'Expandir todo';
+        btnExpandAll.disabled = true;
+        return;
+      }
+      btnExpandAll.disabled = false;
+      const anyExpanded = boxes.some(b => {
+        const oc = String(b.getAttribute('data-oc') || '');
+        const collapsed = mapaOcColapsado.has(oc) ? !!mapaOcColapsado.get(oc) : true;
+        return !collapsed;
+      });
+      btnExpandAll.textContent = anyExpanded ? 'Contraer todo' : 'Expandir todo';
+    }
     const tabInicio = document.getElementById('admx-per-inicio');
     const tabFin = document.getElementById('admx-per-fin');
     const tabTipo = document.getElementById('admx-per-tipo');
@@ -1016,7 +1099,20 @@
     function renderPendientes() {
       const filtro = normKey(inpFiltro && inpFiltro.value);
       const modo = normKey(selModo && selModo.value) || 'PENDIENTES';
-      const base = (Array.isArray(listaActividad) ? listaActividad : []).filter(r => visibleByModo(r, modo));
+      const allRows = (Array.isArray(listaActividad) ? listaActividad : []);
+
+      let base = [];
+      if (modo === 'PENDIENTES') {
+        const openOcs = new Set();
+        allRows.forEach(r => {
+          const oc = norm(r.oc || 'SIN_OC');
+          if (!oc) return;
+          if (!isFinalActividad(r)) openOcs.add(oc);
+        });
+        base = allRows.filter(r => openOcs.has(norm(r.oc || 'SIN_OC')));
+      } else {
+        base = allRows.filter(r => visibleByModo(r, modo));
+      }
 
       const estadoServicio = (r) => {
         const term = norm(r.terminacionServicio || '');
@@ -1086,7 +1182,14 @@
       const label = (modo === 'TODAS')
         ? 'total'
         : (modo === 'SIN_OC' ? 'sin OC' : (modo === 'SIN_OS' ? 'sin OS' : 'pendiente'));
-      if (cont) cont.textContent = `${visibles.length} ${label}${visibles.length === 1 ? '' : 's'} · ${ocKeys.length} OC interna`;
+      if (cont) {
+        if (modo === 'PENDIENTES') {
+          const openCount = visibles.filter(r => !isFinalActividad(r)).length;
+          cont.textContent = `${openCount} pendiente${openCount === 1 ? '' : 's'} · ${visibles.length} en OCs abiertas · ${ocKeys.length} OC interna`;
+        } else {
+          cont.textContent = `${visibles.length} ${label}${visibles.length === 1 ? '' : 's'} · ${ocKeys.length} OC interna`;
+        }
+      }
       if (!list) return;
       list.innerHTML = '';
 
@@ -1096,40 +1199,73 @@
         const ubic = norm(arr[0]?.ubicacion || '');
 
         const box = document.createElement('div');
+        box.setAttribute('data-oc-box', '1');
+        box.setAttribute('data-oc', oc);
         box.style.cssText = 'border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; margin:10px 0; background:#ffffff;';
 
         const header = document.createElement('div');
-        header.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;';
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; cursor:pointer; user-select:none;';
         const left = document.createElement('div');
+        const openInThisOc = (modo === 'PENDIENTES') ? arr.filter(x => !isFinalActividad(x)).length : arr.length;
         left.innerHTML = `
           <div style="font-weight:900; color:#111827; font-size:1.15rem; line-height:1.2;">${cliente} · ${ubic}</div>
-          <div style="font-size:0.88rem; color:#4b5563; margin-top:2px;">OC interna: ${oc} · Pendientes: ${arr.length}</div>
+          <div style="font-size:0.88rem; color:#4b5563; margin-top:2px;">OC interna: ${oc} · Pendientes: ${openInThisOc}</div>
         `;
 
+        const right = document.createElement('div');
+        right.setAttribute('data-oc-caret', '1');
+        right.style.cssText = 'font-size:0.85rem; color:#6b7280; font-weight:700; padding-top:2px;';
+
+        const collapsed = (mapaOcColapsado.has(oc) ? !!mapaOcColapsado.get(oc) : true);
+        right.textContent = collapsed ? '▸' : '▾';
+
         header.appendChild(left);
+        header.appendChild(right);
         box.appendChild(header);
 
+        const bodyWrap = document.createElement('div');
+        bodyWrap.setAttribute('data-oc-body', '1');
+        bodyWrap.style.display = collapsed ? 'none' : 'block';
+
         const table = document.createElement('table');
-        table.style.cssText = 'width:100%; border-collapse:collapse; margin-top:8px;';
+        table.className = 'admx-table';
         table.innerHTML = `
+          <colgroup>
+            <col style="width:36px;">
+            <col style="width:130px;">
+            <col style="width:135px;">
+            <col style="width:80px;">
+            <col style="width:360px;">
+            <col style="width:110px;">
+            <col style="width:110px;">
+            <col style="width:95px;">
+            <col style="width:80px;">
+            <col style="width:90px;">
+            <col style="width:120px;">
+            <col style="width:120px;">
+            <col style="width:120px;">
+            <col style="width:100px;">
+            <col style="width:110px;">
+            <col style="width:90px;">
+          </colgroup>
           <thead>
             <tr>
-              <th style="text-align:center; font-size:0.75rem; color:#6b7280; padding:6px 4px; width:36px;"></th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Cliente</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Equipo / Serial</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Pruebas</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Descripción</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Fecha de embarque</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Inicio del servicio</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Parcial / Final</th>
-              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Días en servicio</th>
-              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Precio</th>
-              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Ingreso acumulado</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">OS</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">OC cliente</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Est-Cot</th>
-              <th style="text-align:left; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Factura</th>
-              <th style="text-align:right; font-size:0.75rem; color:#6b7280; padding:6px 4px;">Acciones</th>
+              <th class="admx-td-center"></th>
+              <th>Cliente</th>
+              <th>Equipo / Serial</th>
+              <th>Pruebas</th>
+              <th>Descripción</th>
+              <th>Fecha de embarque</th>
+              <th>Inicio del servicio</th>
+              <th>Parcial / Final</th>
+              <th class="admx-td-right">Días en servicio</th>
+              <th class="admx-td-right">Precio</th>
+              <th class="admx-td-right">Ingreso acumulado</th>
+              <th>OS</th>
+              <th>OC cliente</th>
+              <th>Est-Cot</th>
+              <th>Factura</th>
+              <th class="admx-td-right">Acciones</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1173,24 +1309,24 @@
               : (ingresoVal ? ingresoVal.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }) : '$0');
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:center;">
+              <td class="admx-td-center">
                 <input type="checkbox" data-id="${String(r.id || '')}" data-oc="${oc}">
               </td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.cliente || '')}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${eqHtml}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${pruebaTipo || 'SIN PRUEBA'}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9;">${descFallback}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.fechaEmbarque || '')}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.inicioServicio || '')}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${st}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${diasTxt}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${precioTxt}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; color:#111827; white-space:nowrap;">${ingresoTxt}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.os || '')}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.ordenSuministro || '')}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.estCot || '')}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.factura || '')}</td>
-              <td style="padding:6px 4px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap; color:#6b7280;">—</td>
+              <td class="admx-td-nowrap">${norm(r.cliente || '')}</td>
+              <td class="admx-td-nowrap">${eqHtml}</td>
+              <td class="admx-td-nowrap">${pruebaTipo || 'SIN PRUEBA'}</td>
+              <td>${descFallback}</td>
+              <td class="admx-td-nowrap">${norm(r.fechaEmbarque || '')}</td>
+              <td class="admx-td-nowrap">${norm(r.inicioServicio || '')}</td>
+              <td class="admx-td-nowrap">${st}</td>
+              <td class="admx-td-right admx-td-nowrap">${diasTxt}</td>
+              <td class="admx-td-right admx-td-nowrap">${precioTxt}</td>
+              <td class="admx-td-right admx-td-nowrap">${ingresoTxt}</td>
+              <td class="admx-td-nowrap">${norm(r.os || '')}</td>
+              <td class="admx-td-nowrap">${norm(r.ordenSuministro || '')}</td>
+              <td class="admx-td-nowrap">${norm(r.estCot || '')}</td>
+              <td class="admx-td-nowrap">${norm(r.factura || '')}</td>
+              <td class="admx-td-right admx-td-nowrap" style="color:#6b7280;">—</td>
             `;
             tr.style.cursor = 'pointer';
             tr.addEventListener('click', (ev) => {
@@ -1201,7 +1337,18 @@
             tbody.appendChild(tr);
           });
 
-        box.appendChild(table);
+        bodyWrap.appendChild(table);
+        box.appendChild(bodyWrap);
+
+        header.addEventListener('click', (ev) => {
+          const t = ev && ev.target ? ev.target : null;
+          if (t && (t.tagName === 'INPUT' || t.tagName === 'BUTTON' || t.closest('input') || t.closest('button'))) return;
+          const next = !(mapaOcColapsado.has(oc) ? !!mapaOcColapsado.get(oc) : true);
+          mapaOcColapsado.set(oc, next);
+          bodyWrap.style.display = next ? 'none' : 'block';
+          right.textContent = next ? '▸' : '▾';
+          syncExpandBtnLabel();
+        });
         list.appendChild(box);
       });
 
@@ -1211,6 +1358,8 @@
         empty.textContent = 'No hay registros para mostrar.';
         list.appendChild(empty);
       }
+
+      syncExpandBtnLabel();
     }
 
     function selectedIds() {
@@ -1531,6 +1680,23 @@
 
       if (btnRefrescar) {
         btnRefrescar.addEventListener('click', () => cargarActividades());
+      }
+
+      if (btnExpandAll) {
+        btnExpandAll.addEventListener('click', () => {
+          const boxes = getRenderedOcBoxes();
+          if (!boxes.length) return;
+
+          const anyExpanded = boxes.some(b => {
+            const oc = String(b.getAttribute('data-oc') || '');
+            const collapsed = mapaOcColapsado.has(oc) ? !!mapaOcColapsado.get(oc) : true;
+            return !collapsed;
+          });
+          const targetCollapsed = anyExpanded; // si hay alguno abierto => contraer todo
+          const ocs = Array.from(new Set(boxes.map(b => String(b.getAttribute('data-oc') || '')).filter(Boolean)));
+          ocs.forEach(oc => setOcCollapsed(oc, targetCollapsed));
+          syncExpandBtnLabel();
+        });
       }
 
       if (btnGenOs) {
