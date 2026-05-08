@@ -282,6 +282,55 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch {}
                     }
 
+                    function ensureXActividadNavLink(visible) {
+                        try {
+                            // Buscar el dropdown de "Actividad"
+                            const actTop = Array.from(document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown > a'))
+                                .find(a => ((a.textContent || '').trim().toLowerCase() === 'actividad'));
+                            const actLi = actTop ? (actTop.closest('li') || null) : null;
+                            const dd = actLi ? actLi.querySelector(':scope > ul.nav-dropdown') : null;
+                            if (!dd) return;
+
+                            const existing = dd.querySelector('a[href="admax.html"]');
+                            if (visible) {
+                                if (existing) {
+                                    existing.textContent = 'XActividad';
+                                    existing.classList.add('nav-admin-only');
+                                    const li = existing.closest('li') || existing;
+                                    li.style.display = '';
+                                    if (currentPage === 'admax.html') existing.classList.add('active');
+                                    else existing.classList.remove('active');
+                                    return;
+                                }
+
+                                const li = document.createElement('li');
+                                const a = document.createElement('a');
+                                a.href = 'admax.html';
+                                a.textContent = 'XActividad';
+                                a.className = 'nav-admin-only';
+                                if (currentPage === 'admax.html') a.classList.add('active');
+                                li.appendChild(a);
+
+                                // Insertar debajo de "Admin (OC/OS)" si existe; si no, debajo de "Administración".
+                                const docA = dd.querySelector('a[href="actividoc.html"]');
+                                const docLi = docA ? (docA.closest('li') || null) : null;
+                                if (docLi && docLi.nextSibling) dd.insertBefore(li, docLi.nextSibling);
+                                else if (docLi) dd.appendChild(li);
+                                else {
+                                    const adminA = dd.querySelector('a[href="actividadmin.html"]');
+                                    const adminLi = adminA ? (adminA.closest('li') || null) : null;
+                                    if (adminLi && adminLi.nextSibling) dd.insertBefore(li, adminLi.nextSibling);
+                                    else if (adminLi) dd.appendChild(li);
+                                    else dd.appendChild(li);
+                                }
+                            } else {
+                                if (!existing) return;
+                                const li = existing.closest('li') || existing;
+                                li.style.display = 'none';
+                            }
+                        } catch {}
+                    }
+
                     function ensureInvreNavLink(visible) {
                         try {
                             const navUl = navMain.querySelector(':scope > ul');
@@ -330,8 +379,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Inventario (invre.html): solo admin/director/supervisor
                     ensureInvreNavLink(isAdmin || isDirector || isSupervisor);
 
-                    // Admin (OC/OS): solo admin/director
+                    // Actividoc: admin/director
                     ensureActividocNavLink(isAdmin || isDirector);
+                    // XActividad (admax): admin/director
+                    ensureXActividadNavLink(isAdmin || isDirector);
 
                     // En dashboard: ocultar KPIs solo para inspector (UI reducida)
                     if (currentPage === 'index.html' && isInspector) {

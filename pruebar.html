@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba barómetro (sandbox)</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .pruebar-wrap { padding: 0.75rem 0.75rem 1rem; max-width: 1200px; margin: 0 auto; }
+        .pruebar-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        @media (max-width: 900px) { .pruebar-grid { grid-template-columns: 1fr; } }
+        .pruebar-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 0.9rem; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+        .pruebar-kv { display: grid; grid-template-columns: 180px 1fr; gap: 0.35rem 0.75rem; font-size: 0.92rem; }
+        .pruebar-k { color: #6b7280; }
+        .pruebar-v { color: #111827; font-weight: 600; overflow-wrap: anywhere; }
+        .pruebar-actions { display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end; align-items:center; }
+        #pruebar-canvas { width: 100%; height: 220px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fbfdff; }
+        .pruebar-muted { font-size: 0.85rem; color: #6b7280; }
+        .pruebar-table-wrap { overflow: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
+        #pruebar-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 720px; }
+        #pruebar-table thead th { position: sticky; top: 0; z-index: 2; background: #f3f4f6; box-shadow: 0 1px 0 0 #e5e7eb; text-align: left; padding: 0.4rem; }
+        #pruebar-table tbody td { border-top: 1px solid #e5e7eb; padding: 0.35rem 0.4rem; white-space: nowrap; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="logo">
+        <img src="img/logopctch.png" alt="Logo PCT">
+    </div>
+    <button class="nav-toggle" type="button" aria-label="Abrir menú">
+        &#9776;
+    </button>
+    <nav class="nav-main">
+        <ul>
+            <li><a href="index.html">Inicio</a></li>
+            <li class="nav-item-has-dropdown">
+                <a href="#">Pruebas</a>
+                <ul class="nav-dropdown">
+                    <li><a href="pruebas.html">Registrar prueba</a></li>
+                    <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                    <li><a href="pruebasrangos.html">Rangos</a></li>
+                </ul>
+            </li>
+            <li class="nav-item-has-dropdown">
+                <a href="#">Inspecciones</a>
+                <ul class="nav-dropdown">
+                    <li><a href="inspeccion.html">Nueva inspección</a></li>
+                    <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                </ul>
+            </li>
+            <li class="nav-item-has-dropdown">
+                <a href="#" class="active">Actividad</a>
+                <ul class="nav-dropdown">
+                    <li><a href="actividad.html">Registrar actividad</a></li>
+                    <li><a href="actividadlist.html">Listado de actividades</a></li>
+                    <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                    <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+    <div class="user-info">
+        <span class="user-info-email" id="nav-user-email"></span>
+        <button id="btn-logout">Salir</button>
+    </div>
+</header>
+
+<main class="pruebar-wrap">
+    <h1 style="text-align:center; font-size:2rem; font-weight:800; letter-spacing:0.02em; margin:0.5rem 0 1rem; color:#111827;">PRUEBA BARÓMETRO (CSV)</h1>
+
+    <section class="pruebar-grid" style="margin-bottom: 0.75rem;">
+        <div class="pruebar-card">
+            <h2 style="margin:0 0 0.75rem;">Equipo</h2>
+            <div class="pruebar-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="campo">
+                    <label for="pruebar-equipo">Equipo</label>
+                    <input id="pruebar-equipo" type="text" list="pruebar-equipos" placeholder="PCT-...">
+                    <datalist id="pruebar-equipos"></datalist>
+                </div>
+                <div class="campo">
+                    <label for="pruebar-serial">Serial</label>
+                    <input id="pruebar-serial" type="text" list="pruebar-seriales" placeholder="SERIAL">
+                    <datalist id="pruebar-seriales"></datalist>
+                </div>
+            </div>
+            <div class="pruebar-muted" id="pruebar-inv-desc" style="margin-top:0.35rem;"></div>
+        </div>
+
+        <div class="pruebar-card">
+            <h2 style="margin:0 0 0.75rem;">Archivo CSV</h2>
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
+                <input id="pruebar-file" type="file" accept=".csv" />
+                <div class="pruebar-actions">
+                    <button id="pruebar-load-sample" type="button">Cargar ejemplo</button>
+                    <button id="pruebar-save" type="button" style="background:#10b981; border:1px solid #059669; color:#ffffff;">Guardar registro</button>
+                    <button id="pruebar-clear" type="button">Limpiar</button>
+                </div>
+            </div>
+            <label style="display:flex; gap:0.45rem; align-items:center; font-size:0.85rem; color:#374151; margin-top:0.45rem;">
+                <input type="checkbox" id="pruebar-mock" checked>
+                Guardar como mockup (sin Firestore/Storage)
+            </label>
+            <div class="pruebar-muted" id="pruebar-file-name" style="margin-top:0.35rem;"></div>
+        </div>
+    </section>
+
+    <section class="pruebar-grid" style="margin-bottom: 0.75rem;">
+        <div class="pruebar-card">
+            <h2 style="margin:0 0 0.75rem;">Encabezado / Metadata</h2>
+            <div class="pruebar-kv" id="pruebar-meta"></div>
+        </div>
+        <div class="pruebar-card">
+            <h2 style="margin:0 0 0.75rem;">Resumen</h2>
+            <div class="pruebar-kv" id="pruebar-summary"></div>
+        </div>
+    </section>
+
+    <section class="pruebar-card" style="margin-bottom: 0.75rem;">
+        <h2 style="margin:0 0 0.75rem;">Registro</h2>
+        <div class="pruebar-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="campo">
+                <label for="pruebar-fecha">Fecha (desde CSV)</label>
+                <input id="pruebar-fecha" type="text" placeholder="2026-04-30 09:10:13" readonly>
+            </div>
+            <div class="campo">
+                <label for="pruebar-tecnico">Técnico</label>
+                <input id="pruebar-tecnico" type="text" placeholder="TECNICO" required>
+            </div>
+        </div>
+        <div class="campo" style="margin-top:0.5rem;">
+            <label for="pruebar-obs">Observaciones</label>
+            <textarea id="pruebar-obs" rows="3" placeholder="Notas de la prueba..."></textarea>
+        </div>
+        <div class="pruebar-muted" id="pruebar-save-msg" style="margin-top:0.35rem;"></div>
+        <div id="pruebar-mock-out" style="display:none; margin-top:0.6rem; border:1px solid #e5e7eb; border-radius:10px; padding:0.6rem; background:#fafafa;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.45rem;">
+                <div style="font-weight:800; color:#111827;">Mockup generado</div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button id="pruebar-mock-download" type="button">Descargar JSON</button>
+                    <button id="pruebar-mock-download-csv" type="button">Descargar CSV</button>
+                </div>
+            </div>
+            <pre id="pruebar-mock-json" style="margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:0.82rem; color:#111827;"></pre>
+        </div>
+    </section>
+
+    <section class="pruebar-card" style="margin-bottom: 0.75rem;">
+        <h2 style="margin:0 0 0.75rem;">Mini gráfica</h2>
+        <canvas id="pruebar-canvas" width="1100" height="220"></canvas>
+        <div class="pruebar-muted" id="pruebar-graph-note" style="margin-top:0.35rem;"></div>
+    </section>
+
+    <section class="pruebar-card">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+            <h2 style="margin:0;">Muestras</h2>
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                <span class="pruebar-muted" id="pruebar-rows-info"></span>
+                <button id="pruebar-show-more" type="button" style="display:none;">Ver más</button>
+            </div>
+        </div>
+        <div class="pruebar-table-wrap">
+            <table id="pruebar-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th id="th-pressure">Pressure</th>
+                        <th id="th-temp">Temperature</th>
+                    </tr>
+                </thead>
+                <tbody id="pruebar-tbody"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script src="config.local.js"></script>
+<script type="module" src="firebase-init.js"></script>
+<script type="module">
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const auth = window.auth;
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            window.location.href = 'website.html';
+            return;
+        }
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+        try {
+            const token = await user.getIdTokenResult(true);
+            const role = (token?.claims?.role) || null;
+            window.userRole = role;
+            window.isAdmin = role === 'admin';
+            window.isDirector = role === 'director';
+            window.isInspector = role === 'inspector';
+            window.isCapturista = role === 'capturista';
+            window.isVisor = role === 'visor';
+        } catch {}
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'website.html';
+            }
+        });
+    }
+</script>
+
+<script src="nav.js"></script>
+<script src="utils.js"></script>
+<script>
+(function(){
+    const inputEquipo = document.getElementById('pruebar-equipo');
+    const inputSerial = document.getElementById('pruebar-serial');
+    const dlEquipos = document.getElementById('pruebar-equipos');
+    const dlSeriales = document.getElementById('pruebar-seriales');
+    const invDescEl = document.getElementById('pruebar-inv-desc');
+
+    const fileEl = document.getElementById('pruebar-file');
+    const btnLoadSample = document.getElementById('pruebar-load-sample');
+    const btnSave = document.getElementById('pruebar-save');
+    const btnClear = document.getElementById('pruebar-clear');
+    const fileNameEl = document.getElementById('pruebar-file-name');
+    const mockToggle = document.getElementById('pruebar-mock');
+
+    const metaEl = document.getElementById('pruebar-meta');
+    const summaryEl = document.getElementById('pruebar-summary');
+
+    const fechaEl = document.getElementById('pruebar-fecha');
+    const tecnicoEl = document.getElementById('pruebar-tecnico');
+    const obsEl = document.getElementById('pruebar-obs');
+    const saveMsgEl = document.getElementById('pruebar-save-msg');
+
+    const mockOut = document.getElementById('pruebar-mock-out');
+    const mockJsonEl = document.getElementById('pruebar-mock-json');
+    const mockBtnDl = document.getElementById('pruebar-mock-download');
+    const mockBtnDlCsv = document.getElementById('pruebar-mock-download-csv');
+
+    const canvas = document.getElementById('pruebar-canvas');
+    const graphNoteEl = document.getElementById('pruebar-graph-note');
+
+    const thPressure = document.getElementById('th-pressure');
+    const thTemp = document.getElementById('th-temp');
+
+    const tbody = document.getElementById('pruebar-tbody');
+    const rowsInfoEl = document.getElementById('pruebar-rows-info');
+    const btnShowMore = document.getElementById('pruebar-show-more');
+
+    const invByEquipo = new Map();
+    const invBySerial = new Map();
+
+    const SAMPLE_CSV = `Logger Name,Data-Logger\nIntervals,10.0s\nCount,322\nStart Time,2026-04-30 09:10:13\nDuration,00:53:40\nNote,\nOperator,\n\nItems,"Pressure \n psi","Temperature \n °C"\nFirst,-0,29.92\nLast,-0,30.51\nMax,2084,30.51\nMin,-0,29.90\nAvg,878,30.21\nP-P,2084,0.61\nSTDEV,837,0.19\nMax Time,2026-04-30 10:00:03,2026-04-30 10:03:33\nMin Time,2026-04-30 10:03:43,2026-04-30 09:11:43\n\nTime,"Pressure \n psi","Temperature \n °C"\n2026-04-30 09:10:13,-0,29.92\n2026-04-30 09:10:23,0,29.91\n2026-04-30 09:10:33,6,29.91\n2026-04-30 09:10:43,30,29.92\n2026-04-30 09:10:53,125,29.92\n2026-04-30 09:11:03,123,29.91\n2026-04-30 09:11:13,123,29.92\n2026-04-30 09:11:23,124,29.91\n2026-04-30 09:11:33,124,29.92\n2026-04-30 09:11:43,124,29.90\n2026-04-30 09:11:53,123,29.92\n2026-04-30 09:12:03,124,29.91\n2026-04-30 09:12:13,123,29.92\n2026-04-30 09:12:23,124,29.93\n2026-04-30 09:12:33,123,29.92\n2026-04-30 09:12:43,124,29.94\n2026-04-30 09:12:53,123,29.92\n2026-04-30 09:13:03,123,29.92\n2026-04-30 09:13:13,123,29.92\n2026-04-30 09:13:23,123,29.92\n2026-04-30 09:13:33,123,29.92\n2026-04-30 09:13:43,123,29.94\n2026-04-30 09:13:53,123,29.94\n2026-04-30 09:14:03,123,29.94\n2026-04-30 09:14:13,123,29.94\n2026-04-30 09:14:23,123,29.94\n2026-04-30 09:14:33,124,29.95\n2026-04-30 09:14:43,123,29.94\n2026-04-30 09:14:53,123,29.95\n2026-04-30 09:15:03,124,29.94\n2026-04-30 09:15:13,123,29.94\n2026-04-30 09:15:23,123,29.95\n2026-04-30 09:15:33,123,29.94\n2026-04-30 09:15:43,123,29.93\n2026-04-30 09:15:53,123,29.95\n2026-04-30 09:16:03,123,29.95\n2026-04-30 09:16:13,266,29.96\n2026-04-30 09:16:23,412,29.95\n2026-04-30 09:16:33,264,29.96\n2026-04-30 09:16:43,266,29.97\n2026-04-30 09:16:53,266,29.97\n2026-04-30 09:17:03,266,29.97\n2026-04-30 09:17:13,265,29.96\n2026-04-30 09:17:23,265,29.98\n2026-04-30 09:17:33,422,29.97\n2026-04-30 09:17:43,342,29.96\n2026-04-30 09:17:53,338,29.98\n2026-04-30 09:18:03,320,29.99\n2026-04-30 09:18:13,309,29.97\n2026-04-30 09:18:23,301,29.97\n2026-04-30 09:18:33,295,29.98\n2026-04-30 09:18:43,295,29.98\n2026-04-30 09:18:53,294,29.99\n2026-04-30 09:19:03,294,29.98\n2026-04-30 09:19:13,294,29.99\n2026-04-30 09:19:23,294,30.00\n2026-04-30 09:19:33,295,30.00\n2026-04-30 09:19:43,295,29.99\n2026-04-30 09:19:53,295,30.00\n2026-04-30 09:20:03,295,29.99\n2026-04-30 09:20:13,295,30.01\n2026-04-30 09:20:23,295,30.01\n2026-04-30 09:20:33,295,30.01\n2026-04-30 09:20:43,295,30.02\n2026-04-30 09:20:53,295,30.01\n2026-04-30 09:21:03,295,30.01\n2026-04-30 09:21:13,296,30.00\n2026-04-30 09:21:23,296,30.02\n2026-04-30 09:21:33,296,30.02\n2026-04-30 09:21:43,296,30.01\n2026-04-30 09:21:53,296,30.00\n2026-04-30 09:22:03,296,30.03\n2026-04-30 09:22:13,297,30.02\n2026-04-30 09:22:23,297,30.01\n2026-04-30 09:22:33,297,30.00\n2026-04-30 09:22:43,297,30.01\n2026-04-30 09:22:53,298,30.03\n2026-04-30 09:23:03,298,30.02\n2026-04-30 09:23:13,298,30.02\n2026-04-30 09:23:23,298,30.03\n2026-04-30 09:23:33,299,30.03\n2026-04-30 09:23:43,299,30.03\n2026-04-30 09:23:53,299,30.04\n2026-04-30 09:24:03,300,30.04\n2026-04-30 09:24:13,300,30.02\n2026-04-30 09:24:23,300,30.04\n2026-04-30 09:24:33,300,30.02\n2026-04-30 09:24:43,301,30.04\n2026-04-30 09:24:53,301,30.03\n2026-04-30 09:25:03,302,30.05\n2026-04-30 09:25:13,301,30.04\n2026-04-30 09:25:23,302,30.03\n2026-04-30 09:25:33,302,30.05\n2026-04-30 09:25:43,302,30.05\n2026-04-30 09:25:53,303,30.05\n2026-04-30 09:26:03,303,30.05\n2026-04-30 09:26:13,304,30.05\n2026-04-30 09:26:23,304,30.05\n2026-04-30 09:26:33,304,30.06\n2026-04-30 09:26:43,304,30.05\n2026-04-30 09:26:53,305,30.05\n2026-04-30 09:27:03,305,30.05\n2026-04-30 09:27:13,306,30.06\n2026-04-30 09:27:23,306,30.07\n2026-04-30 09:27:33,306,30.07\n2026-04-30 09:27:43,307,30.05\n2026-04-30 09:27:53,307,30.06\n2026-04-30 09:28:03,307,30.07\n2026-04-30 09:28:13,308,30.07\n2026-04-30 09:28:23,308,30.07\n2026-04-30 09:28:33,308,30.08\n2026-04-30 09:28:43,309,30.08\n2026-04-30 09:28:53,309,30.07\n2026-04-30 09:29:03,310,30.07\n2026-04-30 09:29:13,310,30.09\n2026-04-30 09:29:23,310,30.07\n2026-04-30 09:29:33,311,30.09\n2026-04-30 09:29:43,311,30.07\n2026-04-30 09:29:53,312,30.08\n2026-04-30 09:30:03,312,30.09\n2026-04-30 09:30:13,312,30.09\n2026-04-30 09:30:23,313,30.09\n2026-04-30 09:30:33,313,30.10\n2026-04-30 09:30:43,314,30.08\n2026-04-30 09:30:53,314,30.10\n2026-04-30 09:31:03,315,30.08\n2026-04-30 09:31:13,315,30.11\n2026-04-30 09:31:23,315,30.09\n2026-04-30 09:31:33,316,30.10\n2026-04-30 09:31:43,317,30.10\n2026-04-30 09:31:53,317,30.11\n2026-04-30 09:32:03,317,30.12\n2026-04-30 09:32:13,318,30.11\n2026-04-30 09:32:23,318,30.12\n2026-04-30 09:32:33,319,30.11\n2026-04-30 09:32:43,319,30.11\n2026-04-30 09:32:53,320,30.13\n2026-04-30 09:33:03,320,30.13\n2026-04-30 09:33:13,321,30.13\n2026-04-30 09:33:23,321,30.13\n2026-04-30 09:33:33,321,30.14\n2026-04-30 09:33:43,322,30.13\n2026-04-30 09:33:53,322,30.13\n2026-04-30 09:34:03,323,30.13\n2026-04-30 09:34:13,323,30.13\n2026-04-30 09:34:23,324,30.13\n2026-04-30 09:34:33,325,30.14\n2026-04-30 09:34:43,325,30.14\n2026-04-30 09:34:53,325,30.16\n2026-04-30 09:35:03,326,30.16\n2026-04-30 09:35:13,326,30.17\n2026-04-30 09:35:23,327,30.16\n2026-04-30 09:35:33,327,30.18\n2026-04-30 09:35:43,328,30.18\n2026-04-30 09:35:53,328,30.19\n2026-04-30 09:36:03,328,30.20\n2026-04-30 09:36:13,294,30.20\n2026-04-30 09:36:23,292,30.20\n2026-04-30 09:36:33,488,30.22\n2026-04-30 09:36:43,515,30.22\n2026-04-30 09:36:53,514,30.21\n2026-04-30 09:37:03,513,30.23\n2026-04-30 09:37:13,513,30.23\n2026-04-30 09:37:23,514,30.23\n2026-04-30 09:37:33,513,30.23\n2026-04-30 09:37:43,513,30.25\n2026-04-30 09:37:53,514,30.25\n2026-04-30 09:38:03,514,30.25\n2026-04-30 09:38:13,514,30.25\n2026-04-30 09:38:23,514,30.26\n2026-04-30 09:38:33,514,30.26\n2026-04-30 09:38:43,514,30.25\n2026-04-30 09:38:53,515,30.27\n2026-04-30 09:39:03,515,30.29\n2026-04-30 09:39:13,515,30.27\n2026-04-30 09:39:23,516,30.29\n2026-04-30 09:39:33,516,30.29\n2026-04-30 09:39:43,516,30.29\n2026-04-30 09:39:53,517,30.27\n2026-04-30 09:40:03,517,30.30\n2026-04-30 09:40:13,518,30.29\n2026-04-30 09:40:23,518,30.30\n2026-04-30 09:40:33,518,30.30\n2026-04-30 09:40:43,518,30.29\n2026-04-30 09:40:53,519,30.30\n2026-04-30 09:41:03,519,30.29\n2026-04-30 09:41:13,520,30.29\n2026-04-30 09:41:23,520,30.30\n2026-04-30 09:41:33,520,30.30\n2026-04-30 09:41:43,520,30.30\n2026-04-30 09:41:53,520,30.30\n2026-04-30 09:42:03,818,30.30\n2026-04-30 09:42:13,1274,30.31\n2026-04-30 09:42:23,1669,30.30\n2026-04-30 09:42:33,2025,30.30\n2026-04-30 09:42:43,2028,30.32\n2026-04-30 09:42:53,2026,30.31\n2026-04-30 09:43:03,2025,30.32\n2026-04-30 09:43:13,2025,30.31\n2026-04-30 09:43:23,2024,30.33\n2026-04-30 09:43:33,2024,30.31\n2026-04-30 09:43:43,2024,30.33\n2026-04-30 09:43:53,2024,30.32\n2026-04-30 09:44:03,2024,30.33\n2026-04-30 09:44:13,2024,30.35\n2026-04-30 09:44:23,2024,30.34\n2026-04-30 09:44:33,2025,30.36\n2026-04-30 09:44:43,2025,30.34\n2026-04-30 09:44:53,2025,30.35\n2026-04-30 09:45:03,2025,30.35\n2026-04-30 09:45:13,2025,30.35\n2026-04-30 09:45:23,2026,30.35\n2026-04-30 09:45:33,2026,30.34\n2026-04-30 09:45:43,2027,30.36\n2026-04-30 09:45:53,2027,30.35\n2026-04-30 09:46:03,2028,30.37\n2026-04-30 09:46:13,2028,30.37\n2026-04-30 09:46:23,2028,30.37\n2026-04-30 09:46:33,2029,30.37\n2026-04-30 09:46:43,2029,30.38\n2026-04-30 09:46:53,2030,30.38\n2026-04-30 09:47:03,2030,30.39\n2026-04-30 09:47:13,2031,30.39\n2026-04-30 09:47:23,2031,30.39\n2026-04-30 09:47:33,2032,30.38\n2026-04-30 09:47:43,2032,30.38\n2026-04-30 09:47:53,2033,30.39\n2026-04-30 09:48:03,2033,30.39\n2026-04-30 09:48:13,2034,30.40\n2026-04-30 09:48:23,2034,30.38\n2026-04-30 09:48:33,2035,30.39\n2026-04-30 09:48:43,2035,30.38\n2026-04-30 09:48:53,2036,30.39\n2026-04-30 09:49:03,2036,30.39\n2026-04-30 09:49:13,2037,30.38\n2026-04-30 09:49:23,2038,30.39\n2026-04-30 09:49:33,2038,30.38\n2026-04-30 09:49:43,2039,30.38\n2026-04-30 09:49:53,2039,30.39\n2026-04-30 09:50:03,2040,30.37\n2026-04-30 09:50:13,2041,30.38\n2026-04-30 09:50:23,2041,30.38\n2026-04-30 09:50:33,2042,30.39\n2026-04-30 09:50:43,2042,30.38\n2026-04-30 09:50:53,2043,30.39\n2026-04-30 09:51:03,2044,30.39\n2026-04-30 09:51:13,2045,30.37\n2026-04-30 09:51:23,2045,30.39\n2026-04-30 09:51:33,2045,30.40\n2026-04-30 09:51:43,2046,30.38\n2026-04-30 09:51:53,2047,30.40\n2026-04-30 09:52:03,2047,30.38\n2026-04-30 09:52:13,2048,30.39\n2026-04-30 09:52:23,2049,30.40\n2026-04-30 09:52:33,2050,30.38\n2026-04-30 09:52:43,2050,30.41\n2026-04-30 09:52:53,2051,30.40\n2026-04-30 09:53:03,2052,30.40\n2026-04-30 09:53:13,2053,30.40\n2026-04-30 09:53:23,2053,30.39\n2026-04-30 09:53:33,2054,30.41\n2026-04-30 09:53:43,2055,30.42\n2026-04-30 09:53:53,2056,30.40\n2026-04-30 09:54:03,2056,30.39\n2026-04-30 09:54:13,2057,30.41\n2026-04-30 09:54:23,2058,30.43\n2026-04-30 09:54:33,2058,30.40\n2026-04-30 09:54:43,2060,30.42\n2026-04-30 09:54:53,2060,30.43\n2026-04-30 09:55:03,2061,30.43\n2026-04-30 09:55:13,2062,30.43\n2026-04-30 09:55:23,2062,30.42\n2026-04-30 09:55:33,2064,30.43\n2026-04-30 09:55:43,2064,30.43\n2026-04-30 09:55:53,2065,30.43\n2026-04-30 09:56:03,2065,30.42\n2026-04-30 09:56:13,2066,30.44\n2026-04-30 09:56:23,2067,30.43\n2026-04-30 09:56:33,2068,30.42\n2026-04-30 09:56:43,2069,30.44\n2026-04-30 09:56:53,2069,30.44\n2026-04-30 09:57:03,2070,30.43\n2026-04-30 09:57:13,2070,30.43\n2026-04-30 09:57:23,2072,30.43\n2026-04-30 09:57:33,2072,30.45\n2026-04-30 09:57:43,2073,30.45\n2026-04-30 09:57:53,2074,30.43\n2026-04-30 09:58:03,2074,30.43\n2026-04-30 09:58:13,2075,30.44\n2026-04-30 09:58:23,2076,30.44\n2026-04-30 09:58:33,2076,30.45\n2026-04-30 09:58:43,2077,30.45\n2026-04-30 09:58:53,2078,30.43\n2026-04-30 09:59:03,2079,30.44\n2026-04-30 09:59:13,2079,30.45\n2026-04-30 09:59:23,2080,30.44\n2026-04-30 09:59:33,2081,30.45\n2026-04-30 09:59:43,2082,30.46\n2026-04-30 09:59:53,2083,30.46\n2026-04-30 10:00:03,2084,30.46\n2026-04-30 10:00:13,1657,30.46\n2026-04-30 10:00:23,637,30.47\n2026-04-30 10:00:33,258,30.48\n2026-04-30 10:00:43,140,30.46\n2026-04-30 10:00:53,101,30.48\n2026-04-30 10:01:03,78,30.48\n2026-04-30 10:01:13,64,30.47\n2026-04-30 10:01:23,55,30.47\n2026-04-30 10:01:33,49,30.47\n2026-04-30 10:01:43,43,30.47\n2026-04-30 10:01:53,40,30.48\n2026-04-30 10:02:03,36,30.48\n2026-04-30 10:02:13,33,30.48\n2026-04-30 10:02:23,31,30.49\n2026-04-30 10:02:33,29,30.49\n2026-04-30 10:02:43,28,30.48\n2026-04-30 10:02:53,26,30.50\n2026-04-30 10:03:03,25,30.50\n2026-04-30 10:03:13,24,30.49\n2026-04-30 10:03:23,23,30.49\n2026-04-30 10:03:33,-0,30.51\n2026-04-30 10:03:43,-0,30.51\n`;
+
+    let lastParsed = null;
+
+    function cleanHeaderLabel(s) {
+        return String(s || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function parseCsvRows(text) {
+        const rows = [];
+        let row = [];
+        let field = '';
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (inQuotes) {
+                if (c === '"') {
+                    const next = text[i + 1];
+                    if (next === '"') {
+                        field += '"';
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    field += c;
+                }
+                continue;
+            }
+            if (c === '"') {
+                inQuotes = true;
+                continue;
+            }
+            if (c === ',') {
+                row.push(field);
+                field = '';
+                continue;
+            }
+            if (c === '\n') {
+                row.push(field);
+                field = '';
+                if (row.length === 1 && String(row[0] || '').trim() === '' && rows.length === 0) {
+                    row = [];
+                    continue;
+                }
+                rows.push(row);
+                row = [];
+                continue;
+            }
+            if (c === '\r') {
+                continue;
+            }
+            field += c;
+        }
+        if (field.length || row.length) {
+            row.push(field);
+            rows.push(row);
+        }
+        return rows;
+    }
+
+    function setKv(el, obj) {
+        if (!el) return;
+        el.innerHTML = '';
+        Object.entries(obj || {}).forEach(([k, v]) => {
+            const kEl = document.createElement('div');
+            kEl.className = 'pruebar-k';
+            kEl.textContent = k;
+            const vEl = document.createElement('div');
+            vEl.className = 'pruebar-v';
+            vEl.textContent = v;
+            el.appendChild(kEl);
+            el.appendChild(vEl);
+        });
+    }
+
+    function toNumber(x) {
+        const s = String(x ?? '').trim();
+        if (!s) return null;
+        const n = Number(s.replace(/,/g, ''));
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function parseIntervalSeconds(s) {
+        const t = String(s || '').trim();
+        const m = t.match(/([0-9]+(?:\.[0-9]+)?)\s*s/i);
+        if (!m) return null;
+        const n = Number(m[1]);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function parseDurationSeconds(s) {
+        const t = String(s || '').trim();
+        const m = t.match(/^(\d{2}):(\d{2}):(\d{2})$/);
+        if (!m) return null;
+        const hh = Number(m[1]);
+        const mm = Number(m[2]);
+        const ss = Number(m[3]);
+        if (![hh, mm, ss].every(Number.isFinite)) return null;
+        return hh * 3600 + mm * 60 + ss;
+    }
+
+    function drawSeries({ ys = [], label = '' } = {}) {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+
+        if (!ys.length) {
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+            ctx.fillText('Sin datos', 16, 28);
+            return;
+        }
+
+        let min = Infinity;
+        let max = -Infinity;
+        ys.forEach(v => {
+            if (!Number.isFinite(v)) return;
+            if (v < min) min = v;
+            if (v > max) max = v;
+        });
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+        if (min === max) {
+            min -= 1;
+            max += 1;
+        }
+
+        const padL = 54;
+        const padR = 14;
+        const padT = 14;
+        const padB = 26;
+
+        const innerW = W - padL - padR;
+        const innerH = H - padT - padB;
+
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        const gridLines = 4;
+        for (let i = 0; i <= gridLines; i++) {
+            const y = padT + (innerH * i) / gridLines;
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(W - padR, y);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let i = 0; i <= gridLines; i++) {
+            const v = max - ((max - min) * i) / gridLines;
+            const y = padT + (innerH * i) / gridLines;
+            ctx.fillText(String(Math.round(v * 100) / 100), padL - 8, y);
+        }
+
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        const N = ys.length;
+        for (let i = 0; i < N; i++) {
+            const v = ys[i];
+            if (!Number.isFinite(v)) continue;
+            const x = padL + (innerW * i) / Math.max(1, N - 1);
+            const y = padT + innerH - ((v - min) / (max - min)) * innerH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#111827';
+        ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(label, 14, 10);
+    }
+
+    function drawSeriesDual({ pressure = [], temperature = [], times = [], pressureLabel = '', temperatureLabel = '' } = {}) {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+
+        const p = (pressure || []).filter(Number.isFinite);
+        const t = (temperature || []).filter(Number.isFinite);
+        const N = Math.max(p.length, t.length);
+        if (!N) {
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+            ctx.fillText('Sin datos', 16, 28);
+            return;
+        }
+
+        let pMin = Infinity, pMax = -Infinity;
+        (pressure || []).forEach(v => { if (Number.isFinite(v)) { if (v < pMin) pMin = v; if (v > pMax) pMax = v; } });
+        let tMin = Infinity, tMax = -Infinity;
+        (temperature || []).forEach(v => { if (Number.isFinite(v)) { if (v < tMin) tMin = v; if (v > tMax) tMax = v; } });
+
+        if (!Number.isFinite(pMin) || !Number.isFinite(pMax)) { pMin = 0; pMax = 1; }
+        if (!Number.isFinite(tMin) || !Number.isFinite(tMax)) { tMin = 0; tMax = 1; }
+        if (pMin === pMax) { pMin -= 1; pMax += 1; }
+        if (tMin === tMax) { tMin -= 1; tMax += 1; }
+
+        const padL = 64;
+        const padR = 64;
+        const padT = 18;
+        const padB = 28;
+        const innerW = W - padL - padR;
+        const innerH = H - padT - padB;
+
+        // x-axis baseline
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, padT + innerH);
+        ctx.lineTo(W - padR, padT + innerH);
+        ctx.stroke();
+
+        // grid
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        const gridLines = 4;
+        for (let i = 0; i <= gridLines; i++) {
+            const y = padT + (innerH * i) / gridLines;
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(W - padR, y);
+            ctx.stroke();
+        }
+
+        // left axis (pressure)
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let i = 0; i <= gridLines; i++) {
+            const v = pMax - ((pMax - pMin) * i) / gridLines;
+            const y = padT + (innerH * i) / gridLines;
+            ctx.fillText(String(Math.round(v * 100) / 100), padL - 8, y);
+        }
+
+        // right axis (temperature)
+        ctx.textAlign = 'left';
+        for (let i = 0; i <= gridLines; i++) {
+            const v = tMax - ((tMax - tMin) * i) / gridLines;
+            const y = padT + (innerH * i) / gridLines;
+            ctx.fillText(String(Math.round(v * 100) / 100), W - padR + 8, y);
+        }
+
+        // pressure line
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        for (let i = 0; i < (pressure || []).length; i++) {
+            const v = pressure[i];
+            if (!Number.isFinite(v)) continue;
+            const x = padL + (innerW * i) / Math.max(1, (pressure.length - 1));
+            const y = padT + innerH - ((v - pMin) / (pMax - pMin)) * innerH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // temperature line
+        ctx.strokeStyle = '#b45309';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (let i = 0; i < (temperature || []).length; i++) {
+            const v = temperature[i];
+            if (!Number.isFinite(v)) continue;
+            const x = padL + (innerW * i) / Math.max(1, (temperature.length - 1));
+            const y = padT + innerH - ((v - tMin) / (tMax - tMin)) * innerH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // title & legend
+        ctx.fillStyle = '#111827';
+        ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('Presión y Temperatura', 14, 10);
+
+        // legend swatches
+        const baseY = H - 22;
+        ctx.fillStyle = '#2563eb';
+        ctx.fillRect(14, baseY + 4, 12, 3);
+        ctx.fillStyle = '#111827';
+        ctx.fillText(pressureLabel || 'Pressure', 32, baseY - 2);
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(210, baseY + 4, 12, 3);
+        ctx.fillStyle = '#111827';
+        ctx.fillText(temperatureLabel || 'Temperature', 228, baseY - 2);
+
+        // Key tick labels (avoid printing all samples)
+        try {
+            const idx = [];
+            const pArr = pressure || [];
+            const n = pArr.length;
+            if (n) {
+                const pMaxVal = pMax;
+                const t10 = pMin + 0.10 * (pMaxVal - pMin);
+                const t90 = pMin + 0.90 * (pMaxVal - pMin);
+
+                const iStart = 0;
+                const iEnd = n - 1;
+                let iRise = pArr.findIndex(v => Number.isFinite(v) && v >= t10);
+                if (iRise < 0) iRise = 0;
+                let iStable = pArr.findIndex(v => Number.isFinite(v) && v >= t90);
+                if (iStable < 0) iStable = Math.max(0, iRise);
+                let iMax = 0;
+                for (let i = 0; i < n; i++) {
+                    if (Number.isFinite(pArr[i]) && pArr[i] === pMaxVal) { iMax = i; break; }
+                }
+                let iDescent = -1;
+                for (let i = Math.max(iMax + 1, 1); i < n; i++) {
+                    const v = pArr[i];
+                    if (Number.isFinite(v) && v <= t90) { iDescent = i; break; }
+                }
+                if (iDescent < 0) iDescent = iEnd;
+
+                idx.push(iStart, iRise, iStable, iDescent, iEnd);
+            }
+            const unique = Array.from(new Set(idx.filter(i => Number.isFinite(i) && i >= 0))).sort((a, b) => a - b);
+
+            const fmt = (s) => {
+                const t = String(s || '').trim();
+                // prefer HH:MM
+                const m = t.match(/\b(\d{2}):(\d{2})(?::\d{2})?\b/);
+                if (m) return `${m[1]}:${m[2]}`;
+                return t;
+            };
+
+            ctx.save();
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '11px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+
+            unique.forEach(i => {
+                const x = padL + (innerW * i) / Math.max(1, ((pressure || []).length - 1));
+                const y0 = padT + innerH;
+
+                // tick mark
+                ctx.strokeStyle = '#d1d5db';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, y0);
+                ctx.lineTo(x, y0 + 6);
+                ctx.stroke();
+
+                const label = fmt((times && times[i]) ? times[i] : '');
+                if (!label) return;
+
+                // rotated label (like report)
+                ctx.save();
+                ctx.translate(x + 2, y0 + 18);
+                ctx.rotate(-Math.PI / 2.8);
+                ctx.fillStyle = '#6b7280';
+                ctx.fillText(label, 0, 0);
+                ctx.restore();
+            });
+
+            ctx.restore();
+        } catch {}
+    }
+
+    function renderRows(rows, limit) {
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        const out = rows.slice(0, limit);
+        out.forEach(r => {
+            const tr = document.createElement('tr');
+            const tdT = document.createElement('td');
+            tdT.textContent = r.time;
+            const tdP = document.createElement('td');
+            tdP.textContent = r.pressureText;
+            const tdC = document.createElement('td');
+            tdC.textContent = r.tempText;
+            tr.appendChild(tdT);
+            tr.appendChild(tdP);
+            tr.appendChild(tdC);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function loadInventory() {
+        fetch('docs/INVENTARIOTOTAL04-202602.csv')
+            .then(r => {
+                if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
+                return r.text();
+            })
+            .then(text => {
+                const lines = text.split(/\r?\n/).filter(Boolean);
+                if (!lines.length) return;
+                const headers = (window.parseCSVLine ? window.parseCSVLine(lines[0]) : lines[0].split(','));
+                const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+                const idxSerial = headers.indexOf('SERIAL');
+                const idxDesc = headers.indexOf('DESCRIPCION');
+                const idxProd = headers.indexOf('PRODUCTO');
+                lines.slice(1).forEach(l => {
+                    const cols = (window.parseCSVLine ? window.parseCSVLine(l) : l.split(','));
+                    const equipo = idxEquipo >= 0 ? String(cols[idxEquipo] || '').trim() : '';
+                    const serial = idxSerial >= 0 ? String(cols[idxSerial] || '').trim() : '';
+                    const desc = idxDesc >= 0 ? String(cols[idxDesc] || '').trim() : '';
+                    const prod = idxProd >= 0 ? String(cols[idxProd] || '').trim() : '';
+                    if (equipo) {
+                        if (!invByEquipo.has(equipo)) invByEquipo.set(equipo, { equipo, serial, desc, prod });
+                        if (dlEquipos) {
+                            const opt = document.createElement('option');
+                            opt.value = equipo;
+                            opt.label = desc ? `${equipo} - ${desc}` : equipo;
+                            dlEquipos.appendChild(opt);
+                        }
+                    }
+                    if (serial && !invBySerial.has(serial)) {
+                        invBySerial.set(serial, { equipo, serial, desc, prod });
+                        if (dlSeriales) {
+                            const opt = document.createElement('option');
+                            opt.value = serial;
+                            opt.label = equipo ? `${serial} - ${equipo}` : serial;
+                            dlSeriales.appendChild(opt);
+                        }
+                    }
+                });
+            })
+            .catch(() => {});
+    }
+
+    function syncInvHint() {
+        const eq = String(inputEquipo?.value || '').trim();
+        const sr = String(inputSerial?.value || '').trim();
+        let info = null;
+        if (eq && invByEquipo.has(eq)) info = invByEquipo.get(eq);
+        if (!info && sr && invBySerial.has(sr)) info = invBySerial.get(sr);
+        if (info) {
+            if (inputEquipo && info.equipo && inputEquipo.value.trim() !== info.equipo) inputEquipo.value = info.equipo;
+            if (inputSerial && info.serial && inputSerial.value.trim() !== info.serial) inputSerial.value = info.serial;
+            const d = [info.prod, info.desc].filter(Boolean).join(' · ');
+            if (invDescEl) invDescEl.textContent = d ? d : '';
+        } else {
+            if (invDescEl) invDescEl.textContent = '';
+        }
+    }
+
+    function resetUI() {
+        if (fileEl) fileEl.value = '';
+        if (fileNameEl) fileNameEl.textContent = '';
+        setKv(metaEl, {});
+        setKv(summaryEl, {});
+        if (fechaEl) fechaEl.value = '';
+        if (saveMsgEl) saveMsgEl.textContent = '';
+        if (mockOut) mockOut.style.display = 'none';
+        if (mockJsonEl) mockJsonEl.textContent = '';
+        lastParsed = null;
+        if (tbody) tbody.innerHTML = '';
+        if (rowsInfoEl) rowsInfoEl.textContent = '';
+        if (btnShowMore) btnShowMore.style.display = 'none';
+        if (graphNoteEl) graphNoteEl.textContent = '';
+        if (thPressure) thPressure.textContent = 'Pressure';
+        if (thTemp) thTemp.textContent = 'Temperature';
+        drawSeries({ ys: [], label: '' });
+    }
+
+    function parseCsvText(text) {
+        const rows = parseCsvRows(text);
+
+        const meta = {};
+        for (const r of rows) {
+            const k = String(r[0] || '').trim();
+            const v = String(r[1] || '').trim();
+            if (!k) continue;
+            if (k.toUpperCase() === 'ITEMS' || k.toUpperCase() === 'TIME') break;
+            meta[k] = v;
+        }
+
+        const idxTime = rows.findIndex(r => String(r[0] || '').trim().toUpperCase() === 'TIME');
+        const timeHeader = idxTime >= 0 ? rows[idxTime] : null;
+
+        let pressureLabel = '';
+        let tempLabel = '';
+        if (timeHeader && timeHeader.length >= 3) {
+            pressureLabel = cleanHeaderLabel(timeHeader[1]);
+            tempLabel = cleanHeaderLabel(timeHeader[2]);
+        }
+        if (thPressure) thPressure.textContent = pressureLabel || 'Pressure';
+        if (thTemp) thTemp.textContent = tempLabel || 'Temperature';
+
+        const itemsStart = rows.findIndex(r => String(r[0] || '').trim().toUpperCase() === 'ITEMS');
+        let summaryRows = [];
+        if (itemsStart >= 0 && idxTime >= 0 && idxTime > itemsStart) {
+            summaryRows = rows.slice(itemsStart + 1, idxTime).filter(r => (r || []).some(c => String(c || '').trim() !== ''));
+        }
+
+        const summary = {};
+        const maxRow = summaryRows.find(r => String(r[0] || '').trim().toUpperCase() === 'MAX');
+        const minRow = summaryRows.find(r => String(r[0] || '').trim().toUpperCase() === 'MIN');
+        const avgRow = summaryRows.find(r => String(r[0] || '').trim().toUpperCase() === 'AVG');
+        const count = toNumber(meta['Count']);
+        const intervalSec = parseIntervalSeconds(meta['Intervals']);
+        const durationSec = parseDurationSeconds(meta['Duration']);
+
+        if (count != null) summary['Muestras'] = String(count);
+        if (intervalSec != null) summary['Intervalo'] = `${intervalSec}s`;
+        if (durationSec != null) summary['Duración'] = meta['Duration'] || '';
+
+        // presión (col 1) y temperatura (col 2)
+        if (maxRow && maxRow.length >= 3) summary['Presión Max'] = String(maxRow[1]).trim();
+        if (minRow && minRow.length >= 3) summary['Presión Min'] = String(minRow[1]).trim();
+        if (avgRow && avgRow.length >= 3) summary['Presión Avg'] = String(avgRow[1]).trim();
+
+        if (maxRow && maxRow.length >= 3) summary['Temp Max'] = String(maxRow[2]).trim();
+        if (minRow && minRow.length >= 3) summary['Temp Min'] = String(minRow[2]).trim();
+        if (avgRow && avgRow.length >= 3) summary['Temp Avg'] = String(avgRow[2]).trim();
+
+        setKv(metaEl, meta);
+        setKv(summaryEl, summary);
+
+        if (fechaEl) {
+            const start = meta['Start Time'] || '';
+            fechaEl.value = start;
+        }
+
+        const dataStart = idxTime >= 0 ? idxTime + 1 : -1;
+        const dataRows = dataStart >= 0 ? rows.slice(dataStart) : [];
+
+        const data = [];
+        for (const r of dataRows) {
+            const time = String(r[0] || '').trim();
+            if (!time) continue;
+            const pText = String(r[1] ?? '').trim();
+            const cText = String(r[2] ?? '').trim();
+            const p = toNumber(pText);
+            const c = toNumber(cText);
+            data.push({
+                time,
+                pressure: p,
+                temp: c,
+                pressureText: pText,
+                tempText: cText
+            });
+        }
+
+        const pSeries = data.map(d => d.pressure);
+        const tSeries = data.map(d => d.temp);
+        const xTimes = data.map(d => d.time);
+        const pLab = pressureLabel ? `Presión ${pressureLabel}` : 'Presión';
+        const tLab = tempLabel ? `Temperatura ${tempLabel}` : 'Temperatura';
+        drawSeriesDual({ pressure: pSeries, temperature: tSeries, times: xTimes, pressureLabel: pLab, temperatureLabel: tLab });
+
+        const limit = 120;
+        renderRows(data, limit);
+
+        if (rowsInfoEl) {
+            rowsInfoEl.textContent = '';
+        }
+
+        if (btnShowMore) {
+            if (data.length > limit) {
+                btnShowMore.style.display = 'inline-block';
+                let shown = limit;
+                btnShowMore.onclick = () => {
+                    shown = Math.min(data.length, shown + 300);
+                    renderRows(data, shown);
+                    if (shown >= data.length) btnShowMore.style.display = 'none';
+                };
+            } else {
+                btnShowMore.style.display = 'none';
+            }
+        }
+
+        // eventos clave (para nota y validación visual)
+        let eventos = null;
+        try {
+            const pArr = data.map(d => d.pressure);
+            const n = pArr.length;
+            if (n) {
+                let pMin = Infinity, pMax = -Infinity;
+                pArr.forEach(v => { if (Number.isFinite(v)) { if (v < pMin) pMin = v; if (v > pMax) pMax = v; } });
+                if (!Number.isFinite(pMin) || !Number.isFinite(pMax)) { pMin = 0; pMax = 1; }
+                if (pMin === pMax) { pMin -= 1; pMax += 1; }
+
+                const t10 = pMin + 0.10 * (pMax - pMin);
+                const t90 = pMin + 0.90 * (pMax - pMin);
+
+                const iStart = 0;
+                const iEnd = n - 1;
+                let iRise = pArr.findIndex(v => Number.isFinite(v) && v >= t10);
+                if (iRise < 0) iRise = 0;
+                let iStable = pArr.findIndex(v => Number.isFinite(v) && v >= t90);
+                if (iStable < 0) iStable = Math.max(0, iRise);
+                let iMax = 0;
+                for (let i = 0; i < n; i++) {
+                    if (Number.isFinite(pArr[i]) && pArr[i] === pMax) { iMax = i; break; }
+                }
+                let iDescent = -1;
+                for (let i = Math.max(iMax + 1, 1); i < n; i++) {
+                    const v = pArr[i];
+                    if (Number.isFinite(v) && v <= t90) { iDescent = i; break; }
+                }
+                if (iDescent < 0) iDescent = iEnd;
+
+                const fmtHM = (s) => {
+                    const t = String(s || '').trim();
+                    const m = t.match(/\b(\d{2}):(\d{2})(?::\d{2})?\b/);
+                    if (m) return `${m[1]}:${m[2]}`;
+                    return t;
+                };
+                eventos = {
+                    inicio: fmtHM(data[iStart]?.time || meta['Start Time'] || ''),
+                    arranque: fmtHM(data[iRise]?.time || ''),
+                    estable: fmtHM(data[iStable]?.time || ''),
+                    descenso: fmtHM(data[iDescent]?.time || ''),
+                    fin: fmtHM(data[iEnd]?.time || ''),
+                };
+            }
+        } catch {}
+
+        if (graphNoteEl) {
+            const unitP = (String(pressureLabel || '').match(/\b(psi|bar)\b/i)?.[1] || 'psi');
+            const unitT = (String(tempLabel || '').match(/\b(°C|C)\b/i)?.[0] || '°C');
+            if (eventos) {
+                graphNoteEl.textContent = `Inicio ${eventos.inicio} | Arranque presión ${eventos.arranque} | Estable ${eventos.estable} | Descenso ${eventos.descenso} | Fin ${eventos.fin} | Presión (${unitP}) + Temp (${unitT}).`;
+            } else {
+                const start = String(meta['Start Time'] || '').trim();
+                const end = data.length ? String(data[data.length - 1].time || '').trim() : '';
+                graphNoteEl.textContent = `Inicio: ${start || 'N/A'}  |  Fin: ${end || 'N/A'}  |  Presión (${unitP}) + Temp (${unitT}).`;
+            }
+        }
+
+        lastParsed = {
+            csvText: text,
+            meta,
+            summary,
+            pressureLabel,
+            tempLabel,
+            dataCount: data.length,
+            eventos,
+        };
+    }
+
+    async function handleFile(file) {
+        if (!file) return;
+        if (fileNameEl) fileNameEl.textContent = file.name;
+        const text = await file.text();
+        parseCsvText(text);
+    }
+
+    async function ensureDb() {
+        if (window.db) return window.db;
+        let tries = 0;
+        while (!window.db && tries < 40) {
+            await new Promise(r => setTimeout(r, 100));
+            tries++;
+        }
+        if (!window.db) throw new Error('Firestore no inicializado');
+        return window.db;
+    }
+
+    async function guardarRegistro() {
+        if (saveMsgEl) saveMsgEl.textContent = '';
+        if (mockOut) mockOut.style.display = 'none';
+        if (mockJsonEl) mockJsonEl.textContent = '';
+        if (!lastParsed || !lastParsed.csvText) {
+            if (saveMsgEl) saveMsgEl.textContent = 'Primero carga un CSV o usa “Cargar ejemplo”.';
+            return;
+        }
+
+        const equipo = String(inputEquipo?.value || '').trim();
+        const serial = String(inputSerial?.value || '').trim();
+        const tecnico = String(tecnicoEl?.value || '').trim();
+        const observaciones = String(obsEl?.value || '').trim();
+        const startTime = String(lastParsed.meta?.['Start Time'] || '').trim();
+
+        if (!equipo || !serial) {
+            if (saveMsgEl) saveMsgEl.textContent = 'Captura Equipo y Serial.';
+            return;
+        }
+        if (!tecnico) {
+            if (saveMsgEl) saveMsgEl.textContent = 'Captura Técnico.';
+            return;
+        }
+
+        const isMock = !!(mockToggle && mockToggle.checked);
+        if (isMock) {
+            const now = new Date();
+            const yyyy = String(now.getFullYear());
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mi = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            const fakeId = `mock_${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
+
+            const record = {
+                id: fakeId,
+                coleccion: 'pruebasPresion',
+                equipo,
+                serial,
+                tecnico,
+                observaciones,
+                fuente: 'DATA-LOGGER',
+                startTime: String(lastParsed.meta?.['Start Time'] || '').trim(),
+                meta: lastParsed.meta || {},
+                summary: lastParsed.summary || {},
+                unidadPresion: (String(lastParsed.pressureLabel || '').match(/\b(psi|bar)\b/i)?.[1] || 'psi').toLowerCase(),
+                csv: {
+                    fileName: (fileNameEl && fileNameEl.textContent) ? String(fileNameEl.textContent).trim() : 'data.csv',
+                    sizeBytes: new Blob([lastParsed.csvText]).size,
+                },
+                creadoEnLocal: now.toISOString(),
+                creadoPor: String(window.currentUserEmail || '').toLowerCase(),
+                estado: 'MOCKUP',
+                objetivo: 'Autorización PCT'
+            };
+
+            const pretty = JSON.stringify(record, null, 2);
+            if (mockJsonEl) mockJsonEl.textContent = pretty;
+            if (mockOut) mockOut.style.display = 'block';
+            if (saveMsgEl) saveMsgEl.textContent = `Mockup generado: ${fakeId}`;
+
+            if (mockBtnDl) {
+                mockBtnDl.onclick = () => {
+                    try {
+                        const blob = new Blob([pretty], { type: 'application/json;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `prueba_presion_${equipo}_${fakeId}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+                    } catch {}
+                };
+            }
+            if (mockBtnDlCsv) {
+                mockBtnDlCsv.onclick = () => {
+                    try {
+                        const blob = new Blob([lastParsed.csvText], { type: 'text/csv;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `prueba_presion_${equipo}_${fakeId}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+                    } catch {}
+                };
+            }
+
+            return;
+        }
+
+        try {
+            if (btnSave) btnSave.disabled = true;
+            if (saveMsgEl) saveMsgEl.textContent = 'Guardando...';
+
+            const db = await ensureDb();
+
+            const { addDoc, collection, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const { getStorage, ref, uploadBytes } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+
+            const storage = getStorage();
+
+            const equipoNorm = equipo.toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9\-_.]/g, '');
+            const now = new Date();
+            const yyyy = String(now.getFullYear());
+
+            const baseDoc = {
+                equipo,
+                serial,
+                tecnico,
+                observaciones,
+                fuente: 'DATA-LOGGER',
+                startTime,
+                meta: lastParsed.meta || {},
+                summary: lastParsed.summary || {},
+                unidadPresion: (String(lastParsed.pressureLabel || '').match(/\b(psi|bar)\b/i)?.[1] || 'psi').toLowerCase(),
+                creadoEn: serverTimestamp(),
+                creadoPor: String(window.currentUserEmail || '').toLowerCase(),
+            };
+
+            const docRef = await addDoc(collection(db, 'pruebasPresion'), baseDoc);
+
+            const csvPath = `pruebasPresion/${equipoNorm}/${yyyy}/${docRef.id}/data.csv`;
+            const csvRef = ref(storage, csvPath);
+            const csvBlob = new Blob([lastParsed.csvText], { type: 'text/csv;charset=utf-8' });
+            await uploadBytes(csvRef, csvBlob, { contentType: 'text/csv' });
+
+            const { updateDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            await updateDoc(doc(db, 'pruebasPresion', docRef.id), { csvPath });
+
+            if (saveMsgEl) saveMsgEl.textContent = `Guardado OK: ${docRef.id}`;
+        } catch (e) {
+            if (saveMsgEl) saveMsgEl.textContent = 'Error al guardar. Revisa consola.';
+            console.error(e);
+        } finally {
+            if (btnSave) btnSave.disabled = false;
+        }
+    }
+
+    if (inputEquipo) {
+        inputEquipo.addEventListener('change', syncInvHint);
+        inputEquipo.addEventListener('blur', syncInvHint);
+    }
+    if (inputSerial) {
+        inputSerial.addEventListener('change', syncInvHint);
+        inputSerial.addEventListener('blur', syncInvHint);
+    }
+
+    if (fileEl) {
+        fileEl.addEventListener('change', async () => {
+            const file = fileEl.files && fileEl.files[0];
+            await handleFile(file);
+        });
+    }
+
+    if (btnLoadSample) {
+        btnLoadSample.addEventListener('click', () => {
+            if (fileNameEl) fileNameEl.textContent = 'Ejemplo: Data-Logger_20260430091013.csv';
+            parseCsvText(SAMPLE_CSV);
+        });
+    }
+
+    if (btnSave) {
+        btnSave.addEventListener('click', () => {
+            guardarRegistro();
+        });
+    }
+
+    if (btnClear) {
+        btnClear.addEventListener('click', () => {
+            resetUI();
+        });
+    }
+
+    loadInventory();
+    resetUI();
+})();
+</script>
+</body>
+</html>
