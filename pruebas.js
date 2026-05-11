@@ -65,9 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const infoPorEquipo = {}; // { serial, propiedad, material }
     const infoPorSerial = {};
 
-    fetch('docs/invre2.csv')
+    fetch('docs/INVENTARIOTOTAL04-202602.csv')
         .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar invre2.csv');
+            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
             return r.text();
         })
         .then(texto => {
@@ -158,8 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     let edoEfectivo = (edo || '').toString().trim().toUpperCase();
                     const override = overrides[eq];
                     if (override) edoEfectivo = String(override).trim().toUpperCase();
-                    // Solo mostrar ON/ACTIVO en pruebas.html
-                    if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO') return;
+                    // Solo mostrar equipos utilizables (incluye WIP para inventario en preparación)
+                    if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO' && edoEfectivo !== 'WIP') return;
                     vistos.add(eq);
 
                     const opt = document.createElement('option');
