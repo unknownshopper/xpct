@@ -49,6 +49,14 @@
     .admx-table .admx-td-center {
       text-align: center;
     }
+
+    .admx-sticky-right {
+      position: sticky;
+      right: 0;
+      background: inherit;
+      z-index: 2;
+      box-shadow: -6px 0 10px rgba(15, 23, 42, 0.06);
+    }
   </style>
 </head>
 <body>
@@ -103,8 +111,16 @@
       <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-top:0.35rem; overflow:visible;">
         <div style="display:flex; flex-direction:column;">
           <label for="admx-cliente" style="font-size:0.72rem; color:#4b5563;">Cliente</label>
-          <input id="admx-cliente" type="text" placeholder="Cliente" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:240px;">
+          <input id="admx-cliente" type="text" placeholder="Cliente" autocomplete="off" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:240px;">
           <div id="admx-cliente-sugs" style="margin-top:6px; display:none; position:relative;"></div>
+        </div>
+        <div id="admx-tercero-prop-wrapper" style="display:none; flex-direction:column;">
+          <label for="admx-tercero-prop" style="font-size:0.72rem; color:#4b5563;">Empresa del tercero</label>
+          <input id="admx-tercero-prop" type="text" placeholder="Empresa propietaria del equipo" autocomplete="off" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:240px;">
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-area" style="font-size:0.72rem; color:#4b5563;">Área (opcional)</label>
+          <input id="admx-area" type="text" placeholder="MPS/WP" autocomplete="off" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:160px;">
         </div>
         <div style="display:flex; flex-direction:column;">
           <label for="admx-ubic" style="font-size:0.72rem; color:#4b5563;">Ubicación / Pozo</label>
@@ -279,6 +295,9 @@
     const msg = document.getElementById('admx-msg');
     const inpCliente = document.getElementById('admx-cliente');
     const clienteSugs = document.getElementById('admx-cliente-sugs');
+    const terceroPropWrap = document.getElementById('admx-tercero-prop-wrapper');
+    const inpTerceroProp = document.getElementById('admx-tercero-prop');
+    const inpArea = document.getElementById('admx-area');
     const inpUbic = document.getElementById('admx-ubic');
     const inpEmb = document.getElementById('admx-emb');
     const inpInicio = document.getElementById('admx-inicio');
@@ -372,6 +391,32 @@
 
     const __rmAcc = (s) => (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const __upNoAcc = (s) => __rmAcc((s || '').toString().toUpperCase().trim());
+
+    function canonicalCliente(raw) {
+      const up = __upNoAcc(raw);
+      const key = up.replace(/[^A-Z]/g, '');
+      if (
+        key.startsWith('HALLI') ||
+        key.includes('HALIBURT') ||
+        key.includes('HALLIBURT') ||
+        key.includes('HALIBURTO') ||
+        key.includes('HALLIBURTO') ||
+        key.includes('HALIBURON') ||
+        key.includes('HALLIBURON')
+      ) return 'HALLIBURTON';
+      if (
+        key.startsWith('SCHLUM') ||
+        key.includes('SCHLUMBERG') ||
+        key.includes('SLCHUL') ||
+        key.includes('SCHLUMBEGER') ||
+        key.includes('SCHLUMER')
+      ) return 'SCHLUMBERGER';
+      return up;
+    }
+
+    function canonicalUpperText(raw) {
+      return __upNoAcc(raw).replace(/\s+/g, ' ');
+    }
     function normalizeEquipo(raw) {
       const t = __upNoAcc(raw).replace(/[-\s]+/g, ' ');
       const m = t.match(/^PCT\s+([A-Z]{2,3})\s*0?(\d{1,2})$/) ||
@@ -487,10 +532,20 @@
       return (s || '').toString().trim().toUpperCase();
     }
 
+    function esTerceroCliente() {
+      return normKey(inpCliente && inpCliente.value) === 'TERCERO';
+    }
+
+    function syncTerceroUi() {
+      const show = esTerceroCliente();
+      if (terceroPropWrap) terceroPropWrap.style.display = show ? 'flex' : 'none';
+      if (!show && inpTerceroProp) inpTerceroProp.value = '';
+    }
+
     function updateClientesTop() {
       const freq = new Map();
       (Array.isArray(listaActividad) ? listaActividad : []).forEach(r => {
-        const c = norm(r.cliente || '');
+        const c = canonicalCliente(r.cliente || '');
         if (!c) return;
         const k = normKey(c);
         freq.set(k, { cliente: c, n: (freq.get(k)?.n || 0) + 1 });
@@ -514,9 +569,14 @@
       }
       const q = normKey(inpCliente && inpCliente.value);
       const src = Array.isArray(clientesTop) ? clientesTop : [];
-      const items = q
+      let items = q
         ? src.filter(c => normKey(c).includes(q)).slice(0, 20)
         : src.slice(0, 15);
+
+      // Incluir TERCERO siempre como opción rápida
+      if (!q || 'TERCERO'.includes(q)) {
+        items = ['TERCERO', ...items.filter(x => normKey(x) !== 'TERCERO')];
+      }
 
       if (!items.length) {
         clienteSugs.style.display = 'none';
@@ -538,6 +598,7 @@
         });
         row.addEventListener('click', () => {
           if (inpCliente) inpCliente.value = c;
+          syncTerceroUi();
           clienteFocus = false;
           renderClienteSuggestions();
           if (inpUbic) inpUbic.focus();
@@ -976,15 +1037,12 @@
       const year = inferYearFromInicio(inicioServicio);
       if (!year) return '';
       const yy = String(year).slice(-2);
-      const prefix = `4301${yy}`;
-      const cli = normKey(cliente);
-      const ub = normKey(ubicacion);
+      const isTercero = normKey(cliente) === 'TERCERO';
+      const prefix = `${isTercero ? '5301' : '4301'}${yy}`;
       let maxN = 0;
       (Array.isArray(listaActividad) ? listaActividad : []).forEach(r => {
         const oc = normKey(r.oc || '');
         if (!oc.startsWith(prefix)) return;
-        if (normKey(r.cliente || '') !== cli) return;
-        if (normKey(r.ubicacion || '') !== ub) return;
         const m = oc.match(new RegExp(`^${prefix}(\\d{4})$`));
         if (!m) return;
         const n = parseInt(m[1], 10);
@@ -1173,9 +1231,31 @@
         byOc.set(oc, (byOc.get(oc) || []).concat([r]));
       });
 
+      const scoreOcKey = (ocKey) => {
+        const arr = byOc.get(ocKey) || [];
+        let best = 0;
+        arr.forEach(r => {
+          const v = Number(r?.inicioTs || 0);
+          if (v && !isNaN(v) && v > best) best = v;
+        });
+        if (best) return best;
+        // fallback: usar creadoEn si existe como timestamp de Firestore (seconds)
+        arr.forEach(r => {
+          const s = Number(r?.creadoEn?.seconds || 0);
+          const v = s ? (s * 1000) : 0;
+          if (v && !isNaN(v) && v > best) best = v;
+        });
+        return best;
+      };
+
       const ocKeys = Array.from(byOc.keys()).sort((a, b) => {
         if (a === 'SIN_OC' && b !== 'SIN_OC') return 1;
         if (b === 'SIN_OC' && a !== 'SIN_OC') return -1;
+        if (modo === 'PENDIENTES') {
+          const sa = scoreOcKey(a);
+          const sb = scoreOcKey(b);
+          if (sa !== sb) return sb - sa; // más reciente primero
+        }
         return a < b ? -1 : (a > b ? 1 : 0);
       });
 
@@ -1233,6 +1313,7 @@
           <colgroup>
             <col style="width:36px;">
             <col style="width:130px;">
+            <col style="width:120px;">
             <col style="width:135px;">
             <col style="width:80px;">
             <col style="width:360px;">
@@ -1252,6 +1333,7 @@
             <tr>
               <th class="admx-td-center"></th>
               <th>Cliente</th>
+              <th>Área</th>
               <th>Equipo / Serial</th>
               <th>Pruebas</th>
               <th>Descripción</th>
@@ -1265,7 +1347,7 @@
               <th>OC cliente</th>
               <th>Est-Cot</th>
               <th>Factura</th>
-              <th class="admx-td-right">Acciones</th>
+              <th class="admx-td-right admx-sticky-right">Acciones</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1313,6 +1395,13 @@
                 <input type="checkbox" data-id="${String(r.id || '')}" data-oc="${oc}">
               </td>
               <td class="admx-td-nowrap">${norm(r.cliente || '')}</td>
+              <td class="admx-td-nowrap">
+                <input
+                  type="text"
+                  data-area-id="${String(r.id || '')}"
+                  value=""
+                />
+              </td>
               <td class="admx-td-nowrap">${eqHtml}</td>
               <td class="admx-td-nowrap">${pruebaTipo || 'SIN PRUEBA'}</td>
               <td>${descFallback}</td>
@@ -1326,7 +1415,7 @@
               <td class="admx-td-nowrap">${norm(r.ordenSuministro || '')}</td>
               <td class="admx-td-nowrap">${norm(r.estCot || '')}</td>
               <td class="admx-td-nowrap">${norm(r.factura || '')}</td>
-              <td class="admx-td-right admx-td-nowrap" style="color:#6b7280;">—</td>
+              <td class="admx-td-right admx-td-nowrap admx-sticky-right" style="color:#6b7280;">—</td>
             `;
             tr.style.cursor = 'pointer';
             tr.addEventListener('click', (ev) => {
@@ -1337,7 +1426,10 @@
             tbody.appendChild(tr);
           });
 
-        bodyWrap.appendChild(table);
+        const tableWrap = document.createElement('div');
+        tableWrap.style.cssText = 'overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid #eef2f7; border-radius:10px;';
+        tableWrap.appendChild(table);
+        bodyWrap.appendChild(tableWrap);
         box.appendChild(bodyWrap);
 
         header.addEventListener('click', (ev) => {
@@ -1350,6 +1442,41 @@
           syncExpandBtnLabel();
         });
         list.appendChild(box);
+
+        // Área editable en línea (agregar/corregir)
+        Array.from(bodyWrap.querySelectorAll('input[data-area-id]')).forEach(inp => {
+          const id = String(inp.getAttribute('data-area-id') || '').trim();
+          const reg = (Array.isArray(listaActividad) ? listaActividad : []).find(x => String(x.id || '') === id);
+          const actual = norm(reg && reg.areaCliente ? reg.areaCliente : '');
+          inp.value = actual;
+          inp.placeholder = '—';
+          inp.autocomplete = 'off';
+          inp.style.cssText = 'width:100%; font-size:0.78rem; padding:2px 6px; border:1px solid #e5e7eb; border-radius:8px; background:#fff;';
+          inp.addEventListener('mousedown', (e) => e.stopPropagation());
+          inp.addEventListener('click', (e) => e.stopPropagation());
+
+          async function persist() {
+            const val = canonicalUpperText(inp.value);
+            const prev = norm(reg && reg.areaCliente ? reg.areaCliente : '');
+            if (val === prev) return;
+            if (!window.db) { alert('Firestore no está disponible.'); return; }
+            const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore();
+            await updateDoc(doc(db, 'actividades', id), { areaCliente: val });
+            if (reg) reg.areaCliente = val;
+            inp.value = val;
+          }
+
+          inp.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              try { await persist(); inp.blur(); } catch (err) { console.error(err); alert('No se pudo actualizar el área.'); }
+            }
+          });
+          inp.addEventListener('blur', async () => {
+            try { await persist(); } catch (err) { console.error(err); alert('No se pudo actualizar el área.'); }
+          });
+        });
       });
 
       if (!ocKeys.length) {
@@ -1408,7 +1535,12 @@
       }
 
       if (inpCliente) {
-        inpCliente.addEventListener('input', () => renderClienteSuggestions());
+        inpCliente.addEventListener('input', () => {
+          const canon = canonicalCliente(inpCliente.value);
+          if (canon && inpCliente.value !== canon) inpCliente.value = canon;
+          syncTerceroUi();
+          renderClienteSuggestions();
+        });
         inpCliente.addEventListener('focus', () => {
           clienteFocus = true;
           renderClienteSuggestions();
@@ -1422,6 +1554,27 @@
             clienteFocus = false;
             renderClienteSuggestions();
           }, 200);
+        });
+      }
+
+      if (inpTerceroProp) {
+        inpTerceroProp.addEventListener('input', () => {
+          const canon = canonicalUpperText(inpTerceroProp.value);
+          if (canon && inpTerceroProp.value !== canon) inpTerceroProp.value = canon;
+        });
+      }
+
+      if (inpArea) {
+        inpArea.addEventListener('input', () => {
+          const canon = canonicalUpperText(inpArea.value);
+          if (canon && inpArea.value !== canon) inpArea.value = canon;
+        });
+      }
+
+      if (inpUbic) {
+        inpUbic.addEventListener('input', () => {
+          const canon = canonicalUpperText(inpUbic.value);
+          if (canon && inpUbic.value !== canon) inpUbic.value = canon;
         });
       }
 
@@ -1602,6 +1755,8 @@
         btnCrear.addEventListener('click', async () => {
           try {
             const cliente = norm(inpCliente && inpCliente.value);
+            const terceroPropiedad = norm(inpTerceroProp && inpTerceroProp.value);
+            const areaCliente = norm(inpArea && inpArea.value);
             const ubic = norm(inpUbic && inpUbic.value);
             const embarque = norm(inpEmb && inpEmb.value);
             const inicio = norm(inpInicio && inpInicio.value);
@@ -1610,6 +1765,7 @@
             const dIni = parseFechaDdMmAa(inicio);
 
             if (!cliente) { showMsg('Cliente es requerido.', true); return; }
+            if (normKey(cliente) === 'TERCERO' && !terceroPropiedad) { showMsg('Empresa del tercero es requerida.', true); return; }
             if (!ubic) { showMsg('Ubicación es requerida.', true); return; }
             if (embarque && !dEmb) { showMsg('Fecha de embarque inválida. Usa dd/mm/aa.', true); return; }
             if (!dIni) { showMsg('Inicio inválido. Usa dd/mm/aa.', true); return; }
@@ -1636,6 +1792,9 @@
               const descEq = norm(infoEq.descripcionUI || infoEq.descripcion || '');
               const payload = {
                 cliente,
+                tipo: (normKey(cliente) === 'TERCERO') ? 'TERCERO' : '',
+                terceroPropiedad: (normKey(cliente) === 'TERCERO') ? terceroPropiedad : '',
+                areaCliente,
                 ubicacion: ubic,
                 descripcion: descEq,
                 equipo: eq,
