@@ -240,6 +240,20 @@ function getMailRecipients() {
   return { toList, bccList };
 }
 
+function isMailDisabled() {
+  const v = String(process.env.MAIL_DISABLED || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+function getMailOnlyHour() {
+  const raw = String(process.env.MAIL_ONLY_HOUR || '').trim();
+  if (!raw) return null;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n)) return null;
+  if (n < 0 || n > 23) return null;
+  return n;
+}
+
 async function enviarCorreo({ html, subject }) {
   const host = (process.env.SMTP_HOST || '').trim();
   const port = parseInt(String(process.env.SMTP_PORT || '587').trim(), 10);
@@ -282,6 +296,10 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   ensureAdmin();
   const db = admin.firestore();
   const ultimas = await queryUltimasAnuales();
+
+  const { toList, bccList } = getMailRecipients();
+  const mailDisabled = isMailDisabled();
+  const onlyHour = getMailOnlyHour();
 
   const lista60 = [];
   const lista30 = [];
@@ -330,17 +348,44 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
   const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
 
-  if (!lista60.length && !lista30.length && !lista15.length && !lista0.length && !listaFail.length) {
+  const empty = (!lista60.length && !lista30.length && !lista15.length && !lista0.length && !listaFail.length);
+
+  if (mailDisabled) {
+    return {
+      sent: false,
+      disabled: true,
+      empty,
+      counts: empty ? undefined : { c60: lista60.length, c30: lista30.length, c15: lista15.length, c0: lista0.length, cFail: listaFail.length },
+      to: toList,
+      bcc: bccList,
+    };
+  }
+
+  if (!force && onlyHour != null) {
+    const now = DateTime.now().setZone(TZ);
+    if (now.hour !== onlyHour) {
+      return {
+        sent: false,
+        gated: true,
+        onlyHour,
+        hourNow: now.hour,
+        empty,
+        counts: empty ? undefined : { c60: lista60.length, c30: lista30.length, c15: lista15.length, c0: lista0.length, cFail: listaFail.length },
+        to: toList,
+        bcc: bccList,
+      };
+    }
+  }
+
+  if (empty) {
     if (testMode) {
       await enviarCorreo({ html, subject });
-      const { toList, bccList } = getMailRecipients();
       return { sent: true, empty: true, to: toList, bcc: bccList };
     }
     return { sent: false, empty: true };
   }
 
   await enviarCorreo({ html, subject });
-  const { toList, bccList } = getMailRecipients();
 
   return {
     sent: true,
