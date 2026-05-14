@@ -2973,7 +2973,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (btnSubir2) btnSubir2.disabled = !can2;
                         if (btnDel2) {
                             btnDel2.disabled = !can2;
-                            btnDel2.style.display = (can2 && imgPrev2 && imgPrev2.style.display !== 'none' && String(imgPrev2.src || '').trim()) ? '' : 'none';
+                            const has2 = !foto2Vacia();
+                            btnDel2.style.display = (can2 && has2) ? '' : 'none';
                         }
                     }
                 } else {
