@@ -458,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         isDirector ||
                         isSupervisor ||
                         (isInspector && currentPage === 'index.html') ||
+                        (isAuxger && currentPage === 'index.html') ||
                         allowedNavPages.has(currentPage);
                     setNavVisible(shouldShowByRole);
 

@@ -109,7 +109,7 @@
         if (emailSpan) emailSpan.textContent = email;
 
         try {
-            const token = await user.getIdTokenResult(true);
+            const token = await user.getIdTokenResult();
             const role = (token?.claims?.role) || null;
             window.userRole = role;
             window.isAdmin = role === 'admin';
@@ -117,13 +117,15 @@
             window.isSupervisor = role === 'supervisor';
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
+            window.isAuxger = role === 'auxger';
 
-            // Acceso: admin, director, supervisor, inspector, capturista
-            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista)) {
+            // Acceso: admin, director, supervisor, inspector, capturista, auxger
+            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger)) {
                 window.location.href = 'website.html';
                 return;
             }
-        } catch {
+        } catch (e) {
+            try { console.error('[inspeccion] No se pudo obtener claims/rol:', e); } catch {}
             try { await signOut(auth); } catch {}
             window.location.href = 'website.html';
             return;
