@@ -439,3 +439,161 @@ export const sendAlertsManual = onRequest(
     }
   }
 );
+
+export const scanMissingInspectionEvidence = onRequest(
+  {
+    secrets: ['EVID_SCAN_KEY'],
+    timeoutSeconds: 540,
+    memory: '1GiB',
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'GET') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const key = (req.query.key || req.get('x-evid-scan-key') || '').toString();
+      const expected = (process.env.EVID_SCAN_KEY || '').toString();
+      if (!expected || key !== expected) {
+        res.status(401).send('Unauthorized');
+        return;
+      }
+
+      ensureAdmin();
+      const db = admin.firestore();
+      const bucket = admin.storage().bucket();
+
+      const limitRaw = (req.query.limit || '').toString().trim();
+      const limitN = limitRaw ? parseInt(limitRaw, 10) : 600;
+      const limitFinal = (!limitN || Number.isNaN(limitN) || limitN < 1) ? 600 : Math.min(limitN, 3000);
+
+      const sinceRaw = (req.query.since || '').toString().trim();
+      const sinceMs = sinceRaw ? Date.parse(sinceRaw) : NaN;
+      const sinceDate = (!sinceRaw || Number.isNaN(sinceMs)) ? null : new Date(sinceMs);
+
+      let q = db.collection('inspecciones').orderBy('creadoEn', 'desc').limit(limitFinal);
+      if (sinceDate) {
+        q = db.collection('inspecciones').where('creadoEn', '>=', sinceDate).orderBy('creadoEn', 'desc').limit(limitFinal);
+      }
+
+      const snap = await q.get();
+
+      const existsCache = new Map();
+      const fileExists = async (path) => {
+        const p = String(path || '').trim();
+        if (!p) return false;
+        if (existsCache.has(p)) return !!existsCache.get(p);
+        try {
+          const [ok] = await bucket.file(p).exists();
+          existsCache.set(p, !!ok);
+          return !!ok;
+        } catch {
+          existsCache.set(p, false);
+          return false;
+        }
+      };
+
+      const buildCandidates = ({ inspId, localId, actId, name, pathDirecto }) => {
+        const out = [];
+        const pd = String(pathDirecto || '').trim();
+        if (pd) out.push(pd);
+        const nm = String(name || '').trim();
+        if (!nm) return out;
+        if (inspId) out.push(`inspecciones/${inspId}/${nm}`);
+        if (localId) out.push(`inspecciones/${localId}/${nm}`);
+        if (actId) out.push(`inspecciones/${actId}/${nm}`);
+        return Array.from(new Set(out));
+      };
+
+      const okStr = (v) => (v == null ? '' : String(v));
+
+      const missing = [];
+      const stats = {
+        inspected: 0,
+        inspectedParams: 0,
+        missingCount: 0,
+        missingDocs: 0,
+      };
+
+      for (const doc of snap.docs) {
+        const data = doc.data() || {};
+        const inspId = doc.id;
+        const localId = okStr(data.localId).trim();
+        const actId = okStr(data.actividadId).trim();
+        const equipo = okStr(data.equipo).trim();
+        const fecha = okStr(data.fecha || data.creadoEn).trim();
+        const params = Array.isArray(data.parametros) ? data.parametros : [];
+
+        stats.inspected += 1;
+        let docHasMissing = false;
+
+        const pushMissing = (payload) => {
+          missing.push({
+            inspId,
+            equipo,
+            fecha,
+            linkView: `inspeccion.html?view=1&inspId=${encodeURIComponent(inspId)}`,
+            linkEdit: `inspeccion.html?inspId=${encodeURIComponent(inspId)}`,
+            ...payload,
+          });
+          docHasMissing = true;
+          stats.missingCount += 1;
+        };
+
+        for (let i = 0; i < params.length; i++) {
+          const p = params[i] || {};
+          const nombre = okStr(p.nombre).trim();
+          stats.inspectedParams += 1;
+
+          const checkSlot = async ({ slot, evidenciaNombre, evidenciaPath }) => {
+            const nm = okStr(evidenciaNombre).trim();
+            const pd = okStr(evidenciaPath).trim();
+            if (!nm && !pd) return;
+            const cands = buildCandidates({ inspId, localId, actId, name: nm, pathDirecto: pd });
+            for (const c of cands) {
+              if (await fileExists(c)) return;
+            }
+            pushMissing({ tipo: 'parametro', parametro: nombre, idx: i, slot, evidenciaNombre: nm, evidenciaPath: pd, candidatos: cands });
+          };
+
+          await checkSlot({ slot: 1, evidenciaNombre: p.evidenciaNombre, evidenciaPath: p.evidenciaPath });
+          await checkSlot({ slot: 2, evidenciaNombre: p.evidenciaNombre2, evidenciaPath: p.evidenciaPath2 });
+
+          const by = (p.evidenciasPorDano && typeof p.evidenciasPorDano === 'object') ? p.evidenciasPorDano : null;
+          if (by) {
+            for (const danoKey of Object.keys(by)) {
+              const ed = by[danoKey] || {};
+              const dk = okStr(danoKey).trim().toUpperCase();
+              const checkDanoSlot = async ({ slot, evidenciaNombre, evidenciaPath }) => {
+                const nm = okStr(evidenciaNombre).trim();
+                const pd = okStr(evidenciaPath).trim();
+                if (!nm && !pd) return;
+                const cands = buildCandidates({ inspId, localId, actId, name: nm, pathDirecto: pd });
+                for (const c of cands) {
+                  if (await fileExists(c)) return;
+                }
+                pushMissing({ tipo: 'dano', parametro: nombre, idx: i, dano: dk, slot, evidenciaNombre: nm, evidenciaPath: pd, candidatos: cands });
+              };
+              await checkDanoSlot({ slot: 1, evidenciaNombre: ed.evidenciaNombre, evidenciaPath: ed.evidenciaPath });
+              await checkDanoSlot({ slot: 2, evidenciaNombre: ed.evidenciaNombre2, evidenciaPath: ed.evidenciaPath2 });
+            }
+          }
+        }
+
+        if (docHasMissing) stats.missingDocs += 1;
+      }
+
+      res.status(200).json({
+        ok: true,
+        stats,
+        limit: limitFinal,
+        since: sinceDate ? sinceDate.toISOString() : null,
+        missing,
+      });
+    } catch (err) {
+      console.error('scanMissingInspectionEvidence error:', err);
+      res.status(500).send(err?.message || String(err));
+    }
+  }
+);
