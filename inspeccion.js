@@ -19,6 +19,54 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    function normKeySimple(s) {
+        return (s || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function isEstadoGeneralFila(filaHtml) {
+        try {
+            if (!filaHtml) return false;
+            if (String(filaHtml.dataset.estadoGeneral || '') === '1') return true;
+            const nombre = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
+            return normKeySimple(nombre) === 'estado general';
+        } catch {}
+        return false;
+    }
+
+    function calcularEstadoGeneralDesdeUI() {
+        try {
+            const filas = Array.from(document.querySelectorAll('.parametros-fila'));
+            const filasEval = filas.filter(f => !isEstadoGeneralFila(f));
+            const hayFallo = filasEval.some((fila, idx) => {
+                const estadoInput = fila.querySelector(`input[name="param-${idx}-estado"]:checked`);
+                const est = estadoInput ? String(estadoInput.value || '').trim().toUpperCase() : '';
+                return est === 'MALO' || est === 'NO LEGIBLE';
+            });
+            return hayFallo ? 'MALO' : 'BUENO';
+        } catch {}
+        return 'BUENO';
+    }
+
+    function actualizarEstadoGeneralUI() {
+        try {
+            const filaGen = document.querySelector('.parametros-fila[data-estado-general="1"]');
+            if (!filaGen) return;
+            const estado = calcularEstadoGeneralDesdeUI();
+            filaGen.dataset.estadoCalc = estado;
+            const el = filaGen.querySelector('[data-estado-general-label]');
+            if (el) {
+                el.textContent = estado;
+                el.style.color = (estado === 'MALO') ? '#b91c1c' : '#065f46';
+            }
+        } catch {}
+    }
+
     let equipos = [];
     let headers = [];
     let formatosPorCodigo = {};
@@ -31,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let fotoObs = null; // { blob }
 
     let inspeccionEditData = null;
+    let inspeccionIsEditingExisting = false;
 
     const isAndroid = (() => {
         try { return /android/i.test(navigator.userAgent || ''); } catch { return false; }
@@ -106,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!chars.length) return 'TEE';
                 return `TEE ${chars.join(' X ')}`;
             });
-
             return out;
         } catch {
             return String(s || '').trim().toUpperCase();
@@ -120,6 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const paramsUrl = new URLSearchParams(window.location.search || '');
             const inspIdUrl = (paramsUrl.get('inspId') || '').trim();
             if (!inspIdUrl) return;
+
+            inspeccionIsEditingExisting = true;
 
             // Esperar a que inventario y formatos estén listos para que se rendericen los parámetros
             const esperar = async (cond, msTotal = 6500, paso = 120) => {
@@ -181,14 +231,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const resolverDesdeCandidatos = async (candidatos) => {
                         const cands = Array.isArray(candidatos) ? candidatos.filter(Boolean) : [];
                         if (!cands.length) return '';
-                        for (let pass = 0; pass < 2; pass++) {
-                            for (const path of cands) {
-                                try {
-                                    const url = await getDownloadURL(stRef(storage, path));
-                                    if (url) return url;
-                                } catch {}
-                            }
-                            if (pass === 0) await new Promise(r => setTimeout(r, 300));
+                        for (const path of cands) {
+                            try {
+                                const url = await getDownloadURL(stRef(storage, path));
+                                if (url) return url;
+                            } catch {}
                         }
                         return '';
                     };
@@ -2317,7 +2364,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
 
-        const parametrosHtml = parametrosRender.length
+        const esNuevaInspeccion = !inspeccionIsEditingExisting;
+        const parametrosRenderFinal = (esNuevaInspeccion && parametrosRender.length)
+            ? ['Estado General'].concat(parametrosRender)
+            : parametrosRender;
+
+        const parametrosHtml = parametrosRenderFinal.length
             ? `
                 <div class="parametros-inspeccion">
                     <h3>Parámetros de inspección (${reporte})</h3>
@@ -2328,10 +2380,39 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="col-dano">Tipo de daño</div>
                             <div class="col-evidencia">Evidencia</div>
                         </div>
-                        ${parametrosRender.map((p, idx) => {
+                        ${parametrosRenderFinal.map((p, idx) => {
                             const baseNombre = (p || '').toLowerCase();
+                            const esEstadoGeneral = esNuevaInspeccion && baseNombre.trim() === 'estado general';
                             const esFleje = baseNombre.includes('fleje');
                             const nombreMostrar = (esFleje && equipoSinFlejeConRotulo) ? 'Rótulo / Identificador' : p;
+
+                            if (esEstadoGeneral) {
+                                return `
+                            <div class="parametros-fila" data-estado-general="1" data-estado-calc="BUENO">
+                                <div class="col-nombre">${nombreMostrar}</div>
+                                <div class="col-estado" style="font-weight:700;">
+                                    <span data-estado-general-label>BUENO</span>
+                                </div>
+                                <div class="col-dano" data-param-idx="${idx}" style="display:none;"></div>
+                                <div class="col-evidencia" data-param-idx="${idx}">
+                                    <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
+                                    <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
+                                    <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                                    <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
+                                    <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
+
+                                    <div style="margin-top:8px;">
+                                        <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
+                                        <button type="button" class="btn btn-subir-foto2" data-idx="${idx}">Subir foto 2</button>
+                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
+                                    </div>
+                                    <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                                    <button type="button" class="btn btn-eliminar-foto2" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 2</button>
+                                </div>
+                            </div>
+                        `;
+                            }
                             // Caso especial: Recubrimiento no lleva selector de daños, solo BUENO/MALO
                             if (baseNombre.includes('recubrimiento')) {
                                 return `
@@ -2566,6 +2647,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Mostrar selector de daño y evidencia solo cuando el estado sea MALO
         detalleContenedor.querySelectorAll('.parametros-fila').forEach((filaHtml, idx) => {
+            const esEstadoGeneral = isEstadoGeneralFila(filaHtml);
             const radios = filaHtml.querySelectorAll(`input[name="param-${idx}-estado"]`);
             const estadoSwitch = filaHtml.querySelector('.estado-switch-input');
             const colDano = filaHtml.querySelector('.col-dano');
@@ -2582,7 +2664,12 @@ document.addEventListener('DOMContentLoaded', () => {
             let btnMod1 = colEvid ? colEvid.querySelector('.btn-modificar-foto') : null;
 
             const puedeSubirEvidencia2Now = () => {
-                try { return !!(window.isAdmin || window.isDirector || window.isSupervisor); } catch { return false; }
+                try {
+                    if (esEstadoGeneral) return true;
+                    return !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                } catch {
+                    return false;
+                }
             };
             const inputFoto2 = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto2"]`) : null;
             const btnTomar2 = colEvid ? colEvid.querySelector('.btn-tomar-foto2') : null;
@@ -2591,6 +2678,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnDel2 = colEvid ? colEvid.querySelector('.btn-eliminar-foto2') : null;
 
             const tieneChipsDano = !!(danoChipBtns && danoChipBtns.length);
+
+            if (esEstadoGeneral) {
+                try {
+                    if (colDano) colDano.style.display = 'none';
+                    if (colEvid) colEvid.style.display = '';
+                } catch {}
+            }
 
             const normDano = (s) => String(s || '').trim().toUpperCase();
             const danoSlug = (s) => String(s || '')
@@ -2631,6 +2725,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (selectDano) selectDano.value = v;
                 } catch {}
             };
+
+            // Mantener actualizado el estado general cuando se cambien estados
+            try {
+                if (!esEstadoGeneral) {
+                    if (estadoSwitch) estadoSwitch.addEventListener('change', () => actualizarEstadoGeneralUI());
+                    radios.forEach(r => r.addEventListener('change', () => actualizarEstadoGeneralUI()));
+                }
+            } catch {}
 
             const ensureDanoBucket = (d) => {
                 const key = normDano(d);
@@ -4115,8 +4217,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const filas = document.querySelectorAll('.parametros-fila');
             filas.forEach((filaHtml, idx) => {
                 const nombre = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
+                const esEstadoGeneral = isEstadoGeneralFila(filaHtml);
                 const estadoInput = filaHtml.querySelector(`input[name="param-${idx}-estado"]:checked`);
-                const estado = estadoInput ? estadoInput.value : '';
+                const estado = esEstadoGeneral
+                    ? String(filaHtml.dataset.estadoCalc || calcularEstadoGeneralDesdeUI() || 'BUENO').toUpperCase()
+                    : (estadoInput ? estadoInput.value : '');
                 const danoSelect = filaHtml.querySelector(`select[name="param-${idx}-dano"]`);
                 const tipoDano = danoSelect ? danoSelect.value : '';
                 const inputOtro = filaHtml.querySelector(`input[name="param-${idx}-dano-otro"]`);
@@ -4143,7 +4248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const danosSeleccionados = (tieneChipsDano && (estado || '').toUpperCase() === 'MALO') ? getSelDanos() : [];
                 const evidenciasPorDano = {};
 
-                if (estado && estado.toUpperCase() === 'MALO') {
+                if (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO')) {
                     if (tieneChipsDano) {
                         // Por chip: cada daño tiene evidencia propia
                         const prevByDano = (filaHtml && filaHtml.__prevEvidenciasPorDano && typeof filaHtml.__prevEvidenciasPorDano === 'object') ? filaHtml.__prevEvidenciasPorDano : {};
@@ -4263,8 +4368,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             fotosParaSubir.push({ idx, slot: 1, nombre, file: fotoBlob, evidenciaNombre });
                         }
 
-                        // Foto 2 (solo SGI/supervisor/director/admin)
-                        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                        // Foto 2
+                        const puedeSubirEvidencia2 = esEstadoGeneral ? true : !!(window.isAdmin || window.isDirector || window.isSupervisor);
                         const fotoBlob2 = puedeSubirEvidencia2
                             ? ((fotosTomadas[idx]?.blob2) || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]) || null)
                             : null;
@@ -4365,6 +4470,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Validaciones requeridas por parámetro
             for (let i = 0; i < parametrosCapturados.length; i++) {
                 const p = parametrosCapturados[i];
+                const filaHtml = document.querySelectorAll('.parametros-fila')[i];
+                const esEstadoGeneral = isEstadoGeneralFila(filaHtml);
+
                 if (!p.estado) {
                     alert(`Selecciona el estado para el parámetro: ${p.nombre}`);
                     try {
@@ -4373,6 +4481,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch {}
                     guardandoInspeccion = false;
                     return;
+                }
+
+                if (esEstadoGeneral && !isEditingExisting) {
+                    const inputFoto = document.querySelector(`input[name="param-${i}-foto"]`);
+                    const del1 = !!(fotosTomadas[i] && fotosTomadas[i].del1);
+                    const tieneNueva = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
+                    const tieneFoto = !!(tieneNueva && !del1);
+                    if (!tieneFoto) {
+                        alert('Adjunta fotografía (Foto 1) de Estado General. Es obligatoria.');
+                        try {
+                            btnGuardar.innerHTML = prevBtnHtml;
+                            btnGuardar.disabled = prevBtnDisabled;
+                        } catch {}
+                        guardandoInspeccion = false;
+                        return;
+                    }
                 }
                 if (p.estado.toUpperCase() === 'MALO') {
                     // Exigir tipo de daño solo si el parámetro no es Recubrimiento (o similar sin selector de daño)
