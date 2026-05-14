@@ -165,6 +165,7 @@
             const isSupervisor = role === 'supervisor';
             const isInspector = role === 'inspector';
             const isCapturista = role === 'capturista';
+            const isAuxger = role === 'auxger';
 
             window.isAdmin = !!isAdmin;
             window.isDirector = !!isDirector;
@@ -172,7 +173,9 @@
             window.isInspector = !!isInspector;
             window.isCapturista = !!isCapturista;
 
-            if (!(isAdmin || isDirector || isSupervisor)) {
+            window.isAuxger = !!isAuxger;
+
+            if (!(isAdmin || isDirector || isSupervisor || isAuxger)) {
                 window.location.href = 'index.html';
             }
         } catch {

@@ -245,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isInspector = role === 'inspector';
                     const isCapturista = role === 'capturista';
                     const isVisor = role === 'visor';
+                    const isAuxger = role === 'auxger';
 
                     function ensureActividocNavLink(visible) {
                         try {
@@ -453,8 +454,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         setNavVisible(allowedNavPages.has(currentPage));
                     }
 
-                    // Inventario (invre.html): solo admin/director/supervisor
-                    ensureInvreNavLink(isAdmin || isDirector || isSupervisor);
+                    // Inventario (invre.html): admin/director/supervisor/auxger
+                    ensureInvreNavLink(isAdmin || isDirector || isSupervisor || isAuxger);
 
                     // Servicio: admin/director/supervisor/inspector/capturista (no visor)
                     ensureServicioNavDropdown(isAdmin || isDirector || isSupervisor || isInspector || isCapturista);
