@@ -224,7 +224,7 @@
         if (emailSpan) emailSpan.textContent = email;
 
         try {
-            const token = await user.getIdTokenResult(true);
+            const token = await user.getIdTokenResult();
             const role = (token?.claims?.role) || null;
             window.userRole = role;
             window.isAdmin = role === 'admin';
@@ -240,7 +240,8 @@
                 window.location.href = 'website.html';
                 return;
             }
-        } catch {
+        } catch (e) {
+            try { console.error('[inspectlist] No se pudo obtener claims/rol:', e); } catch {}
             try { await signOut(auth); } catch {}
             window.location.href = 'website.html';
         }
@@ -490,18 +491,18 @@
                 // Firestore Timestamp (client) tiene toDate()
                 if (iso && typeof iso.toDate === 'function') {
                     const dTs = iso.toDate();
-                    if (dTs && !isNaN(dTs.getTime())) return dTs.toLocaleString('es-MX');
+                    if (dTs && !isNaN(dTs.getTime())) return dTs.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
                 }
                 // Firestore Timestamp-like {seconds,nanoseconds}
                 if (iso && typeof iso === 'object' && typeof iso.seconds === 'number') {
                     const dTs2 = new Date(iso.seconds * 1000);
-                    if (!isNaN(dTs2.getTime())) return dTs2.toLocaleString('es-MX');
+                    if (!isNaN(dTs2.getTime())) return dTs2.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
                 }
             } catch {}
 
             const d = new Date(iso);
             if (isNaN(d.getTime())) return '';
-            return d.toLocaleString('es-MX');
+            return d.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
         }
 
         function formatearUltimaRecepcion(act) {

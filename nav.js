@@ -247,6 +247,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isVisor = role === 'visor';
                     const isAuxger = role === 'auxger';
 
+                    function ensureActividadNavDropdown(visible) {
+                        try {
+                            const navUl = navMain.querySelector(':scope > ul');
+                            if (!navUl) return;
+                            const actTop = Array.from(navUl.querySelectorAll(':scope > li.nav-item-has-dropdown > a'))
+                                .find(a => ((a.textContent || '').trim().toLowerCase() === 'actividad'));
+                            const actLi = actTop ? (actTop.closest('li') || null) : null;
+                            if (!actLi) return;
+                            actLi.style.display = visible ? '' : 'none';
+                        } catch {}
+                    }
+
                     function ensureActividocNavLink(visible) {
                         try {
                             // Buscar el dropdown de "Actividad"
@@ -454,8 +466,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         setNavVisible(allowedNavPages.has(currentPage));
                     }
 
-                    // Inventario (invre.html): admin/director/supervisor/auxger
-                    ensureInvreNavLink(isAdmin || isDirector || isSupervisor || isAuxger);
+                    // Auxger: no debe ver ni acceder a Actividad desde el navbar
+                    ensureActividadNavDropdown(!isAuxger);
+
+                    // Inventario (invre.html): admin/director/supervisor/auxger/capturista
+                    ensureInvreNavLink(isAdmin || isDirector || isSupervisor || isAuxger || isCapturista);
 
                     // Servicio: admin/director/supervisor/inspector/capturista (no visor)
                     ensureServicioNavDropdown(isAdmin || isDirector || isSupervisor || isInspector || isCapturista);
