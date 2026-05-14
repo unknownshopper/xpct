@@ -95,7 +95,7 @@
 
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-pendientes">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
-                    <h3 style="margin:0; font-size:1rem;">Inspecciones próximas a inspeccionar</h3>
+                    <h3 style="margin:0; font-size:1rem;">Inspecciones próximas</h3>
                     <button type="button" class="insp-sec-toggle" data-target="insp-pendientes-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
                 </div>
                 <div id="insp-pendientes-body">
@@ -105,13 +105,13 @@
                             <th style="text-align:center; padding:0.4rem; width:32px;">
                                 <input type="checkbox" id="insp-select-todos" title="Seleccionar / deseleccionar todos">
                             </th>
-                            <th id="insp-th-fecha-real" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha realización</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Serial</th>
                             <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
                             <th style="text-align:left; padding:0.4rem;">Lugar</th>
+                            <th style="text-align:left; padding:0.4rem;">Última recepción</th>
                             <th id="insp-th-evaluacion" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para filtrar: Pendientes / Realizadas / Todo">Evaluación</th>
                             <th style="text-align:left; padding:0.4rem;">Asignado a</th>
                             <th style="text-align:left; padding:0.4rem;">Usuario</th>
@@ -149,7 +149,7 @@
                             <th style="text-align:center; padding:0.4rem; width:32px;">
                                 <input type="checkbox" id="insp-select-todos-huerfanas" title="Seleccionar / deseleccionar todos">
                             </th>
-                            <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
+                            <th id="insp-th-fecha-real-huerfana" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha realización</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Serial</th>
                             <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
@@ -180,7 +180,7 @@
                             <th style="text-align:center; padding:0.4rem; width:32px;">
                                 <input type="checkbox" id="insp-select-todos-realizadas" title="Seleccionar / deseleccionar todos">
                             </th>
-                            <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
+                            <th id="insp-th-fecha-real" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha realización</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
@@ -282,6 +282,7 @@
         const cardWrapReal = document.getElementById('insp-card-wrap-realizadas');
         const thEvaluacion = document.getElementById('insp-th-evaluacion');
         const thFechaReal = document.getElementById('insp-th-fecha-real');
+        const thFechaRealHuerfana = document.getElementById('insp-th-fecha-real-huerfana');
 
         let filtroEstado = null; // null | 'PENDIENTE' | 'REALIZADA'
         let sortKey = null; // null | 'fecha_real'
@@ -456,11 +457,17 @@
         function actualizarIndicadoresSort() {
             const suf = sortDir === 1 ? ' ▲' : ' ▼';
             if (thFechaReal) thFechaReal.textContent = 'Fecha realización' + (sortKey === 'fecha_real' ? suf : '');
+            if (thFechaRealHuerfana) thFechaRealHuerfana.textContent = 'Fecha realización' + (sortKey === 'fecha_real' ? suf : '');
         }
 
         if (thFechaReal && !thFechaReal.dataset.sortBound) {
             thFechaReal.dataset.sortBound = '1';
             thFechaReal.addEventListener('click', () => toggleSort('fecha_real'));
+        }
+
+        if (thFechaRealHuerfana && !thFechaRealHuerfana.dataset.sortBound) {
+            thFechaRealHuerfana.dataset.sortBound = '1';
+            thFechaRealHuerfana.addEventListener('click', () => toggleSort('fecha_real'));
         }
 
         // Filtro por encabezado de Evaluación: ciclo Todo -> Pendientes -> Realizadas -> Todo
@@ -494,6 +501,21 @@
             const d = new Date(iso);
             if (isNaN(d.getTime())) return '';
             return d.toLocaleString('es-MX');
+        }
+
+        function formatearUltimaRecepcion(act) {
+            try {
+                const t = (act && (act.terminacionServicio || act.terminacion || act.fechaTerminacion)) ? String(act.terminacionServicio || act.terminacion || act.fechaTerminacion).trim() : '';
+                if (t) return t;
+            } catch {}
+            try {
+                const ms = Number(act?.terminacionTs || act?.terminacionServicioTs || 0);
+                if (ms && !isNaN(ms)) {
+                    const d = new Date(ms);
+                    if (!isNaN(d.getTime())) return d.toLocaleDateString('es-MX');
+                }
+            } catch {}
+            return '';
         }
 
         function normalizarTextoClave(v) {
@@ -843,6 +865,8 @@
                 let areaActual = '';
                 let lugarActual = '';
 
+                const groupColSpan = 13;
+
                 const tbodyLocal = tbodyTarget;
                 if (!tbodyLocal) return;
 
@@ -962,7 +986,7 @@
                         const trGrupoCliente = document.createElement('tr');
                         trGrupoCliente.className = 'insp-group-cliente';
                         trGrupoCliente.innerHTML = `
-                            <td colspan="13" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
+                            <td colspan="${groupColSpan}" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
                                 Cliente: ${clienteActualLabel}
                             </td>
                         `;
@@ -975,7 +999,7 @@
                         const trGrupoArea = document.createElement('tr');
                         trGrupoArea.className = 'insp-group-area';
                         trGrupoArea.innerHTML = `
-                            <td colspan="13" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
+                            <td colspan="${groupColSpan}" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
                                 <input type="checkbox" class="insp-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
                                 <span>Área: ${areaActual}</span>
                             </td>
@@ -988,7 +1012,7 @@
                         const trGrupoUbic = document.createElement('tr');
                         trGrupoUbic.className = 'insp-group-ubic';
                         trGrupoUbic.innerHTML = `
-                            <td colspan="13" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
+                            <td colspan="${groupColSpan}" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
                                 Ubicación: ${lugarActual}
                             </td>
                         `;
@@ -1019,17 +1043,21 @@
                           `
                         : (tipoInsp || '');
 
+                    const ultimaRecepcion = formatearUltimaRecepcion(act);
+                    const fechaRealCol = esRealizadas ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>` : '';
+                    const ultimaRecepCol = esRealizadas ? '' : `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${ultimaRecepcion}</td>`;
                     tr.innerHTML = `
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                             <input type="checkbox" class="insp-select-fila" data-actividad-id="${act.id}" data-cliente="${cliente}" data-area="${area}">
                         </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>
+                        ${fechaRealCol}
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipo}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInspHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
+                        ${ultimaRecepCol}
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? (evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto) : 'Pendiente'}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
