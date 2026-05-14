@@ -180,7 +180,7 @@
         <div style="display:flex; flex-direction:column;">
           <label for="admx-modo" style="font-size:0.72rem; color:#4b5563;">Mostrar</label>
           <select id="admx-modo" style="font-size:0.85rem; padding:0.25rem 0.4rem;">
-            <option value="PENDIENTES">Pendientes</option>
+            <option value="PENDIENTES" selected>Pendientes</option>
             <option value="SIN_OC">Sin OC cliente</option>
             <option value="SIN_OS">Sin OS</option>
             <option value="TODAS">Todas</option>
@@ -194,8 +194,13 @@
           <label for="admx-batch-os" style="font-size:0.72rem; color:#4b5563;">OS ({OC}-NNN)</label>
           <input id="admx-batch-os" type="text" placeholder="(auto)" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:160px;">
         </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-batch-ocint" style="font-size:0.72rem; color:#4b5563;">OC interna (unificar)</label>
+          <input id="admx-batch-ocint" type="text" placeholder="Ej. 4301250002" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:160px;">
+        </div>
         <button id="admx-btn-os" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Generar OS</button>
         <button id="admx-btn-aplicar" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #16a34a; background:#16a34a; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Asignar a selección</button>
+        <button id="admx-btn-ocint" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #f97316; background:#f97316; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Unificar OC interna</button>
         <button id="admx-btn-expand" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Expandir todo</button>
         <button id="admx-btn-refrescar" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; cursor:pointer;">Refrescar</button>
       </div>
@@ -313,8 +318,10 @@
     const selModo = document.getElementById('admx-modo');
     const inpBatchOcCli = document.getElementById('admx-batch-occli');
     const inpBatchOs = document.getElementById('admx-batch-os');
+    const inpBatchOcInt = document.getElementById('admx-batch-ocint');
     const btnGenOs = document.getElementById('admx-btn-os');
     const btnAplicar = document.getElementById('admx-btn-aplicar');
+    const btnOcInt = document.getElementById('admx-btn-ocint');
     const btnRefrescar = document.getElementById('admx-btn-refrescar');
     const btnExpandAll = document.getElementById('admx-btn-expand');
     const cont = document.getElementById('admx-cont');
@@ -1159,6 +1166,69 @@
       const modo = normKey(selModo && selModo.value) || 'PENDIENTES';
       const allRows = (Array.isArray(listaActividad) ? listaActividad : []);
 
+      const inferSerialTercero = (descRaw) => {
+        const desc = norm(String(descRaw || '')).toUpperCase();
+        if (!desc) return '';
+
+        // Buscar el mejor candidato tipo serial basado en segmentos con guiones.
+        // Ejemplos esperados:
+        // - PCTHKMK-BR-343
+        // - PCTHKMK-TP4602-027
+        // - MSSCT-TP4206-008
+        // - PCT-24-4206-P-002
+        const parts = desc
+          .split('-')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map(s => s.replace(/[^A-Z0-9]/g, ''))
+          .filter(Boolean);
+
+        if (parts.length < 2) return '';
+
+        const preferredPrefixes = ['PCTHKMK', 'PCT', 'MSSCT', 'MSCTT', 'MS'];
+
+        const scoreCandidate = (segs) => {
+          const cand = segs.join('-');
+          let score = 0;
+          // Debe tener al menos una letra y un dígito para parecer serial real
+          if (/[A-Z]/.test(cand)) score += 2;
+          if (/\d/.test(cand)) score += 2;
+          // Más segmentos generalmente mejor
+          score += Math.min(6, segs.length * 2);
+          // Longitud
+          score += Math.min(10, Math.floor(cand.length / 4));
+          // Preferir prefijos conocidos
+          const first = segs[0] || '';
+          const prefIdx = preferredPrefixes.indexOf(first);
+          if (prefIdx >= 0) score += (20 - prefIdx); // PCTHKMK mayor prioridad
+          // Penalizar candidatos que sean demasiado cortos o solo números
+          if (/^\d+$/.test(cand)) score -= 50;
+          if (cand.length < 6) score -= 10;
+          return score;
+        };
+
+        let bestCand = '';
+        let bestScore = -1e9;
+
+        // Probar ventanas de 2 a 5 segmentos para reconstruir serial completo
+        for (let start = 0; start < parts.length; start++) {
+          for (let len = 2; len <= 5; len++) {
+            const segs = parts.slice(start, start + len);
+            if (segs.length < len) continue;
+            // primer segmento debe tener letras
+            if (!/[A-Z]/.test(segs[0] || '')) continue;
+            const cand = segs.join('-');
+            const sc = scoreCandidate(segs);
+            if (sc > bestScore) {
+              bestScore = sc;
+              bestCand = cand;
+            }
+          }
+        }
+
+        return bestCand;
+      };
+
       let base = [];
       if (modo === 'PENDIENTES') {
         const openOcs = new Set();
@@ -1276,7 +1346,9 @@
       ocKeys.forEach(oc => {
         const arr = byOc.get(oc) || [];
         const cliente = norm(arr[0]?.cliente || '');
-        const ubic = norm(arr[0]?.ubicacion || '');
+        const ubicSet = new Set(arr.map(x => norm(x?.ubicacion || '')).filter(Boolean));
+        const ubicList = Array.from(ubicSet);
+        const ubic = (ubicSet.size <= 1) ? (ubicList[0] || '') : (ubicList[0] || '');
 
         const box = document.createElement('div');
         box.setAttribute('data-oc-box', '1');
@@ -1292,6 +1364,14 @@
           <div style="font-size:0.88rem; color:#4b5563; margin-top:2px;">OC interna: ${oc} · Pendientes: ${openInThisOc}</div>
         `;
 
+        if (ubicSet.size > 1) {
+          const warn = document.createElement('div');
+          warn.style.cssText = 'margin-top:6px; padding:6px 8px; border-radius:8px; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; font-size:0.85rem; font-weight:700;';
+          const ubicTxt = ubicList.slice(0, 8).join(', ');
+          warn.textContent = `ERROR: Esta OC interna tiene múltiples ubicaciones (${ubicSet.size}). Debe separarse. ${ubicSet.size ? `Ubicaciones: ${ubicTxt}${ubicSet.size > 8 ? '…' : ''}` : ''}`;
+          left.appendChild(warn);
+        }
+
         const right = document.createElement('div');
         right.setAttribute('data-oc-caret', '1');
         right.style.cssText = 'font-size:0.85rem; color:#6b7280; font-weight:700; padding-top:2px;';
@@ -1302,6 +1382,38 @@
         header.appendChild(left);
         header.appendChild(right);
         box.appendChild(header);
+
+        if (ubicSet.size > 1) {
+          const fixWrap = document.createElement('div');
+          fixWrap.style.cssText = 'margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;';
+
+          const btnFix = document.createElement('button');
+          btnFix.type = 'button';
+          btnFix.textContent = 'Separar OC por ubicación';
+          btnFix.style.cssText = 'font-size:0.85rem; padding:0.35rem 0.65rem; border:1px solid #ef4444; background:#ef4444; color:#fff; border-radius:8px; cursor:pointer; font-weight:800;';
+          btnFix.addEventListener('click', async (ev) => {
+            try { ev.stopPropagation(); } catch {}
+            try {
+              const ok = window.confirm(`Esta OC interna (${oc}) contiene ${ubicSet.size} ubicaciones.\n\nRegla: una OC interna NO puede tener múltiples ubicaciones.\n\n¿Quieres separarla automáticamente (se reasignará OC interna distinta por ubicación)?`);
+              if (!ok) return;
+              btnFix.disabled = true;
+              btnFix.textContent = 'Separando…';
+              await separarOcPorUbicacion({ ocInterna: oc, ubicaciones: ubicList });
+              await cargarActividades();
+            } catch (e) {
+              console.error(e);
+              alert('No se pudo separar la OC interna por ubicación.');
+            } finally {
+              try {
+                btnFix.disabled = false;
+                btnFix.textContent = 'Separar OC por ubicación';
+              } catch {}
+            }
+          });
+
+          fixWrap.appendChild(btnFix);
+          box.appendChild(fixWrap);
+        }
 
         const bodyWrap = document.createElement('div');
         bodyWrap.setAttribute('data-oc-body', '1');
@@ -1370,7 +1482,10 @@
             const precio = (r.precio != null && r.precio !== '') ? Number(r.precio) : null;
             const precioTxt = (precio == null || isNaN(precio)) ? '' : precio.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
             const eqName = norm(r.equipo || '');
-            const serial = norm(r.serial || mapaSerialPorEquipo[eqName] || '');
+            let serial = norm(r.serial || mapaSerialPorEquipo[eqName] || '');
+            if (!serial && normKey(eqName) === 'TERCERO') {
+              serial = inferSerialTercero(r.descripcion || '');
+            }
             const eqHtml = serial
               ? `${eqName}<br><span style="font-size:0.75rem; color:#6b7280;">${serial}</span>`
               : eqName;
@@ -1415,7 +1530,15 @@
               <td class="admx-td-nowrap">${norm(r.ordenSuministro || '')}</td>
               <td class="admx-td-nowrap">${norm(r.estCot || '')}</td>
               <td class="admx-td-nowrap">${norm(r.factura || '')}</td>
-              <td class="admx-td-right admx-td-nowrap admx-sticky-right" style="color:#6b7280;">—</td>
+              <td class="admx-td-right admx-td-nowrap admx-sticky-right">
+                <button
+                  type="button"
+                  class="admx-btn-del-act"
+                  data-del-act="${String(r.id || '')}"
+                  style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;"
+                  ${((typeof window.isAdmin === 'boolean' || typeof window.isDirector === 'boolean') && !(window.isAdmin || window.isDirector)) ? 'disabled title="No autorizado" style="opacity:0.55; cursor:not-allowed; font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #e5e7eb; background:#f9fafb; color:#6b7280;"' : ''}
+                >Eliminar</button>
+              </td>
             `;
             tr.style.cursor = 'pointer';
             tr.addEventListener('click', (ev) => {
@@ -1423,6 +1546,46 @@
               if (t && (t.tagName === 'INPUT' || t.tagName === 'BUTTON' || t.closest('input') || t.closest('button'))) return;
               abrirTabulador(r);
             });
+
+            try {
+              const btnDelAct = tr.querySelector('button.admx-btn-del-act');
+              if (btnDelAct) {
+                btnDelAct.addEventListener('click', async (ev) => {
+                  try { ev.stopPropagation(); } catch {}
+                  const actId = String(btnDelAct.getAttribute('data-del-act') || '').trim();
+                  if (!actId) return;
+                  const ok = window.confirm('¿Eliminar esta actividad? Esto borrará también sus períodos del tabulador.');
+                  if (!ok) return;
+                  try {
+                    const { getFirestore, doc, collection, query, where, getDocs, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const db = getFirestore();
+
+                    const batch = writeBatch(db);
+
+                    // 1) Borrar períodos asociados (actividadPeriodos)
+                    const col = collection(db, 'actividadPeriodos');
+                    const qq = query(col, where('actividadId', '==', actId));
+                    const snap = await getDocs(qq);
+                    if (!snap.empty) {
+                      snap.forEach(ds => batch.delete(doc(db, 'actividadPeriodos', ds.id)));
+                    }
+
+                    // 2) Borrar actividad
+                    batch.delete(doc(db, 'actividades', actId));
+
+                    await batch.commit();
+
+                    // 3) Refrescar listado
+                    await cargarActividades();
+                  } catch (e) {
+                    console.error(e);
+                    const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                    const msg = (e && e.message) ? String(e.message) : String(e);
+                    alert(`No se pudo eliminar la actividad. ${code ? `(${code})` : ''}\n${msg}`);
+                  }
+                });
+              }
+            } catch {}
             tbody.appendChild(tr);
           });
 
@@ -1529,9 +1692,119 @@
       });
     }
 
+    async function aplicarBatchOcInterna({ ids, ocInterna }) {
+      if (!window.db) return;
+      const oc = norm(ocInterna);
+      if (!oc) return;
+
+      const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const db = getFirestore();
+      let batch = writeBatch(db);
+      let c = 0;
+      ids.forEach(id => {
+        batch.update(doc(db, 'actividades', id), { oc });
+        c++;
+        if (c % 400 === 0) {
+          batch.commit();
+          batch = writeBatch(db);
+        }
+      });
+      await batch.commit();
+
+      ids.forEach(id => {
+        const reg = (Array.isArray(listaActividad) ? listaActividad : []).find(r => String(r.id || '') === id);
+        if (reg) reg.oc = oc;
+      });
+    }
+
+    async function separarOcPorUbicacion({ ocInterna, ubicaciones }) {
+      await waitForFirebase();
+      const ocBase = norm(ocInterna);
+      if (!ocBase) return;
+
+      // Usar Firestore modular aunque window.db no esté seteado
+      const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const db = getFirestore();
+
+      const regs = (Array.isArray(listaActividad) ? listaActividad : []).filter(r => norm(r.oc || '') === ocBase);
+      if (!regs.length) return;
+
+      const groups = new Map();
+      regs.forEach(r => {
+        const u = norm(r.ubicacion || '');
+        if (!u) return;
+        if (!groups.has(u)) groups.set(u, []);
+        groups.get(u).push(r);
+      });
+
+      if (groups.size <= 1) {
+        alert('Esta OC interna ya tiene una sola ubicación.');
+        return;
+      }
+
+      // Mantener la OC actual para la ubicación con más registros (reduce errores al limpiar mezclas)
+      const ubicKeys = Array.from(groups.keys());
+      let keepUbic = ubicKeys[0];
+      try {
+        let bestU = keepUbic;
+        let bestN = 0;
+        ubicKeys.forEach(u => {
+          const n = (groups.get(u) || []).length;
+          if (n > bestN) { bestN = n; bestU = u; }
+        });
+        keepUbic = bestU;
+      } catch {}
+
+      // Generar nuevas OCs para el resto
+      const plan = [];
+      ubicKeys.forEach(u => {
+        if (u === keepUbic) {
+          plan.push({ ubicacion: u, oc: ocBase, ids: (groups.get(u) || []).map(x => String(x.id || '')).filter(Boolean) });
+          return;
+        }
+        // inferir inicio más temprano del grupo
+        const arrU = groups.get(u) || [];
+        const iniBest = arrU.map(x => norm(x.inicioServicio || '')).filter(Boolean).sort()[0] || norm(arrU[0]?.inicioServicio || '');
+        const ocNew = genOcInterna({ cliente: norm(arrU[0]?.cliente || ''), ubicacion: u, inicioServicio: iniBest });
+        if (!ocNew) throw new Error(`No se pudo generar OC interna para ubicación ${u}`);
+        plan.push({ ubicacion: u, oc: ocNew, ids: arrU.map(x => String(x.id || '')).filter(Boolean) });
+      });
+
+      // Ejecutar updates
+      let batch = writeBatch(db);
+      let c = 0;
+
+      plan.forEach(p => {
+        // skip keep (ya tiene ocBase) => pero podría haber mezclas previas; igual lo seteamos
+        p.ids.forEach(id => {
+          batch.update(doc(db, 'actividades', id), { oc: p.oc });
+          c++;
+          if (c % 400 === 0) {
+            batch.commit();
+            batch = writeBatch(db);
+          }
+        });
+      });
+
+      await batch.commit();
+
+      // actualizar cache local
+      plan.forEach(p => {
+        p.ids.forEach(id => {
+          const reg = (Array.isArray(listaActividad) ? listaActividad : []).find(r => String(r.id || '') === String(id));
+          if (reg) reg.oc = p.oc;
+        });
+      });
+
+      try {
+        const msgTxt = plan.map(p => `${p.ubicacion}: ${p.oc}`).slice(0, 8).join('\n');
+        showMsg(`Listo. OC separada por ubicación:\n${msgTxt}`);
+      } catch {}
+    }
+
     function wireEvents() {
       if (selModo) {
-        selModo.value = 'TODAS';
+        selModo.value = 'PENDIENTES';
       }
 
       if (inpCliente) {
@@ -1790,6 +2063,7 @@
             for (const eq of equipos) {
               const infoEq = infoPorEquipo[eq] || {};
               const descEq = norm(infoEq.descripcionUI || infoEq.descripcion || '');
+              const serialEq = norm(mapaSerialPorEquipo[eq] || '');
               const payload = {
                 cliente,
                 tipo: (normKey(cliente) === 'TERCERO') ? 'TERCERO' : '',
@@ -1798,6 +2072,7 @@
                 ubicacion: ubic,
                 descripcion: descEq,
                 equipo: eq,
+                serial: serialEq,
                 equipos: [eq],
                 oc,
                 ordenSuministro: '',
@@ -1898,10 +2173,55 @@
           }
         });
       }
+
+      if (btnOcInt) {
+        btnOcInt.addEventListener('click', async () => {
+          try {
+            const ids = selectedIds();
+            if (!ids.length) { alert('Selecciona al menos 1 fila.'); return; }
+
+            // Evitar unificar OC interna mezclando ubicaciones sin querer
+            try {
+              const ubicSet = new Set();
+              ids.forEach(id => {
+                const reg = (Array.isArray(listaActividad) ? listaActividad : []).find(r => String(r.id || '') === String(id));
+                const u = norm(reg && reg.ubicacion ? reg.ubicacion : '');
+                if (u) ubicSet.add(u);
+              });
+              if (ubicSet.size > 1) {
+                const ubicList = Array.from(ubicSet).slice(0, 12).join(', ');
+                const ok = window.confirm(`Tu selección incluye MÁS DE UNA ubicación/pozo:\n\n${ubicList}${ubicSet.size > 12 ? '…' : ''}\n\n¿Seguro que deseas unificar OC interna para todas?`);
+                if (!ok) return;
+              }
+            } catch {}
+
+            const typed = norm(inpBatchOcInt && inpBatchOcInt.value);
+            const inferred = selectedOcInternaOrEmpty();
+            const oc = typed || inferred;
+            if (!oc) {
+              alert('Escribe la OC interna a unificar (o selecciona filas de una sola OC interna).');
+              return;
+            }
+
+            const confirmOc = (prompt(`Confirma OC interna escribiéndola tal cual:\n\n${oc}`) || '').trim();
+            if (confirmOc !== oc) { alert('Confirmación de OC interna no coincide. Cancelado.'); return; }
+
+            await aplicarBatchOcInterna({ ids, ocInterna: oc });
+            await cargarActividades();
+          } catch (e) {
+            console.error(e);
+            alert('No se pudo unificar OC interna en la selección.');
+          }
+        });
+      }
     }
 
     wireEvents();
     window.addEventListener('DOMContentLoaded', () => {
+      try {
+        // Forzar filtro por default a PENDIENTES aunque el navegador recuerde el último valor
+        if (selModo) selModo.value = 'PENDIENTES';
+      } catch {}
       cargarDescripcionesInventario();
       cargarActividades();
     });

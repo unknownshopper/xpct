@@ -19,6 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    try {
+        window.addEventListener('online', () => {
+            try { processEvidQueue(); } catch {}
+        });
+    } catch {}
+
     function normKeySimple(s) {
         return (s || '')
             .toString()
@@ -80,6 +86,245 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let inspeccionEditData = null;
     let inspeccionIsEditingExisting = false;
+
+    const claveEvidQueue = 'pct_evid_queue_v1';
+    const evidDbName = 'pct_evid_db_v1';
+    const evidStore = 'uploads';
+
+    function safeJsonParse(s, fallback) {
+        try {
+            const v = JSON.parse(String(s || ''));
+            return (v == null) ? fallback : v;
+        } catch {
+            return fallback;
+        }
+    }
+
+    function evidKeyFromItem(item) {
+        const docId = String(item?.docId || '').trim();
+        const kind = String(item?.kind || '').trim();
+        const idx = (item?.idx != null) ? String(item.idx) : '';
+        const dano = String(item?.dano || '').trim().toUpperCase();
+        const slot = (item?.slot != null) ? String(item.slot) : '';
+        const nombre = String(item?.evidenciaNombre || '').trim();
+        const seed = String(item?.seed || '').trim();
+        return [docId, kind, idx, dano, slot, nombre, seed].filter(Boolean).join('|');
+    }
+
+    function openEvidDb() {
+        return new Promise((resolve, reject) => {
+            try {
+                const req = indexedDB.open(evidDbName, 1);
+                req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(evidStore)) {
+                        db.createObjectStore(evidStore);
+                    }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    async function idbSet(key, value) {
+        const db = await openEvidDb();
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = db.transaction(evidStore, 'readwrite');
+                tx.objectStore(evidStore).put(value, key);
+                tx.oncomplete = () => { try { db.close(); } catch {} resolve(); };
+                tx.onerror = () => { try { db.close(); } catch {} reject(tx.error); };
+            } catch (e) {
+                try { db.close(); } catch {}
+                reject(e);
+            }
+        });
+    }
+
+    async function idbGet(key) {
+        const db = await openEvidDb();
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = db.transaction(evidStore, 'readonly');
+                const req = tx.objectStore(evidStore).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+                tx.oncomplete = () => { try { db.close(); } catch {} };
+            } catch (e) {
+                try { db.close(); } catch {}
+                reject(e);
+            }
+        });
+    }
+
+    async function idbDel(key) {
+        const db = await openEvidDb();
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = db.transaction(evidStore, 'readwrite');
+                tx.objectStore(evidStore).delete(key);
+                tx.oncomplete = () => { try { db.close(); } catch {} resolve(); };
+                tx.onerror = () => { try { db.close(); } catch {} reject(tx.error); };
+            } catch (e) {
+                try { db.close(); } catch {}
+                reject(e);
+            }
+        });
+    }
+
+    function loadEvidQueue() {
+        const raw = localStorage.getItem(claveEvidQueue);
+        const arr = safeJsonParse(raw, []);
+        return Array.isArray(arr) ? arr : [];
+    }
+
+    function saveEvidQueue(arr) {
+        try { localStorage.setItem(claveEvidQueue, JSON.stringify(arr || [])); } catch {}
+    }
+
+    async function enqueueEvidenceUpload(item, blobOrFile) {
+        const key = evidKeyFromItem(item);
+        if (!key) return;
+        const payload = {
+            ...item,
+            _key: key,
+            createdAt: Date.now(),
+        };
+        try {
+            await idbSet(key, blobOrFile);
+        } catch (e) {
+            console.warn('No se pudo guardar evidencia pendiente en IndexedDB', e);
+            return;
+        }
+        const q = loadEvidQueue();
+        const exists = q.some(x => x && x._key === key);
+        if (!exists) {
+            q.unshift(payload);
+            saveEvidQueue(q);
+        }
+    }
+
+    let processingEvidQueue = false;
+    async function processEvidQueue() {
+        try {
+            if (processingEvidQueue) return;
+            if (!navigator.onLine) return;
+            if (!window.auth || !window.auth.currentUser) return;
+            const q = loadEvidQueue();
+            if (!q.length) return;
+            processingEvidQueue = true;
+
+            const { getFirestore, doc, updateDoc, getDoc } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const { getStorage, ref, uploadBytes, getDownloadURL } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
+            );
+            const db = getFirestore();
+            const storage = getStorage();
+
+            const nextQueue = [];
+
+            for (const it of q) {
+                try {
+                    const docId = String(it?.docId || '').trim();
+                    const evidenciaNombre = String(it?.evidenciaNombre || '').trim();
+                    const storagePath = String(it?.storagePath || '').trim();
+                    const kind = String(it?.kind || '').trim();
+                    const idx = (it?.idx != null) ? Number(it.idx) : null;
+                    const slot = (it?.slot != null) ? Number(it.slot) : null;
+                    const dano = String(it?.dano || '').trim().toUpperCase();
+                    if (!docId || !storagePath || !evidenciaNombre || !kind || slot == null) {
+                        await idbDel(it?._key);
+                        continue;
+                    }
+
+                    const blob = await idbGet(it._key);
+                    if (!blob) {
+                        await idbDel(it._key);
+                        continue;
+                    }
+
+                    const stRef = ref(storage, storagePath);
+                    await uploadBytes(stRef, blob);
+                    const url = await getDownloadURL(stRef);
+
+                    const docRef = doc(db, 'inspecciones', docId);
+
+                    if (kind === 'obs') {
+                        await updateDoc(docRef, {
+                            observacionesFotoUrl: url,
+                            observacionesFotoPath: storagePath,
+                            observacionesFotoNombre: evidenciaNombre,
+                            syncStatus: 'SYNCED',
+                        });
+                        await idbDel(it._key);
+                        continue;
+                    }
+
+                    // Releer documento, mutar en cliente y guardar parametros completos
+                    const snap = await getDoc(docRef);
+                    if (!snap.exists()) {
+                        await idbDel(it._key);
+                        continue;
+                    }
+                    const data = snap.data() || {};
+                    const params = Array.isArray(data.parametros) ? data.parametros.slice() : [];
+                    if (idx == null || idx < 0 || idx >= params.length) {
+                        await idbDel(it._key);
+                        continue;
+                    }
+                    const p = params[idx] ? { ...(params[idx] || {}) } : null;
+                    if (!p) {
+                        await idbDel(it._key);
+                        continue;
+                    }
+
+                    if (kind === 'param') {
+                        if (slot === 1) {
+                            p.evidenciaUrl = url;
+                            p.evidenciaPath = storagePath;
+                            p.evidenciaNombre = evidenciaNombre;
+                        } else {
+                            p.evidenciaUrl2 = url;
+                            p.evidenciaPath2 = storagePath;
+                            p.evidenciaNombre2 = evidenciaNombre;
+                        }
+                    } else if (kind === 'dano') {
+                        const by = (p.evidenciasPorDano && typeof p.evidenciasPorDano === 'object') ? { ...(p.evidenciasPorDano || {}) } : {};
+                        by[dano] = { ...(by[dano] || {}) };
+                        if (slot === 1) {
+                            by[dano].evidenciaUrl = url;
+                            by[dano].evidenciaPath = storagePath;
+                            by[dano].evidenciaNombre = evidenciaNombre;
+                        } else {
+                            by[dano].evidenciaUrl2 = url;
+                            by[dano].evidenciaPath2 = storagePath;
+                            by[dano].evidenciaNombre2 = evidenciaNombre;
+                        }
+                        p.evidenciasPorDano = by;
+                    }
+
+                    params[idx] = p;
+                    await updateDoc(docRef, { parametros: params, syncStatus: 'SYNCED' });
+
+                    await idbDel(it._key);
+                } catch (e) {
+                    nextQueue.push(it);
+                    continue;
+                }
+            }
+
+            saveEvidQueue(nextQueue);
+        } catch (e) {
+            console.warn('processEvidQueue error', e);
+        } finally {
+            processingEvidQueue = false;
+        }
+    }
 
     const isAndroid = (() => {
         try { return /android/i.test(navigator.userAgent || ''); } catch { return false; }
@@ -4778,6 +5023,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Subir evidencias (fotos) a Storage y luego persistir evidenciaUrl/evidenciaPath en Firestore
                     const storage = getStorage();
                     if (Array.isArray(fotosParaSubir) && fotosParaSubir.length) {
+                        if (!navigator.onLine) {
+                            throw new Error('OFFLINE');
+                        }
                         const urlsPorKey = {};
                         for (const f of fotosParaSubir) {
                             const name = (f && f.evidenciaNombre)
@@ -4865,6 +5113,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (obsFotoBlob && obsFotoNombre) {
+                        if (!navigator.onLine) {
+                            throw new Error('OFFLINE');
+                        }
                         const pthObs = `inspecciones/${localId}/${obsFotoNombre}`;
                         const stRefObs = ref(storage, pthObs);
                         await uploadBytes(stRefObs, obsFotoBlob);
@@ -4884,6 +5135,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (e) {
                     console.warn('No se pudieron subir evidencias a Storage:', e);
+
+                    // Encolar evidencias para reintento al reabrir la app
+                    try {
+                        const seed = String(Date.now());
+                        for (const f of (Array.isArray(fotosParaSubir) ? fotosParaSubir : [])) {
+                            const name = (f && f.evidenciaNombre) ? String(f.evidenciaNombre) : '';
+                            if (!name || !f.file) continue;
+                            const slot = (f && f.slot != null) ? Number(f.slot) : 1;
+                            const danoKey = (f && f.dano != null) ? String(f.dano).trim().toUpperCase() : '';
+                            const kind = danoKey ? 'dano' : 'param';
+                            const storagePath = `inspecciones/${localId}/${name}`;
+                            await enqueueEvidenceUpload({
+                                docId: localId,
+                                kind,
+                                idx: f.idx,
+                                dano: danoKey,
+                                slot,
+                                evidenciaNombre: name,
+                                storagePath,
+                                seed,
+                            }, f.file);
+                        }
+                        if (obsFotoBlob && obsFotoNombre) {
+                            const storagePath = `inspecciones/${localId}/${obsFotoNombre}`;
+                            await enqueueEvidenceUpload({
+                                docId: localId,
+                                kind: 'obs',
+                                idx: 0,
+                                dano: '',
+                                slot: 1,
+                                evidenciaNombre: obsFotoNombre,
+                                storagePath,
+                                seed,
+                            }, obsFotoBlob);
+                        }
+                    } catch (qe) {
+                        console.warn('No se pudo encolar evidencia pendiente', qe);
+                    }
+
+                    // Marcar como pendiente de evidencias
+                    try {
+                        await updateDoc(docRef, { syncStatus: 'PENDING_EVID' });
+                        patchInspeccionLocalPorId(localId, { syncStatus: 'PENDING_EVID' });
+                    } catch {}
                 }
                 try {
                     if (typeof window.pctAudit === 'function') {
