@@ -4731,9 +4731,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (esEstadoGeneral && !isEditingExisting) {
                     const inputFoto = document.querySelector(`input[name="param-${i}-foto"]`);
+                    const inputFoto2 = document.querySelector(`input[name="param-${i}-foto2"]`);
                     const del1 = !!(fotosTomadas[i] && fotosTomadas[i].del1);
-                    const tieneNueva = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
-                    const tieneFoto = !!(tieneNueva && !del1);
+                    const del2 = !!(fotosTomadas[i] && fotosTomadas[i].del2);
+
+                    const tieneNueva1 = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
+                    const tieneNueva2 = !!(fotosTomadas[i]?.blob2 || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]));
+                    const tieneFoto = !!((tieneNueva1 && !del1) || (tieneNueva2 && !del2));
                     if (!tieneFoto) {
                         alert('Adjunta fotografía (Foto 1) de Estado General. Es obligatoria.');
                         try {
