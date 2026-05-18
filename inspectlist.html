@@ -233,10 +233,12 @@
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
             window.isAuxger = role === 'auxger';
+            window.isSgi = role === 'sgi';
+            window.isCops = email === 'cops@pc-t.com.mx';
             window.currentUserEmail = email;
 
             // Acceso: admin, director, supervisor, inspector, capturista, auxger
-            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger)) {
+            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
                 window.location.href = 'website.html';
                 return;
             }
@@ -1090,7 +1092,7 @@
                             try { if (clickTimer) clearTimeout(clickTimer); } catch {}
                             const inspId = String(insp.id || '');
                             const actividadId = String(act.id || '');
-                            if (window.isAdmin || window.isDirector || window.isSupervisor) {
+                            if (window.isAdmin || window.isDirector || window.isSgi || window.isCops) {
                                 if (actividadId) {
                                     window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
                                     return;
@@ -1175,7 +1177,7 @@
 
                     const accionesHtml = `
                         <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
-                        ${(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
+                        ${(window.isAdmin || window.isDirector || window.isSgi || window.isCops) ? `<button type="button" class="insp-btn-editar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
                         ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
                     `;
 
@@ -1233,7 +1235,7 @@
                                 ev.stopPropagation();
                                 const inspId = String(insp && insp.id ? insp.id : '').trim();
                                 if (!inspId) return;
-                                if (window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector) {
+                                if (window.isAdmin || window.isDirector || window.isSgi || window.isCops) {
                                     window.location.href = `inspeccion.html?inspId=${encodeURIComponent(inspId)}`;
                                 }
                             });
@@ -1257,7 +1259,7 @@
                         try { if (clickTimerH) clearTimeout(clickTimerH); } catch {}
                         const inspId = String(insp && insp.id ? insp.id : '').trim();
                         if (!inspId) return;
-                        if (window.isAdmin || window.isDirector || window.isSupervisor) {
+                        if (window.isAdmin || window.isDirector || window.isSgi || window.isCops) {
                             window.location.href = `inspeccion.html?inspId=${encodeURIComponent(inspId)}`;
                         }
                     });
