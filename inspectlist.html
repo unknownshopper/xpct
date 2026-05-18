@@ -565,6 +565,7 @@
         }
 
         let serialPorEquipo = new Map();
+        let edoPorEquipo = new Map();
         let inventarioSerialesPromise = null;
 
         async function asegurarSerialesInventario() {
@@ -583,6 +584,7 @@
                     if (idxEquipo < 0 || idxSerial < 0) return;
 
                     const mapa = new Map();
+                    const mapaEdo = new Map();
                     const dl = document.getElementById('insp-catalogo-equipos');
                     const vistos = new Set();
                     if (dl) dl.innerHTML = '';
@@ -594,6 +596,7 @@
                         const key = normKeyCompact(eq);
                         if (!key) return;
                         if (!mapa.has(key)) mapa.set(key, (sr || '').toString().trim());
+                        if (!mapaEdo.has(key)) mapaEdo.set(key, (edo || '').toString().trim().toUpperCase());
 
                         // También poblar el catálogo (equipo activo + serial) para autocompletar el buscador
                         const edoKey = (edo || '').toString().trim().toUpperCase();
@@ -608,9 +611,11 @@
                         dl.appendChild(opt);
                     });
                     serialPorEquipo = mapa;
+                    edoPorEquipo = mapaEdo;
                 } catch (e) {
                     console.warn('No se pudo cargar inventario para seriales', e);
                     serialPorEquipo = new Map();
+                    edoPorEquipo = new Map();
                 }
             })();
             return inventarioSerialesPromise;
@@ -862,6 +867,125 @@
             });
 
             let visibles = 0;
+
+            function normEq(s) {
+                return (s || '')
+                    .toString()
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+
+            function normEqCompact(s) {
+                return normEq(s).replace(/[^a-z0-9]+/g, '');
+            }
+
+            function renderNoResultadosConStatus() {
+                try {
+                    if (!msg || !inputBuscar) return;
+                    const filtroNow = (inputBuscar.value || '').toString().trim();
+                    if (!filtroNow) return;
+                    const filtroC = normEqCompact(filtroNow);
+                    if (!filtroC) return;
+
+                    const rowsPend = tbody ? tbody.querySelectorAll('tr.insp-fila-pendiente, tr.insp-fila-realizada') : [];
+                    const rowsReal = tbodyRealizadas ? tbodyRealizadas.querySelectorAll('tr.insp-fila-realizada') : [];
+                    const rowsH = tbodyHuerfanas ? tbodyHuerfanas.querySelectorAll('tr.insp-fila-realizada') : [];
+                    const totalVis = (rowsPend ? rowsPend.length : 0) + (rowsReal ? rowsReal.length : 0) + (rowsH ? rowsH.length : 0);
+                    if (totalVis > 0) {
+                        msg.style.display = 'none';
+                        return;
+                    }
+
+                    // Si está vacío, limpiar el tbody para evitar duplicados al teclear
+                    try {
+                        if (tbody) tbody.innerHTML = '';
+                    } catch {}
+
+                    const matchesActs = (actividades || []).filter(a => {
+                        const eq = a && a.equipo ? String(a.equipo) : '';
+                        const k = normEqCompact(eq);
+                        return k && (k.includes(filtroC) || filtroC.includes(k));
+                    });
+
+                    const matchesInsp = (inspecciones || []).filter(r => {
+                        const eq = r && r.equipo ? String(r.equipo) : '';
+                        const k = normEqCompact(eq);
+                        return k && (k.includes(filtroC) || filtroC.includes(k));
+                    });
+
+                    let html = '';
+                    if (!matchesActs.length && !matchesInsp.length) {
+                        const invKey = normKeyCompact(filtroNow);
+                        const hasInv = !!(invKey && (serialPorEquipo.has(invKey) || edoPorEquipo.has(invKey)));
+                        if (hasInv) {
+                            const sr = (serialPorEquipo.get(invKey) || '').toString().trim();
+                            const edo = (edoPorEquipo.get(invKey) || '').toString().trim();
+                            // Mostrar un renglón "virtual" en pendientes (para que aparezca como resultado)
+                            try {
+                                if (tbody) {
+                                    const tr = document.createElement('tr');
+                                    tr.className = 'insp-fila-pendiente insp-fila-inventario';
+                                    tr.innerHTML = `
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                                            <input type="checkbox" disabled>
+                                        </td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${filtroNow}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${sr || ''}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">En inventario${edo ? ` (EDO: ${edo})` : ''} · Sin actividad</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                    `;
+                                    tbody.appendChild(tr);
+                                    if (lblCont) lblCont.textContent = '1 registro';
+                                }
+                            } catch {}
+
+                            // Mantener mensaje como referencia (pero no ocultar el hecho de que ya hay un renglón)
+                            html = `No hay inspecciones para: <strong>${filtroNow}</strong>.<br>- En inventario${edo ? ` (EDO: ${edo})` : ''}${sr ? ` · SERIAL: ${sr}` : ''}.<br>- Sin actividad registrada (no aparece en actividades).`;
+                            msg.style.display = 'none';
+                            return;
+                        } else {
+                            html = `No hay inspecciones para: <strong>${filtroNow}</strong>. No se encontró tampoco en actividades.`;
+                        }
+                    } else {
+                        const lines = [];
+                        if (matchesActs.length) {
+                            const a = matchesActs[0];
+                            const actId = String(a.id || '').trim();
+                            const cliente = (a.cliente || '').toString().trim();
+                            const area = (a.areaCliente || '').toString().trim();
+                            const ubic = (a.ubicacion || '').toString().trim();
+                            const tieneInsp = !!(actId && inspeccionPorActividad.has(actId));
+                            const estado = tieneInsp ? 'Inspección capturada (ligada a actividad)' : 'Actividad en proceso (sin inspección guardada)';
+                            lines.push(`${estado}${cliente ? ` · ${cliente}` : ''}${area ? ` · ${area}` : ''}${ubic ? ` · ${ubic}` : ''}`);
+                            if (matchesActs.length > 1) {
+                                lines.push(`Coincidencias en actividades: ${matchesActs.length}`);
+                            }
+                        }
+                        if (!matchesActs.length && matchesInsp.length) {
+                            const r = matchesInsp[0];
+                            const actId = (r.actividadId || r.__actividadIdMatched || '').toString().trim();
+                            const estado = actId ? 'Inspección encontrada (con actividadId)' : 'Inspección encontrada (sin actividad ligada)';
+                            lines.push(`${estado}`);
+                            if (matchesInsp.length > 1) lines.push(`Coincidencias en inspecciones: ${matchesInsp.length}`);
+                        }
+                        html = `No hay resultados visibles para: <strong>${filtroNow}</strong>.<br>${lines.map(x => `- ${x}`).join('<br>')}`;
+                    }
+
+                    msg.innerHTML = `<p style="margin:0;">${html}</p>`;
+                    msg.style.display = 'block';
+                } catch {}
+            }
 
             function renderBloque(esRealizadas, tbodyTarget) {
                 let clienteActualKey = '';
@@ -1124,6 +1248,9 @@
 
             // Primero bloque de pendientes
             renderBloque(false, tbody);
+
+            // Si un filtro deja la vista vacía, mostrar estatus basado en actividades/inspecciones
+            renderNoResultadosConStatus();
 
             // Render de inspecciones huérfanas en sección independiente
             if (secHuerfanas) {
