@@ -105,6 +105,12 @@
             return;
         }
 
+        let isViewMode = false;
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            isViewMode = (params.get('view') || '').trim() === '1';
+        } catch {}
+
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
@@ -119,9 +125,17 @@
             window.isCapturista = role === 'capturista';
             window.isAuxger = role === 'auxger';
             window.isSgi = role === 'sgi';
+            window.isCops = email === 'cops@pc-t.com.mx';
 
-            // Acceso a NUEVA INSPECCIÓN: solo SGI, director y admin
-            if (!(window.isAdmin || window.isDirector || window.isSgi)) {
+            // Acceso:
+            // - View mode (desde inspectlist): permitir lectura a roles operativos
+            // - Create/Edit: solo SGI, director y admin
+            if (isViewMode) {
+                if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi)) {
+                    window.location.href = 'website.html';
+                    return;
+                }
+            } else if (!(window.isAdmin || window.isDirector || window.isSgi || window.isCops)) {
                 window.location.href = 'website.html';
                 return;
             }
