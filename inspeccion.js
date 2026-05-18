@@ -4739,7 +4739,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tieneNueva2 = !!(fotosTomadas[i]?.blob2 || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]));
                     const tieneFoto = !!((tieneNueva1 && !del1) || (tieneNueva2 && !del2));
                     if (!tieneFoto) {
-                        alert('Adjunta fotografía (Foto 1) de Estado General. Es obligatoria.');
+                        try {
+                            const filaEg = filaHtml || (document.querySelectorAll('.parametros-fila')[i] || null);
+                            if (filaEg && filaEg.scrollIntoView) {
+                                filaEg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                            if (filaEg && filaEg.style) {
+                                const prevOutline = filaEg.style.outline;
+                                const prevOutlineOffset = filaEg.style.outlineOffset;
+                                filaEg.style.outline = '3px solid #ef4444';
+                                filaEg.style.outlineOffset = '4px';
+                                setTimeout(() => {
+                                    try {
+                                        filaEg.style.outline = prevOutline;
+                                        filaEg.style.outlineOffset = prevOutlineOffset;
+                                    } catch {}
+                                }, 2400);
+                            }
+                        } catch {}
+
+                        alert('Adjunta fotografía (Foto 1) de Estado General. Es obligatoria.\n\nLa foto se sube en la fila "Estado General" (arriba, en Parámetros), NO en Observaciones.');
                         try {
                             btnGuardar.innerHTML = prevBtnHtml;
                             btnGuardar.disabled = prevBtnDisabled;
