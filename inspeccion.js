@@ -19,6 +19,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    // Permitir deep-link desde inspectlist con ?equipo=...
+    try {
+        const paramsEq = new URLSearchParams(window.location.search || '');
+        const eqUrl = (paramsEq.get('equipo') || '').toString().trim();
+        if (eqUrl && inputEquipo) {
+            inputEquipo.value = eqUrl;
+            try { inputEquipo.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+        }
+    } catch {}
+
     try {
         window.addEventListener('online', () => {
             try { processEvidQueue(); } catch {}

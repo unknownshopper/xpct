@@ -233,7 +233,7 @@
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
             window.isAuxger = role === 'auxger';
-            window.isSgi = role === 'sgi';
+            window.isSgi = (role === 'sgi') || (email === 'sgi@pc-t.com.mx');
             window.isCops = email === 'cops@pc-t.com.mx';
             window.currentUserEmail = email;
 
@@ -566,6 +566,7 @@
 
         let serialPorEquipo = new Map();
         let edoPorEquipo = new Map();
+        let equipoPorKey = new Map();
         let inventarioSerialesPromise = null;
 
         async function asegurarSerialesInventario() {
@@ -585,6 +586,7 @@
 
                     const mapa = new Map();
                     const mapaEdo = new Map();
+                    const mapaEq = new Map();
                     const dl = document.getElementById('insp-catalogo-equipos');
                     const vistos = new Set();
                     if (dl) dl.innerHTML = '';
@@ -597,6 +599,7 @@
                         if (!key) return;
                         if (!mapa.has(key)) mapa.set(key, (sr || '').toString().trim());
                         if (!mapaEdo.has(key)) mapaEdo.set(key, (edo || '').toString().trim().toUpperCase());
+                        if (!mapaEq.has(key)) mapaEq.set(key, (eq || '').toString().trim());
 
                         // También poblar el catálogo (equipo activo + serial) para autocompletar el buscador
                         const edoKey = (edo || '').toString().trim().toUpperCase();
@@ -612,10 +615,12 @@
                     });
                     serialPorEquipo = mapa;
                     edoPorEquipo = mapaEdo;
+                    equipoPorKey = mapaEq;
                 } catch (e) {
                     console.warn('No se pudo cargar inventario para seriales', e);
                     serialPorEquipo = new Map();
                     edoPorEquipo = new Map();
+                    equipoPorKey = new Map();
                 }
             })();
             return inventarioSerialesPromise;
@@ -918,45 +923,109 @@
 
                     let html = '';
                     if (!matchesActs.length && !matchesInsp.length) {
+                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi || window.isCops);
+                        const edoInspeccionable = (edo) => {
+                            const e = (edo || '').toString().trim().toUpperCase();
+                            return e === 'ON' || e === 'ACTIVO';
+                        };
+
+                        const buildRowInventario = (eqDisp, sr, edo) => {
+                            const puedeAccion = puedeInspeccionar && edoInspeccionable(edo);
+                            const btnInspeccionar = puedeAccion
+                                ? `<button type="button" class="insp-btn-ir-inspeccion" data-equipo="${String(eqDisp).replace(/"/g, '&quot;')}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Inspeccionar</button>`
+                                : '—';
+                            const tr = document.createElement('tr');
+                            tr.className = 'insp-fila-pendiente insp-fila-inventario';
+                            tr.innerHTML = `
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                                    <input type="checkbox" disabled>
+                                </td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${eqDisp}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${sr || ''}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">En inventario${edo ? ` (EDO: ${edo})` : ''} · Sin actividad</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${btnInspeccionar}</td>
+                            `;
+                            if (puedeAccion) {
+                                tr.style.cursor = 'pointer';
+                                tr.addEventListener('click', (ev) => {
+                                    if (ev.target.closest('button, select, a, input')) return;
+                                    window.location.href = `inspeccion.html?equipo=${encodeURIComponent(eqDisp)}`;
+                                });
+                                tr.addEventListener('dblclick', (ev) => {
+                                    if (ev.target.closest('button, select, a, input')) return;
+                                    window.location.href = `inspeccion.html?equipo=${encodeURIComponent(eqDisp)}`;
+                                });
+                            }
+                            const btn = tr.querySelector('button.insp-btn-ir-inspeccion');
+                            if (btn) {
+                                btn.addEventListener('click', (ev) => {
+                                    ev.stopPropagation();
+                                    const eq = btn.getAttribute('data-equipo') || eqDisp;
+                                    window.location.href = `inspeccion.html?equipo=${encodeURIComponent(eq)}`;
+                                });
+                            }
+                            return tr;
+                        };
+
+                        // Coincidencias en inventario por búsqueda (no solo exacto)
+                        const invHits = [];
+                        try {
+                            const max = 50;
+                            for (const [k, eqDisp] of (equipoPorKey || new Map()).entries()) {
+                                const kk = String(k || '').trim().toUpperCase();
+                                if (!kk) continue;
+                                if (kk.includes(filtroC.toUpperCase()) || filtroC.toUpperCase().includes(kk)) {
+                                    invHits.push({ key: kk, equipo: eqDisp });
+                                    if (invHits.length >= max) break;
+                                }
+                            }
+                        } catch {}
+
+                        if (invHits.length) {
+                            try {
+                                if (tbody) {
+                                    let shown = 0;
+                                    invHits.forEach(h => {
+                                        const key = h.key;
+                                        const eqDisp = h.equipo || filtroNow;
+                                        const sr = (serialPorEquipo.get(key) || '').toString().trim();
+                                        const edo = (edoPorEquipo.get(key) || '').toString().trim();
+                                        tbody.appendChild(buildRowInventario(eqDisp, sr, edo));
+                                        shown += 1;
+                                    });
+                                    if (lblCont) lblCont.textContent = `${shown} registro${shown === 1 ? '' : 's'}`;
+                                }
+                            } catch {}
+                            msg.style.display = 'none';
+                            return;
+                        }
+
+                        // Fallback: intento exacto
                         const invKey = normKeyCompact(filtroNow);
                         const hasInv = !!(invKey && (serialPorEquipo.has(invKey) || edoPorEquipo.has(invKey)));
                         if (hasInv) {
+                            const eqDisp = (equipoPorKey.get(invKey) || filtroNow).toString().trim() || filtroNow;
                             const sr = (serialPorEquipo.get(invKey) || '').toString().trim();
                             const edo = (edoPorEquipo.get(invKey) || '').toString().trim();
-                            // Mostrar un renglón "virtual" en pendientes (para que aparezca como resultado)
                             try {
                                 if (tbody) {
-                                    const tr = document.createElement('tr');
-                                    tr.className = 'insp-fila-pendiente insp-fila-inventario';
-                                    tr.innerHTML = `
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
-                                            <input type="checkbox" disabled>
-                                        </td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${filtroNow}</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${sr || ''}</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">En inventario${edo ? ` (EDO: ${edo})` : ''} · Sin actividad</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                    `;
-                                    tbody.appendChild(tr);
+                                    tbody.appendChild(buildRowInventario(eqDisp, sr, edo));
                                     if (lblCont) lblCont.textContent = '1 registro';
                                 }
                             } catch {}
-
-                            // Mantener mensaje como referencia (pero no ocultar el hecho de que ya hay un renglón)
-                            html = `No hay inspecciones para: <strong>${filtroNow}</strong>.<br>- En inventario${edo ? ` (EDO: ${edo})` : ''}${sr ? ` · SERIAL: ${sr}` : ''}.<br>- Sin actividad registrada (no aparece en actividades).`;
                             msg.style.display = 'none';
                             return;
-                        } else {
-                            html = `No hay inspecciones para: <strong>${filtroNow}</strong>. No se encontró tampoco en actividades.`;
                         }
+
+                        html = `No hay inspecciones para: <strong>${filtroNow}</strong>. No se encontró tampoco en actividades.`;
                     } else {
                         const lines = [];
                         if (matchesActs.length) {
