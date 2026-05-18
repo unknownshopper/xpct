@@ -118,9 +118,10 @@
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
             window.isAuxger = role === 'auxger';
+            window.isSgi = role === 'sgi';
 
-            // Acceso: admin, director, supervisor, inspector, capturista, auxger
-            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger)) {
+            // Acceso a NUEVA INSPECCIÓN: solo SGI, director y admin
+            if (!(window.isAdmin || window.isDirector || window.isSgi)) {
                 window.location.href = 'website.html';
                 return;
             }
@@ -174,6 +175,6 @@
 
     <script src="nav.js"></script>
     <script src="utils.js?v=202602"></script>
-    <script src="inspeccion.js?v=20260505"></script>
+    <script src="inspeccion.js?v=20260518_2"></script>
 </body>
 </html>

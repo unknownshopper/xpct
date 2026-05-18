@@ -2607,7 +2607,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const equipoSinFlejeConRotulo = /BRIDA CIEGA|BRIDA DE PRUEBA|BRIDA DE PASO|BRIDA ADAPTADORA/.test(textoEquipo);
 
-        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSgi);
 
         const esNuevaInspeccion = !inspeccionIsEditingExisting;
         const parametrosRenderFinal = (esNuevaInspeccion && parametrosRender.length)
@@ -2627,7 +2627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         ${parametrosRenderFinal.map((p, idx) => {
                             const baseNombre = (p || '').toLowerCase();
-                            const esEstadoGeneral = esNuevaInspeccion && baseNombre.trim() === 'estado general';
+                            const esEstadoGeneral = baseNombre.trim() === 'estado general';
                             const esFleje = baseNombre.includes('fleje');
                             const nombreMostrar = (esFleje && equipoSinFlejeConRotulo) ? 'Rótulo / Identificador' : p;
 
@@ -2647,7 +2647,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
                                     <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
 
-                                    <div style="margin-top:8px;">
+                                    <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
                                         <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
                                         <button type="button" class="btn btn-subir-foto2" data-idx="${idx}">Subir foto 2</button>
                                         <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
@@ -2834,12 +2834,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="insp-observaciones" style="margin-top:14px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff;">
                 <h3 style="margin:0 0 8px; font-size:1rem;">OBSERVACIONES</h3>
                 <textarea id="insp-obs-text" rows="3" placeholder="Escribe observaciones generales (opcional)" style="width:100%; resize:vertical; padding:0.6rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;"></textarea>
-                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px;">
-                    <button type="button" class="btn" id="insp-obs-tomar-foto">Tomar foto</button>
-                    <button type="button" class="btn" id="insp-obs-subir-foto">Subir foto</button>
-                    <input type="file" id="insp-obs-foto" accept="image/*" style="display:none;">
-                </div>
-                <img alt="preview" id="insp-obs-preview" style="display:none; max-height:96px; border-radius:10px; margin-top:8px; border:1px solid #e5e7eb;" />
             </div>
         `;
 
@@ -2901,6 +2895,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const danoChipBtns = danoChips ? Array.from(danoChips.querySelectorAll('.dano-chip')) : [];
             const inputOtro = colDano ? colDano.querySelector(`input[name="param-${idx}-dano-otro"]`) : null;
             const colEvid = filaHtml.querySelector('.col-evidencia');
+            // Algunos despliegues/estilos han mostrado "Estado General" sin controles de evidencia.
+            // Para evitar bloqueo por validación, asegurar que los controles existan.
+            try {
+                if (esEstadoGeneral && colEvid) {
+                    const hasTomar = !!colEvid.querySelector('.btn-tomar-foto');
+                    const hasSubir = !!colEvid.querySelector('.btn-subir-foto');
+                    const hasInput = !!colEvid.querySelector(`input[name="param-${idx}-foto"]`);
+                    if (!hasTomar || !hasSubir || !hasInput) {
+                        colEvid.innerHTML = `
+                            <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
+                            <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
+                            <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
+                            <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                            <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
+                            <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
+                        `;
+                    }
+                }
+            } catch {}
+
             const inputFoto = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto"]`) : null;
             const btnTomar = colEvid ? colEvid.querySelector('.btn-tomar-foto') : null;
             const btnSubir = colEvid ? colEvid.querySelector('.btn-subir-foto') : null;
@@ -2910,8 +2924,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const puedeSubirEvidencia2Now = () => {
                 try {
-                    if (esEstadoGeneral) return true;
-                    return !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                    return !!(window.isAdmin || window.isDirector || window.isSgi);
                 } catch {
                     return false;
                 }
@@ -3190,6 +3203,32 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const actualizarVisibilidadDano = () => {
+                if (esEstadoGeneral) {
+                    try {
+                        if (colDano) colDano.style.display = 'none';
+                        if (colEvid) {
+                            colEvid.style.display = '';
+                            if (inputFoto) inputFoto.disabled = false;
+                            if (btnTomar) btnTomar.disabled = false;
+                            if (btnSubir) btnSubir.disabled = false;
+                            if (btnDel1) btnDel1.disabled = false;
+                            try { syncUiEvidencias(); } catch {}
+
+                            const can2 = puedeSubirEvidencia2Now();
+                            if (inputFoto2) inputFoto2.disabled = !can2;
+                            if (btnTomar2) btnTomar2.disabled = !can2;
+                            if (btnSubir2) btnSubir2.disabled = !can2;
+                            if (btnDel2) btnDel2.disabled = !can2;
+                            try {
+                                if (btnTomar2) btnTomar2.style.display = can2 ? '' : 'none';
+                                if (btnSubir2) btnSubir2.style.display = can2 ? '' : 'none';
+                                if (btnDel2) btnDel2.style.display = 'none';
+                                if (imgPrev2) imgPrev2.style.display = 'none';
+                            } catch {}
+                        }
+                    } catch {}
+                    return;
+                }
                 let estado = '';
                 radios.forEach(r => { if (r.checked) estado = r.value; });
                 if (estado === 'MALO') {
