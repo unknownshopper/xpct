@@ -35,6 +35,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } catch {}
 
+    const puedeOmitirFotos = () => {
+        try {
+            return !!window.isSgi;
+        } catch {
+            return false;
+        }
+    };
+
     function normKeySimple(s) {
         return (s || '')
             .toString()
@@ -4787,7 +4795,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tieneNueva1 = !!(fotosTomadas[i]?.blob || (inputFoto && inputFoto.files && inputFoto.files[0]));
                     const tieneNueva2 = !!(fotosTomadas[i]?.blob2 || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]));
                     const tieneFoto = !!((tieneNueva1 && !del1) || (tieneNueva2 && !del2));
-                    if (!tieneFoto) {
+                    if (!tieneFoto && !puedeOmitirFotos()) {
                         try {
                             const filaEg = filaHtml || (document.querySelectorAll('.parametros-fila')[i] || null);
                             if (filaEg && filaEg.scrollIntoView) {
@@ -4889,7 +4897,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     }
                                 } catch {}
                             }
-                            if (!has1) {
+                            if (!has1 && !puedeOmitirFotos()) {
                                 alert(`Adjunta fotografía de evidencia (Foto 1) para: ${p.nombre} - ${dk}`);
                                 try {
                                     btnGuardar.innerHTML = prevBtnHtml;
@@ -4916,7 +4924,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             } catch {}
                         }
                         const tieneFoto = !!(tieneNueva || tienePrevia);
-                        if (!tieneFoto) {
+                        if (!tieneFoto && !puedeOmitirFotos()) {
                             alert(`Adjunta fotografía de evidencia para: ${p.nombre}`);
                             try {
                                 btnGuardar.innerHTML = prevBtnHtml;
