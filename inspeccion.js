@@ -43,6 +43,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    function fixMojibakeCommon(s) {
+        // Corrige casos típicos de UTF-8 mal interpretado como Latin-1.
+        // Esto evita resultados como "MAGAÃ‘A" en PDFs/listados.
+        try {
+            let t = (s || '').toString();
+            const reps = {
+                'Ã‘': 'Ñ',
+                'Ã±': 'ñ',
+                'Ã': 'Ñ',
+                'Ã': 'Ñ',
+                'Ã¡': 'á',
+                'ÃÁ': 'Á',
+                'Ã©': 'é',
+                'Ã‰': 'É',
+                'Ã­': 'í',
+                'ÃÍ': 'Í',
+                'Ã³': 'ó',
+                'Ã“': 'Ó',
+                'Ãº': 'ú',
+                'Ãš': 'Ú',
+                'Ã¼': 'ü',
+                'Ãœ': 'Ü',
+            };
+            Object.keys(reps).forEach(k => {
+                if (t.includes(k)) t = t.split(k).join(reps[k]);
+            });
+            return t;
+        } catch {
+            return (s || '').toString();
+        }
+    }
+
+    function normalizarNombreUsuario(raw) {
+        try {
+            let t = (raw || '').toString();
+            t = fixMojibakeCommon(t);
+            // Quitar caracteres de reemplazo y controles
+            t = t.replace(/\uFFFD/g, '');
+            t = t.replace(/[\u0000-\u001F\u007F]/g, ' ');
+            t = t.normalize('NFC');
+            t = t.replace(/\s+/g, ' ').trim();
+            if (!t) return '';
+            return t.toUpperCase();
+        } catch {
+            return (raw || '').toString().toUpperCase().trim();
+        }
+    }
+
+    function resolverNombreUsuarioActual() {
+        try {
+            const u = window.auth && window.auth.currentUser ? window.auth.currentUser : null;
+            const dn = u && u.displayName ? String(u.displayName).trim() : '';
+            if (dn) return normalizarNombreUsuario(dn);
+        } catch {}
+        try {
+            const email = window.auth && window.auth.currentUser && window.auth.currentUser.email
+                ? String(window.auth.currentUser.email)
+                : '';
+            const local = email.split('@')[0] || '';
+            const guess = local.replace(/[._-]+/g, ' ').trim();
+            return normalizarNombreUsuario(guess || email);
+        } catch {}
+        return '';
+    }
+
     function normKeySimple(s) {
         return (s || '')
             .toString()
@@ -4058,7 +4123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const equipo = equipoSel || 'SIN_EQUIPO';
                 const tipoInspeccionSel = (document.getElementById('inspeccion-tipo')?.value || '').toString();
                 let usuario = '';
-                try { usuario = (window.auth?.currentUser?.email || '').toLowerCase(); } catch {}
+                try { usuario = resolverNombreUsuarioActual(); } catch {}
 
                 // Calcular resultado (sin guardar): si existe al menos un parámetro en MALO => NO APROBADA
                 let totalParametros = 0;
@@ -5095,15 +5160,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!ubicacion) ubicacion = ubicacionGps || ubicacion;
 
-            // Usuario actual (correo) para registrar quién hizo la inspección
+            // Usuario actual: guardar email para trazabilidad y nombre normalizado para reporteo/PDF
+            let usuarioInspeccionEmail = '';
             let usuarioInspeccion = '';
             try {
                 if (window.auth && window.auth.currentUser && window.auth.currentUser.email) {
-                    usuarioInspeccion = String(window.auth.currentUser.email).toLowerCase();
+                    usuarioInspeccionEmail = String(window.auth.currentUser.email).toLowerCase();
                 }
             } catch (e) {
                 console.warn('No se pudo leer el usuario actual para la inspección', e);
             }
+            try {
+                usuarioInspeccion = resolverNombreUsuarioActual() || normalizarNombreUsuario(usuarioInspeccionEmail);
+            } catch {}
 
             const registro = {
                 fecha: new Date().toISOString(),
@@ -5123,6 +5192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ubicacion,
                 ubicacionGps,
                 usuarioInspeccion,
+                usuarioInspeccionEmail,
                 actividadId,
                 observaciones: observacionesResumen,
                 observacionesManual: obsTextoManual,
