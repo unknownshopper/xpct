@@ -2434,9 +2434,36 @@ document.addEventListener('DOMContentLoaded', () => {
             const np = normParam(p);
             return !!(np && np.includes('anillo retenedor'));
         });
-        const parametrosInspeccionFiltrados = tieneAnillo
+        let parametrosInspeccionFiltrados = tieneAnillo
             ? (yaTraeAnillo ? parametrosInspeccion : baseSinAnillo.concat(['Anillo retenedor']))
             : baseSinAnillo;
+
+        // Regla: Insertos
+        // - Para todos los TUBO 4206: quitar el parámetro de insertos
+        // - Para TUBO 1502 y 602: asegurar que sí exista el parámetro de insertos
+        try {
+            const productoUpper = (get(idxProducto) || '').toString().toUpperCase().trim();
+            const descUpper = (get(idxDescripcion) || '').toString().toUpperCase();
+            const esTubo = productoUpper.includes('TUBO') || /^TUBO\b/.test(productoUpper);
+            const es4206 = /\b4206\b/.test(descUpper) || /\b4\s*206\b/.test(descUpper);
+            const es1502 = /\b1502\b/.test(descUpper) || /\b1\s*502\b/.test(descUpper);
+            const es602 = /\b602\b/.test(descUpper) || /\b6\s*02\b/.test(descUpper);
+
+            const isInsertos = (p) => {
+                const np = normParam(p);
+                return !!(np && (np.includes('insertos') || np.includes('inserto')));
+            };
+            const sinInsertos = (arr) => (arr || []).filter(p => !isInsertos(p));
+            const traeInsertos = (arr) => (arr || []).some(p => isInsertos(p));
+
+            if (esTubo && es4206) {
+                parametrosInspeccionFiltrados = sinInsertos(parametrosInspeccionFiltrados);
+            } else if (esTubo && (es1502 || es602)) {
+                if (!traeInsertos(parametrosInspeccionFiltrados)) {
+                    parametrosInspeccionFiltrados = parametrosInspeccionFiltrados.concat(['Insertos']);
+                }
+            }
+        } catch {}
 
         // Duplicar 'Área de sellado' -> 'Área de sellado A' y 'Área de sellado B' para productos aplicables (CA, CE, DSA, Brida de paso)
         const productoStr = (get(idxProducto) || '').toString().toUpperCase();
