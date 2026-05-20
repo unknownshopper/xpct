@@ -95,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let headers = [];
     let formatosPorCodigo = {};
     let mapaDanos = []; // [{ match: 'recubrimiento', opciones: [...] }]
+    let anilloRetenedorPorActivo = new Map();
     let inventarioCargado = false;
     let formatosCargados = false;
     let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
@@ -2250,6 +2251,45 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => {
             console.warn('No se pudo cargar docs/danos.csv para diagnóstico', err);
         });
+
+    // Cargar tabla de Anillo retenedor por activo (override de parámetros)
+    fetch('docs/TUBERIA4206conanilloretenedor.csv', { cache: 'no-store' })
+        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar TUBERIA4206conanilloretenedor.csv')))
+        .then(txt => {
+            try {
+                const lineas = String(txt || '').split(/\r?\n/).filter(l => l.trim() !== '');
+                if (!lineas.length) {
+                    anilloRetenedorPorActivo = new Map();
+                    return;
+                }
+                const h = parseCSVLine(lineas[0]).map(x => String(x || '').trim().toUpperCase());
+                const idxActivo = h.indexOf('ACTIVO');
+                const idxAnillo = h.indexOf('ANILLO RETENEDOR');
+                if (idxActivo < 0 || idxAnillo < 0) {
+                    anilloRetenedorPorActivo = new Map();
+                    return;
+                }
+                const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+                const m = new Map();
+                lineas.slice(1).forEach(l => {
+                    const cols = parseCSVLine(l);
+                    const activo = idxActivo >= 0 ? (cols[idxActivo] || '') : '';
+                    const anillo = idxAnillo >= 0 ? (cols[idxAnillo] || '') : '';
+                    const k = normKey(activo);
+                    if (!k) return;
+                    const v = String(anillo || '').trim().toUpperCase();
+                    if (v === 'SI' || v === 'S' || v === 'YES' || v === 'Y' || v === '1' || v === 'TRUE') m.set(k, true);
+                    else if (v === 'NO' || v === 'N' || v === '0' || v === 'FALSE') m.set(k, false);
+                });
+                anilloRetenedorPorActivo = m;
+            } catch {
+                anilloRetenedorPorActivo = new Map();
+            }
+        })
+        .catch(err => {
+            console.warn('No se pudo cargar docs/TUBERIA4206conanilloretenedor.csv', err);
+            anilloRetenedorPorActivo = new Map();
+        });
     
     // Cuando el usuario escribe y elige un equipo en el input/datalist
     function actualizarDetalleDesdeInput() {
@@ -2373,30 +2413,30 @@ document.addEventListener('DOMContentLoaded', () => {
             return true;
         });
 
-        // Regla: Anillo retenedor solo aplica a PUP 4 206 (lista/rango confirmado)
-        const equipoStrUpper = String(valor || '').toUpperCase();
-        const descUpper = (get(idxDescripcion) || '').toString().toUpperCase();
-        const esPup = /^PCT-PUP-\d{3,4}$/.test(equipoStrUpper);
-        const es4206 = /\b4\s*206\b/.test(descUpper);
-        let pupNum = null;
-        if (esPup) {
-            const m = equipoStrUpper.match(/^PCT-PUP-(\d{3,4})$/);
-            if (m) pupNum = parseInt(m[1], 10);
-        }
         const normParam = (s) => (s || '')
             .toString()
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .trim();
-        const pup4206ConAnillo = !!(esPup && es4206 && typeof pupNum === 'number' && !isNaN(pupNum) && pupNum >= 317 && pupNum <= 446);
-        const parametrosInspeccionFiltrados = pup4206ConAnillo
-            ? parametrosInspeccion
-            : parametrosInspeccion.filter(p => {
-                const np = normParam(p);
-                if (!np) return true;
-                return !np.includes('anillo retenedor');
-            });
+
+        // Regla: parámetro "Anillo retenedor" definido por CSV (SI/NO) por activo
+        const kActivo = norm(valor);
+        const tieneAnillo = (anilloRetenedorPorActivo && anilloRetenedorPorActivo.has(kActivo))
+            ? !!anilloRetenedorPorActivo.get(kActivo)
+            : false;
+        const baseSinAnillo = parametrosInspeccion.filter(p => {
+            const np = normParam(p);
+            if (!np) return true;
+            return !np.includes('anillo retenedor');
+        });
+        const yaTraeAnillo = parametrosInspeccion.some(p => {
+            const np = normParam(p);
+            return !!(np && np.includes('anillo retenedor'));
+        });
+        const parametrosInspeccionFiltrados = tieneAnillo
+            ? (yaTraeAnillo ? parametrosInspeccion : baseSinAnillo.concat(['Anillo retenedor']))
+            : baseSinAnillo;
 
         // Duplicar 'Área de sellado' -> 'Área de sellado A' y 'Área de sellado B' para productos aplicables (CA, CE, DSA, Brida de paso)
         const productoStr = (get(idxProducto) || '').toString().toUpperCase();
