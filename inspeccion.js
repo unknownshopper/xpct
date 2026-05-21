@@ -12,11 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let terceroPropiedadUrl = '';
     let terceroConfiguracionUrl = '';
     let terceroDescripcionUrl = '';
+    let terceroEquipoUrl = '';
     try {
         const p = new URLSearchParams(window.location.search || '');
         terceroPropiedadUrl = (p.get('terceroPropiedad') || '').toString().trim();
         terceroConfiguracionUrl = (p.get('terceroConfiguracion') || '').toString().trim();
         terceroDescripcionUrl = (p.get('terceroDescripcion') || '').toString().trim();
+        terceroEquipoUrl = (p.get('terceroEquipo') || '').toString().trim();
     } catch {}
 
     let isViewMode = false;
@@ -34,8 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const paramsEq = new URLSearchParams(window.location.search || '');
         const eqUrl = (paramsEq.get('equipo') || '').toString().trim();
-        if (eqUrl && inputEquipo) {
-            inputEquipo.value = eqUrl;
+        if (inputEquipo) {
+            if (eqUrl) {
+                inputEquipo.value = eqUrl;
+            } else if (terceroEquipoUrl) {
+                inputEquipo.value = `TERCERO ${terceroEquipoUrl}`;
+            }
             try { inputEquipo.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
         }
     } catch {}
@@ -1022,6 +1028,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const items = filtrarEquiposActivos(inputEquipo.value);
                 showEquipoDropdown(items);
             } catch {}
+        });
+
+        inputEquipo.addEventListener('change', () => {
+            try { hideEquipoDropdown(); } catch {}
+        });
+
+        inputEquipo.addEventListener('blur', () => {
+            try { hideEquipoDropdown(); } catch {}
         });
     }
 
@@ -2415,13 +2429,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if (!fila) {
+            // Regla: si no existe en inventario, tratarlo como TERCERO automáticamente
             if (!esEquipoTercero) {
-                detalleContenedor.innerHTML = '<p>No se encontró información para el equipo seleccionado.</p>';
-                if (btnGuardar) btnGuardar.disabled = true;
-                mostrarEstadoPruebasEnDetalle(valor);
-                return;
+                esEquipoTercero = true;
+                try { terceroEquipoUrl = String(valor || '').trim(); } catch {}
+                try {
+                    if (inputEquipo) {
+                        const ref = String(valor || '').trim();
+                        inputEquipo.value = ref ? `TERCERO ${ref}` : 'TERCERO';
+                    }
+                } catch {}
             }
-            // Para TERCERO: permitir capturar inspección mínima (Estado General + comentarios)
+            // Para TERCERO: permitir capturar inspección (datos tercero + estado general + observaciones)
             fila = [];
         }
 
@@ -2985,7 +3004,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return !!s.trim();
         };
 
-        const equipoDisplay = esEquipoTercero ? 'TERCERO' : get(idxEquipo);
+        const equipoDisplay = esEquipoTercero
+            ? `TERCERO${terceroEquipoUrl ? ` ${terceroEquipoUrl}` : ''}`
+            : get(idxEquipo);
         const productoDisplay = esEquipoTercero ? '—' : get(idxProducto);
         const serialDisplay = esEquipoTercero ? '—' : get(idxSerial);
         const descBase = esEquipoTercero ? (terceroDescripcionUrl || 'EQUIPO DE TERCERO') : get(idxDescripcion);

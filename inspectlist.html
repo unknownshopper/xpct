@@ -1133,10 +1133,15 @@
                     let lugar = insp?.ubicacion || act.ubicacion || '';
                     if (String(lugar || '').trim().toUpperCase() === 'SIN GPS') lugar = '';
                     const equipo = insp?.equipo || act.equipo || '';
-                    const esTercero = ((act?.tipo || '').toString().trim().toUpperCase() === 'TERCERO') || (String(equipo || '').trim().toUpperCase() === 'TERCERO');
+                    const actTipoUp = (act?.tipo || '').toString().trim().toUpperCase();
+                    const equipoUp = (String(equipo || '').trim().toUpperCase());
+                    const invKeyEq = normKeyCompact(equipo);
+                    const noEnInventario = !!(equipo && invKeyEq && !(equipoPorKey && equipoPorKey.has(invKeyEq)));
+                    const esTercero = (actTipoUp === 'TERCERO') || (equipoUp === 'TERCERO') || noEnInventario;
                     const terceroPropiedad = (insp?.terceroPropiedad || act?.terceroPropiedad || '').toString().trim();
                     const terceroDescripcion = (insp?.terceroDescripcion || act?.terceroDescripcion || '').toString().trim();
                     const terceroConfiguracion = (insp?.terceroConfiguracion || act?.terceroConfiguracion || '').toString().trim();
+                    const terceroEquipoRef = ((actTipoUp === 'TERCERO' || noEnInventario) && equipoUp && equipoUp !== 'TERCERO') ? String(equipo || '').trim() : '';
                     const terceroOs = (act?.os || insp?.os || '').toString().trim();
                     const terceroOc = (act?.ordenSuministro || insp?.ordenSuministro || '').toString().trim();
                     const terceroFactura = (act?.factura || insp?.factura || act?.estCot || insp?.estCot || '').toString().trim();
@@ -1144,7 +1149,7 @@
                         const id = (act?.id || '').toString().trim();
                         return id ? id.slice(0, 6) : '';
                     })();
-                    const terceroTag = terceroDescripcion || terceroPropiedad || terceroOs || terceroOc || terceroFactura || (terceroIdShort ? `ACT ${terceroIdShort}` : '');
+                    const terceroTag = terceroDescripcion || terceroPropiedad || terceroEquipoRef || terceroOs || terceroOc || terceroFactura || (terceroIdShort ? `ACT ${terceroIdShort}` : '');
                     const equipoDisplay = esTercero
                         ? `TERCERO${terceroTag ? ` · ${terceroTag}` : ''}`
                         : equipo;
@@ -1250,6 +1255,7 @@
                         tr.setAttribute('data-tercero-propiedad', terceroPropiedad);
                         tr.setAttribute('data-tercero-descripcion', terceroDescripcion);
                         tr.setAttribute('data-tercero-configuracion', terceroConfiguracion);
+                        tr.setAttribute('data-tercero-equipo', terceroEquipoRef);
                     }
                     if (insp && insp.id) {
                         tr.classList.add('insp-fila-realizada');
@@ -1588,9 +1594,11 @@
                     const tp = (tr.getAttribute('data-tercero-propiedad') || '').toString().trim();
                     const td = (tr.getAttribute('data-tercero-descripcion') || '').toString().trim();
                     const tc = (tr.getAttribute('data-tercero-configuracion') || '').toString().trim();
+                    const teq = (tr.getAttribute('data-tercero-equipo') || '').toString().trim();
                     if (tp) url += `&terceroPropiedad=${encodeURIComponent(tp)}`;
                     if (tc) url += `&terceroConfiguracion=${encodeURIComponent(tc)}`;
                     if (td) url += `&terceroDescripcion=${encodeURIComponent(td)}`;
+                    if (teq) url += `&terceroEquipo=${encodeURIComponent(teq)}`;
 
                     window.location.href = url;
                 });

@@ -163,14 +163,33 @@
 
             const data = snap.data() || {};
             const equipo = data.equipo || '';
-            if (!equipo) return;
-
+            const tipo = (data.tipo || '').toString().trim().toUpperCase();
             const inputEquipo = document.getElementById('equipo-input');
-            if (inputEquipo) {
+            if (!inputEquipo) return;
+
+            if (tipo === 'TERCERO') {
+                const terceroPropiedad = (data.terceroPropiedad || '').toString().trim();
+                const terceroDescripcion = (data.terceroDescripcion || '').toString().trim();
+                const terceroConfiguracion = (data.terceroConfiguracion || '').toString().trim();
+                const terceroEquipo = (equipo || '').toString().trim();
+
+                inputEquipo.value = terceroEquipo ? `TERCERO ${terceroEquipo}` : 'TERCERO';
+
+                try {
+                    const url = new URL(window.location.href);
+                    if (terceroPropiedad) url.searchParams.set('terceroPropiedad', terceroPropiedad);
+                    if (terceroDescripcion) url.searchParams.set('terceroDescripcion', terceroDescripcion);
+                    if (terceroConfiguracion) url.searchParams.set('terceroConfiguracion', terceroConfiguracion);
+                    if (terceroEquipo) url.searchParams.set('terceroEquipo', terceroEquipo);
+                    window.history.replaceState({}, '', url.toString());
+                } catch {}
+            } else {
+                if (!equipo) return;
                 inputEquipo.value = equipo;
-                // Disparar cambio para que script.js actualice el detalle y parámetros
-                inputEquipo.dispatchEvent(new Event('change', { bubbles: true }));
             }
+
+            // Disparar cambio para que inspeccion.js actualice el detalle y parámetros
+            inputEquipo.dispatchEvent(new Event('change', { bubbles: true }));
         } catch (e) {
             console.error('No se pudo prellenar la inspección desde la actividad seleccionada', e);
         }
