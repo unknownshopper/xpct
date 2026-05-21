@@ -48,7 +48,12 @@
       const fin = inputFin.value.trim();
       const tarifa = Number(inputTarifa.value || 0);
       const dIni = inicio ? parseFechaDdMmAa(inicio) : null;
-      const dFin = fin ? parseFechaDdMmAa(fin) : null;
+      let dFin = fin ? parseFechaDdMmAa(fin) : null;
+      // Si el fin está vacío pero hay inicio, usar HOY como fin provisional para mostrar días/importe.
+      if (!dFin && dIni) {
+        const hoy = new Date();
+        dFin = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
+      }
       let dias = 0;
       if (dIni && dFin) {
         const diffMs = dFin.getTime() - dIni.getTime();
@@ -121,6 +126,75 @@
         inputFin.addEventListener(ev, recalcularPeriodo);
         inputTarifa.addEventListener(ev, recalcularPeriodo);
       });
+
+      // Persistir tarifa diaria a nivel de actividad (actividades.precio)
+      // para que se refleje en la tabla y sirva como default de futuros periodos.
+      const persistirTarifaActividad = async () => {
+        try {
+          if (!actividadActual || !actividadActual.id) return;
+          const tarifa = Number(inputTarifa.value || 0);
+          if (isNaN(tarifa) || tarifa < 0) return;
+          actividadActual.precioDiario = tarifa;
+          try {
+            const { getFirestore, doc, updateDoc } = await import(
+              'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
+            await updateDoc(doc(db, 'actividades', actividadActual.id), { precio: tarifa });
+          } catch (e) {
+            console.warn('[tabulador] No se pudo guardar tarifa en actividad', e);
+          }
+
+          // Sincronizar UI: fila de actividad (data-precioequipo) y el input de precio
+          try {
+            const tr = tbodyActividad.querySelector(`tr[data-id="${CSS.escape(actividadActual.id)}"]`);
+            if (tr) tr.setAttribute('data-precioequipo', String(tarifa));
+            const inp = tbodyActividad.querySelector(`.adm-input-precio[data-id="${CSS.escape(actividadActual.id)}"]`);
+            if (inp) inp.value = String(tarifa || '');
+          } catch {}
+
+          try {
+            if (typeof window.__admUpdatePrecioActividad === 'function') {
+              window.__admUpdatePrecioActividad(actividadActual.id, tarifa);
+            }
+          } catch {}
+        } catch {}
+      };
+
+      const aplicarTarifaUiLocal = () => {
+        try {
+          if (!actividadActual || !actividadActual.id) return;
+          const tarifa = Number(inputTarifa.value || 0);
+          if (isNaN(tarifa) || tarifa < 0) return;
+          actividadActual.precioDiario = tarifa;
+          try {
+            const tr = tbodyActividad.querySelector(`tr[data-id="${CSS.escape(actividadActual.id)}"]`);
+            if (tr) tr.setAttribute('data-precioequipo', String(tarifa));
+            const inp = tbodyActividad.querySelector(`.adm-input-precio[data-id="${CSS.escape(actividadActual.id)}"]`);
+            if (inp) inp.value = String(tarifa || '');
+          } catch {}
+          try {
+            if (typeof window.__admUpdatePrecioActividad === 'function') {
+              window.__admUpdatePrecioActividad(actividadActual.id, tarifa);
+            }
+          } catch {}
+        } catch {}
+      };
+
+      let __tarifaT = null;
+      inputTarifa.addEventListener('input', () => {
+        try {
+          if (__tarifaT) clearTimeout(__tarifaT);
+          __tarifaT = setTimeout(() => {
+            __tarifaT = null;
+            aplicarTarifaUiLocal();
+          }, 120);
+        } catch {}
+      });
+
+      // Guardar al salir del campo o al confirmar selección (tab/enter/blur)
+      inputTarifa.addEventListener('change', () => { persistirTarifaActividad(); });
+      inputTarifa.addEventListener('blur', () => { persistirTarifaActividad(); });
 
       // Sugerir fecha de fin al corte 25 para HALLIBURTON cuando cambie inicio
       inputInicio.addEventListener('change', () => {
@@ -543,6 +617,7 @@
         await inicializarPeriodosSiNecesario(datos);
       }
 
+      // Asegurar cálculo de días/importe al abrir (si fin está vacío, se usa hoy como fin provisional)
       recalcularPeriodo();
 
       modal.style.display = 'flex';

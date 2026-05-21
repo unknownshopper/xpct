@@ -1866,9 +1866,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const equipoMostrar = normalizeEquipoCode(equipoNombre);
                 const descEfectiva = (reg.equipoDescripcion || reg.descripcion || mapaDescripcionPorEquipoList[equipoMostrar] || '').toString();
                 const eqEsTercero = (String(equipoMostrar || '').toUpperCase().trim() === 'TERCERO') || (String(equipoNombre || '').toUpperCase().trim() === 'TERCERO');
-                const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO') || eqEsTercero;
+                const noEnInventarioEq = !!(equipoMostrar && !mapaDescripcionPorEquipoList[equipoMostrar] && !(mapaSerialPorEquipoList && mapaSerialPorEquipoList[equipoMostrar]));
+                const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO') || eqEsTercero || noEnInventarioEq;
                 const terceroProp = (reg.terceroPropiedad || '').toString();
                 const terceroDesc = (reg.terceroDescripcion || '').toString();
+                const equipoDisplay = esTerceroReg && equipoMostrar && String(equipoMostrar).toUpperCase().trim() !== 'TERCERO'
+                    ? `TERCERO ${equipoMostrar}`
+                    : equipoMostrar;
                 const descCellHtml = esTerceroReg
                     ? `${descEfectiva ? escapeHtml(descEfectiva) : ''}<div style="color:#6b7280; font-size:0.75rem; line-height:1.1; margin-top:2px;">Propiedad: ${escapeHtml(terceroProp)}${terceroDesc ? ` · ${escapeHtml(terceroDesc)}` : ''}</div>`
                     : `${escapeHtml(descEfectiva)}`;
@@ -1882,7 +1886,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
                         <input type="text" class="actlist-input-area" data-id="${id}" value="${area}" style="width:100%; font-size:0.85rem; border:1px solid #e5e7eb; border-radius:0.25rem; padding:0.15rem 0.25rem;" ${(esAdmin || esDirector) ? '' : 'disabled'}>
                     </td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoMostrar}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoDisplay}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap; text-align:center;">
                         ${(() => {
                             const finTxt = (reg.terminacionServicio || '').toString().trim();
@@ -1946,7 +1950,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.setAttribute('data-cliente', __normCliList(cliente));
         tr.setAttribute('data-area', area);
         tr.setAttribute('data-ubicacion', ubicacion);
-        tr.setAttribute('data-equipo', equipoMostrar);
+        tr.setAttribute('data-equipo', equipoDisplay);
         tr.setAttribute('data-inicio', inicioTexto);
         tr.setAttribute('data-terminacion', terminacionTexto);
         tbody.appendChild(tr);

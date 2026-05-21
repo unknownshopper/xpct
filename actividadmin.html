@@ -858,6 +858,19 @@
         let filtroInicioServicio = '';
         let filtroEquipo = '';
         let filtroDescripcion = '';
+
+        try {
+            window.__admUpdatePrecioActividad = (actividadId, precio) => {
+                try {
+                    const id = (actividadId || '').toString().trim();
+                    const n = Number(precio || 0);
+                    if (!id || isNaN(n) || n < 0) return;
+                    const reg = listaActividad.find(r => r && r.id === id);
+                    if (reg) reg.precio = n;
+                    renderTabla();
+                } catch {}
+            };
+        } catch {}
         let filtroEstado = 'TODOS';
         let filtroPruebas = 'TODOS'; // VIGENTE / VENCIDA / SIN_PRUEBA / TODOS
         // null = sin orden especial, 'asc' = más antiguo primero, 'desc' = más reciente primero
@@ -1676,6 +1689,7 @@
                 // Si hay períodos, usar su fin/tipo/días como fuente de verdad y no terminacionServicio.
                 const infoPer = mapaPeriodos.get(id);
                 const termTexto = infoPer?.ultimoFin ? infoPer.ultimoFin : (reg.terminacionServicio || '');
+                const termTipo = (infoPer?.ultimoTipo || '').toString().trim().toUpperCase();
                 const os = reg.os || '';
                 const oc = reg.ordenSuministro || '';
                 const ocGrupo = reg.oc || oc;
@@ -1694,13 +1708,20 @@
                 // - Si hay terminación, días entre inicio y terminación (servicio cerrado).
                 // - Si no hay terminación, días entre inicio y hoy (servicio abierto).
                 let dias = 0;
-                if (infoPer && Number(infoPer.diasTotal || 0) > 0) {
-                    dias = Number(infoPer.diasTotal || 0);
-                } else {
+                {
                     const dInicio = parseFechaDdMmAa(inicioTexto);
                     const hoy = new Date();
                     const dHoyUtc = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()));
-                    const dFin = termTexto ? parseFechaDdMmAa(termTexto) : dHoyUtc;
+
+                    // Para estimación: si NO es FINAL, contar siempre hasta hoy.
+                    // Solo cuando es FINAL (por tabulador o por bandera en actividad) usar fecha fin registrada.
+                    const esFinal = (termTipo === 'FINAL') || (reg.terminacionEsFinal === true);
+                    let dFin = null;
+                    if (esFinal) {
+                        dFin = termTexto ? parseFechaDdMmAa(termTexto) : null;
+                    }
+                    if (!dFin) dFin = dHoyUtc;
+
                     if (dInicio && dFin) {
                         const diffMs = dFin.getTime() - dInicio.getTime();
                         const diffDias = Math.floor(diffMs / 86400000);
@@ -1726,13 +1747,26 @@
                     const equipoMostrar = eqNorm || equipoNombre;
                     const descPersist = (reg.equipoDescripcion || '').toString();
                     const descEfectiva = descPersist || descripcionBase || mapaDesc[eqNorm] || '';
-                    const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO');
+                    const noEnInventarioEq = !!(equipoMostrar && !mapaDesc[eqNorm] && !(window.mapaSerialPorEquipoAdm && window.mapaSerialPorEquipoAdm[eqNorm]));
+                    const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO') || noEnInventarioEq;
                     const terceroProp = (reg.terceroPropiedad || '').toString();
                     const terceroDesc = (reg.terceroDescripcion || '').toString();
                     let serialEq = '';
                     try {
                         serialEq = (window.mapaSerialPorEquipoAdm && window.mapaSerialPorEquipoAdm[eqNorm]) ? window.mapaSerialPorEquipoAdm[eqNorm] : '';
                     } catch {}
+                    const equipoDisplay = (() => {
+                        try {
+                            if (!esTerceroReg) return equipoMostrar;
+                            const upEq = String(equipoMostrar || '').toUpperCase().trim();
+                            const ref = (upEq === 'TERCERO')
+                                ? (serialEq || '')
+                                : String(equipoMostrar || '').trim();
+                            return ref ? `TERCERO ${ref}` : 'TERCERO';
+                        } catch {
+                            return equipoMostrar;
+                        }
+                    })();
                     const textoBuscar = `${cliente} ${area} ${ubicacion} ${equipoMostrar} ${serialEq} ${descEfectiva} ${os} ${oc} ${estCot} ${factura} ${terceroProp} ${terceroDesc}`.toLowerCase();
                     if (filtro && !textoBuscar.includes(filtro)) {
                         return;
@@ -1751,15 +1785,15 @@
                     const esFinalBase = infoPer?.ultimoTipo ? (infoPer.ultimoTipo === 'FINAL') : (reg.terminacionEsFinal === true);
                     if (!finTxtBase) {
                         totalAbiertos += ingresoEquipo;
-                        if (ingresoEquipo > 0) listAbiertos.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
+                        if (ingresoEquipo > 0) listAbiertos.push({ id, cliente, area, ubicacion, equipo: equipoDisplay, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
                     } else if (esFinalBase) {
                         totalCerrados += ingresoEquipo;
-                        if (ingresoEquipo > 0) listCerrados.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
+                        if (ingresoEquipo > 0) listCerrados.push({ id, cliente, area, ubicacion, equipo: equipoDisplay, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
                     } else {
                         totalParciales += ingresoEquipo;
-                        if (ingresoEquipo > 0) listParciales.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
+                        if (ingresoEquipo > 0) listParciales.push({ id, cliente, area, ubicacion, equipo: equipoDisplay, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
                     }
-                    if (ingresoEquipo > 0) listRentas.push({ id, cliente, area, ubicacion, equipo: equipoMostrar, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
+                    if (ingresoEquipo > 0) listRentas.push({ id, cliente, area, ubicacion, equipo: equipoDisplay, inicio: inicioTexto, terminacion: termTexto, dias, precio: precioPorEquipo, ingreso: ingresoEquipo });
 
                     if (precioPorEquipo > 0) {
                         sumaPrecios += precioPorEquipo;
@@ -1876,7 +1910,7 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${ubicacion}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left;">
-                            ${equipoMostrar}
+                            ${equipoDisplay}
                         </td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:left; white-space:nowrap;">
                             ${badgePruebas}
@@ -1938,7 +1972,7 @@
                     tr.setAttribute('data-area', area);
                     tr.setAttribute('data-ubicacion', ubicacion);
                     tr.setAttribute('data-descripcion', descEfectiva || '');
-                    tr.setAttribute('data-equipo', equipoNombre);
+                    tr.setAttribute('data-equipo', equipoDisplay);
                     tr.setAttribute('data-precioequipo', String(precioPorEquipo));
                     tr.setAttribute('data-os', os);
                     tr.setAttribute('data-inicio', inicioTexto);

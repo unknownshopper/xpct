@@ -726,7 +726,17 @@
     function recalcPeriodoUI() {
       const ini = norm(tabInicio && tabInicio.value);
       const fin = norm(tabFin && tabFin.value);
-      const dias = (ini && fin) ? diasEntre(ini, fin) : 0;
+      let finCalc = fin;
+      if (ini && !finCalc) {
+        try {
+          const hoy = new Date();
+          const dd = String(hoy.getDate()).padStart(2, '0');
+          const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+          const aa = String(hoy.getFullYear() % 100).padStart(2, '0');
+          finCalc = `${dd}/${mm}/${aa}`;
+        } catch {}
+      }
+      const dias = (ini && finCalc) ? diasEntre(ini, finCalc) : 0;
       if (tabDias) tabDias.value = dias ? String(dias) : '';
       const tarifa = tabTarifa ? Number(tabTarifa.value || 0) : 0;
       const imp = (dias && tarifa) ? (dias * tarifa) : 0;
@@ -862,7 +872,12 @@
         const cli = norm(reg.cliente || '');
         const oc = norm(reg.oc || '');
         const os = norm(reg.os || '');
-        tabHeader.textContent = `${cli} · ${eq} · OC ${oc}${os ? ` · OS ${os}` : ''} · ID ${String(reg.id || '')}`;
+        let serial = norm(reg.serial || mapaSerialPorEquipo[eq] || '');
+        if (!serial && normKey(eq) === 'TERCERO') {
+          serial = inferSerialTercero(reg.descripcion || '');
+        }
+        const eqDisp = (normKey(eq) === 'TERCERO' && serial) ? `TERCERO ${serial}` : eq;
+        tabHeader.textContent = `${cli} · ${eqDisp} · OC ${oc}${os ? ` · OS ${os}` : ''} · ID ${String(reg.id || '')}`;
       }
       if (tabModal) tabModal.style.display = 'flex';
       const per = await cargarPeriodosActividad(reg.id);
@@ -1161,73 +1176,69 @@
       return true;
     }
 
+    function inferSerialTercero(descRaw) {
+      const desc = norm(String(descRaw || '')).toUpperCase();
+      if (!desc) return '';
+
+      // Buscar el mejor candidato tipo serial basado en segmentos con guiones.
+      // Ejemplos esperados:
+      // - PCTHKMK-BR-343
+      // - PCTHKMK-TP4602-027
+      // - MSSCT-TP4206-008
+      // - PCT-24-4206-P-002
+      const parts = desc
+        .split('-')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(s => s.replace(/[^A-Z0-9]/g, ''))
+        .filter(Boolean);
+
+      if (parts.length < 2) return '';
+
+      const preferredPrefixes = ['PCTHKMK', 'PCT', 'MSSCT', 'MSCTT', 'MS'];
+
+      const scoreCandidate = (segs) => {
+        const cand = segs.join('-');
+        let score = 0;
+        // Debe tener al menos una letra y un dígito para parecer serial real
+        if (/[A-Z]/.test(cand)) score += 2;
+        if (/\d/.test(cand)) score += 2;
+        // Más segmentos generalmente mejor
+        score += Math.min(6, segs.length * 2);
+        // Longitud
+        score += Math.min(10, Math.floor(cand.length / 4));
+        // Preferir prefijos conocidos
+        const first = segs[0] || '';
+        const prefIdx = preferredPrefixes.indexOf(first);
+        if (prefIdx >= 0) score += (20 - prefIdx); // PCTHKMK mayor prioridad
+        // Penalizar candidatos que sean demasiado cortos o solo números
+        if (/^\d+$/.test(cand)) score -= 50;
+        if (cand.length < 6) score -= 10;
+        return score;
+      };
+
+      let bestCand = '';
+      let bestScore = -1e9;
+
+      // Probar ventanas de 2 a 5 segmentos para reconstruir serial completo
+      for (let start = 0; start < parts.length; start++) {
+        for (let len = 2; len <= 5; len++) {
+          const segs = parts.slice(start, start + len);
+          if (segs.length < 2) continue;
+          const score = scoreCandidate(segs);
+          if (score > bestScore) {
+            bestScore = score;
+            bestCand = segs.join('-');
+          }
+        }
+      }
+      return bestCand;
+    }
+
     function renderPendientes() {
       const filtro = normKey(inpFiltro && inpFiltro.value);
       const modo = normKey(selModo && selModo.value) || 'PENDIENTES';
       const allRows = (Array.isArray(listaActividad) ? listaActividad : []);
-
-      const inferSerialTercero = (descRaw) => {
-        const desc = norm(String(descRaw || '')).toUpperCase();
-        if (!desc) return '';
-
-        // Buscar el mejor candidato tipo serial basado en segmentos con guiones.
-        // Ejemplos esperados:
-        // - PCTHKMK-BR-343
-        // - PCTHKMK-TP4602-027
-        // - MSSCT-TP4206-008
-        // - PCT-24-4206-P-002
-        const parts = desc
-          .split('-')
-          .map(s => s.trim())
-          .filter(Boolean)
-          .map(s => s.replace(/[^A-Z0-9]/g, ''))
-          .filter(Boolean);
-
-        if (parts.length < 2) return '';
-
-        const preferredPrefixes = ['PCTHKMK', 'PCT', 'MSSCT', 'MSCTT', 'MS'];
-
-        const scoreCandidate = (segs) => {
-          const cand = segs.join('-');
-          let score = 0;
-          // Debe tener al menos una letra y un dígito para parecer serial real
-          if (/[A-Z]/.test(cand)) score += 2;
-          if (/\d/.test(cand)) score += 2;
-          // Más segmentos generalmente mejor
-          score += Math.min(6, segs.length * 2);
-          // Longitud
-          score += Math.min(10, Math.floor(cand.length / 4));
-          // Preferir prefijos conocidos
-          const first = segs[0] || '';
-          const prefIdx = preferredPrefixes.indexOf(first);
-          if (prefIdx >= 0) score += (20 - prefIdx); // PCTHKMK mayor prioridad
-          // Penalizar candidatos que sean demasiado cortos o solo números
-          if (/^\d+$/.test(cand)) score -= 50;
-          if (cand.length < 6) score -= 10;
-          return score;
-        };
-
-        let bestCand = '';
-        let bestScore = -1e9;
-
-        // Probar ventanas de 2 a 5 segmentos para reconstruir serial completo
-        for (let start = 0; start < parts.length; start++) {
-          for (let len = 2; len <= 5; len++) {
-            const segs = parts.slice(start, start + len);
-            if (segs.length < len) continue;
-            // primer segmento debe tener letras
-            if (!/[A-Z]/.test(segs[0] || '')) continue;
-            const cand = segs.join('-');
-            const sc = scoreCandidate(segs);
-            if (sc > bestScore) {
-              bestScore = sc;
-              bestCand = cand;
-            }
-          }
-        }
-
-        return bestCand;
-      };
 
       let base = [];
       if (modo === 'PENDIENTES') {
@@ -1486,9 +1497,17 @@
             if (!serial && normKey(eqName) === 'TERCERO') {
               serial = inferSerialTercero(r.descripcion || '');
             }
-            const eqHtml = serial
-              ? `${eqName}<br><span style="font-size:0.75rem; color:#6b7280;">${serial}</span>`
-              : eqName;
+            const eqHtml = (() => {
+              try {
+                if (serial) {
+                  const eqLine = (normKey(eqName) === 'TERCERO') ? `TERCERO ${serial}` : eqName;
+                  return `${eqLine}<br><span style="font-size:0.75rem; color:#6b7280;" title="${serial}">${serial}</span>`;
+                }
+                return eqName;
+              } catch {
+                return eqName;
+              }
+            })();
             const descFallback = norm(r.descripcion || '') || norm(mapaDescripcionPorEquipo[eqName] || '');
             const pruebaTipo = norm(mapaUltimaPruebaTipoPorEquipo.get(eqName) || '');
             let ingresoVal = null;
@@ -1517,7 +1536,7 @@
                   value=""
                 />
               </td>
-              <td class="admx-td-nowrap">${eqHtml}</td>
+              <td class="admx-td-nowrap" title="${(normKey(eqName) === 'TERCERO' && serial) ? `TERCERO ${serial}` : eqName}">${eqHtml}</td>
               <td class="admx-td-nowrap">${pruebaTipo || 'SIN PRUEBA'}</td>
               <td>${descFallback}</td>
               <td class="admx-td-nowrap">${norm(r.fechaEmbarque || '')}</td>
@@ -1541,11 +1560,24 @@
               </td>
             `;
             tr.style.cursor = 'pointer';
-            tr.addEventListener('click', (ev) => {
+            const onOpenTab = async (ev) => {
               const t = ev && ev.target ? ev.target : null;
-              if (t && (t.tagName === 'INPUT' || t.tagName === 'BUTTON' || t.closest('input') || t.closest('button'))) return;
-              abrirTabulador(r);
-            });
+              if (!t) return;
+              // No abrir si el click viene de: checkbox selección, input editable de área, o botón eliminar
+              if (t.closest('button.admx-btn-del-act')) return;
+              if (t.closest('input[type="checkbox"]')) return;
+              if (t.closest('input[data-area-id]')) return;
+              try {
+                await abrirTabulador(r);
+              } catch (e) {
+                console.error(e);
+                const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                const msg = (e && e.message) ? String(e.message) : String(e);
+                alert(`No se pudo abrir el tabulador. ${code ? `(${code})` : ''}\n${msg}`);
+              }
+            };
+            tr.addEventListener('click', onOpenTab);
+            tr.addEventListener('touchend', onOpenTab);
 
             try {
               const btnDelAct = tr.querySelector('button.admx-btn-del-act');
