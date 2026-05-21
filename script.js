@@ -1865,7 +1865,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const esDirector = !!(window && window.isDirector);
                 const equipoMostrar = normalizeEquipoCode(equipoNombre);
                 const descEfectiva = (reg.equipoDescripcion || reg.descripcion || mapaDescripcionPorEquipoList[equipoMostrar] || '').toString();
-                const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO');
+                const eqEsTercero = (String(equipoMostrar || '').toUpperCase().trim() === 'TERCERO') || (String(equipoNombre || '').toUpperCase().trim() === 'TERCERO');
+                const esTerceroReg = ((reg.tipo || '').toString().toUpperCase() === 'TERCERO') || eqEsTercero;
                 const terceroProp = (reg.terceroPropiedad || '').toString();
                 const terceroDesc = (reg.terceroDescripcion || '').toString();
                 const descCellHtml = esTerceroReg

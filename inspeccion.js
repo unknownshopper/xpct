@@ -8,6 +8,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const tipoInspeccionSelect = document.getElementById('inspeccion-tipo');
     const tipoInspeccionChips = Array.from(document.querySelectorAll('.tipo-inspeccion-chip'));
 
+    let esEquipoTercero = false;
+    let terceroPropiedadUrl = '';
+    let terceroConfiguracionUrl = '';
+    let terceroDescripcionUrl = '';
+    try {
+        const p = new URLSearchParams(window.location.search || '');
+        terceroPropiedadUrl = (p.get('terceroPropiedad') || '').toString().trim();
+        terceroConfiguracionUrl = (p.get('terceroConfiguracion') || '').toString().trim();
+        terceroDescripcionUrl = (p.get('terceroDescripcion') || '').toString().trim();
+    } catch {}
+
     let isViewMode = false;
     try {
         const paramsUrl = new URLSearchParams(window.location.search || '');
@@ -37,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const puedeOmitirFotos = () => {
         try {
+            if (esEquipoTercero) return false;
             return !!window.isSgi;
         } catch {
             return false;
@@ -2359,6 +2371,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cuando el usuario escribe y elige un equipo en el input/datalist
     function actualizarDetalleDesdeInput() {
         const valor = inputEquipo.value.trim();
+        try {
+            const vUp = (valor || '').toString().trim().toUpperCase();
+            esEquipoTercero = (vUp === 'TERCERO') || vUp.startsWith('TERCERO ' ) || vUp.startsWith('TERCERO·') || vUp.startsWith('TERCERO-') || vUp.startsWith('TERCERO·') || vUp.startsWith('TERCERO');
+        } catch {
+            esEquipoTercero = (valor || '').toString().trim().toUpperCase() === 'TERCERO';
+        }
         if (!valor) {
             detalleContenedor.innerHTML = '<p>Seleccione un equipo para ver su información.</p>';
             if (btnGuardar) btnGuardar.disabled = true;
@@ -2397,10 +2415,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if (!fila) {
-            detalleContenedor.innerHTML = '<p>No se encontró información para el equipo seleccionado.</p>';
-            if (btnGuardar) btnGuardar.disabled = true;
-            mostrarEstadoPruebasEnDetalle(valor);
-            return;
+            if (!esEquipoTercero) {
+                detalleContenedor.innerHTML = '<p>No se encontró información para el equipo seleccionado.</p>';
+                if (btnGuardar) btnGuardar.disabled = true;
+                mostrarEstadoPruebasEnDetalle(valor);
+                return;
+            }
+            // Para TERCERO: permitir capturar inspección mínima (Estado General + comentarios)
+            fila = [];
         }
 
         // Índices de columnas relevantes
@@ -2502,6 +2524,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let parametrosInspeccionFiltrados = tieneAnillo
             ? (yaTraeAnillo ? parametrosInspeccion : baseSinAnillo.concat(['Anillo retenedor']))
             : baseSinAnillo;
+
+        // Regla TERCERO: no se inspeccionan/evalúan parámetros del formato.
+        // Solo se captura Estado General (con foto) y observaciones (obligatorias).
+        if (esEquipoTercero) {
+            parametrosInspeccionFiltrados = ['Estado General'];
+        }
 
         // Regla: Insertos
         // - Para todos los TUBO 4206: quitar el parámetro de insertos
@@ -2764,7 +2792,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ? ['Estado General'].concat(parametrosRender)
             : parametrosRender;
 
-        const parametrosHtml = parametrosRenderFinal.length
+        let parametrosHtml = parametrosRenderFinal.length
             ? `
                 <div class="parametros-inspeccion">
                     <h3>Parámetros de inspección (${reporte})</h3>
@@ -2896,6 +2924,54 @@ document.addEventListener('DOMContentLoaded', () => {
             `
             : '';
 
+        if (esEquipoTercero) {
+            const escAttr = (s) => (s == null ? '' : String(s)).replace(/"/g, '&quot;');
+            parametrosHtml = `
+                <div class="parametros-inspeccion">
+                    <h3>Datos de tercero</h3>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label style="display:block; font-size:0.85rem; font-weight:700; color:#374151; margin-bottom:4px;">Compañía de tercero</label>
+                            <input id="insp-tercero-compania" type="text" value="${escAttr(terceroPropiedadUrl)}" placeholder="Empresa propietaria" style="width:100%; padding:0.55rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.85rem; font-weight:700; color:#374151; margin-bottom:4px;">Configuración del equipo</label>
+                            <input id="insp-tercero-config" type="text" value="${escAttr(terceroConfiguracionUrl)}" placeholder="Ej. 3\" 1502, HMH, etc." style="width:100%; padding:0.55rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;">
+                        </div>
+                        <div style="grid-column:1 / -1;">
+                            <label style="display:block; font-size:0.85rem; font-weight:700; color:#374151; margin-bottom:4px;">Descripción</label>
+                            <input id="insp-tercero-desc" type="text" value="${escAttr(terceroDescripcionUrl)}" placeholder="Describe el equipo" style="width:100%; padding:0.55rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;">
+                        </div>
+                    </div>
+
+                    <h3 style="margin:0 0 8px;">Estado general</h3>
+                    <div class="parametros-tabla">
+                        <div class="parametros-header">
+                            <div class="col-nombre">Parámetro</div>
+                            <div class="col-estado">Estado</div>
+                            <div class="col-dano">Tipo de daño</div>
+                            <div class="col-evidencia">Evidencia</div>
+                        </div>
+                        <div class="parametros-fila" data-estado-general="1" data-estado-calc="BUENO">
+                            <div class="col-nombre">Estado General</div>
+                            <div class="col-estado" style="font-weight:700;">
+                                <span data-estado-general-label>BUENO</span>
+                            </div>
+                            <div class="col-dano" data-param-idx="0" style="display:none;"></div>
+                            <div class="col-evidencia" data-param-idx="0">
+                                <button type="button" class="btn btn-tomar-foto" data-idx="0">Tomar foto</button>
+                                <button type="button" class="btn btn-subir-foto" data-idx="0">Subir foto</button>
+                                <input type="file" name="param-0-foto" accept="image/*" style="display:none;">
+                                <img alt="preview" id="preview-foto-0" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
+                                <button type="button" class="btn btn-eliminar-foto" data-idx="0" style="display:none; margin-top:4px;">Eliminar foto 1</button>
+                                <button type="button" class="btn btn-modificar-foto" data-idx="0" style="display:none; margin-top:4px;">Modificar foto 1</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         const con1Val = get(idxCon1);
         const con2Val = get(idxCon2);
         const con3Val = get(idxCon3);
@@ -2909,23 +2985,33 @@ document.addEventListener('DOMContentLoaded', () => {
             return !!s.trim();
         };
 
+        const equipoDisplay = esEquipoTercero ? 'TERCERO' : get(idxEquipo);
+        const productoDisplay = esEquipoTercero ? '—' : get(idxProducto);
+        const serialDisplay = esEquipoTercero ? '—' : get(idxSerial);
+        const descBase = esEquipoTercero ? (terceroDescripcionUrl || 'EQUIPO DE TERCERO') : get(idxDescripcion);
+        const descExtra = esEquipoTercero
+            ? `
+                ${(terceroPropiedadUrl || '').trim() ? `<div style="color:#6b7280; font-size:0.85rem; margin-top:4px;">Propiedad: ${terceroPropiedadUrl}</div>` : ''}
+            `
+            : '';
+
         detalleContenedor.innerHTML = `
             <div class="detalle-grid">
                 <div class="detalle-item">
                     <div class="detalle-item-label">Equipo / activo</div>
-                    <div class="detalle-item-valor">${get(idxEquipo)}</div>
+                    <div class="detalle-item-valor">${equipoDisplay}</div>
                 </div>
                 <div class="detalle-item">
                     <div class="detalle-item-label">Producto</div>
-                    <div class="detalle-item-valor">${get(idxProducto)}</div>
+                    <div class="detalle-item-valor">${productoDisplay}</div>
                 </div>
                 <div class="detalle-item">
                     <div class="detalle-item-label">Serial</div>
-                    <div class="detalle-item-valor">${get(idxSerial)}</div>
+                    <div class="detalle-item-valor">${serialDisplay}</div>
                 </div>
                 <div class="detalle-item" style="grid-column: 1 / -1;">
                     <div class="detalle-item-label">Descripción</div>
-                    <div class="detalle-item-valor">${get(idxDescripcion)}</div>
+                    <div class="detalle-item-valor">${descBase}${descExtra}</div>
                 </div>
                 <div class="detalle-item">
                     <div class="detalle-item-label">Diámetro 1</div>
@@ -2983,7 +3069,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ${parametrosHtml}
             <div class="insp-observaciones" style="margin-top:14px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff;">
                 <h3 style="margin:0 0 8px; font-size:1rem;">OBSERVACIONES</h3>
-                <textarea id="insp-obs-text" rows="3" placeholder="Escribe observaciones generales (opcional)" style="width:100%; resize:vertical; padding:0.6rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;"></textarea>
+                <textarea id="insp-obs-text" rows="3" placeholder="${esEquipoTercero ? 'Comentarios (requerido para TERCERO)' : 'Escribe observaciones generales (opcional)'}" style="width:100%; resize:vertical; padding:0.6rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;"></textarea>
             </div>
         `;
 
@@ -4617,14 +4703,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxReporte = headers.indexOf('REPORTE P/P');
-            const fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
+            let fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
             if (!fila) {
-                try {
-                    btnGuardar.innerHTML = prevBtnHtml;
-                    btnGuardar.disabled = prevBtnDisabled;
-                } catch {}
-                guardandoInspeccion = false;
-                return;
+                // Para TERCERO: permitir guardar inspección mínima aunque no exista en inventario
+                if (esEquipoTercero && String(valor || '').toUpperCase().trim() === 'TERCERO') {
+                    fila = [];
+                } else {
+                    try {
+                        btnGuardar.innerHTML = prevBtnHtml;
+                        btnGuardar.disabled = prevBtnDisabled;
+                    } catch {}
+                    guardandoInspeccion = false;
+                    return;
+                }
             }
 
             const idxProducto = headers.indexOf('PRODUCTO');
@@ -4640,6 +4731,47 @@ document.addEventListener('DOMContentLoaded', () => {
             const parametrosCapturados = [];
             const fotosParaSubir = [];
             const obsTextoManual = (document.getElementById('insp-obs-text')?.value || '').toString().trim();
+            const terceroPropiedad = (document.getElementById('insp-tercero-compania')?.value || '').toString().trim();
+            const terceroConfiguracion = (document.getElementById('insp-tercero-config')?.value || '').toString().trim();
+            const terceroDescripcion = (document.getElementById('insp-tercero-desc')?.value || '').toString().trim();
+            if (esEquipoTercero && !obsTextoManual) {
+                alert('Para equipos de TERCERO, captura comentarios en OBSERVACIONES.');
+                try {
+                    btnGuardar.innerHTML = prevBtnHtml;
+                    btnGuardar.disabled = prevBtnDisabled;
+                } catch {}
+                guardandoInspeccion = false;
+                return;
+            }
+            if (esEquipoTercero) {
+                if (!terceroPropiedad) {
+                    alert('Para equipos de TERCERO, captura la Compañía de tercero.');
+                    try {
+                        btnGuardar.innerHTML = prevBtnHtml;
+                        btnGuardar.disabled = prevBtnDisabled;
+                    } catch {}
+                    guardandoInspeccion = false;
+                    return;
+                }
+                if (!terceroConfiguracion) {
+                    alert('Para equipos de TERCERO, captura la Configuración del equipo.');
+                    try {
+                        btnGuardar.innerHTML = prevBtnHtml;
+                        btnGuardar.disabled = prevBtnDisabled;
+                    } catch {}
+                    guardandoInspeccion = false;
+                    return;
+                }
+                if (!terceroDescripcion) {
+                    alert('Para equipos de TERCERO, captura la Descripción.');
+                    try {
+                        btnGuardar.innerHTML = prevBtnHtml;
+                        btnGuardar.disabled = prevBtnDisabled;
+                    } catch {}
+                    guardandoInspeccion = false;
+                    return;
+                }
+            }
             const inputObsFoto = document.getElementById('insp-obs-foto');
             const obsFotoBlob = (fotoObs && fotoObs.blob) ? fotoObs.blob : (inputObsFoto && inputObsFoto.files && inputObsFoto.files[0] ? inputObsFoto.files[0] : null);
             let obsFotoNombre = '';
@@ -5174,16 +5306,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 usuarioInspeccion = resolverNombreUsuarioActual() || normalizarNombreUsuario(usuarioInspeccionEmail);
             } catch {}
 
+            const equipoRegistro = (esEquipoTercero && String(valor || '').toUpperCase().trim() === 'TERCERO')
+                ? 'TERCERO'
+                : get(idxEquipo);
+            const descripcionRegistro = (esEquipoTercero && String(valor || '').toUpperCase().trim() === 'TERCERO')
+                ? (terceroDescripcion || terceroDescripcionUrl || 'EQUIPO DE TERCERO')
+                : get(idxDescripcion);
+
             const registro = {
                 fecha: new Date().toISOString(),
                 localId,
-                equipo: get(idxEquipo),
+                equipo: equipoRegistro,
                 producto: get(idxProducto),
                 serial: get(idxSerial),
-                descripcion: get(idxDescripcion),
+                descripcion: descripcionRegistro,
                 reporte: get(idxReporte),
                 tipoInspeccion,
                 parametros: parametrosCapturados,
+                terceroPropiedad: esEquipoTercero ? terceroPropiedad : '',
+                terceroConfiguracion: esEquipoTercero ? terceroConfiguracion : '',
+                terceroDescripcion: esEquipoTercero ? terceroDescripcion : '',
                 fechaEmbarque,
                 inicioServicio,
                 terminacionServicio,
