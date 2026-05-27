@@ -208,29 +208,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.addEventListener(evt, bumpActivity, { passive: true });
             });
 
-            function ensureLoginStartStamp() {
+            function loginTimeKey(uid) {
+                const u = (uid || '').toString().trim();
+                return `pct_login_time_${u || 'anon'}`;
+            }
+
+            function ensureLoginStartStamp(uid) {
                 try {
-                    const key = 'pct_login_time';
+                    // Limpiar clave legada (evita expulsiones inmediatas por timestamps viejos)
+                    try { sessionStorage.removeItem('pct_login_time'); } catch {}
+                    const key = loginTimeKey(uid);
+                    const prevUid = String(sessionStorage.getItem('pct_login_uid') || '');
+                    const curUid = (uid || '').toString();
+                    if (prevUid && curUid && prevUid !== curUid) {
+                        // Usuario cambió en la misma pestaña: reiniciar reloj
+                        try { sessionStorage.removeItem(loginTimeKey(prevUid)); } catch {}
+                        sessionStorage.setItem('pct_login_uid', curUid);
+                        sessionStorage.setItem(key, String(Date.now()));
+                        return;
+                    }
+                    if (!sessionStorage.getItem('pct_login_uid')) sessionStorage.setItem('pct_login_uid', curUid);
                     if (!sessionStorage.getItem(key)) sessionStorage.setItem(key, String(Date.now()));
                 } catch {}
             }
 
-            function loginStartMs() {
+            function loginStartMs(uid) {
                 try {
-                    const v = Number(sessionStorage.getItem('pct_login_time'));
+                    const v = Number(sessionStorage.getItem(loginTimeKey(uid)));
                     return isNaN(v) ? Date.now() : v;
                 } catch { return Date.now(); }
             }
             onAuthStateChanged(auth, async (user) => {
                 if (!user) return;
-                ensureLoginStartStamp();
+                ensureLoginStartStamp(user.uid);
 
                 auditOnce(`login_${(user.uid || '').toString().slice(0, 8)}`, 'login', null);
                 auditOnce(`pv_${currentPage}_${(user.uid || '').toString().slice(0, 8)}`, 'page_view', { currentPage });
 
                 // Expiración absoluta
                 try {
-                    if (persistPref !== 'local' && (Date.now() - loginStartMs() > ABSOLUTE_MS)) {
+                    if (persistPref !== 'local' && (Date.now() - loginStartMs(user.uid) > ABSOLUTE_MS)) {
                         await signOut(auth);
                         return;
                     }
@@ -630,7 +647,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (btnKeep) btnKeep.addEventListener('click', () => {
                         // Extender sesión: marcar actividad y reiniciar ventana absoluta
                         bumpActivity();
-                        try { sessionStorage.setItem('pct_login_time', String(Date.now())); } catch {}
+                        try {
+                            const u = auth && auth.currentUser ? auth.currentUser : null;
+                            const uid = u && u.uid ? String(u.uid) : '';
+                            if (uid) sessionStorage.setItem(loginTimeKey(uid), String(Date.now()));
+                        } catch {}
                         hideWarn();
                     });
                     if (btnClose) btnClose.addEventListener('click', hideWarn);
@@ -642,7 +663,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const now = Date.now();
                             const tIdle = INACTIVITY_MS - (now - lastActivity);
-                            const tAbs  = ABSOLUTE_MS   - (now - loginStartMs());
+                            const u = auth && auth.currentUser ? auth.currentUser : null;
+                            const uid = u && u.uid ? String(u.uid) : '';
+                            const tAbs  = ABSOLUTE_MS   - (now - (uid ? loginStartMs(uid) : now));
                             const next  = Math.min(tIdle, tAbs);
                             const s = Math.max(0, Math.floor(next / 1000));
                             const sp = warnNode && warnNode.querySelector('#pct-warn-secs');
@@ -659,7 +682,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!auth.currentUser) { hideWarn(); return; }
                     const now = Date.now();
                     const idle = now - lastActivity;
-                    const alive = now - loginStartMs();
+                    const uid = auth.currentUser && auth.currentUser.uid ? String(auth.currentUser.uid) : '';
+                    const alive = uid ? (now - loginStartMs(uid)) : 0;
                     const tIdle = INACTIVITY_MS - idle;
                     const tAbs  = ABSOLUTE_MS   - alive;
                     const next  = Math.min(tIdle, tAbs);

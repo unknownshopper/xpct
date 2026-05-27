@@ -8,6 +8,56 @@ document.addEventListener('DOMContentLoaded', () => {
     const datalistSeriales = document.getElementById('lista-seriales-pruebas');
     if (!inputEquipo || !datalistEquipos) return; // No estamos en pruebas.html
 
+    const INVENTARIO_SOURCES = [
+        'docs/fuente.csv',
+        'docs/INVENTARIOTOTAL04-202602.csv',
+        'docs/invre2.csv'
+    ];
+
+    async function fetchInventarioTexto() {
+        let lastErr = null;
+        for (const url of INVENTARIO_SOURCES) {
+            try {
+                const r = await fetch(url, { cache: 'no-store' });
+                if (!r.ok) throw new Error(`No se pudo cargar ${url}`);
+                const t = await r.text();
+                if (t && t.trim()) {
+                    // Si el archivo solo tiene cabecera (sin filas), considerarlo vacío y probar el siguiente.
+                    const lines = t.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    if (lines.length >= 2) return t;
+                }
+            } catch (e) {
+                lastErr = e;
+            }
+        }
+        if (lastErr) throw lastErr;
+        throw new Error('No se pudo cargar inventario');
+    }
+
+    const PRUEBAS_SOURCES = [
+        'docs/fuente.csv',
+        'docs/invre2.csv'
+    ];
+
+    async function fetchCatalogoPruebasTexto() {
+        let lastErr = null;
+        for (const url of PRUEBAS_SOURCES) {
+            try {
+                const r = await fetch(url, { cache: 'no-store' });
+                if (!r.ok) throw new Error(`No se pudo cargar ${url}`);
+                const t = await r.text();
+                if (t && t.trim()) {
+                    const lines = t.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    if (lines.length >= 2) return t;
+                }
+            } catch (e) {
+                lastErr = e;
+            }
+        }
+        if (lastErr) throw lastErr;
+        throw new Error('No se pudo cargar catálogo de pruebas');
+    }
+
     try {
         const q = new URLSearchParams(window.location.search || '');
         const equipoQ = (q.get('equipo') || '').trim();
@@ -64,12 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let idxInvArea = -1;
     const infoPorEquipo = {}; // { serial, propiedad, material }
     const infoPorSerial = {};
+    const pruebasPorEquipo = {}; // { [eq]: Set<string> }
+    const areasPorEquipoPrueba = {}; // { [`${eq}::${tipo}`]: Set<string> }
 
-    fetch('docs/INVENTARIOTOTAL04-202602.csv')
-        .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
-            return r.text();
-        })
+    fetchInventarioTexto()
         .then(texto => {
             const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
             if (!lineas.length) return;
@@ -184,15 +232,65 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => console.error(err));
 
+    fetchCatalogoPruebasTexto()
+        .then(texto => {
+            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lineas.length) return;
+
+            const headers = parseCSVLine(lineas[0]);
+            const filas = lineas.slice(1).map(l => parseCSVLine(l));
+
+            const idxEq = headers.indexOf('EQUIPO / ACTIVO');
+            let idxPr = headers.indexOf('PRUEBA / CALIBRACION');
+            let idxAr = headers.indexOf('ÁREA A INSPECIONAR');
+
+            if (idxEq < 0) return;
+
+            if (idxPr < 0 || idxAr < 0) {
+                const tiposValidos = ['LT', 'VT / PT / MT', 'UTT'];
+                let idxPrDet = -1;
+                let idxArDet = -1;
+                filas.forEach(cols => {
+                    for (let j = 0; j < cols.length; j++) {
+                        const val = (cols[j] || '').toString().trim().toUpperCase();
+                        if (tiposValidos.includes(val)) {
+                            if (idxPrDet === -1) idxPrDet = j;
+                            for (let k = cols.length - 1; k >= 0; k--) {
+                                const areaVal = (cols[k] || '').toString().trim();
+                                if (areaVal) { idxArDet = k; break; }
+                            }
+                            break;
+                        }
+                    }
+                });
+                if (idxPr < 0 && idxPrDet >= 0) idxPr = idxPrDet;
+                if (idxAr < 0 && idxArDet >= 0) idxAr = idxArDet;
+            }
+
+            if (idxPr < 0) return;
+
+            filas.forEach(cols => {
+                const eq = (cols[idxEq] || '').toString().trim();
+                if (!eq) return;
+                const tipo = (idxPr >= 0 ? (cols[idxPr] || '') : '').toString().trim().toUpperCase();
+                const area = (idxAr >= 0 ? (cols[idxAr] || '') : '').toString().trim();
+                if (!tipo) return;
+                if (!pruebasPorEquipo[eq]) pruebasPorEquipo[eq] = new Set();
+                pruebasPorEquipo[eq].add(tipo);
+                if (area) {
+                    const k = `${eq}::${tipo}`;
+                    if (!areasPorEquipoPrueba[k]) areasPorEquipoPrueba[k] = new Set();
+                    areasPorEquipoPrueba[k].add(area);
+                }
+            });
+        })
+        .catch(err => console.warn('[pruebas] No se pudo cargar catálogo de pruebas', err));
+
     // Mapa de info (serial, propiedad, material) por EQUIPO desde invre.csv
     const certPorSerial = {};
     const certPorEquipo = {};
 
-    fetch('docs/INVENTARIOTOTAL04-202602.csv')
-        .then(r => {
-            if (!r.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
-            return r.text();
-        })
+    fetchInventarioTexto()
         .then(texto => {
             const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
             if (!lineas.length) return;
@@ -358,7 +456,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const areaInput = document.getElementById('inv-area');
         const selDetalle = document.getElementById('inv-prueba-detalle');
         if (!equipoSel || !selPrueba || !areaInput) return;
-        if (idxInvEquipo < 0 || idxInvPrueba < 0 || idxInvArea < 0) return;
+
+        if (idxInvEquipo < 0 || idxInvPrueba < 0 || idxInvArea < 0) {
+            const tipo = (selPrueba.value || '').toString().trim().toUpperCase();
+            const k = `${equipoSel}::${tipo}`;
+            const setAreas = areasPorEquipoPrueba[k];
+            if (setAreas && setAreas.size) {
+                const first = Array.from(setAreas.values())[0] || '';
+                if (first) areaInput.value = first;
+            }
+            return;
+        }
 
         const filasCoincidentes = filasInv.filter(cols =>
             cols[idxInvEquipo] === equipoSel && cols[idxInvPrueba] === selPrueba.value
@@ -440,12 +548,22 @@ document.addEventListener('DOMContentLoaded', () => {
             selPrueba.appendChild(optVacio);
 
             const pruebasDisponibles = new Set();
-            filasInv.forEach(cols => {
-                if (idxInvEquipo >= 0 && cols[idxInvEquipo] === valor && idxInvPrueba >= 0) {
-                    const p = (cols[idxInvPrueba] || '').toString().trim().toUpperCase();
-                    if (tiposValidos.includes(p)) pruebasDisponibles.add(p);
+            if (idxInvPrueba >= 0) {
+                filasInv.forEach(cols => {
+                    if (idxInvEquipo >= 0 && cols[idxInvEquipo] === valor && idxInvPrueba >= 0) {
+                        const p = (cols[idxInvPrueba] || '').toString().trim().toUpperCase();
+                        if (tiposValidos.includes(p)) pruebasDisponibles.add(p);
+                    }
+                });
+            } else {
+                const set = pruebasPorEquipo[valor];
+                if (set && set.size) {
+                    Array.from(set.values()).forEach(p => {
+                        const up = String(p || '').trim().toUpperCase();
+                        if (tiposValidos.includes(up)) pruebasDisponibles.add(up);
+                    });
                 }
-            });
+            }
 
             pruebasDisponibles.forEach(p => {
                 const opt = document.createElement('option');
@@ -472,18 +590,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let hayDetalle = false;
 
-            // Filas VT / PT / MT del equipo
-            const filasVT = filasInv.filter(cols =>
-                idxInvEquipo >= 0 && cols[idxInvEquipo] === valor &&
-                idxInvPrueba >= 0 && (cols[idxInvPrueba] || '').toString().trim().toUpperCase() === 'VT / PT / MT'
-            );
-
-            // Conjunto de áreas únicas para VT / PT / MT (por ejemplo: CAVIDAD, CARA / P. MOJ, SOLDADURA)
             const areasUnicas = new Set();
-            filasVT.forEach(cols => {
-                const a = (cols[idxInvArea] || '').toString().trim();
-                if (a) areasUnicas.add(a);
-            });
+            if (idxInvPrueba >= 0 && idxInvArea >= 0) {
+                const filasVT = filasInv.filter(cols =>
+                    idxInvEquipo >= 0 && cols[idxInvEquipo] === valor &&
+                    idxInvPrueba >= 0 && (cols[idxInvPrueba] || '').toString().trim().toUpperCase() === 'VT / PT / MT'
+                );
+                filasVT.forEach(cols => {
+                    const a = (cols[idxInvArea] || '').toString().trim();
+                    if (a) areasUnicas.add(a);
+                });
+            } else {
+                const setAreas = areasPorEquipoPrueba[`${valor}::VT / PT / MT`];
+                if (setAreas && setAreas.size) {
+                    Array.from(setAreas.values()).forEach(a => {
+                        const aa = (a || '').toString().trim();
+                        if (aa) areasUnicas.add(aa);
+                    });
+                }
+            }
 
             areasUnicas.forEach(a => {
                 const opt = document.createElement('option');
