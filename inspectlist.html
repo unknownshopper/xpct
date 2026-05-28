@@ -626,48 +626,23 @@
                         await setDoc(doc(db, 'inspecciones', localId), payload, { merge: true });
                         patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
                         ok += 1;
-                    } catch {
+                    } catch (e) {
                         fail += 1;
                         try {
-                            failDetails.push({ localId, code: '', message: '' });
+                            const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                            const msg = (e && e.message) ? String(e.message) : '';
+                            failDetails.push({ localId, code, message: msg });
                         } catch {}
                     }
                 }
-            } catch {
+            } catch (e) {
                 fail = pendientesSync.length;
                 try {
-                    failDetails.push({ localId: '', code: 'sdk-init', message: 'No se pudo inicializar Firestore para sincronizar.' });
+                    const code = (e && (e.code || e.name)) ? String(e.code || e.name) : 'sdk-init';
+                    const msg = (e && e.message) ? String(e.message) : 'No se pudo inicializar Firestore para sincronizar.';
+                    failDetails.push({ localId: '', code, message: msg });
                 } catch {}
             }
-
-            // Re-ejecutar un loop para capturar errores reales si el catch interno no los expuso
-            try {
-                if (fail > 0) {
-                    const { getFirestore, doc, setDoc, serverTimestamp } = await import(
-                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                    );
-                    const db2 = getFirestore();
-                    for (const r of pendientesSync) {
-                        const localId2 = String(r.localId || r.id || '').trim();
-                        if (!localId2) continue;
-                        const st2 = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
-                        if (!(st2 === 'PENDING' || st2 === 'PENDING_EVID')) continue;
-                        // Si ya se marcó como SYNCED en el primer intento, saltar
-                        const nowLocal = leerListaInspeccionesLocalRaw().find(x => x && (x.localId === localId2 || x.id === localId2));
-                        const stNow = String(nowLocal && nowLocal.syncStatus ? nowLocal.syncStatus : '').trim().toUpperCase();
-                        if (stNow === 'SYNCED') continue;
-                        const payload2 = { ...r, creadoEn: serverTimestamp(), syncStatus: 'SYNCED' };
-                        try {
-                            await setDoc(doc(db2, 'inspecciones', localId2), payload2, { merge: true });
-                            patchInspeccionLocalPorId(localId2, { syncStatus: 'SYNCED' });
-                        } catch (e) {
-                            const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
-                            const msg = (e && e.message) ? String(e.message) : '';
-                            failDetails.push({ localId: localId2, code, message: msg });
-                        }
-                    }
-                }
-            } catch {}
 
             // Resumen de errores (top 3) para UX
             let resumen = '';
@@ -692,6 +667,8 @@
                         const m = x.message ? x.message : '';
                         return `${c}${id}${m ? `: ${m}` : ''}`;
                     }).join(' | ');
+                } else if (fail > 0) {
+                    resumen = 'Error desconocido al sincronizar (sin código).';
                 }
             } catch {}
 
