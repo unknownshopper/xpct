@@ -2618,9 +2618,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Para equipos A/B: intercalar Área de sellado y Espárragos/Tuercas como A luego B
             if (aplicaCaraAB) {
+                const esXO = /\bXO\b/.test(textoEquipo);
                 const resto = [];
                 let tieneSellado = false;
                 let tieneEsp = false;
+                let tieneRosca = false;
+                let tienePinon = false;
 
                 parametrosInspeccionFiltrados.forEach(p => {
                     const np = normParam(p);
@@ -2632,12 +2635,42 @@ document.addEventListener('DOMContentLoaded', () => {
                         tieneEsp = true;
                         return;
                     }
+                    if (esXO && np && np.includes('rosca')) {
+                        tieneRosca = true;
+                        return;
+                    }
+                    if (esXO && np && (np.includes('piñon') || np.includes('pinon'))) {
+                        tienePinon = true;
+                        return;
+                    }
                     resto.push(p);
                 });
 
                 const out = [];
                 if (tieneSellado) out.push('Área de sellado A');
                 if (tieneEsp) out.push('Espárragos y tuercas A');
+
+                // XO: expandir rosca/piñón por lado (A/B) según CONEXIÓN 1/2 (H/M)
+                if (esXO) {
+                    const ladoA = String(c1 || 'A').toUpperCase();
+                    const ladoB = String(c2 || 'B').toUpperCase();
+                    const roscaOut = [];
+                    const pinonOut = [];
+                    try {
+                        if (ladoA === 'H') roscaOut.push('Rosca A (H)');
+                        if (ladoA === 'M') pinonOut.push('Piñón A (M)');
+                        if (ladoB === 'H') roscaOut.push('Rosca B (H)');
+                        if (ladoB === 'M') pinonOut.push('Piñón B (M)');
+                    } catch {}
+
+                    // Si el formato traía rosca/piñón, reemplazar por el bloque completo.
+                    // Si no lo traía pero el tipo lo requiere, también agregarlo.
+                    if ((tieneRosca || tienePinon) || roscaOut.length || pinonOut.length) {
+                        roscaOut.forEach(x => out.push(x));
+                        pinonOut.forEach(x => out.push(x));
+                    }
+                }
+
                 if (tieneSellado) out.push('Área de sellado B');
                 if (tieneEsp) out.push('Espárragos y tuercas B');
                 return out.concat(resto);
