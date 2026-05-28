@@ -2670,15 +2670,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // TEEs: repetir roscas/piñones según configuración H/M.
                 if (isRosca(np)) {
-                    if (!roscaEmitted) {
-                        roscaLabels.forEach(lbl => out.push(lbl));
+                    // Emitir el bloque completo (roscas + piñones) en la primera aparición
+                    // para mantenerlos juntos operativamente.
+                    if (!roscaEmitted || !pinonEmitted) {
+                        if (!roscaEmitted) roscaLabels.forEach(lbl => out.push(lbl));
+                        if (!pinonEmitted) pinonLabels.forEach(lbl => out.push(lbl));
                         roscaEmitted = true;
+                        pinonEmitted = true;
                     }
                     return;
                 }
                 if (isPinon(np)) {
-                    if (!pinonEmitted) {
-                        pinonLabels.forEach(lbl => out.push(lbl));
+                    if (!roscaEmitted || !pinonEmitted) {
+                        if (!roscaEmitted) roscaLabels.forEach(lbl => out.push(lbl));
+                        if (!pinonEmitted) pinonLabels.forEach(lbl => out.push(lbl));
+                        roscaEmitted = true;
                         pinonEmitted = true;
                     }
                     return;
@@ -2688,8 +2694,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // Si el formato no traía explícitamente rosca/piñón, pero el tipo H/M lo requiere, agregarlos.
-            if (!roscaEmitted && roscaLabels.length) roscaLabels.forEach(lbl => out.push(lbl));
-            if (!pinonEmitted && pinonLabels.length) pinonLabels.forEach(lbl => out.push(lbl));
+            if ((!roscaEmitted || !pinonEmitted) && (roscaLabels.length || pinonLabels.length)) {
+                if (!roscaEmitted) roscaLabels.forEach(lbl => out.push(lbl));
+                if (!pinonEmitted) pinonLabels.forEach(lbl => out.push(lbl));
+            }
             return out;
         })();
 
