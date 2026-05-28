@@ -2645,6 +2645,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // TEES: 3 lados desde el tipo (p.ej. HMH)
             const out = [];
+            const isRosca = (np) => !!(np && np.includes('rosca'));
+            const isPinon = (np) => !!(np && (np.includes('piñon') || np.includes('pinon')));
+            const roscaLabels = [];
+            const pinonLabels = [];
+            try {
+                for (let i = 0; i < 3; i++) {
+                    const lado = String(teeLados[i] || '').toUpperCase();
+                    if (lado === 'H') roscaLabels.push(`Rosca ${roscaLabels.length + 1} (H)`);
+                    if (lado === 'M') pinonLabels.push(`Piñón ${pinonLabels.length + 1} (M)`);
+                }
+            } catch {}
+
+            let roscaEmitted = false;
+            let pinonEmitted = false;
             parametrosInspeccionFiltrados.forEach(p => {
                 const np = normParam(p);
                 if (isAreaSellado(np)) {
@@ -2653,8 +2667,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     out.push(`Área de sellado 3 (${teeLados[2] || '3'})`);
                     return;
                 }
+
+                // TEEs: repetir roscas/piñones según configuración H/M.
+                if (isRosca(np)) {
+                    if (!roscaEmitted) {
+                        roscaLabels.forEach(lbl => out.push(lbl));
+                        roscaEmitted = true;
+                    }
+                    return;
+                }
+                if (isPinon(np)) {
+                    if (!pinonEmitted) {
+                        pinonLabels.forEach(lbl => out.push(lbl));
+                        pinonEmitted = true;
+                    }
+                    return;
+                }
+
                 out.push(p);
             });
+
+            // Si el formato no traía explícitamente rosca/piñón, pero el tipo H/M lo requiere, agregarlos.
+            if (!roscaEmitted && roscaLabels.length) roscaLabels.forEach(lbl => out.push(lbl));
+            if (!pinonEmitted && pinonLabels.length) pinonLabels.forEach(lbl => out.push(lbl));
             return out;
         })();
 
@@ -3949,6 +3984,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSwitch.style.display = 'none';
             const btnCancel = document.createElement('button'); btnCancel.textContent = 'Cancelar';
             const btnSnap = document.createElement('button'); btnSnap.textContent = 'Capturar';
+            btnSnap.disabled = true;
             ctrls.appendChild(btnSwitch); ctrls.appendChild(btnCancel); ctrls.appendChild(btnSnap);
             box.appendChild(video); box.appendChild(ctrls); overlay.appendChild(box); document.body.appendChild(overlay);
 
@@ -4042,6 +4078,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 video.srcObject = currentStream;
                 try { await video.play(); } catch {}
 
+                // Esperar a que el video tenga dimensiones listas (evita capturas en negro en tablets).
+                try {
+                    await new Promise((resolve) => {
+                        let done = false;
+                        const finish = () => {
+                            if (done) return;
+                            done = true;
+                            try { video.removeEventListener('loadedmetadata', finish); } catch {}
+                            try { video.removeEventListener('canplay', finish); } catch {}
+                            resolve();
+                        };
+                        if (video.videoWidth && video.videoHeight) return finish();
+                        video.addEventListener('loadedmetadata', finish, { once: true });
+                        video.addEventListener('canplay', finish, { once: true });
+                        setTimeout(finish, 1200);
+                    });
+                } catch {}
+
                 // Después de permisos, ahora sí suelen aparecer labels. Refrescar lista y deviceId actual.
                 try {
                     await refreshDevices();
@@ -4049,6 +4103,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const settings = track && track.getSettings ? track.getSettings() : null;
                     const did = settings && settings.deviceId ? String(settings.deviceId) : '';
                     if (did) currentDeviceId = did;
+                } catch {}
+
+                try {
+                    if (video.videoWidth && video.videoHeight) btnSnap.disabled = false;
                 } catch {}
             }
 
@@ -4062,6 +4120,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                     video.srcObject = currentStream;
                     try { await video.play(); } catch {}
+                    try {
+                        if (video.videoWidth && video.videoHeight) btnSnap.disabled = false;
+                        else {
+                            // Esperar un poco y habilitar si ya hay dimensiones
+                            setTimeout(() => {
+                                try { if (video.videoWidth && video.videoHeight) btnSnap.disabled = false; } catch {}
+                            }, 800);
+                        }
+                    } catch {}
                 } catch {
                     throw e;
                 }
@@ -4097,11 +4164,38 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             btnSnap.onclick = () => {
                 try {
+                    if (!video.videoWidth || !video.videoHeight) {
+                        alert('Espera a que cargue la cámara y vuelve a intentar.');
+                        return;
+                    }
                     const canvas = document.createElement('canvas');
                     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    canvas.toBlob((blob) => { if (blob) onCapture(blob); stop(); }, 'image/jpeg', 0.9);
+
+                    canvas.toBlob((blob) => {
+                        try {
+                            if (blob && blob.size) {
+                                onCapture(blob);
+                                stop();
+                                return;
+                            }
+                        } catch {}
+
+                        // Fallback para navegadores/tablets donde toBlob regresa null o blob vacío.
+                        try {
+                            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                            const arr = dataUrl.split(',');
+                            const mime = (arr[0] || '').match(/:(.*?);/);
+                            const bstr = atob(arr[1] || '');
+                            let n = bstr.length;
+                            const u8arr = new Uint8Array(n);
+                            while (n--) u8arr[n] = bstr.charCodeAt(n);
+                            const b = new Blob([u8arr], { type: (mime && mime[1]) ? mime[1] : 'image/jpeg' });
+                            if (b && b.size) onCapture(b);
+                        } catch {}
+                        stop();
+                    }, 'image/jpeg', 0.9);
                 } catch { stop(); }
             };
         }
@@ -4747,7 +4841,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const paramsUrlSave = new URLSearchParams(window.location.search || '');
             const inspIdUrlSave = (paramsUrlSave.get('inspId') || '').trim();
-            const localId = inspIdUrlSave || generarIdLocal('insp');
+            // Evitar duplicados por doble-tap o listeners duplicados: fijar un ID estable en el botón.
+            let localId = inspIdUrlSave;
+            try {
+                if (!localId) {
+                    const existing = (btnGuardar && btnGuardar.dataset && btnGuardar.dataset.inspLocalId)
+                        ? String(btnGuardar.dataset.inspLocalId).trim()
+                        : '';
+                    if (existing) localId = existing;
+                }
+            } catch {}
+            if (!localId) {
+                localId = generarIdLocal('insp');
+                try {
+                    if (btnGuardar && btnGuardar.dataset) btnGuardar.dataset.inspLocalId = localId;
+                } catch {}
+            }
             const isEditingExisting = !!inspIdUrlSave;
             const parametrosCapturados = [];
             const fotosParaSubir = [];
