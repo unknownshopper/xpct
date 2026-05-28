@@ -17,6 +17,21 @@
             pointer-events: auto;
             transform: none !important;
         }
+
+        #insp-seccion-sync-local {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #tabla-inspecciones-sync-local td,
+        #tabla-inspecciones-sync-local th {
+            vertical-align: top;
+        }
+
+        #tabla-inspecciones-sync-local td[data-col="id"] {
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
     </style>
 </head>
 <body style="margin:0;">
@@ -93,7 +108,10 @@
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-sync-local" style="margin-bottom:0.75rem;">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
                     <h3 style="margin:0; font-size:1rem;">Pendientes de sincronizar (este dispositivo)</h3>
-                    <button type="button" class="insp-sec-toggle" data-target="insp-sync-local-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                        <button type="button" id="btn-insp-sync-retry" style="font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534;">Reintentar sincronización</button>
+                        <button type="button" class="insp-sec-toggle" data-target="insp-sync-local-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                    </div>
                 </div>
                 <div id="insp-sync-local-body">
                 <table id="tabla-inspecciones-sync-local" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
@@ -109,6 +127,7 @@
                     </thead>
                     <tbody id="tbody-inspecciones-sync-local"></tbody>
                 </table>
+                <p id="mensaje-sync-local" style="font-size:0.85rem; color:#4b5563; margin-top:0.5rem; display:none;"></p>
                 <p id="mensaje-sin-sync-local" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay inspecciones pendientes de sincronizar en este dispositivo.
                 </p>
@@ -310,6 +329,8 @@
         const msgHuerfanas = document.getElementById('mensaje-sin-huerfanas');
         const tbodySyncLocal = document.getElementById('tbody-inspecciones-sync-local');
         const msgSyncLocal = document.getElementById('mensaje-sin-sync-local');
+        const msgSyncLocalStatus = document.getElementById('mensaje-sync-local');
+        const btnSyncRetry = document.getElementById('btn-insp-sync-retry');
         const secHuerfanas = document.getElementById('insp-seccion-huerfanas');
         const secRealizadas = document.getElementById('insp-seccion-realizadas');
         const inputBuscar = document.getElementById('insp-buscar');
@@ -527,6 +548,96 @@
 
         const claveInspecciones = 'pct_inspecciones';
 
+        function leerListaInspeccionesLocalRaw() {
+            try {
+                const crudo = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
+                return Array.isArray(crudo) ? crudo : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function escribirListaInspeccionesLocalRaw(lista) {
+            try {
+                localStorage.setItem(claveInspecciones, JSON.stringify(Array.isArray(lista) ? lista : []));
+            } catch {}
+        }
+
+        function patchInspeccionLocalPorId(localId, patch) {
+            if (!localId) return;
+            const lista = leerListaInspeccionesLocalRaw();
+            const idx = lista.findIndex(r => r && (r.localId === localId || r.id === localId));
+            if (idx < 0) return;
+            lista[idx] = { ...(lista[idx] || {}), ...(patch || {}) };
+            escribirListaInspeccionesLocalRaw(lista);
+        }
+
+        async function reintentarSyncLocal() {
+            if (!btnSyncRetry) return;
+            try {
+                if (msgSyncLocalStatus) msgSyncLocalStatus.style.display = 'none';
+            } catch {}
+
+            const listaLocal = leerListaInspeccionesLocalRaw();
+            const pendientesSync = listaLocal.filter(r => {
+                const st = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
+                return (st === 'PENDING' || st === 'PENDING_EVID') && (r && (r.localId || r.id));
+            });
+
+            if (!pendientesSync.length) {
+                try {
+                    if (msgSyncLocalStatus) {
+                        msgSyncLocalStatus.textContent = 'No hay pendientes para sincronizar.';
+                        msgSyncLocalStatus.style.display = '';
+                    }
+                } catch {}
+                return;
+            }
+
+            const prevTxt = btnSyncRetry.textContent;
+            btnSyncRetry.disabled = true;
+            btnSyncRetry.textContent = 'Sincronizando…';
+
+            let ok = 0;
+            let fail = 0;
+            try {
+                const { getFirestore, doc, setDoc, serverTimestamp } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+
+                for (const r of pendientesSync) {
+                    const localId = String(r.localId || r.id || '').trim();
+                    if (!localId) continue;
+                    const payload = { ...r, creadoEn: serverTimestamp(), syncStatus: 'SYNCED' };
+                    try {
+                        await setDoc(doc(db, 'inspecciones', localId), payload, { merge: true });
+                        patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
+                        ok += 1;
+                    } catch {
+                        fail += 1;
+                    }
+                }
+            } catch {
+                fail = pendientesSync.length;
+            }
+
+            try {
+                if (msgSyncLocalStatus) {
+                    if (fail === 0) msgSyncLocalStatus.textContent = `Sincronización completada: ${ok} ok.`;
+                    else msgSyncLocalStatus.textContent = `Sincronización: ${ok} ok, ${fail} con error. Revisa conexión/sesión y reintenta.`;
+                    msgSyncLocalStatus.style.display = '';
+                }
+            } catch {}
+
+            try {
+                await cargarDatos();
+            } catch {}
+
+            btnSyncRetry.textContent = prevTxt;
+            btnSyncRetry.disabled = false;
+        }
+
         function formatearFechaRegistro(iso) {
             if (!iso) return '';
             try {
@@ -703,8 +814,7 @@
 
             // 0) Render de pendientes de sincronización local (este dispositivo)
             try {
-                const crudo = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
-                const listaLocal = Array.isArray(crudo) ? crudo : [];
+                const listaLocal = leerListaInspeccionesLocalRaw();
                 const pendientesSync = listaLocal.filter(r => {
                     const st = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
                     return st === 'PENDING' || st === 'PENDING_EVID';
@@ -735,7 +845,7 @@
                                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(tipo)}</td>
                                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(usuario)}</td>
                                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${escAttr(st)}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:0.78rem;">${escAttr(lid)}</td>
+                                    <td data-col="id" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:0.78rem;">${escAttr(lid)}</td>
                                 `;
                                 tbodySyncLocal.appendChild(tr);
                             });
@@ -785,6 +895,16 @@
 
             // 2) Leer actividades desde Firestore (si el rol lo permite)
             let actividadesPermitidas = true;
+
+            // Bind del botón de reintento (una sola vez)
+            try {
+                if (btnSyncRetry && btnSyncRetry.dataset.bound !== '1') {
+                    btnSyncRetry.dataset.bound = '1';
+                    btnSyncRetry.addEventListener('click', () => {
+                        reintentarSyncLocal();
+                    });
+                }
+            } catch {}
 
             // 5.1) Admin asigna Tipo de inspección cuando falta
             tbody.querySelectorAll('.insp-select-tipo').forEach(sel => {
