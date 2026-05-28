@@ -612,6 +612,7 @@
             let ok = 0;
             let fail = 0;
             const failDetails = [];
+            const syncedIds = new Set();
             try {
                 const { getFirestore, doc, setDoc, serverTimestamp } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -624,7 +625,7 @@
                     const payload = { ...r, creadoEn: serverTimestamp(), syncStatus: 'SYNCED' };
                     try {
                         await setDoc(doc(db, 'inspecciones', localId), payload, { merge: true });
-                        patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
+                        syncedIds.add(localId);
                         ok += 1;
                     } catch (e) {
                         fail += 1;
@@ -642,6 +643,29 @@
                     const msg = (e && e.message) ? String(e.message) : 'No se pudo inicializar Firestore para sincronizar.';
                     failDetails.push({ localId: '', code, message: msg });
                 } catch {}
+            }
+
+            // Persistir cambios a localStorage en un solo write (evita que se quede mostrando PENDING aunque haya OK)
+            let localWriteOk = true;
+            try {
+                if (syncedIds.size) {
+                    const listaNow = leerListaInspeccionesLocalRaw();
+                    const next = (Array.isArray(listaNow) ? listaNow : []).map(r => {
+                        try {
+                            if (!r) return r;
+                            const id = String(r.localId || r.id || '').trim();
+                            if (id && syncedIds.has(id)) {
+                                return { ...(r || {}), syncStatus: 'SYNCED' };
+                            }
+                            return r;
+                        } catch {
+                            return r;
+                        }
+                    });
+                    escribirListaInspeccionesLocalRaw(next);
+                }
+            } catch {
+                localWriteOk = false;
             }
 
             // Resumen de errores (top 3) para UX
@@ -676,6 +700,9 @@
                 if (msgSyncLocalStatus) {
                     if (fail === 0) msgSyncLocalStatus.textContent = `Sincronización completada: ${ok} ok.`;
                     else msgSyncLocalStatus.textContent = `Sincronización: ${ok} ok, ${fail} con error.${resumen ? ' ' + resumen : ' Revisa conexión/sesión y reintenta.'}`;
+                    if (!localWriteOk) {
+                        msgSyncLocalStatus.textContent += ' (Aviso: no se pudo actualizar localStorage; recarga la página.)';
+                    }
                     msgSyncLocalStatus.style.display = '';
                 }
             } catch {}
