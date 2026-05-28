@@ -60,12 +60,18 @@
             <div class="grid-inventario-prueba">
                 <div class="campo">
                     <label for="inv-equipo">Equipo / Activo (inventario)</label>
-                    <input type="text" id="inv-equipo" list="lista-equipos-pruebas" placeholder="Equipo/Activo (inventario)">
+                    <div class="equipo-input-wrapper">
+                        <input type="text" id="inv-equipo" list="lista-equipos-pruebas" placeholder="Equipo/Activo (inventario)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search">
+                        <div id="inv-equipo-dropdown" class="equipo-dropdown" style="display:none;"></div>
+                    </div>
                     <datalist id="lista-equipos-pruebas"></datalist>
                 </div>
                 <div class="campo">
                     <label for="inv-serial">Serial</label>
-                    <input type="text" id="inv-serial" list="lista-seriales-pruebas" placeholder="SERIAL">
+                    <div class="equipo-input-wrapper">
+                        <input type="text" id="inv-serial" list="lista-seriales-pruebas" placeholder="SERIAL" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search">
+                        <div id="inv-serial-dropdown" class="equipo-dropdown" style="display:none;"></div>
+                    </div>
                     <datalist id="lista-seriales-pruebas"></datalist>
                 </div>
 

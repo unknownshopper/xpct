@@ -5495,6 +5495,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             
             let guardadoFirestoreOk = false;
+            let lastFirestoreError = null;
             try {
                 const { getFirestore, serverTimestamp, doc, setDoc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -5685,6 +5686,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch {}
             } catch (e) {
+                lastFirestoreError = e;
                 console.warn('No se pudo guardar la inspección en Firestore, solo local:', e);
             }
 
@@ -5764,6 +5766,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnGuardar.textContent = 'Guardar inspección';
                 btnGuardar.disabled = true;
             } else {
+                let detalleError = '';
+                try {
+                    const offline = (typeof navigator !== 'undefined') ? (navigator.onLine === false) : false;
+                    const u = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
+                    const noSesion = !u;
+                    const code = (lastFirestoreError && (lastFirestoreError.code || lastFirestoreError.name)) ? String(lastFirestoreError.code || lastFirestoreError.name) : '';
+                    const msg = (lastFirestoreError && lastFirestoreError.message) ? String(lastFirestoreError.message) : '';
+                    if (offline) detalleError = 'Sin conexión (offline).';
+                    else if (noSesion) detalleError = 'Sesión no activa (vuelve a iniciar sesión).';
+                    else if (code) detalleError = `Error: ${code}${msg ? ' - ' + msg : ''}`;
+                } catch {}
+
                 detalleContenedor.innerHTML = `
                     <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #f59e0b; background:#fffbeb; text-align:center; font-size:1rem; font-weight:700; color:#92400e; margin-bottom:0.5rem;">
                         Inspección pendiente de sincronizar
@@ -5771,6 +5785,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p style="font-size:0.85rem; color:#4b5563; text-align:center;">
                         No se pudo guardar en el sistema (Firestore). Mantén la sesión abierta y revisa conexión/inicio de sesión.
                     </p>
+                    ${detalleError ? `<p style="font-size:0.78rem; color:#6b7280; text-align:center; word-break:break-word;">${escapeHtml(detalleError)}</p>` : ''}
                 `;
 
                 try {

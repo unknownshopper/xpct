@@ -4,9 +4,71 @@
 document.addEventListener('DOMContentLoaded', () => {
     const inputEquipo = document.getElementById('inv-equipo');
     const datalistEquipos = document.getElementById('lista-equipos-pruebas');
+    const equipoDropdown = document.getElementById('inv-equipo-dropdown');
     const inputSerial = document.getElementById('inv-serial');
     const datalistSeriales = document.getElementById('lista-seriales-pruebas');
+    const serialDropdown = document.getElementById('inv-serial-dropdown');
     if (!inputEquipo || !datalistEquipos) return; // No estamos en pruebas.html
+
+    const isAndroid = (() => {
+        try { return /android/i.test(navigator.userAgent || ''); } catch { return false; }
+    })();
+    const isChromeLike = (() => {
+        try { return /(chrome|crios|chromium)/i.test(navigator.userAgent || ''); } catch { return false; }
+    })();
+
+    const usarDropdownEquipo = !!(equipoDropdown && inputEquipo && isAndroid && isChromeLike);
+    const usarDropdownSerial = !!(serialDropdown && inputSerial && isAndroid && isChromeLike);
+
+    if (usarDropdownEquipo) {
+        try { inputEquipo.removeAttribute('list'); } catch {}
+        try { if (datalistEquipos) datalistEquipos.style.display = 'none'; } catch {}
+    } else {
+        try { if (datalistEquipos) datalistEquipos.style.display = ''; } catch {}
+        try { if (datalistEquipos) inputEquipo.setAttribute('list', 'lista-equipos-pruebas'); } catch {}
+    }
+
+    if (usarDropdownSerial) {
+        try { inputSerial.removeAttribute('list'); } catch {}
+        try { if (datalistSeriales) datalistSeriales.style.display = 'none'; } catch {}
+    } else {
+        try { if (datalistSeriales) datalistSeriales.style.display = ''; } catch {}
+        try { if (datalistSeriales) inputSerial.setAttribute('list', 'lista-seriales-pruebas'); } catch {}
+    }
+
+    function escapeHtml(s) {
+        return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normKey(s) {
+        return String(s || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function hideDropdown(el) {
+        if (!el) return;
+        el.style.display = 'none';
+        el.innerHTML = '';
+    }
+
+    function showDropdown(el, html) {
+        if (!el) return;
+        if (!html) {
+            hideDropdown(el);
+            return;
+        }
+        el.innerHTML = html;
+        el.style.display = '';
+    }
 
     const INVENTARIO_SOURCES = [
         'docs/fuente.csv',
@@ -108,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let filasInv = [];
     let headersInv = [];
     let idxInvEquipo = -1;
+    let idxInvSerial = -1;
     let idxInvDesc = -1;
     let idxInvEstado = -1;
     let idxInvPrueba = -1;
@@ -116,6 +179,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const infoPorSerial = {};
     const pruebasPorEquipo = {}; // { [eq]: Set<string> }
     const areasPorEquipoPrueba = {}; // { [`${eq}::${tipo}`]: Set<string> }
+
+    let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
+    let serialesActivos = []; // [{ serial, equipoId, descripcion, serialKey, equipoKey, descKey }]
 
     fetchInventarioTexto()
         .then(texto => {
@@ -129,6 +195,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Esperado por el cliente: #, EDO, PRODUCTO, SERIAL, EQUIPO / ACTIVO, DESCRIPCION, REPORTE P/P,
             // TIPO EQUIPO, ACERO y luego columnas de PRUEBA / CALIBRACION, TIPO_INSPECCION, AREA
             idxInvEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
+            idxInvSerial = headersInv.indexOf('SERIAL');
+            if (idxInvSerial < 0) {
+                idxInvSerial = headersInv.indexOf('SERIE');
+            }
+            if (idxInvSerial < 0) {
+                idxInvSerial = headersInv.indexOf('NO. SERIE');
+            }
+            if (idxInvSerial < 0) {
+                idxInvSerial = headersInv.indexOf('NO SERIE');
+            }
             idxInvDesc = headersInv.indexOf('DESCRIPCION');
             // Estado puede venir como ESTADO (versión anterior) o EDO (versión actual)
             idxInvEstado = headersInv.indexOf('ESTADO');
@@ -198,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 datalistEquipos.innerHTML = '';
                 const vistos = new Set();
+                const nextEquiposActivos = [];
                 filasInv.forEach(cols => {
                     const eq = idxInvEquipo >= 0 ? (cols[idxInvEquipo] || '') : '';
                     const desc = idxInvDesc >= 0 ? (cols[idxInvDesc] || '') : '';
@@ -210,18 +287,194 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO' && edoEfectivo !== 'WIP') return;
                     vistos.add(eq);
 
+                    nextEquiposActivos.push({
+                        equipoId: String(eq),
+                        descripcion: String(desc || ''),
+                        equipoKey: normKey(eq),
+                        descKey: normKey(desc)
+                    });
+
                     const opt = document.createElement('option');
                     opt.value = eq;
                     opt.label = desc ? `${eq} - ${desc}` : eq;
                     datalistEquipos.appendChild(opt);
                 });
+
+                equiposActivos = nextEquiposActivos;
+            }
+
+            function poblarDatalistSeriales() {
+                if (!datalistSeriales) return;
+                datalistSeriales.innerHTML = '';
+                const vistos = new Set();
+                const nextSeriales = [];
+                filasInv.forEach(cols => {
+                    const serial = idxInvSerial >= 0 ? (cols[idxInvSerial] || '') : '';
+                    const eq = idxInvEquipo >= 0 ? (cols[idxInvEquipo] || '') : '';
+                    const desc = idxInvDesc >= 0 ? (cols[idxInvDesc] || '') : '';
+                    const edo = idxInvEstado >= 0 ? (cols[idxInvEstado] || '') : '';
+                    if (!serial || vistos.has(serial)) return;
+                    // Solo seriales de equipos utilizables
+                    const edoEfectivo = String(edo || '').trim().toUpperCase();
+                    if (edoEfectivo !== 'ON' && edoEfectivo !== 'ACTIVO' && edoEfectivo !== 'WIP') return;
+                    vistos.add(serial);
+
+                    nextSeriales.push({
+                        serial: String(serial),
+                        equipoId: String(eq || ''),
+                        descripcion: String(desc || ''),
+                        serialKey: normKey(serial),
+                        equipoKey: normKey(eq),
+                        descKey: normKey(desc)
+                    });
+
+                    const opt = document.createElement('option');
+                    opt.value = serial;
+                    opt.label = eq ? `${serial} - ${eq}` : serial;
+                    datalistSeriales.appendChild(opt);
+                });
+
+                serialesActivos = nextSeriales;
+            }
+
+            function renderEquipoDropdown(query) {
+                if (!usarDropdownEquipo) return;
+                const q = normKey(query);
+                if (!q) {
+                    hideDropdown(equipoDropdown);
+                    return;
+                }
+                const items = [];
+                for (const it of equiposActivos) {
+                    if (!it) continue;
+                    if ((it.equipoKey && it.equipoKey.includes(q)) || (it.descKey && it.descKey.includes(q))) {
+                        items.push(it);
+                        if (items.length >= 120) break;
+                    }
+                }
+                if (!items.length) {
+                    hideDropdown(equipoDropdown);
+                    return;
+                }
+                const html = items.map(it => {
+                    const eq = String(it.equipoId || '');
+                    const desc = String(it.descripcion || '');
+                    const header = desc
+                        ? `<div><strong>${escapeHtml(eq)}</strong></div><div style="margin-top:2px; font-size:0.88em; color:#64748b;">${escapeHtml(desc)}</div>`
+                        : `<div><strong>${escapeHtml(eq)}</strong></div>`;
+                    return `<div class="equipo-dropdown-item" data-equipo="${escapeHtml(eq)}">${header}</div>`;
+                }).join('');
+                showDropdown(equipoDropdown, html);
+            }
+
+            function renderSerialDropdown(query) {
+                if (!usarDropdownSerial) return;
+                const q = normKey(query);
+                if (!q) {
+                    hideDropdown(serialDropdown);
+                    return;
+                }
+                const items = [];
+                for (const it of serialesActivos) {
+                    if (!it) continue;
+                    if ((it.serialKey && it.serialKey.includes(q)) || (it.equipoKey && it.equipoKey.includes(q)) || (it.descKey && it.descKey.includes(q))) {
+                        items.push(it);
+                        if (items.length >= 120) break;
+                    }
+                }
+                if (!items.length) {
+                    hideDropdown(serialDropdown);
+                    return;
+                }
+                const html = items.map(it => {
+                    const serial = String(it.serial || '');
+                    const eq = String(it.equipoId || '');
+                    const desc = String(it.descripcion || '');
+                    const header = `<div><strong>${escapeHtml(serial)}</strong></div>`
+                        + (eq ? `<div style="margin-top:2px; font-size:0.88em; color:#0f172a;">EQUIPO: ${escapeHtml(eq)}</div>` : '')
+                        + (desc ? `<div style="margin-top:2px; font-size:0.88em; color:#64748b;">${escapeHtml(desc)}</div>` : '');
+                    return `<div class="equipo-dropdown-item" data-serial="${escapeHtml(serial)}">${header}</div>`;
+                }).join('');
+                showDropdown(serialDropdown, html);
             }
 
             // Poblar inicialmente
             poblarDatalistEquipos();
+            poblarDatalistSeriales();
             // Refrescar al enfocar el campo (por si hubo cambios de estado en otra pestaña/vista)
             if (inputEquipo) {
                 inputEquipo.addEventListener('focus', poblarDatalistEquipos);
+            }
+            if (inputSerial) {
+                inputSerial.addEventListener('focus', poblarDatalistSeriales);
+            }
+
+            if (usarDropdownEquipo) {
+                try {
+                    document.addEventListener('click', (ev) => {
+                        try {
+                            const t = ev && ev.target ? ev.target : null;
+                            if (!t) return;
+                            if (t === inputEquipo) return;
+                            if (equipoDropdown && equipoDropdown.contains(t)) return;
+                            hideDropdown(equipoDropdown);
+                        } catch {}
+                    });
+                } catch {}
+
+                if (equipoDropdown) {
+                    equipoDropdown.addEventListener('mousedown', (ev) => {
+                        try {
+                            const item = ev && ev.target ? ev.target.closest('.equipo-dropdown-item') : null;
+                            if (!item) return;
+                            ev.preventDefault();
+                            const eq = item.getAttribute('data-equipo') || '';
+                            if (!eq) return;
+                            inputEquipo.value = eq;
+                            hideDropdown(equipoDropdown);
+                            inputEquipo.dispatchEvent(new Event('change'));
+                        } catch {}
+                    });
+                }
+
+                inputEquipo.addEventListener('focus', () => { try { renderEquipoDropdown(inputEquipo.value); } catch {} });
+                inputEquipo.addEventListener('input', () => { try { renderEquipoDropdown(inputEquipo.value); } catch {} });
+                inputEquipo.addEventListener('change', () => { try { hideDropdown(equipoDropdown); } catch {} });
+                inputEquipo.addEventListener('blur', () => { try { hideDropdown(equipoDropdown); } catch {} });
+            }
+
+            if (usarDropdownSerial && inputSerial) {
+                try {
+                    document.addEventListener('click', (ev) => {
+                        try {
+                            const t = ev && ev.target ? ev.target : null;
+                            if (!t) return;
+                            if (t === inputSerial) return;
+                            if (serialDropdown && serialDropdown.contains(t)) return;
+                            hideDropdown(serialDropdown);
+                        } catch {}
+                    });
+                } catch {}
+
+                if (serialDropdown) {
+                    serialDropdown.addEventListener('mousedown', (ev) => {
+                        try {
+                            const item = ev && ev.target ? ev.target.closest('.equipo-dropdown-item') : null;
+                            if (!item) return;
+                            ev.preventDefault();
+                            const serial = item.getAttribute('data-serial') || '';
+                            if (!serial) return;
+                            inputSerial.value = serial;
+                            hideDropdown(serialDropdown);
+                            inputSerial.dispatchEvent(new Event('change'));
+                        } catch {}
+                    });
+                }
+
+                inputSerial.addEventListener('focus', () => { try { renderSerialDropdown(inputSerial.value); } catch {} });
+                inputSerial.addEventListener('input', () => { try { renderSerialDropdown(inputSerial.value); } catch {} });
+                inputSerial.addEventListener('change', () => { try { hideDropdown(serialDropdown); } catch {} });
+                inputSerial.addEventListener('blur', () => { try { hideDropdown(serialDropdown); } catch {} });
             }
             // Escuchar cambios en localStorage (overrides) para refrescar en vivo
             window.addEventListener('storage', (e) => {
