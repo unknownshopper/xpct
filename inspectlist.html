@@ -90,6 +90,31 @@
                 </div>
             </section>
 
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-sync-local" style="margin-bottom:0.75rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
+                    <h3 style="margin:0; font-size:1rem;">Pendientes de sincronizar (este dispositivo)</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-sync-local-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                </div>
+                <div id="insp-sync-local-body">
+                <table id="tabla-inspecciones-sync-local" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:left; padding:0.4rem;">Fecha</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Tipo</th>
+                            <th style="text-align:left; padding:0.4rem;">Usuario</th>
+                            <th style="text-align:left; padding:0.4rem;">Estado</th>
+                            <th style="text-align:left; padding:0.4rem;">ID local</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-inspecciones-sync-local"></tbody>
+                </table>
+                <p id="mensaje-sin-sync-local" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                    No hay inspecciones pendientes de sincronizar en este dispositivo.
+                </p>
+                </div>
+            </div>
+
             <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
                 <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                     <input type="search" id="insp-buscar" placeholder="Buscar por cliente, área, equipo, lugar..." style="min-width: 260px;" autocomplete="off" list="insp-catalogo-equipos">
@@ -283,6 +308,8 @@
         const msgRealizadas = document.getElementById('mensaje-sin-realizadas');
         const tbodyHuerfanas = document.getElementById('tbody-inspecciones-huerfanas');
         const msgHuerfanas = document.getElementById('mensaje-sin-huerfanas');
+        const tbodySyncLocal = document.getElementById('tbody-inspecciones-sync-local');
+        const msgSyncLocal = document.getElementById('mensaje-sin-sync-local');
         const secHuerfanas = document.getElementById('insp-seccion-huerfanas');
         const secRealizadas = document.getElementById('insp-seccion-realizadas');
         const inputBuscar = document.getElementById('insp-buscar');
@@ -656,6 +683,8 @@
             if (msgRealizadas) msgRealizadas.style.display = 'none';
             if (tbodyHuerfanas) tbodyHuerfanas.innerHTML = '';
             if (msgHuerfanas) msgHuerfanas.style.display = 'none';
+            if (tbodySyncLocal) tbodySyncLocal.innerHTML = '';
+            if (msgSyncLocal) msgSyncLocal.style.display = 'none';
             if (lblCont) lblCont.textContent = '0 registros';
             if (chkTodos) chkTodos.checked = false;
             if (chkTodosHuerfanas) chkTodosHuerfanas.checked = false;
@@ -671,6 +700,50 @@
             try {
                 await asegurarSerialesInventario();
             } catch {}
+
+            // 0) Render de pendientes de sincronización local (este dispositivo)
+            try {
+                const crudo = JSON.parse(localStorage.getItem(claveInspecciones) || '[]');
+                const listaLocal = Array.isArray(crudo) ? crudo : [];
+                const pendientesSync = listaLocal.filter(r => {
+                    const st = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
+                    return st === 'PENDING' || st === 'PENDING_EVID';
+                });
+
+                if (tbodySyncLocal) {
+                    if (!pendientesSync.length) {
+                        if (msgSyncLocal) msgSyncLocal.style.display = '';
+                    } else {
+                        pendientesSync
+                            .slice()
+                            .sort((a, b) => {
+                                const ta = new Date(a && a.fecha ? a.fecha : 0).getTime();
+                                const tb = new Date(b && b.fecha ? b.fecha : 0).getTime();
+                                return (tb - ta);
+                            })
+                            .forEach(r => {
+                                const tr = document.createElement('tr');
+                                const fechaTxt = formatearFechaRegistro(r && r.fecha ? r.fecha : '');
+                                const equipo = (r && r.equipo) ? String(r.equipo) : '';
+                                const tipo = (r && r.tipoInspeccion) ? String(r.tipoInspeccion) : '';
+                                const usuario = (r && r.usuarioInspeccionEmail) ? String(r.usuarioInspeccionEmail) : ((r && r.usuarioInspeccion) ? String(r.usuarioInspeccion) : '');
+                                const st = (r && r.syncStatus) ? String(r.syncStatus) : '';
+                                const lid = (r && (r.localId || r.id)) ? String(r.localId || r.id) : '';
+                                tr.innerHTML = `
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${escAttr(fechaTxt)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(equipo)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(tipo)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(usuario)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${escAttr(st)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:0.78rem;">${escAttr(lid)}</td>
+                                `;
+                                tbodySyncLocal.appendChild(tr);
+                            });
+                    }
+                }
+            } catch {
+                if (msgSyncLocal) msgSyncLocal.style.display = '';
+            }
 
             // 1) Leer inspecciones desde Firestore
             let inspecciones = [];
