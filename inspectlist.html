@@ -578,6 +578,17 @@
                 if (msgSyncLocalStatus) msgSyncLocalStatus.style.display = 'none';
             } catch {}
 
+            try {
+                const u = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
+                if (!u) {
+                    if (msgSyncLocalStatus) {
+                        msgSyncLocalStatus.textContent = 'Sesión no activa. Vuelve a iniciar sesión y reintenta.';
+                        msgSyncLocalStatus.style.display = '';
+                    }
+                    return;
+                }
+            } catch {}
+
             const listaLocal = leerListaInspeccionesLocalRaw();
             const pendientesSync = listaLocal.filter(r => {
                 const st = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
@@ -600,6 +611,7 @@
 
             let ok = 0;
             let fail = 0;
+            const failDetails = [];
             try {
                 const { getFirestore, doc, setDoc, serverTimestamp } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -616,16 +628,77 @@
                         ok += 1;
                     } catch {
                         fail += 1;
+                        try {
+                            failDetails.push({ localId, code: '', message: '' });
+                        } catch {}
                     }
                 }
             } catch {
                 fail = pendientesSync.length;
+                try {
+                    failDetails.push({ localId: '', code: 'sdk-init', message: 'No se pudo inicializar Firestore para sincronizar.' });
+                } catch {}
             }
+
+            // Re-ejecutar un loop para capturar errores reales si el catch interno no los expuso
+            try {
+                if (fail > 0) {
+                    const { getFirestore, doc, setDoc, serverTimestamp } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+                    const db2 = getFirestore();
+                    for (const r of pendientesSync) {
+                        const localId2 = String(r.localId || r.id || '').trim();
+                        if (!localId2) continue;
+                        const st2 = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
+                        if (!(st2 === 'PENDING' || st2 === 'PENDING_EVID')) continue;
+                        // Si ya se marcó como SYNCED en el primer intento, saltar
+                        const nowLocal = leerListaInspeccionesLocalRaw().find(x => x && (x.localId === localId2 || x.id === localId2));
+                        const stNow = String(nowLocal && nowLocal.syncStatus ? nowLocal.syncStatus : '').trim().toUpperCase();
+                        if (stNow === 'SYNCED') continue;
+                        const payload2 = { ...r, creadoEn: serverTimestamp(), syncStatus: 'SYNCED' };
+                        try {
+                            await setDoc(doc(db2, 'inspecciones', localId2), payload2, { merge: true });
+                            patchInspeccionLocalPorId(localId2, { syncStatus: 'SYNCED' });
+                        } catch (e) {
+                            const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                            const msg = (e && e.message) ? String(e.message) : '';
+                            failDetails.push({ localId: localId2, code, message: msg });
+                        }
+                    }
+                }
+            } catch {}
+
+            // Resumen de errores (top 3) para UX
+            let resumen = '';
+            try {
+                const pick = (arr) => {
+                    const out = [];
+                    const seen = new Set();
+                    for (const it of (arr || [])) {
+                        const key = `${it.code || ''}::${it.message || ''}`;
+                        if (!key || seen.has(key)) continue;
+                        seen.add(key);
+                        out.push(it);
+                        if (out.length >= 3) break;
+                    }
+                    return out;
+                };
+                const top = pick(failDetails.filter(x => x && (x.code || x.message)));
+                if (top.length) {
+                    resumen = top.map(x => {
+                        const id = x.localId ? ` (${x.localId.slice(0, 10)}…)` : '';
+                        const c = x.code ? x.code : 'error';
+                        const m = x.message ? x.message : '';
+                        return `${c}${id}${m ? `: ${m}` : ''}`;
+                    }).join(' | ');
+                }
+            } catch {}
 
             try {
                 if (msgSyncLocalStatus) {
                     if (fail === 0) msgSyncLocalStatus.textContent = `Sincronización completada: ${ok} ok.`;
-                    else msgSyncLocalStatus.textContent = `Sincronización: ${ok} ok, ${fail} con error. Revisa conexión/sesión y reintenta.`;
+                    else msgSyncLocalStatus.textContent = `Sincronización: ${ok} ok, ${fail} con error.${resumen ? ' ' + resumen : ' Revisa conexión/sesión y reintenta.'}`;
                     msgSyncLocalStatus.style.display = '';
                 }
             } catch {}
