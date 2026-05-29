@@ -264,6 +264,7 @@
             <input id="admx-per-obs" type="text" style="width:100%; font-size:0.8rem; padding:0.25rem 0.4rem; border-radius:0.25rem; border:1px solid #d1d5db;">
           </div>
           <div style="flex:0 0 auto;">
+            <button id="admx-per-generar" type="button" style="margin-top:1rem; font-size:0.8rem; margin-right:0.35rem; background:#eff6ff; border:1px solid #bfdbfe;">Generar cortes</button>
             <button id="admx-per-limpiar" type="button" style="margin-top:1rem; font-size:0.8rem; margin-right:0.35rem; background:#fff7ed; border:1px solid #fed7aa;">Limpiar tabulador</button>
             <button id="admx-per-guardar" type="button" style="margin-top:1rem; font-size:0.8rem;">Agregar período</button>
           </div>
@@ -375,6 +376,7 @@
     const tabFactura = document.getElementById('admx-per-factura');
     const tabOc = document.getElementById('admx-per-oc');
     const tabObs = document.getElementById('admx-per-obs');
+    const btnTabGenerar = document.getElementById('admx-per-generar');
     const btnTabCerrar = document.getElementById('admx-tabulador-cerrar');
     const btnTabImprimir = document.getElementById('admx-tabulador-imprimir');
     const btnTabGuardar = document.getElementById('admx-per-guardar');
@@ -522,6 +524,62 @@
         await sleep(50);
       }
       return !!window.db;
+    }
+
+    async function initAuthAndRole() {
+      try {
+        await waitForFirebase();
+        const navEmail = document.getElementById('nav-user-email');
+        const btnLogout = document.getElementById('btn-logout');
+        const { getAuth, onAuthStateChanged, signOut } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+        const auth = getAuth();
+
+        if (btnLogout && btnLogout.dataset.bound !== '1') {
+          btnLogout.dataset.bound = '1';
+          btnLogout.addEventListener('click', async () => {
+            try { await signOut(auth); } catch {}
+            try { window.location.href = 'website.html'; } catch {}
+          });
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+          if (!user) {
+            try { window.location.href = 'website.html'; } catch {}
+            return;
+          }
+          const email = (user.email || '').toString().trim().toLowerCase();
+          try { if (navEmail) navEmail.textContent = email; } catch {}
+          window.currentUserEmail = email;
+
+          let role = '';
+          try {
+            const idTok = await user.getIdTokenResult();
+            role = (idTok && idTok.claims && idTok.claims.role) ? String(idTok.claims.role) : '';
+          } catch {}
+          role = (role || '').toString().trim().toLowerCase();
+          window.userRole = role;
+          window.isAdmin = role === 'admin';
+          window.isDirector = role === 'director';
+          window.isSupervisor = role === 'supervisor';
+          window.isInspector = role === 'inspector';
+          window.isCapturista = role === 'capturista';
+          window.isAuxger = role === 'auxger';
+          window.isVisor = role === 'visor';
+
+          // Re-evaluar controles del tabulador si el modal está abierto
+          try {
+            if (tabModal && tabModal.style.display !== 'none' && btnTabGenerar) {
+              const can = !!(window.isAdmin || window.isDirector);
+              btnTabGenerar.disabled = !can;
+              btnTabGenerar.style.opacity = can ? '1' : '0.55';
+              btnTabGenerar.style.cursor = can ? 'pointer' : 'not-allowed';
+              btnTabGenerar.title = can ? '' : 'No autorizado';
+            }
+          } catch {}
+        });
+      } catch (e) {
+        console.warn('initAuthAndRole (admax) failed', e);
+      }
     }
 
     function showMsg(text, isError) {
@@ -728,6 +786,7 @@
       const fin = norm(tabFin && tabFin.value);
       let finCalc = fin;
       if (ini && !finCalc) {
+        // Fin provisional: HOY (para cálculo inmediato de días/importe).
         try {
           const hoy = new Date();
           const dd = String(hoy.getDate()).padStart(2, '0');
@@ -823,7 +882,7 @@
       (Array.isArray(periodos) ? periodos : []).forEach(p => {
         const ini = fmtFecha(p.inicioPeriodo);
         const fin = fmtFecha(p.finPeriodo);
-        const dias = Number(p.dias || diasEntre(ini, fin) || 0);
+        const dias = Number(p.diasFacturados || p.dias || diasEntre(ini, fin) || 0);
         const tarifa = Number(p.tarifaDiaria || 0);
         const imp = Number(p.importe || (dias * tarifa) || 0);
         const tr = document.createElement('tr');
@@ -880,16 +939,247 @@
         tabHeader.textContent = `${cli} · ${eqDisp} · OC ${oc}${os ? ` · OS ${os}` : ''} · ID ${String(reg.id || '')}`;
       }
       if (tabModal) tabModal.style.display = 'flex';
-      const per = await cargarPeriodosActividad(reg.id);
+
+      // Cargar periodos: 1) desde Firestore; 2) fallback al cache en memoria (mapaPeriodosPorActividad)
+      let per = [];
+      try {
+        per = await cargarPeriodosActividad(reg.id);
+      } catch {}
+      if (!Array.isArray(per) || !per.length) {
+        try {
+          const cached = mapaPeriodosPorActividad.get(String(reg.id || '')) || [];
+          if (Array.isArray(cached) && cached.length) per = cached;
+        } catch {}
+      }
       renderTabulador(per);
+
       if (tabInicio) tabInicio.value = norm(reg.inicioServicio || '');
       if (tabFin) tabFin.value = '';
-      if (tabTipo) tabTipo.value = 'PARCIAL';
+      try {
+        if (tabFin && (!per || !per.length)) {
+          const finSug = norm(reg.terminacionServicio || '');
+          if (finSug) tabFin.value = finSug;
+        }
+      } catch {}
+      if (tabTipo) {
+        let esFinal = false;
+        try {
+          esFinal = reg.terminacionEsFinal === true;
+        } catch {}
+        try {
+          if (!esFinal && Array.isArray(per) && per.length) {
+            esFinal = per.some(p => norm(p.tipoPeriodo || '').toUpperCase() === 'FINAL');
+          }
+        } catch {}
+        tabTipo.value = esFinal ? 'FINAL' : 'PARCIAL';
+      }
       if (tabTarifa) tabTarifa.value = reg.precio != null ? String(reg.precio) : '';
       if (tabFactura) tabFactura.value = norm(reg.factura || '');
       if (tabOc) tabOc.value = norm(reg.ordenSuministro || '');
       if (tabObs) tabObs.value = '';
       recalcPeriodoUI();
+
+      try {
+        if (btnTabGenerar) {
+          const can = !!(window.isAdmin || window.isDirector);
+          btnTabGenerar.disabled = !can;
+          btnTabGenerar.style.opacity = can ? '1' : '0.55';
+          btnTabGenerar.style.cursor = can ? 'pointer' : 'not-allowed';
+          btnTabGenerar.title = can ? '' : 'No autorizado';
+        }
+      } catch {}
+    }
+
+    function finMesUtc(d) {
+      try {
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth();
+        return new Date(Date.UTC(y, m + 1, 0));
+      } catch {
+        return null;
+      }
+    }
+
+    function fechaMin(a, b) {
+      if (!a) return b;
+      if (!b) return a;
+      return (a.getTime() <= b.getTime()) ? a : b;
+    }
+
+    function diffDiasInclusivoUtc(dIni, dFin) {
+      const ms = dFin.getTime() - dIni.getTime();
+      const dd = Math.floor(ms / 86400000);
+      return dd >= 0 ? (dd + 1) : 0;
+    }
+
+    function construirCortesHalliburton(dIni, dFin) {
+      const segmentos = [];
+      let curIni = new Date(Date.UTC(dIni.getUTCFullYear(), dIni.getUTCMonth(), dIni.getUTCDate()));
+      const finGlobal = new Date(Date.UTC(dFin.getUTCFullYear(), dFin.getUTCMonth(), dFin.getUTCDate()));
+      while (curIni.getTime() <= finGlobal.getTime()) {
+        const y = curIni.getUTCFullYear();
+        const m = curIni.getUTCMonth();
+        const dia = curIni.getUTCDate();
+        let curFin;
+        if (dia <= 25) curFin = new Date(Date.UTC(y, m, 25));
+        else curFin = new Date(Date.UTC(y, m + 1, 25));
+        curFin = fechaMin(curFin, finGlobal);
+        segmentos.push({ inicio: curIni, fin: curFin });
+        const next = new Date(curFin.getTime());
+        next.setUTCDate(next.getUTCDate() + 1);
+        curIni = next;
+      }
+      return segmentos;
+    }
+
+    function construirCortesFinMes(dIni, dFin) {
+      const segmentos = [];
+      let curIni = new Date(Date.UTC(dIni.getUTCFullYear(), dIni.getUTCMonth(), dIni.getUTCDate()));
+      const finGlobal = new Date(Date.UTC(dFin.getUTCFullYear(), dFin.getUTCMonth(), dFin.getUTCDate()));
+      while (curIni.getTime() <= finGlobal.getTime()) {
+        let curFin = finMesUtc(curIni);
+        curFin = fechaMin(curFin, finGlobal);
+        segmentos.push({ inicio: curIni, fin: curFin });
+        const next = new Date(curFin.getTime());
+        next.setUTCDate(next.getUTCDate() + 1);
+        curIni = next;
+      }
+      return segmentos;
+    }
+
+    async function generarCortesActividadActual() {
+      if (!actividadTab || !actividadTab.id) { alert('No hay actividad seleccionada.'); return; }
+      if (!(window.isAdmin || window.isDirector)) { alert('No autorizado'); return; }
+
+      const iniStr = norm(tabInicio && tabInicio.value);
+      const finStr = norm(tabFin && tabFin.value);
+      const tarifa = Number(tabTarifa ? tabTarifa.value || 0 : 0);
+      const dIni = iniStr ? parseFechaDdMmAa(iniStr) : null;
+      const dFin = finStr ? parseFechaDdMmAa(finStr) : null;
+      if (!dIni || !dFin) { alert('Inicio y fin son obligatorios para generar cortes.'); return; }
+      if (dFin < dIni) { alert('La fecha fin no puede ser anterior a la fecha inicio.'); return; }
+
+      const existentes = await cargarPeriodosActividad(actividadTab.id);
+
+      const cli = (actividadTab && actividadTab.cliente) ? String(actividadTab.cliente).toUpperCase() : '';
+      const esHall = cli.includes('HALLIBURTON');
+      const segs = esHall ? construirCortesHalliburton(dIni, dFin) : construirCortesFinMes(dIni, dFin);
+      if (!segs.length) { alert('No se pudieron generar cortes.'); return; }
+
+      const expectedKey = new Set(segs.map(s => {
+        const inicioTxt = (() => {
+          const dd = String(s.inicio.getUTCDate()).padStart(2, '0');
+          const mm = String(s.inicio.getUTCMonth() + 1).padStart(2, '0');
+          const aa = String(s.inicio.getUTCFullYear() % 100).padStart(2, '0');
+          return `${dd}/${mm}/${aa}`;
+        })();
+        const finTxt2 = (() => {
+          const dd = String(s.fin.getUTCDate()).padStart(2, '0');
+          const mm = String(s.fin.getUTCMonth() + 1).padStart(2, '0');
+          const aa = String(s.fin.getUTCFullYear() % 100).padStart(2, '0');
+          return `${dd}/${mm}/${aa}`;
+        })();
+        return `${inicioTxt}|${finTxt2}`;
+      }));
+
+      const existenteKey = new Set((existentes || []).map(p => `${norm(p.inicioPeriodo||'')}|${norm(p.finPeriodo||'')}`));
+
+      // Si existen períodos pero no coinciden con los cortes esperados (p.ej. un período largo que debería dividirse), ofrecer reconstruir.
+      let modo = 'ADD_MISSING';
+      try {
+        if (existentes && existentes.length) {
+          let mismatch = false;
+          // mismatch si falta alguno esperado o si existe alguno que no está en lo esperado
+          for (const k of expectedKey) { if (!existenteKey.has(k)) { mismatch = true; break; } }
+          if (!mismatch) {
+            for (const k of existenteKey) { if (!expectedKey.has(k)) { mismatch = true; break; } }
+          }
+          if (mismatch) {
+            const okRebuild = confirm(
+              `El tabulador actual (${existentes.length} períodos) NO coincide con los cortes esperados (${expectedKey.size}).\n` +
+              `Esto puede causar 'mal tabulado'.\n\n` +
+              `¿Quieres RECONSTRUIR? (Borrará y generará de nuevo según cortes ${esHall ? 'al 25' : 'fin de mes'}).`
+            );
+            if (!okRebuild) return;
+            modo = 'REBUILD';
+          } else {
+            const ok = confirm(`Ya existen ${existentes.length} períodos y ya coinciden con cortes esperados.\n¿Agregar únicamente faltantes (si hubiera)?`);
+            if (!ok) return;
+          }
+        }
+      } catch {}
+
+      try {
+        const { getFirestore, collection, doc, setDoc, serverTimestamp, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+        const col = collection(db, 'actividadPeriodos');
+
+        if (modo === 'REBUILD' && existentes && existentes.length) {
+          // Borrar existentes
+          let batch = writeBatch(db);
+          let c = 0;
+          for (const p of existentes) {
+            if (!p || !p.id) continue;
+            batch.delete(doc(db, 'actividadPeriodos', String(p.id)));
+            c += 1;
+            if (c >= 450) {
+              await batch.commit();
+              batch = writeBatch(db);
+              c = 0;
+            }
+          }
+          if (c) await batch.commit();
+          // reset keys para recrear
+          existenteKey.clear();
+        }
+
+        for (let i = 0; i < segs.length; i++) {
+          const s = segs[i];
+          const inicioTxt = (() => {
+            const dd = String(s.inicio.getUTCDate()).padStart(2, '0');
+            const mm = String(s.inicio.getUTCMonth() + 1).padStart(2, '0');
+            const aa = String(s.inicio.getUTCFullYear() % 100).padStart(2, '0');
+            return `${dd}/${mm}/${aa}`;
+          })();
+          const finTxt2 = (() => {
+            const dd = String(s.fin.getUTCDate()).padStart(2, '0');
+            const mm = String(s.fin.getUTCMonth() + 1).padStart(2, '0');
+            const aa = String(s.fin.getUTCFullYear() % 100).padStart(2, '0');
+            return `${dd}/${mm}/${aa}`;
+          })();
+
+          const key = `${inicioTxt}|${finTxt2}`;
+          if (existenteKey.has(key)) continue;
+          existenteKey.add(key);
+
+          const dias = diffDiasInclusivoUtc(s.inicio, s.fin);
+          const importe = (dias && tarifa) ? (dias * tarifa) : 0;
+          const inicioKey = inicioTxt.replaceAll('/', '-');
+          const finKey = finTxt2.replaceAll('/', '-');
+          const periodId = `${String(actividadTab.id)}__${inicioKey}__${finKey}`;
+          await setDoc(doc(col, periodId), {
+            actividadId: actividadTab.id,
+            inicioPeriodo: inicioTxt,
+            finPeriodo: finTxt2,
+            inicioPeriodoOrdenable: s.inicio.getTime(),
+            diasFacturados: dias,
+            tarifaDiaria: tarifa,
+            importe,
+            tipoPeriodo: (i === segs.length - 1 && (tabTipo ? String(tabTipo.value || '') : '') === 'FINAL') ? 'FINAL' : 'PARCIAL',
+            factura: '',
+            oc: norm(tabOc && tabOc.value),
+            observaciones: '',
+            creadoEn: serverTimestamp(),
+          }, { merge: true });
+        }
+
+        const per = await cargarPeriodosActividad(actividadTab.id);
+        renderTabulador(per);
+        try { await cargarPeriodosParaActividades([actividadTab.id]); renderPendientes(); } catch {}
+      } catch (e) {
+        console.error(e);
+        alert('No se pudieron generar cortes.');
+      }
     }
 
     function cerrarTabulador() {
@@ -1274,7 +1564,7 @@
         arr.forEach(p => {
           const ini = norm(p.inicioPeriodo || '');
           const fin = norm(p.finPeriodo || '');
-          const d = Number(p.dias || diasEntre(ini, fin) || 0);
+          const d = Number(p.diasFacturados || p.dias || diasEntre(ini, fin) || 0);
           const i = Number(p.importe || 0);
           if (d && !isNaN(d)) dias += d;
           if (i && !isNaN(i)) imp += i;
@@ -1439,12 +1729,13 @@
             <col style="width:120px;">
             <col style="width:135px;">
             <col style="width:80px;">
-            <col style="width:360px;">
+            <col style="width:320px;">
             <col style="width:110px;">
             <col style="width:110px;">
             <col style="width:95px;">
-            <col style="width:80px;">
             <col style="width:90px;">
+            <col style="width:110px;">
+            <col style="width:140px;">
             <col style="width:120px;">
             <col style="width:120px;">
             <col style="width:120px;">
@@ -1464,8 +1755,8 @@
               <th>Inicio del servicio</th>
               <th>Parcial / Final</th>
               <th class="admx-td-right">Días en servicio</th>
-              <th class="admx-td-right">Precio</th>
-              <th class="admx-td-right">Ingreso acumulado</th>
+              <th class="admx-td-right">Tarifa</th>
+              <th class="admx-td-right">Monto acumulado</th>
               <th>OS</th>
               <th>OC cliente</th>
               <th>Est-Cot</th>
@@ -1913,6 +2204,27 @@
       }
       if (tabTarifa) {
         tabTarifa.addEventListener('input', () => recalcPeriodoUI());
+        // Persistir precio diario en la actividad para que se refleje en la tabla principal.
+        const persistirTarifa = async () => {
+          try {
+            if (!actividadTab || !actividadTab.id) return;
+            const tarifa = Number(tabTarifa.value || 0);
+            if (isNaN(tarifa) || tarifa < 0) return;
+            const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore();
+            await updateDoc(doc(db, 'actividades', String(actividadTab.id)), { precio: tarifa });
+            try {
+              actividadTab.precio = tarifa;
+              // actualizar listaActividad en memoria
+              const idx = (Array.isArray(listaActividad) ? listaActividad : []).findIndex(x => x && String(x.id || '') === String(actividadTab.id));
+              if (idx >= 0) listaActividad[idx].precio = tarifa;
+            } catch {}
+            try { renderPendientes(); } catch {}
+          } catch (e) {
+            console.warn('No se pudo guardar precio (admax)', e);
+          }
+        };
+        ['change', 'blur'].forEach(ev => tabTarifa.addEventListener(ev, persistirTarifa));
       }
 
       if (btnTabCerrar) btnTabCerrar.addEventListener('click', () => cerrarTabulador());
@@ -1925,6 +2237,12 @@
       if (btnTabImprimir) {
         btnTabImprimir.addEventListener('click', () => {
           try { window.print(); } catch {}
+        });
+      }
+
+      if (btnTabGenerar) {
+        btnTabGenerar.addEventListener('click', async () => {
+          await generarCortesActividadActual();
         });
       }
 
@@ -1951,6 +2269,15 @@
               inicioPeriodo: inicio,
               finPeriodo: fin,
               dias,
+              diasFacturados: dias,
+              inicioPeriodoOrdenable: (() => {
+                try {
+                  const d0 = parseFechaDdMmAa(inicio);
+                  return d0 ? d0.getTime() : 0;
+                } catch {
+                  return 0;
+                }
+              })(),
               tarifaDiaria: tarifa,
               importe,
               tipoPeriodo: tipo,
@@ -2255,6 +2582,7 @@
         if (selModo) selModo.value = 'PENDIENTES';
       } catch {}
       cargarDescripcionesInventario();
+      initAuthAndRole();
       cargarActividades();
     });
   })();
