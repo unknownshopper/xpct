@@ -2397,63 +2397,103 @@
         btnTabGuardar.addEventListener('click', async () => {
           if (!actividadTab || !actividadTab.id) { alert('No hay actividad seleccionada.'); return; }
           const inicio = norm(tabInicio && tabInicio.value);
-          const fin = norm(tabFin && tabFin.value);
+          let fin = norm(tabFin && tabFin.value);
           const tipo = norm(tabTipo && tabTipo.value) || 'PARCIAL';
           const tarifa = Number(tabTarifa && tabTarifa.value ? tabTarifa.value : 0);
           const factura = norm(tabFactura && tabFactura.value);
           const ocTxt = norm(tabOc && tabOc.value);
           const obs = norm(tabObs && tabObs.value);
           if (!inicio || !parseFechaDdMmAa(inicio)) { alert('Inicio inválido.'); return; }
+
+          if (!fin) {
+            try {
+              const h = new Date();
+              const hh = new Date(Date.UTC(h.getUTCFullYear(), h.getUTCMonth(), h.getUTCDate()));
+              const dd = String(hh.getUTCDate()).padStart(2, '0');
+              const mm = String(hh.getUTCMonth() + 1).padStart(2, '0');
+              const aa = String(hh.getUTCFullYear() % 100).padStart(2, '0');
+              fin = `${dd}/${mm}/${aa}`;
+              if (tabFin) tabFin.value = fin;
+            } catch {}
+          }
+
           if (!fin || !parseFechaDdMmAa(fin)) { alert('Fin inválido.'); return; }
-          const dias = diasEntre(inicio, fin);
-          const importe = (dias && tarifa) ? (dias * tarifa) : 0;
+          const dIni0 = parseFechaDdMmAa(inicio);
+          const dFin0 = parseFechaDdMmAa(fin);
+          if (!dIni0 || !dFin0) { alert('Inicio/Fin inválidos.'); return; }
+          if (dFin0 < dIni0) { alert('La fecha fin no puede ser anterior al inicio.'); return; }
+
+          const cliU = (actividadTab && actividadTab.cliente) ? String(actividadTab.cliente).toUpperCase() : '';
+          const esHall = cliU.includes('HALLIBURTON');
+          const segs = esHall ? construirCortesHalliburton(dIni0, dFin0) : construirCortesFinMes(dIni0, dFin0);
+          if (!segs.length) { alert('No se pudieron generar cortes con esas fechas.'); return; }
+
           try {
-            const { getFirestore, collection, addDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const { getFirestore, collection, doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const db = getFirestore();
             const col = collection(db, 'actividadPeriodos');
-            await addDoc(col, {
-              actividadId: actividadTab.id,
-              inicioPeriodo: inicio,
-              finPeriodo: fin,
-              dias,
-              diasFacturados: dias,
-              inicioPeriodoOrdenable: (() => {
-                try {
-                  const d0 = parseFechaDdMmAa(inicio);
-                  return d0 ? d0.getTime() : 0;
-                } catch {
-                  return 0;
-                }
-              })(),
-              tarifaDiaria: tarifa,
-              importe,
-              tipoPeriodo: tipo,
-              factura,
-              oc: ocTxt,
-              observaciones: obs,
-            });
+
+            for (let i = 0; i < segs.length; i++) {
+              const s = segs[i];
+              const dd1 = String(s.inicio.getUTCDate()).padStart(2, '0');
+              const mm1 = String(s.inicio.getUTCMonth() + 1).padStart(2, '0');
+              const aa1 = String(s.inicio.getUTCFullYear() % 100).padStart(2, '0');
+              const dd2 = String(s.fin.getUTCDate()).padStart(2, '0');
+              const mm2 = String(s.fin.getUTCMonth() + 1).padStart(2, '0');
+              const aa2 = String(s.fin.getUTCFullYear() % 100).padStart(2, '0');
+              const inicioTxt = `${dd1}/${mm1}/${aa1}`;
+              const finTxt = `${dd2}/${mm2}/${aa2}`;
+              const dias = diffDiasInclusivoUtc(s.inicio, s.fin);
+              const importe = (dias && tarifa) ? (dias * tarifa) : 0;
+              const tipoPeriodo = (String(tipo || '').toUpperCase() === 'FINAL' && i === segs.length - 1) ? 'FINAL' : 'PARCIAL';
+              const inicioKey = inicioTxt.replaceAll('/', '-');
+              const finKey = finTxt.replaceAll('/', '-');
+              const periodId = `${String(actividadTab.id)}__${inicioKey}__${finKey}`;
+
+              await setDoc(doc(col, periodId), {
+                actividadId: actividadTab.id,
+                inicioPeriodo: inicioTxt,
+                finPeriodo: finTxt,
+                dias,
+                diasFacturados: dias,
+                inicioPeriodoOrdenable: s.inicio.getTime(),
+                tarifaDiaria: tarifa,
+                importe,
+                tipoPeriodo,
+                factura: (i === segs.length - 1) ? factura : '',
+                oc: ocTxt,
+                observaciones: (i === segs.length - 1) ? obs : '',
+                creadoEn: serverTimestamp(),
+              }, { merge: true });
+            }
+
             const per = await cargarPeriodosActividad(actividadTab.id);
             renderTabulador(per);
             try { await cargarPeriodosParaActividades([actividadTab.id]); renderPendientes(); } catch {}
-            if (tipo.toUpperCase() === 'PARCIAL') {
+
+            const tipoUpper = String(tipo || '').toUpperCase();
+            if (tipoUpper !== 'FINAL') {
               try {
-                const dFin = parseFechaDdMmAa(fin);
-                if (dFin && tabInicio) {
-                  dFin.setUTCDate(dFin.getUTCDate() + 1);
-                  const dd = String(dFin.getUTCDate()).padStart(2, '0');
-                  const mm = String(dFin.getUTCMonth() + 1).padStart(2, '0');
-                  const aa = String(dFin.getUTCFullYear() % 100).padStart(2, '0');
-                  tabInicio.value = `${dd}/${mm}/${aa}`;
+                const ult = (Array.isArray(per) && per.length) ? per[per.length - 1] : null;
+                const finUlt = norm(ult && ult.finPeriodo);
+                if (finUlt && tabInicio) {
+                  const dFin = parseFechaDdMmAa(finUlt);
+                  if (dFin) {
+                    dFin.setUTCDate(dFin.getUTCDate() + 1);
+                    const dd = String(dFin.getUTCDate()).padStart(2, '0');
+                    const mm = String(dFin.getUTCMonth() + 1).padStart(2, '0');
+                    const aa = String(dFin.getUTCFullYear() % 100).padStart(2, '0');
+                    tabInicio.value = `${dd}/${mm}/${aa}`;
+                  }
                 }
               } catch {}
+
               if (tabFin) tabFin.value = '';
               if (tabFactura) tabFactura.value = '';
               if (tabObs) tabObs.value = '';
               sugerirFinCorte25SiAplica();
-            } else {
-              if (tabFin) tabFin.value = '';
-              if (tabObs) tabObs.value = '';
             }
+
             recalcPeriodoUI();
           } catch (e) {
             console.error(e);
