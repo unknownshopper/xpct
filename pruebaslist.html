@@ -510,6 +510,8 @@
             return;
         }
 
+        try { window.renderPruebaslist = render; } catch {}
+
         // Exportar todos los errores de validación a un archivo de texto
         const btnExportErrors = document.getElementById('btn-import-export-errors');
         if (btnExportErrors) {
@@ -3207,8 +3209,6 @@
                 return { ...reg, _clasif: clasif, _fechaRealDate: fechaReal };
             });
 
-            try { window.renderPruebaslist = render; } catch {}
-
             const porRealizar = [];
             const historico = [...enriquecidas];
             const totalHistorico = historico.length;
@@ -4566,7 +4566,7 @@ tbodyListado.addEventListener('focusin', (ev) => {
 });
 
 // Asegura ejecutar un render final tras registrar handlers
-render();
+try { render(); } catch {}
 }
 </script>
 </body>
