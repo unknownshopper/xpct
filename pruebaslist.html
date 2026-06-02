@@ -669,7 +669,7 @@
 
                 // Actualizar UI al instante con estado local
                 try { actualizarContadoresTiposLocal(pruebas); } catch {}
-                render();
+                try { if (typeof window.renderPruebaslist === 'function') window.renderPruebaslist(); } catch {}
 
                 // Refrescar desde Firestore para que los rangos/chips se recalculen con datos actualizados
                 try {
@@ -678,7 +678,7 @@
                             try {
                                 await leerPagina({ reset: true, forceNetwork: true });
                                 try { actualizarContadoresTiposLocal(pruebas); } catch {}
-                                render();
+                                try { if (typeof window.renderPruebaslist === 'function') window.renderPruebaslist(); } catch {}
                             } catch {}
                         }, 50);
                     }
@@ -3206,6 +3206,8 @@
                 const fechaReal = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
                 return { ...reg, _clasif: clasif, _fechaRealDate: fechaReal };
             });
+
+            try { window.renderPruebaslist = render; } catch {}
 
             const porRealizar = [];
             const historico = [...enriquecidas];
