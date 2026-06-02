@@ -1935,6 +1935,9 @@
         arr
           .slice()
           .sort((a, b) => {
+            const fa = isFinalActividad(a) ? 1 : 0;
+            const fb = isFinalActividad(b) ? 1 : 0;
+            if (fa !== fb) return fa - fb; // abiertos primero
             const ea = normKey(a.equipo || '');
             const eb = normKey(b.equipo || '');
             if (ea !== eb) return ea < eb ? -1 : 1;
