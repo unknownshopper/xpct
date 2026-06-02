@@ -510,7 +510,11 @@
             return;
         }
 
-        try { window.renderPruebaslist = render; } catch {}
+        try {
+            window.renderPruebaslist = () => {
+                try { render(); } catch (e) { console.error('Error en render()', e); }
+            };
+        } catch {}
 
         // Exportar todos los errores de validación a un archivo de texto
         const btnExportErrors = document.getElementById('btn-import-export-errors');
@@ -702,8 +706,16 @@
                 try { if (selBulkPeriodoEl) selBulkPeriodoEl.value = ''; } catch {}
 
                 // Actualizar UI al instante con estado local
-                try { actualizarContadoresTiposLocal(pruebas); } catch {}
-                try { if (typeof window.renderPruebaslist === 'function') window.renderPruebaslist(); } catch {}
+                try {
+                    if (typeof window.refrescarPruebaslistUI === 'function') {
+                        window.refrescarPruebaslistUI();
+                    } else {
+                        try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                        try { render(); } catch (re) { console.error('Error en render() post-bulk', re); }
+                    }
+                } catch (eUI) {
+                    console.error('Error refrescando UI post-bulk', eUI);
+                }
 
                 // Refrescar desde Firestore para que los rangos/chips se recalculen con datos actualizados
                 try {
@@ -711,8 +723,16 @@
                         setTimeout(async () => {
                             try {
                                 await leerPagina({ reset: true, forceNetwork: true });
-                                try { actualizarContadoresTiposLocal(pruebas); } catch {}
-                                try { if (typeof window.renderPruebaslist === 'function') window.renderPruebaslist(); } catch {}
+                                try {
+                                    if (typeof window.refrescarPruebaslistUI === 'function') {
+                                        window.refrescarPruebaslistUI();
+                                    } else {
+                                        try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                                        try { render(); } catch (re) { console.error('Error en render() post-reload', re); }
+                                    }
+                                } catch (eUI) {
+                                    console.error('Error refrescando UI post-reload', eUI);
+                                }
                             } catch {}
                         }, 50);
                     }
@@ -4043,6 +4063,13 @@
             // Guardar referencia a filasVisibles en el tbody para exportación
             tbodyListado._filasVisibles = filasVisibles;
         }
+
+        function refrescarPruebaslistUI() {
+            try { actualizarContadoresTiposLocal(pruebas); } catch {}
+            try { render(); } catch (e) { console.error('Error en render()', e); }
+        }
+
+        try { window.refrescarPruebaslistUI = refrescarPruebaslistUI; } catch {}
 
         if (inputBuscar) {
             inputBuscar.addEventListener('input', () => {
