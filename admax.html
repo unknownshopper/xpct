@@ -201,6 +201,7 @@
         <button id="admx-btn-os" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Generar OS</button>
         <button id="admx-btn-aplicar" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #16a34a; background:#16a34a; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Asignar a selección</button>
         <button id="admx-btn-ocint" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #f97316; background:#f97316; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Unificar OC interna</button>
+        <button id="admx-btn-eliminar-sel" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #dc2626; background:#dc2626; color:white; border-radius:8px; cursor:pointer; font-weight:800;">Eliminar selección</button>
         <button id="admx-btn-expand" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Expandir todo</button>
         <button id="admx-btn-refrescar" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; cursor:pointer;">Refrescar</button>
       </div>
@@ -323,6 +324,7 @@
     const btnGenOs = document.getElementById('admx-btn-os');
     const btnAplicar = document.getElementById('admx-btn-aplicar');
     const btnOcInt = document.getElementById('admx-btn-ocint');
+    const btnEliminarSel = document.getElementById('admx-btn-eliminar-sel');
     const btnRefrescar = document.getElementById('admx-btn-refrescar');
     const btnExpandAll = document.getElementById('admx-btn-expand');
     const cont = document.getElementById('admx-cont');
@@ -2137,6 +2139,51 @@
       return chks.map(c => String(c.getAttribute('data-id') || '')).filter(Boolean);
     }
 
+    async function eliminarActividadesLote(ids) {
+      await waitForFirebase();
+      if (!window.db) throw new Error('Firestore no disponible');
+      const { getFirestore, doc, collection, query, where, getDocs, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const db = getFirestore();
+
+      const uniq = Array.from(new Set((ids || []).map(x => String(x || '').trim()).filter(Boolean)));
+      if (!uniq.length) return;
+
+      let batch = writeBatch(db);
+      let ops = 0;
+      const flush = async () => {
+        if (ops > 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+          ops = 0;
+        }
+      };
+
+      const colPer = collection(db, 'actividadPeriodos');
+      for (let i = 0; i < uniq.length; i += 30) {
+        const chunk = uniq.slice(i, i + 30);
+        // 1) Borrar períodos asociados (actividadPeriodos) por actividadId
+        try {
+          const qq = query(colPer, where('actividadId', 'in', chunk));
+          const snap = await getDocs(qq);
+          if (!snap.empty) {
+            snap.forEach(ds => {
+              batch.delete(doc(db, 'actividadPeriodos', ds.id));
+              ops++;
+            });
+          }
+        } catch {}
+
+        // 2) Borrar actividades
+        chunk.forEach(actId => {
+          batch.delete(doc(db, 'actividades', actId));
+          ops++;
+        });
+
+        if (ops >= 400) await flush();
+      }
+      await flush();
+    }
+
     function selectedOcInternaOrEmpty() {
       const chks = Array.from(list.querySelectorAll('input[type="checkbox"][data-id]:checked'));
       const ocs = Array.from(new Set(chks.map(c => norm(c.getAttribute('data-oc') || '')))).filter(Boolean);
@@ -2792,6 +2839,30 @@
           } catch (e) {
             console.error(e);
             alert('No se pudo unificar OC interna en la selección.');
+          }
+        });
+      }
+
+      if (btnEliminarSel) {
+        btnEliminarSel.addEventListener('click', async () => {
+          const puedeEliminar = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+          if (!puedeEliminar) { alert('No autorizado para eliminar en lote.'); return; }
+          try {
+            const ids = selectedIds();
+            if (!ids.length) { alert('Selecciona al menos 1 fila.'); return; }
+            const typed = (prompt(`Vas a ELIMINAR ${ids.length} actividad(es) y sus períodos del tabulador.\n\nEscribe ELIMINAR para confirmar:`) || '').trim().toUpperCase();
+            if (typed !== 'ELIMINAR') { alert('Cancelado.'); return; }
+            btnEliminarSel.disabled = true;
+            const prevTxt = btnEliminarSel.textContent;
+            btnEliminarSel.textContent = 'Eliminando…';
+            await eliminarActividadesLote(ids);
+            await cargarActividades();
+            try { btnEliminarSel.textContent = prevTxt; } catch {}
+          } catch (e) {
+            console.error(e);
+            alert('No se pudieron eliminar las actividades seleccionadas.');
+          } finally {
+            try { btnEliminarSel.disabled = false; btnEliminarSel.textContent = 'Eliminar selección'; } catch {}
           }
         });
       }
