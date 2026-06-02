@@ -572,19 +572,43 @@
 
                 const usarFecha = !!(chkBulkFechaEl && chkBulkFechaEl.checked && (periodo === 'ANUAL' || periodo === 'POST-TRABAJO'));
                 let fechaAsignar = null;
+                let fechaAsignarStr = '';
+                let proximaAsignarStr = '';
                 if (usarFecha) {
                     const raw = (inputBulkFechaEl && inputBulkFechaEl.value) ? String(inputBulkFechaEl.value).trim() : '';
                     if (raw) {
                         const parts = raw.split('-').map(s => parseInt(s, 10));
                         if (parts.length === 3 && parts.every(n => Number.isFinite(n))) {
-                            fechaAsignar = new Date(parts[0], parts[1] - 1, parts[2]);
-                            fechaAsignar.setHours(12, 0, 0, 0);
-                            if (isNaN(fechaAsignar.getTime())) fechaAsignar = null;
+                            const yyyy = parts[0];
+                            const mm = parts[1];
+                            const dd = parts[2];
+                            fechaAsignarStr = `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy)}`;
+
+                            // Construir Date solo para cálculos (evita DST usando mediodía)
+                            fechaAsignar = new Date(yyyy, mm - 1, dd, 12, 0, 0, 0);
+                            if (isNaN(fechaAsignar.getTime())) {
+                                fechaAsignar = null;
+                                fechaAsignarStr = '';
+                            }
+
+                            if (periodo === 'ANUAL' && fechaAsignar) {
+                                // Calcular proxima: mismo día/mes + 1 año, corrigiendo overflow (ej. 29/feb)
+                                let dpx = new Date(yyyy + 1, mm - 1, dd, 12, 0, 0, 0);
+                                if (dpx.getMonth() !== (mm - 1)) {
+                                    dpx = new Date(yyyy + 1, mm - 1 + 1, 0, 12, 0, 0, 0);
+                                }
+                                proximaAsignarStr = `${String(dpx.getDate()).padStart(2, '0')}/${String(dpx.getMonth() + 1).padStart(2, '0')}/${String(dpx.getFullYear())}`;
+                            }
                         }
                     }
                     if (!fechaAsignar) {
                         fechaAsignar = new Date();
                         fechaAsignar.setHours(12, 0, 0, 0);
+                        fechaAsignarStr = `${String(fechaAsignar.getDate()).padStart(2, '0')}/${String(fechaAsignar.getMonth() + 1).padStart(2, '0')}/${String(fechaAsignar.getFullYear())}`;
+                        if (periodo === 'ANUAL') {
+                            const dpx = new Date(fechaAsignar.getFullYear() + 1, fechaAsignar.getMonth(), fechaAsignar.getDate(), 12, 0, 0, 0);
+                            proximaAsignarStr = `${String(dpx.getDate()).padStart(2, '0')}/${String(dpx.getMonth() + 1).padStart(2, '0')}/${String(dpx.getFullYear())}`;
+                        }
                     }
                 }
 
@@ -596,12 +620,16 @@
                     const update = { periodo };
                     try {
                         if (usarFecha && fechaAsignar && !isNaN(fechaAsignar.getTime())) {
-                            update.fechaRealizacion = formateaDDMMAA(fechaAsignar);
+                            update.fechaRealizacion = fechaAsignarStr || formateaDDMMAA(fechaAsignar);
                             if (periodo === 'ANUAL') {
-                                const dpx = new Date(fechaAsignar);
-                                dpx.setFullYear(dpx.getFullYear() + 1);
-                                dpx.setHours(12, 0, 0, 0);
-                                if (!isNaN(dpx.getTime())) update.proxima = formateaDDMMAA(dpx);
+                                if (proximaAsignarStr) {
+                                    update.proxima = proximaAsignarStr;
+                                } else {
+                                    const dpx = new Date(fechaAsignar);
+                                    dpx.setFullYear(dpx.getFullYear() + 1);
+                                    dpx.setHours(12, 0, 0, 0);
+                                    if (!isNaN(dpx.getTime())) update.proxima = formateaDDMMAA(dpx);
+                                }
                             } else {
                                 update.proxima = '';
                             }
@@ -638,12 +666,16 @@
                     const next = { ...r, periodo };
                     try {
                         if (usarFecha && fechaAsignar && !isNaN(fechaAsignar.getTime())) {
-                            next.fechaRealizacion = formateaDDMMAA(fechaAsignar);
+                            next.fechaRealizacion = fechaAsignarStr || formateaDDMMAA(fechaAsignar);
                             if (periodo === 'ANUAL') {
-                                const dpx = new Date(fechaAsignar);
-                                dpx.setFullYear(dpx.getFullYear() + 1);
-                                dpx.setHours(12, 0, 0, 0);
-                                if (!isNaN(dpx.getTime())) next.proxima = formateaDDMMAA(dpx);
+                                if (proximaAsignarStr) {
+                                    next.proxima = proximaAsignarStr;
+                                } else {
+                                    const dpx = new Date(fechaAsignar);
+                                    dpx.setFullYear(dpx.getFullYear() + 1);
+                                    dpx.setHours(12, 0, 0, 0);
+                                    if (!isNaN(dpx.getTime())) next.proxima = formateaDDMMAA(dpx);
+                                }
                             } else {
                                 next.proxima = '';
                             }
