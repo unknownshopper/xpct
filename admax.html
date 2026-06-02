@@ -1718,13 +1718,21 @@
             if (d && t) imp += (d * t);
           }
         });
-        return { dias, importe: imp };
+        const ult = arr[arr.length - 1] || null;
+        const finUlt = norm(ult && ult.finPeriodo);
+        return { dias, importe: imp, fin: finUlt };
+      };
+
+      const finServicioEff = (r) => {
+        const perSum = resumenPeriodos(r && r.id);
+        const finPer = perSum ? norm(perSum.fin || '') : '';
+        return finPer || norm(r.terminacionServicio || '');
       };
 
       const diasEnServicio = (r) => {
         const ini = parseFechaDdMmAa(norm(r.inicioServicio || ''));
         if (!ini) return '';
-        const finTxt = norm(r.terminacionServicio || '');
+        const finTxt = finServicioEff(r);
         const fin = finTxt ? parseFechaDdMmAa(finTxt) : null;
         const end = fin || new Date();
         if (!fin) end.setHours(0, 0, 0, 0);
@@ -1877,6 +1885,7 @@
             <col style="width:320px;">
             <col style="width:110px;">
             <col style="width:110px;">
+            <col style="width:110px;">
             <col style="width:95px;">
             <col style="width:90px;">
             <col style="width:110px;">
@@ -1898,6 +1907,7 @@
               <th>Descripción</th>
               <th>Fecha de embarque</th>
               <th>Inicio del servicio</th>
+              <th>Fin de servicio</th>
               <th>Parcial / Final</th>
               <th class="admx-td-right">Días en servicio</th>
               <th class="admx-td-right">Tarifa</th>
@@ -1926,6 +1936,7 @@
             const st = stPer || estadoServicio(r);
             const perSum = resumenPeriodos(r.id);
             const diasTxt = perSum ? String(perSum.dias || '') : diasEnServicio(r);
+            const finServTxt = finServicioEff(r);
             const precio = (r.precio != null && r.precio !== '') ? Number(r.precio) : null;
             const precioTxt = (precio == null || isNaN(precio)) ? '' : precio.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
             const eqName = norm(r.equipo || '');
@@ -1977,6 +1988,7 @@
               <td>${descFallback}</td>
               <td class="admx-td-nowrap">${norm(r.fechaEmbarque || '')}</td>
               <td class="admx-td-nowrap">${norm(r.inicioServicio || '')}</td>
+              <td class="admx-td-nowrap">${finServTxt}</td>
               <td class="admx-td-nowrap">${st}</td>
               <td class="admx-td-right admx-td-nowrap">${diasTxt}</td>
               <td class="admx-td-right admx-td-nowrap">${precioTxt}</td>
@@ -2194,8 +2206,14 @@
       const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
       const db = getFirestore();
 
-      const regs = (Array.isArray(listaActividad) ? listaActividad : []).filter(r => norm(r.oc || '') === ocBase);
-      if (!regs.length) return;
+      const regs = (Array.isArray(listaActividad) ? listaActividad : []).filter(r => {
+        const ocRaw = norm(r && r.oc);
+        if (ocBase === 'SIN_OC') return !ocRaw;
+        return ocRaw === ocBase;
+      });
+      if (!regs.length) {
+        throw new Error('No se encontraron actividades para separar en esta OC interna. (Posible OC vacía / SIN_OC)');
+      }
 
       const groups = new Map();
       regs.forEach(r => {
@@ -2242,17 +2260,17 @@
       let batch = writeBatch(db);
       let c = 0;
 
-      plan.forEach(p => {
+      for (const p of plan) {
         // skip keep (ya tiene ocBase) => pero podría haber mezclas previas; igual lo seteamos
-        p.ids.forEach(id => {
+        for (const id of p.ids) {
           batch.update(doc(db, 'actividades', id), { oc: p.oc });
           c++;
           if (c % 400 === 0) {
-            batch.commit();
+            await batch.commit();
             batch = writeBatch(db);
           }
-        });
-      });
+        }
+      }
 
       await batch.commit();
 

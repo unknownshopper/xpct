@@ -325,7 +325,14 @@
                     <button id="btn-pruebas-refresh" title="Actualizar desde servidor">Actualizar</button>
                     <button id="btn-pruebas-more" title="Cargar más resultados">Cargar más</button>
                     <button id="btn-pruebas-ver-todas" title="Cargar todas las pruebas (bajo demanda)">Ver todas</button>
-                    <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Actualizar prueba(s)</button>
+                    <select id="pl-bulk-periodo" title="Cambiar período (masivo) a las filas seleccionadas" style="height:32px; font-size:0.9rem; padding:0 0.4rem; border-radius:8px; border:1px solid #d1d5db; background:#fff;">
+                        <option value="">Período…</option>
+                        <option value="ANUAL">Anual</option>
+                        <option value="POST-TRABAJO">Post-trabajo</option>
+                        <option value="REPARACION">Reparación</option>
+                    </select>
+                    <button id="btn-pruebas-bulk-periodo" title="Aplicar período seleccionado a las filas marcadas">Aplicar período</button>
+                    <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Abrir registro</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
@@ -519,6 +526,55 @@
                     alert('No fue posible exportar los errores.');
                 }
             });
+        }
+
+        async function aplicarPeriodoMasivo() {
+            const filas = obtenerSeleccionadas();
+            const periodo = (selBulkPeriodo && selBulkPeriodo.value) ? String(selBulkPeriodo.value).trim().toUpperCase() : '';
+            if (!periodo) {
+                alert('Selecciona el período a aplicar (Anual, Post-trabajo o Reparación).');
+                return;
+            }
+            if (!filas.length) {
+                alert('Selecciona al menos una fila.');
+                return;
+            }
+
+            try {
+                const { getFirestore, doc, writeBatch } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = (window.db || getFirestore());
+                let batch = writeBatch(db);
+                let c = 0;
+
+                for (const reg of filas) {
+                    const id = (reg && reg.id) ? String(reg.id).trim() : '';
+                    if (!id) continue;
+                    batch.update(doc(db, 'pruebas', id), { periodo });
+                    c++;
+                    if (c % 400 === 0) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                    }
+                }
+                await batch.commit();
+
+                // actualizar en memoria
+                pruebas = (Array.isArray(pruebas) ? pruebas : []).map(r => {
+                    if (!r || !r.id) return r;
+                    const match = filas.some(f => f && String(f.id || '') === String(r.id || ''));
+                    return match ? { ...r, periodo } : r;
+                });
+
+                try { if (selBulkPeriodo) selBulkPeriodo.value = ''; } catch {}
+                render();
+            } catch (e) {
+                console.error(e);
+                const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                const msg = (e && e.message) ? String(e.message) : String(e);
+                alert(`No se pudo aplicar el período. ${code ? `(${code})` : ''}\n${msg}`);
+            }
         }
 
         // Reconciliación por llave relajada: encuentra parejas CSV vs existentes que coinciden relajado pero no estricto
@@ -1114,6 +1170,8 @@
         const btnEliminar = document.getElementById('btn-pruebas-eliminar');
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
         const btnRegistrar = document.getElementById('btn-pruebas-registrar');
+        const selBulkPeriodo = document.getElementById('pl-bulk-periodo');
+        const btnBulkPeriodo = document.getElementById('btn-pruebas-bulk-periodo');
         const btnRefresh = document.getElementById('btn-pruebas-refresh');
         const btnMore = document.getElementById('btn-pruebas-more');
         const btnMore200Bottom = document.getElementById('btn-pruebas-more-200');
@@ -3921,6 +3979,21 @@
                 checks.forEach(chk => {
                     chk.checked = chkSelectTodos.checked;
                 });
+            });
+        }
+
+        if (btnBulkPeriodo) {
+            btnBulkPeriodo.addEventListener('click', () => {
+                aplicarPeriodoMasivo();
+            });
+        }
+
+        if (selBulkPeriodo) {
+            selBulkPeriodo.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    aplicarPeriodoMasivo();
+                }
             });
         }
 
