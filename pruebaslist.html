@@ -331,6 +331,11 @@
                         <option value="POST-TRABAJO">Post-trabajo</option>
                         <option value="REPARACION">Reparación</option>
                     </select>
+                    <label id="bulk-fecha-wrap" title="Opcional: marcar prueba realizada y asignar fecha" style="display:flex; gap:0.35rem; align-items:center; font-size:0.85rem; padding:0 0.35rem; border:1px solid #e5e7eb; border-radius:8px; background:#fff;">
+                        <input type="checkbox" id="chk-bulk-fecha" />
+                        Prueba realizada
+                        <input id="input-bulk-fecha" type="date" style="height:28px; font-size:0.85rem; padding:0 0.3rem; border-radius:6px; border:1px solid #d1d5db; background:#fff;" />
+                    </label>
                     <button id="btn-pruebas-bulk-periodo" title="Aplicar período seleccionado a las filas marcadas">Aplicar período</button>
                     <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Abrir registro</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
@@ -541,12 +546,31 @@
             }
 
             try {
+                try { if (btnBulkPeriodo) btnBulkPeriodo.disabled = true; } catch {}
                 const { getFirestore, doc, writeBatch } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const db = (window.db || getFirestore());
                 let batch = writeBatch(db);
                 let c = 0;
+
+                const usarFecha = !!(chkBulkFecha && chkBulkFecha.checked && (periodo === 'ANUAL' || periodo === 'POST-TRABAJO'));
+                let fechaAsignar = null;
+                if (usarFecha) {
+                    const raw = (inputBulkFecha && inputBulkFecha.value) ? String(inputBulkFecha.value).trim() : '';
+                    if (raw) {
+                        const parts = raw.split('-').map(s => parseInt(s, 10));
+                        if (parts.length === 3 && parts.every(n => Number.isFinite(n))) {
+                            fechaAsignar = new Date(parts[0], parts[1] - 1, parts[2]);
+                            fechaAsignar.setHours(0, 0, 0, 0);
+                            if (isNaN(fechaAsignar.getTime())) fechaAsignar = null;
+                        }
+                    }
+                    if (!fechaAsignar) {
+                        fechaAsignar = new Date();
+                        fechaAsignar.setHours(0, 0, 0, 0);
+                    }
+                }
 
                 for (const reg of filas) {
                     const id = (reg && reg.id) ? String(reg.id).trim() : '';
@@ -555,7 +579,17 @@
                     // Si se marca como ANUAL, asignar proxima automáticamente (si está vacía) usando fechaRealizacion + 1 año.
                     const update = { periodo };
                     try {
-                        if (periodo === 'ANUAL') {
+                        if (usarFecha && fechaAsignar && !isNaN(fechaAsignar.getTime())) {
+                            update.fechaRealizacion = formateaDDMMAA(fechaAsignar);
+                            if (periodo === 'ANUAL') {
+                                const dpx = new Date(fechaAsignar);
+                                dpx.setFullYear(dpx.getFullYear() + 1);
+                                dpx.setHours(0, 0, 0, 0);
+                                if (!isNaN(dpx.getTime())) update.proxima = formateaDDMMAA(dpx);
+                            } else {
+                                update.proxima = '';
+                            }
+                        } else if (periodo === 'ANUAL') {
                             const proximaActual = (reg && reg.proxima) ? String(reg.proxima).trim() : '';
                             if (!proximaActual) {
                                 const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
@@ -587,7 +621,17 @@
                     if (!match) return r;
                     const next = { ...r, periodo };
                     try {
-                        if (periodo === 'ANUAL') {
+                        if (usarFecha && fechaAsignar && !isNaN(fechaAsignar.getTime())) {
+                            next.fechaRealizacion = formateaDDMMAA(fechaAsignar);
+                            if (periodo === 'ANUAL') {
+                                const dpx = new Date(fechaAsignar);
+                                dpx.setFullYear(dpx.getFullYear() + 1);
+                                dpx.setHours(0, 0, 0, 0);
+                                if (!isNaN(dpx.getTime())) next.proxima = formateaDDMMAA(dpx);
+                            } else {
+                                next.proxima = '';
+                            }
+                        } else if (periodo === 'ANUAL') {
                             const px = (next && next.proxima) ? String(next.proxima).trim() : '';
                             if (!px) {
                                 const fr = parseFechaRealizacion(next.fechaRealizacion || next.fechaPrueba || '');
@@ -605,19 +649,29 @@
 
                 try { if (selBulkPeriodo) selBulkPeriodo.value = ''; } catch {}
 
+                // Actualizar UI al instante con estado local
+                try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                render();
+
                 // Refrescar desde Firestore para que los rangos/chips se recalculen con datos actualizados
                 try {
                     if (typeof leerPagina === 'function') {
-                        await leerPagina({ reset: true, forceNetwork: true });
+                        setTimeout(async () => {
+                            try {
+                                await leerPagina({ reset: true, forceNetwork: true });
+                                try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                                render();
+                            } catch {}
+                        }, 50);
                     }
                 } catch {}
-                try { actualizarContadoresTiposLocal(pruebas); } catch {}
-                render();
             } catch (e) {
                 console.error(e);
                 const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
                 const msg = (e && e.message) ? String(e.message) : String(e);
                 alert(`No se pudo aplicar el período. ${code ? `(${code})` : ''}\n${msg}`);
+            } finally {
+                try { if (btnBulkPeriodo) btnBulkPeriodo.disabled = false; } catch {}
             }
         }
 
@@ -1216,6 +1270,9 @@
         const btnRegistrar = document.getElementById('btn-pruebas-registrar');
         const selBulkPeriodo = document.getElementById('pl-bulk-periodo');
         const btnBulkPeriodo = document.getElementById('btn-pruebas-bulk-periodo');
+        const chkBulkFecha = document.getElementById('chk-bulk-fecha');
+        const inputBulkFecha = document.getElementById('input-bulk-fecha');
+        const bulkFechaWrap = document.getElementById('bulk-fecha-wrap');
         const btnRefresh = document.getElementById('btn-pruebas-refresh');
         const btnMore = document.getElementById('btn-pruebas-more');
         const btnMore200Bottom = document.getElementById('btn-pruebas-more-200');
@@ -2900,13 +2957,13 @@
         function normalizarFechaDdMmAa(s) {
             const t = (s || '').toString().trim();
             if (!t) return '';
-            const solo = t.replace(/[^0-9/]/g, '').slice(0, 8);
-            if (solo.length !== 8) return t;
-            const dd = solo.slice(0, 2);
-            const mm = solo.slice(3, 5);
-            const aa = solo.slice(6, 8);
-            if (solo[2] !== '/' || solo[5] !== '/') return t;
-            return `${dd}/${mm}/${aa}`;
+            const solo = t.replace(/[^0-9/]/g, '');
+            const m = solo.match(/^([0-3]?\d)\/([0-1]?\d)\/(\d{2}|\d{4})$/);
+            if (!m) return t;
+            const dd = String(parseInt(m[1], 10)).padStart(2, '0');
+            const mm = String(parseInt(m[2], 10)).padStart(2, '0');
+            const yy = String(m[3]);
+            return `${dd}/${mm}/${yy}`;
         }
 
         function cerrarModalEdicion() {
@@ -4030,6 +4087,27 @@
             btnBulkPeriodo.addEventListener('click', () => {
                 aplicarPeriodoMasivo();
             });
+        }
+
+        try {
+            const d = new Date();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const val = `${d.getFullYear()}-${mm}-${dd}`;
+            if (inputBulkFecha && !inputBulkFecha.value) inputBulkFecha.value = val;
+        } catch {}
+
+        if (selBulkPeriodo) {
+            selBulkPeriodo.addEventListener('change', () => {
+                try {
+                    const p = selBulkPeriodo.value ? String(selBulkPeriodo.value).trim().toUpperCase() : '';
+                    if (bulkFechaWrap) bulkFechaWrap.style.display = (p === 'ANUAL' || p === 'POST-TRABAJO') ? '' : 'none';
+                } catch {}
+            });
+            try {
+                const p = selBulkPeriodo.value ? String(selBulkPeriodo.value).trim().toUpperCase() : '';
+                if (bulkFechaWrap) bulkFechaWrap.style.display = (p === 'ANUAL' || p === 'POST-TRABAJO') ? '' : 'none';
+            } catch {}
         }
 
         if (selBulkPeriodo) {
