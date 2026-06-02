@@ -534,7 +534,7 @@
         }
 
         async function aplicarPeriodoMasivo() {
-            const filas = obtenerSeleccionadas();
+            const filas = (typeof window.obtenerSeleccionadas === 'function') ? window.obtenerSeleccionadas() : [];
             const periodo = (selBulkPeriodo && selBulkPeriodo.value) ? String(selBulkPeriodo.value).trim().toUpperCase() : '';
             if (!periodo) {
                 alert('Selecciona el período a aplicar (Anual, Post-trabajo o Reparación).');
@@ -4168,6 +4168,8 @@
             });
             return seleccionadas;
         }
+
+        try { window.obtenerSeleccionadas = obtenerSeleccionadas; } catch {}
 
         function abrirRegistroPruebasParaSeleccionadas() {
             const filas = obtenerSeleccionadas();
