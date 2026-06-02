@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return (v || '').toString().toUpperCase().trim();
         }
 
-        (async () => {
+        async function cargarResumenPruebas({ forceNetwork = false } = {}) {
             try {
                 const u = await esperarAuthLista();
                 if (!u) {
@@ -311,9 +311,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 let totalVencidas = '—';
 
                 try {
-                    let snap = await getDocsFromCache(colRef);
-                    if (snap && typeof snap.size === 'number' && snap.size === 0) {
+                    let snap = null;
+                    if (forceNetwork) {
                         try { snap = await getDocs(colRef); } catch {}
+                    } else {
+                        try { snap = await getDocsFromCache(colRef); } catch {}
+                        if (snap && typeof snap.size === 'number' && snap.size === 0) {
+                            try { snap = await getDocs(colRef); } catch {}
+                        }
                     }
                     if (snap && typeof snap.size === 'number') {
                         total = snap.size;
@@ -435,7 +440,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error al leer resumen de pruebas para el dashboard', e);
                 spanPruebas.textContent = 'Error';
             }
-        })();
+        }
+
+        cargarResumenPruebas({ forceNetwork: false });
+
+        window.addEventListener('storage', (ev) => {
+            try {
+                if (!ev || ev.key !== 'pct_pruebas_updated_at') return;
+                if (!spanPruebas) return;
+                cargarResumenPruebas({ forceNetwork: true });
+            } catch {}
+        });
+
+        // Canal de broadcast (más confiable que storage en algunos navegadores)
+        try {
+            const bc = new BroadcastChannel('pct_pruebas_updates');
+            bc.addEventListener('message', (ev) => {
+                try {
+                    if (!ev || !ev.data) return;
+                    if (ev.data.type !== 'pct_pruebas_updated') return;
+                    cargarResumenPruebas({ forceNetwork: true });
+                } catch {}
+            });
+        } catch {}
+
+        // Fallback: polling ligero por si no hay evento storage (misma pestaña / restricciones)
+        try {
+            let lastSeen = 0;
+            setInterval(() => {
+                try {
+                    const v = Number(localStorage.getItem('pct_pruebas_updated_at') || '0');
+                    if (!Number.isFinite(v) || v <= 0) return;
+                    if (v <= lastSeen) return;
+                    lastSeen = v;
+                    cargarResumenPruebas({ forceNetwork: true });
+                } catch {}
+            }, 2500);
+        } catch {}
     }
 
     // Inventario de equipos (invre.csv + inspecciones locales para "fuera de servicio")

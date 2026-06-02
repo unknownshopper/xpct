@@ -717,6 +717,13 @@
                     console.error('Error refrescando UI post-bulk', eUI);
                 }
 
+                try { localStorage.setItem('pct_pruebas_updated_at', String(Date.now())); } catch {}
+                try {
+                    const bc = new BroadcastChannel('pct_pruebas_updates');
+                    bc.postMessage({ type: 'pct_pruebas_updated', at: Date.now() });
+                    try { bc.close(); } catch {}
+                } catch {}
+
                 // Refrescar desde Firestore para que los rangos/chips se recalculen con datos actualizados
                 try {
                     if (typeof leerPagina === 'function') {
@@ -733,6 +740,12 @@
                                 } catch (eUI) {
                                     console.error('Error refrescando UI post-reload', eUI);
                                 }
+                                try { localStorage.setItem('pct_pruebas_updated_at', String(Date.now())); } catch {}
+                                try {
+                                    const bc = new BroadcastChannel('pct_pruebas_updates');
+                                    bc.postMessage({ type: 'pct_pruebas_updated', at: Date.now() });
+                                    try { bc.close(); } catch {}
+                                } catch {}
                             } catch {}
                         }, 50);
                     }
@@ -4065,6 +4078,8 @@
         }
 
         function refrescarPruebaslistUI() {
+            try { _csvPreviewActive = false; } catch {}
+            try { _csvPreviewRows = []; } catch {}
             try { actualizarContadoresTiposLocal(pruebas); } catch {}
             try { render(); } catch (e) { console.error('Error en render()', e); }
         }
