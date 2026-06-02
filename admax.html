@@ -879,7 +879,8 @@
     function renderTabulador(periodos) {
       if (!tabTbody) return;
       tabTbody.innerHTML = '';
-      (Array.isArray(periodos) ? periodos : []).forEach(p => {
+      const arr = (Array.isArray(periodos) ? periodos : []);
+      arr.forEach(p => {
         const ini = fmtFecha(p.inicioPeriodo);
         const fin = fmtFecha(p.finPeriodo);
         const dias = Number(p.diasFacturados || p.dias || diasEntre(ini, fin) || 0);
@@ -897,7 +898,7 @@
           <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${norm(p.factura || '')}</td>
           <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9;">${norm(p.observaciones || '')}</td>
           <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">
-            <button type="button" data-del="${String(p.id || '')}" style="font-size:0.75rem;">Borrar</button>
+            ${p && p.__virtual ? '' : `<button type="button" data-del="${String(p.id || '')}" style="font-size:0.75rem;">Borrar</button>`}
           </td>
         `;
         const btnDel = tr.querySelector('button[data-del]');
@@ -922,6 +923,37 @@
         }
         tabTbody.appendChild(tr);
       });
+
+      // Fila informativa de continuidad: solo si el último período es PARCIAL
+      try {
+        const ultimo = arr.length ? arr[arr.length - 1] : null;
+        const tipoUlt = norm(ultimo && ultimo.tipoPeriodo).toUpperCase();
+        const finUlt = norm(ultimo && ultimo.finPeriodo);
+        if (ultimo && finUlt && tipoUlt && tipoUlt !== 'FINAL') {
+          const dFin = parseFechaDdMmAa(finUlt);
+          if (dFin) {
+            dFin.setUTCDate(dFin.getUTCDate() + 1);
+            const dd = String(dFin.getUTCDate()).padStart(2, '0');
+            const mm = String(dFin.getUTCMonth() + 1).padStart(2, '0');
+            const aa = String(dFin.getUTCFullYear() % 100).padStart(2, '0');
+            const inicioContinuidad = `${dd}/${mm}/${aa}`;
+            const trInfo = document.createElement('tr');
+            trInfo.innerHTML = `
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; font-style:italic; white-space:nowrap;">${inicioContinuidad}</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; font-style:italic; white-space:nowrap;">&nbsp;</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; text-align:right; font-style:italic; white-space:nowrap;">&nbsp;</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; text-align:right; font-style:italic; white-space:nowrap;">${Number(ultimo.tarifaDiaria || 0) ? Number(ultimo.tarifaDiaria || 0).toLocaleString('es-MX') : ''}</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; text-align:right; font-style:italic; white-space:nowrap;">&nbsp;</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; font-style:italic; white-space:nowrap;">CONTINUIDAD</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; font-style:italic; white-space:nowrap;">&nbsp;</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; font-style:italic; white-space:nowrap;">Fecha de continuidad abierta</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; font-style:italic;">&nbsp;</td>
+              <td style="padding:0.35rem; border-bottom:1px solid #f1f5f9; white-space:nowrap;">&nbsp;</td>
+            `;
+            tabTbody.appendChild(trInfo);
+          }
+        }
+      } catch {}
     }
 
     async function abrirTabulador(reg) {
@@ -951,9 +983,97 @@
           if (Array.isArray(cached) && cached.length) per = cached;
         } catch {}
       }
+
+      // Vista segmentada (virtual) para HALLIBURTON cuando hay mismatch y el usuario no puede generar cortes.
+      try {
+        const cliU = (reg && reg.cliente) ? String(reg.cliente).toUpperCase() : '';
+        const esHall = cliU.includes('HALLIBURTON');
+        const canGen = !!(window.isAdmin || window.isDirector);
+        if (esHall && !canGen) {
+          const iniServ = norm(reg.inicioServicio || '');
+          const finBase = (() => {
+            const ultimo = (Array.isArray(per) && per.length) ? per[per.length - 1] : null;
+            const fu = norm(ultimo && ultimo.finPeriodo);
+            return fu || norm(reg.terminacionServicio || '');
+          })();
+          const dIni = iniServ ? parseFechaDdMmAa(iniServ) : null;
+          const dFin = finBase ? parseFechaDdMmAa(finBase) : null;
+          if (dIni && dFin && dFin >= dIni) {
+            const segs = construirCortesHalliburton(dIni, dFin);
+            const expectedKey = new Set(segs.map(s => {
+              const dd1 = String(s.inicio.getUTCDate()).padStart(2, '0');
+              const mm1 = String(s.inicio.getUTCMonth() + 1).padStart(2, '0');
+              const aa1 = String(s.inicio.getUTCFullYear() % 100).padStart(2, '0');
+              const dd2 = String(s.fin.getUTCDate()).padStart(2, '0');
+              const mm2 = String(s.fin.getUTCMonth() + 1).padStart(2, '0');
+              const aa2 = String(s.fin.getUTCFullYear() % 100).padStart(2, '0');
+              return `${dd1}/${mm1}/${aa1}|${dd2}/${mm2}/${aa2}`;
+            }));
+            const existenteKey = new Set((Array.isArray(per) ? per : []).map(p => `${norm(p.inicioPeriodo||'')}|${norm(p.finPeriodo||'')}`));
+            let mismatch = false;
+            for (const k of expectedKey) { if (!existenteKey.has(k)) { mismatch = true; break; } }
+            if (!mismatch) {
+              for (const k of existenteKey) { if (!expectedKey.has(k)) { mismatch = true; break; } }
+            }
+            if (mismatch && segs.length > 1) {
+              const tarifa = Number(reg.precio != null ? reg.precio : (tabTarifa && tabTarifa.value ? tabTarifa.value : 0));
+              const virt = segs.map((s, i) => {
+                const dd1 = String(s.inicio.getUTCDate()).padStart(2, '0');
+                const mm1 = String(s.inicio.getUTCMonth() + 1).padStart(2, '0');
+                const aa1 = String(s.inicio.getUTCFullYear() % 100).padStart(2, '0');
+                const dd2 = String(s.fin.getUTCDate()).padStart(2, '0');
+                const mm2 = String(s.fin.getUTCMonth() + 1).padStart(2, '0');
+                const aa2 = String(s.fin.getUTCFullYear() % 100).padStart(2, '0');
+                const inicioTxt = `${dd1}/${mm1}/${aa1}`;
+                const finTxt = `${dd2}/${mm2}/${aa2}`;
+                const dias = diffDiasInclusivoUtc(s.inicio, s.fin);
+                const importe = (dias && tarifa) ? (dias * tarifa) : 0;
+                return {
+                  __virtual: true,
+                  inicioPeriodo: inicioTxt,
+                  finPeriodo: finTxt,
+                  diasFacturados: dias,
+                  tarifaDiaria: tarifa,
+                  importe,
+                  tipoPeriodo: (i === segs.length - 1) ? norm((per[per.length - 1] && per[per.length - 1].tipoPeriodo) || 'PARCIAL') : 'PARCIAL',
+                  factura: '',
+                  oc: norm(reg.ordenSuministro || ''),
+                  observaciones: '',
+                };
+              });
+              per = virt;
+            }
+          }
+        }
+      } catch {}
+
       renderTabulador(per);
 
-      if (tabInicio) tabInicio.value = norm(reg.inicioServicio || '');
+      // Prefill inicio/fin para captura: continuidad si hay último PARCIAL; si no, inicioServicio
+      try {
+        if (tabInicio) {
+          const ultimo = (Array.isArray(per) && per.length) ? per[per.length - 1] : null;
+          const tipoUlt = norm(ultimo && ultimo.tipoPeriodo).toUpperCase();
+          const finUlt = norm(ultimo && ultimo.finPeriodo);
+          if (ultimo && finUlt && tipoUlt && tipoUlt !== 'FINAL') {
+            const dFin = parseFechaDdMmAa(finUlt);
+            if (dFin) {
+              dFin.setUTCDate(dFin.getUTCDate() + 1);
+              const dd = String(dFin.getUTCDate()).padStart(2, '0');
+              const mm = String(dFin.getUTCMonth() + 1).padStart(2, '0');
+              const aa = String(dFin.getUTCFullYear() % 100).padStart(2, '0');
+              tabInicio.value = `${dd}/${mm}/${aa}`;
+            } else {
+              tabInicio.value = norm(reg.inicioServicio || '');
+            }
+          } else {
+            tabInicio.value = norm(reg.inicioServicio || '');
+          }
+        }
+      } catch {
+        if (tabInicio) tabInicio.value = norm(reg.inicioServicio || '');
+      }
+
       if (tabFin) tabFin.value = '';
       try {
         if (tabFin && (!per || !per.length)) {
@@ -977,6 +1097,7 @@
       if (tabFactura) tabFactura.value = norm(reg.factura || '');
       if (tabOc) tabOc.value = norm(reg.ordenSuministro || '');
       if (tabObs) tabObs.value = '';
+      sugerirFinCorte25SiAplica();
       recalcPeriodoUI();
 
       try {
@@ -1030,6 +1151,30 @@
         curIni = next;
       }
       return segmentos;
+    }
+
+    function sugerirFinCorte25SiAplica() {
+      try {
+        if (!actividadTab) return;
+        const cli = (actividadTab && actividadTab.cliente) ? String(actividadTab.cliente).toUpperCase() : '';
+        const esHall = cli.includes('HALLIBURTON');
+        if (!esHall) return;
+        if (!tabInicio || !tabFin) return;
+        if ((tabFin.value || '').trim().length >= 6) return;
+        const dIni = parseFechaDdMmAa(norm(tabInicio.value));
+        if (!dIni) return;
+        const y = dIni.getUTCFullYear();
+        const m = dIni.getUTCMonth();
+        const dia = dIni.getUTCDate();
+        let fin;
+        if (dia <= 25) fin = new Date(Date.UTC(y, m, 25));
+        else fin = new Date(Date.UTC(y, m + 1, 25));
+        const dd = String(fin.getUTCDate()).padStart(2, '0');
+        const mm = String(fin.getUTCMonth() + 1).padStart(2, '0');
+        const aa = String(fin.getUTCFullYear() % 100).padStart(2, '0');
+        tabFin.value = `${dd}/${mm}/${aa}`;
+        recalcPeriodoUI();
+      } catch {}
     }
 
     function construirCortesFinMes(dIni, dFin) {
@@ -2194,6 +2339,8 @@
           if (v !== e.target.value) e.target.value = v;
           recalcPeriodoUI();
         });
+        tabInicio.addEventListener('change', () => { sugerirFinCorte25SiAplica(); });
+        tabInicio.addEventListener('blur', () => { sugerirFinCorte25SiAplica(); });
       }
       if (tabFin) {
         tabFin.addEventListener('input', (e) => {
@@ -2288,8 +2435,25 @@
             const per = await cargarPeriodosActividad(actividadTab.id);
             renderTabulador(per);
             try { await cargarPeriodosParaActividades([actividadTab.id]); renderPendientes(); } catch {}
-            if (tabFin) tabFin.value = '';
-            if (tabObs) tabObs.value = '';
+            if (tipo.toUpperCase() === 'PARCIAL') {
+              try {
+                const dFin = parseFechaDdMmAa(fin);
+                if (dFin && tabInicio) {
+                  dFin.setUTCDate(dFin.getUTCDate() + 1);
+                  const dd = String(dFin.getUTCDate()).padStart(2, '0');
+                  const mm = String(dFin.getUTCMonth() + 1).padStart(2, '0');
+                  const aa = String(dFin.getUTCFullYear() % 100).padStart(2, '0');
+                  tabInicio.value = `${dd}/${mm}/${aa}`;
+                }
+              } catch {}
+              if (tabFin) tabFin.value = '';
+              if (tabFactura) tabFactura.value = '';
+              if (tabObs) tabObs.value = '';
+              sugerirFinCorte25SiAplica();
+            } else {
+              if (tabFin) tabFin.value = '';
+              if (tabObs) tabObs.value = '';
+            }
             recalcPeriodoUI();
           } catch (e) {
             console.error(e);
