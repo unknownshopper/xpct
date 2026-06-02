@@ -693,6 +693,8 @@
             }
         }
 
+        try { window.aplicarPeriodoMasivo = aplicarPeriodoMasivo; } catch {}
+
         // Reconciliación por llave relajada: encuentra parejas CSV vs existentes que coinciden relajado pero no estricto
         const btnReconcile = document.getElementById('btn-import-reconcile');
         if (btnReconcile) {
@@ -4104,7 +4106,8 @@
         if (btnBulkPeriodo) {
             btnBulkPeriodo.addEventListener('click', async () => {
                 try {
-                    await aplicarPeriodoMasivo();
+                    if (typeof window.aplicarPeriodoMasivo !== 'function') throw new Error('Función de aplicación no inicializada (sesión/roles).');
+                    await window.aplicarPeriodoMasivo();
                 } catch (e) {
                     console.error('Error en aplicarPeriodoMasivo (click)', e);
                     const msg = (e && e.message) ? String(e.message) : String(e);
@@ -4140,7 +4143,8 @@
                     e.preventDefault();
                     (async () => {
                         try {
-                            await aplicarPeriodoMasivo();
+                            if (typeof window.aplicarPeriodoMasivo !== 'function') throw new Error('Función de aplicación no inicializada (sesión/roles).');
+                            await window.aplicarPeriodoMasivo();
                         } catch (err) {
                             console.error('Error en aplicarPeriodoMasivo (enter)', err);
                             const msg = (err && err.message) ? String(err.message) : String(err);
