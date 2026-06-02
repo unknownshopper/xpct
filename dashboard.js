@@ -445,6 +445,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
         cargarResumenPruebas({ forceNetwork: false });
 
+        function renderResumenPruebasDesdeCache() {
+            try {
+                const total = localStorage.getItem('pct_dash_pruebas_total');
+                const anual = localStorage.getItem('pct_dash_pruebas_anual');
+                const pt = localStorage.getItem('pct_dash_pruebas_pt');
+                const rep = localStorage.getItem('pct_dash_pruebas_rep');
+                const d60 = localStorage.getItem('pct_dash_pruebas_60');
+                const d30 = localStorage.getItem('pct_dash_pruebas_30');
+                const d15 = localStorage.getItem('pct_dash_pruebas_15');
+                const d0 = localStorage.getItem('pct_dash_pruebas_0');
+                if ([total, anual, pt, rep, d60, d30, d15, d0].some(v => v == null)) return false;
+
+                spanPruebas.innerHTML = `
+                    <div class="dash-stats" aria-label="Resumen de pruebas">
+                        <div class="dash-stat-row">
+                            <span class="row-left">📦 <span>Total</span></span>
+                            <span class="badge gray">${total}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">☠️ <span>0 días (vencidas)</span></span>
+                            <span class="badge black">${d0}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">🟦 <span>60–31 días</span></span>
+                            <span class="badge blue">${d60}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">🟨 <span>30–16 días</span></span>
+                            <span class="badge amber">${d30}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">🟥 <span>15–1 días</span></span>
+                            <span class="badge red">${d15}</span>
+                        </div>
+                        <div class="dash-stat-row small" style="margin-top:0.15rem;">
+                            <span class="row-left">🧪 <span>Tipos</span></span>
+                            <span class="dash-badges-inline">
+                                <span class="badge gray" title="Pruebas anuales">Anual: ${anual}</span>
+                                <span class="badge gray" title="Post-trabajo">Post-trabajo: ${pt}</span>
+                                <span class="badge gray" title="Reparación">Reparación: ${rep}</span>
+                            </span>
+                        </div>
+                    </div>
+                `;
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
         // Refresco automático: permite que el dashboard se actualice aunque los cambios ocurran en otra computadora.
         // (localStorage/BroadcastChannel solo aplican dentro del mismo navegador).
         try {
@@ -477,7 +527,8 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 if (!ev || ev.key !== 'pct_pruebas_updated_at') return;
                 if (!spanPruebas) return;
-                try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                try { renderResumenPruebasDesdeCache(); } catch {}
+                try { spanPruebas.dataset.loading = 'cache'; } catch {}
                 console.log('[dashboard] storage pct_pruebas_updated_at', ev.newValue);
                 cargarResumenPruebas({ forceNetwork: true });
             } catch {}
@@ -490,7 +541,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (!ev || !ev.data) return;
                     if (ev.data.type !== 'pct_pruebas_updated') return;
-                    try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                    try { renderResumenPruebasDesdeCache(); } catch {}
+                    try { spanPruebas.dataset.loading = 'cache'; } catch {}
                     console.log('[dashboard] bc pct_pruebas_updated', ev.data);
                     cargarResumenPruebas({ forceNetwork: true });
                 } catch {}
@@ -506,7 +558,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!Number.isFinite(v) || v <= 0) return;
                     if (v <= lastSeen) return;
                     lastSeen = v;
-                    try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                    try { renderResumenPruebasDesdeCache(); } catch {}
+                    try { spanPruebas.dataset.loading = 'cache'; } catch {}
                     console.log('[dashboard] poll pct_pruebas_updated_at', v);
                     cargarResumenPruebas({ forceNetwork: true });
                 } catch {}

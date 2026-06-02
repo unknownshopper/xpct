@@ -717,6 +717,8 @@
                     console.error('Error refrescando UI post-bulk', eUI);
                 }
 
+                try { if (typeof cacheDashboardPruebasSnapshot === 'function') cacheDashboardPruebasSnapshot(pruebas); } catch {}
+
                 try { localStorage.setItem('pct_pruebas_updated_at', String(Date.now())); } catch {}
                 try {
                     const bc = new BroadcastChannel('pct_pruebas_updates');
@@ -740,6 +742,7 @@
                                 } catch (eUI) {
                                     console.error('Error refrescando UI post-reload', eUI);
                                 }
+                                try { if (typeof cacheDashboardPruebasSnapshot === 'function') cacheDashboardPruebasSnapshot(pruebas); } catch {}
                                 try { localStorage.setItem('pct_pruebas_updated_at', String(Date.now())); } catch {}
                                 try {
                                     const bc = new BroadcastChannel('pct_pruebas_updates');
@@ -1917,6 +1920,64 @@
             if (lblAnual) lblAnual.textContent = `Anual: ${cAnual}`;
             if (lblPT) lblPT.textContent = `Post-trabajo: ${cPT}`;
             if (lblRep) lblRep.textContent = `Reparación: ${cRep}`;
+        }
+
+        function cacheDashboardPruebasSnapshot(list) {
+            try {
+                const arr = Array.isArray(list) ? list : [];
+                const hoy = hoySinHora();
+                let total = arr.length;
+                let tAn = 0, tPT = 0, tRep = 0;
+                arr.forEach(reg => {
+                    const p = (reg && reg.periodo ? String(reg.periodo) : '').trim().toUpperCase();
+                    if (p === 'POST-TRABAJO') tPT += 1;
+                    else if (p === 'REPARACION') tRep += 1;
+                    else tAn += 1;
+                });
+
+                const latest = new Map();
+                arr.forEach(reg => {
+                    const p = (reg && reg.periodo ? String(reg.periodo) : '').trim().toUpperCase();
+                    if (p && p !== 'ANUAL') return;
+                    const eq = (reg && reg.equipo) ? String(reg.equipo).trim() : '';
+                    if (!eq) return;
+                    const tipo = ((reg && (reg.pruebaTipo || reg.prueba)) ? String(reg.pruebaTipo || reg.prueba) : 'ANUAL').toUpperCase().trim();
+                    const key = `${normEquipoKey(eq)}__${tipo}`;
+                    const fr = parseFechaRealizacion((reg && (reg.fechaRealizacion || reg.fechaPrueba)) ? (reg.fechaRealizacion || reg.fechaPrueba) : '') || hoy;
+                    const prev = latest.get(key);
+                    if (!prev || (fr && prev.fr && fr.getTime() >= prev.fr.getTime()) || (!prev.fr && fr)) {
+                        latest.set(key, { reg, fr });
+                    }
+                });
+
+                let pv60 = 0, pv30 = 0, pv15 = 0, z = 0;
+                latest.forEach(({ reg, fr }) => {
+                    let dProx = parseProxima(reg && reg.proxima ? reg.proxima : '');
+                    if (!dProx && fr) {
+                        const d = new Date(fr);
+                        d.setFullYear(d.getFullYear() + 1);
+                        d.setHours(0, 0, 0, 0);
+                        if (!isNaN(d.getTime())) dProx = d;
+                    }
+                    if (!dProx) return;
+                    const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    if (dias <= 0) { z += 1; return; }
+                    if (dias > 60) return;
+                    if (dias >= 31 && dias <= 60) pv60 += 1;
+                    else if (dias >= 16 && dias <= 30) pv30 += 1;
+                    else if (dias >= 1 && dias <= 15) pv15 += 1;
+                });
+
+                localStorage.setItem('pct_dash_pruebas_total', String(total));
+                localStorage.setItem('pct_dash_pruebas_anual', String(tAn));
+                localStorage.setItem('pct_dash_pruebas_pt', String(tPT));
+                localStorage.setItem('pct_dash_pruebas_rep', String(tRep));
+                localStorage.setItem('pct_dash_pruebas_60', String(pv60));
+                localStorage.setItem('pct_dash_pruebas_30', String(pv30));
+                localStorage.setItem('pct_dash_pruebas_15', String(pv15));
+                localStorage.setItem('pct_dash_pruebas_0', String(z));
+                localStorage.setItem('pct_dash_pruebas_cached_at', String(Date.now()));
+            } catch {}
         }
         actualizarContadoresTiposLocal(pruebas);
 
