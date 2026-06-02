@@ -545,6 +545,16 @@
                 return;
             }
 
+            // Permisos: permitir a admin/director/supervisor y a usuarios específicos (sgi/jalcz/operaciones)
+            try {
+                const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
+                const puedeEditar = !!(window.isAdmin || window.isDirector || window.isSupervisor || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
+                if (!puedeEditar) {
+                    alert('No autorizado para aplicar cambios masivos.');
+                    return;
+                }
+            } catch {}
+
             try {
                 try { if (btnBulkPeriodo) btnBulkPeriodo.disabled = true; } catch {}
                 const { getFirestore, doc, writeBatch } = await import(
@@ -643,6 +653,10 @@
                                 }
                             }
                         }
+
+                        // Recalcular derivados para que el render/rangos actualicen al instante
+                        try { next._fechaRealDate = parseFechaRealizacion(next.fechaRealizacion || ''); } catch {}
+                        try { next._clasif = (typeof clasificarPrueba === 'function') ? clasificarPrueba(next) : (next._clasif || null); } catch {}
                     } catch {}
                     return next;
                 });
@@ -669,6 +683,10 @@
                 console.error(e);
                 const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
                 const msg = (e && e.message) ? String(e.message) : String(e);
+                if (code === 'permission-denied') {
+                    alert('No autorizado para guardar cambios en Firestore (permission-denied).\n\nRevisa el rol/claim del usuario o las reglas de Firestore.');
+                    return;
+                }
                 alert(`No se pudo aplicar el período. ${code ? `(${code})` : ''}\n${msg}`);
             } finally {
                 try { if (btnBulkPeriodo) btnBulkPeriodo.disabled = false; } catch {}

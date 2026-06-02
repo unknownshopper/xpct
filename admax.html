@@ -198,9 +198,14 @@
           <label for="admx-batch-ocint" style="font-size:0.72rem; color:#4b5563;">OC interna (unificar)</label>
           <input id="admx-batch-ocint" type="text" placeholder="Ej. 4301250002" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:160px;">
         </div>
+        <div style="display:flex; flex-direction:column;">
+          <label for="admx-cerrar-fecha" style="font-size:0.72rem; color:#4b5563;">Fecha fin (dd/mm/aa)</label>
+          <input id="admx-cerrar-fecha" type="text" placeholder="__/__/__" maxlength="8" style="font-size:0.85rem; padding:0.25rem 0.4rem; width:140px;">
+        </div>
         <button id="admx-btn-os" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Generar OS</button>
         <button id="admx-btn-aplicar" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #16a34a; background:#16a34a; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Asignar a selección</button>
         <button id="admx-btn-ocint" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #f97316; background:#f97316; color:white; border-radius:8px; cursor:pointer; font-weight:700;">Unificar OC interna</button>
+        <button id="admx-btn-cerrar-sel" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #0f766e; background:#0f766e; color:white; border-radius:8px; cursor:pointer; font-weight:800;">Cerrar selección</button>
         <button id="admx-btn-eliminar-sel" type="button" style="font-size:0.9rem; padding:0.45rem 0.8rem; border:1px solid #dc2626; background:#dc2626; color:white; border-radius:8px; cursor:pointer; font-weight:800;">Eliminar selección</button>
         <button id="admx-btn-expand" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#fff; border-radius:8px; cursor:pointer;">Expandir todo</button>
         <button id="admx-btn-refrescar" type="button" style="font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid #d1d5db; background:#f9fafb; border-radius:8px; cursor:pointer;">Refrescar</button>
@@ -321,9 +326,11 @@
     const inpBatchOcCli = document.getElementById('admx-batch-occli');
     const inpBatchOs = document.getElementById('admx-batch-os');
     const inpBatchOcInt = document.getElementById('admx-batch-ocint');
+    const inpCerrarFecha = document.getElementById('admx-cerrar-fecha');
     const btnGenOs = document.getElementById('admx-btn-os');
     const btnAplicar = document.getElementById('admx-btn-aplicar');
     const btnOcInt = document.getElementById('admx-btn-ocint');
+    const btnCerrarSel = document.getElementById('admx-btn-cerrar-sel');
     const btnEliminarSel = document.getElementById('admx-btn-eliminar-sel');
     const btnRefrescar = document.getElementById('admx-btn-refrescar');
     const btnExpandAll = document.getElementById('admx-btn-expand');
@@ -2139,6 +2146,129 @@
       return chks.map(c => String(c.getAttribute('data-id') || '')).filter(Boolean);
     }
 
+    async function cerrarActividadesLote({ ids, finStr }) {
+      await waitForFirebase();
+      if (!window.db) throw new Error('Firestore no disponible');
+      const fin = parseFechaDdMmAa(norm(finStr || ''));
+      if (!fin) throw new Error('Fecha fin inválida');
+
+      const { getFirestore, doc, collection, query, where, getDocs, writeBatch, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const db = getFirestore();
+
+      const uniq = Array.from(new Set((ids || []).map(x => String(x || '').trim()).filter(Boolean)));
+      if (!uniq.length) return;
+
+      const actividadesSel = uniq
+        .map(id => (Array.isArray(listaActividad) ? listaActividad : []).find(r => String(r?.id || '') === String(id)))
+        .filter(Boolean);
+
+      // 1) actualizar actividades (terminación)
+      {
+        let batch = writeBatch(db);
+        let ops = 0;
+        for (const r of actividadesSel) {
+          const actId = String(r.id || '').trim();
+          if (!actId) continue;
+          batch.update(doc(db, 'actividades', actId), {
+            terminacionServicio: norm(finStr),
+            terminacionEsFinal: true,
+            editadoEn: new Date().toISOString(),
+          });
+          ops++;
+          if (ops >= 450) {
+            await batch.commit();
+            batch = writeBatch(db);
+            ops = 0;
+          }
+        }
+        if (ops) await batch.commit();
+      }
+
+      // 2) reconstruir tabuladores (actividadPeriodos): borrar existentes y crear cortes según regla
+      const colPer = collection(db, 'actividadPeriodos');
+      for (let i = 0; i < uniq.length; i += 10) {
+        const chunkIds = uniq.slice(i, i + 10);
+
+        // leer periodos existentes por actividadId in chunk
+        let snap = null;
+        try {
+          const qq = query(colPer, where('actividadId', 'in', chunkIds));
+          snap = await getDocs(qq);
+        } catch { snap = null; }
+
+        let batch = writeBatch(db);
+        let ops = 0;
+
+        // borrar existentes
+        try {
+          if (snap && !snap.empty) {
+            snap.forEach(ds => {
+              batch.delete(doc(db, 'actividadPeriodos', ds.id));
+              ops++;
+            });
+          }
+        } catch {}
+
+        // crear nuevos cortes para cada actividad
+        for (const actId of chunkIds) {
+          const r = (Array.isArray(actividadesSel) ? actividadesSel : []).find(x => String(x?.id || '') === String(actId));
+          if (!r) continue;
+          const ini = parseFechaDdMmAa(norm(r.inicioServicio || ''));
+          if (!ini) continue;
+          if (fin < ini) continue;
+
+          const tarifa = (r.precio != null && r.precio !== '') ? Number(r.precio) : 0;
+          const cli = (r && r.cliente) ? String(r.cliente).toUpperCase() : '';
+          const esHall = cli.includes('HALLIBURTON');
+          const segs = esHall ? construirCortesHalliburton(ini, fin) : construirCortesFinMes(ini, fin);
+          if (!segs.length) continue;
+
+          for (let j = 0; j < segs.length; j++) {
+            const s = segs[j];
+            const inicioTxt = (() => {
+              const dd = String(s.inicio.getUTCDate()).padStart(2, '0');
+              const mm = String(s.inicio.getUTCMonth() + 1).padStart(2, '0');
+              const aa = String(s.inicio.getUTCFullYear() % 100).padStart(2, '0');
+              return `${dd}/${mm}/${aa}`;
+            })();
+            const finTxt2 = (() => {
+              const dd = String(s.fin.getUTCDate()).padStart(2, '0');
+              const mm = String(s.fin.getUTCMonth() + 1).padStart(2, '0');
+              const aa = String(s.fin.getUTCFullYear() % 100).padStart(2, '0');
+              return `${dd}/${mm}/${aa}`;
+            })();
+            const dias = diffDiasInclusivoUtc(s.inicio, s.fin);
+            const importe = (dias && tarifa) ? (dias * tarifa) : 0;
+            const inicioKey = inicioTxt.replaceAll('/', '-');
+            const finKey = finTxt2.replaceAll('/', '-');
+            const periodId = `${String(actId)}__${inicioKey}__${finKey}`;
+            batch.set(doc(colPer, periodId), {
+              actividadId: actId,
+              inicioPeriodo: inicioTxt,
+              finPeriodo: finTxt2,
+              inicioPeriodoOrdenable: s.inicio.getTime(),
+              diasFacturados: dias,
+              tarifaDiaria: tarifa,
+              importe,
+              tipoPeriodo: (j === segs.length - 1) ? 'FINAL' : 'PARCIAL',
+              factura: '',
+              oc: norm(r.ordenSuministro || ''),
+              observaciones: '',
+              creadoEn: serverTimestamp(),
+            }, { merge: true });
+            ops++;
+            if (ops >= 450) {
+              await batch.commit();
+              batch = writeBatch(db);
+              ops = 0;
+            }
+          }
+        }
+
+        if (ops) await batch.commit();
+      }
+    }
+
     async function eliminarActividadesLote(ids) {
       await waitForFirebase();
       if (!window.db) throw new Error('Firestore no disponible');
@@ -2863,6 +2993,38 @@
             alert('No se pudieron eliminar las actividades seleccionadas.');
           } finally {
             try { btnEliminarSel.disabled = false; btnEliminarSel.textContent = 'Eliminar selección'; } catch {}
+          }
+        });
+      }
+
+      if (inpCerrarFecha) {
+        inpCerrarFecha.addEventListener('input', () => {
+          try { inpCerrarFecha.value = fmtFechaInput(inpCerrarFecha.value); } catch {}
+        });
+      }
+
+      if (btnCerrarSel) {
+        btnCerrarSel.addEventListener('click', async () => {
+          const puedeCerrar = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+          if (!puedeCerrar) { alert('No autorizado para cerrar en lote.'); return; }
+          try {
+            const ids = selectedIds();
+            if (!ids.length) { alert('Selecciona al menos 1 fila.'); return; }
+            const finStr = norm(inpCerrarFecha && inpCerrarFecha.value);
+            if (!parseFechaDdMmAa(finStr)) { alert('Fecha fin inválida. Usa dd/mm/aa.'); return; }
+            const ok = window.confirm(`¿Cerrar ${ids.length} actividad(es) con fecha fin ${finStr}?\n\nEsto reconstruirá el tabulador con cortes (25 Halliburton / fin de mes otros).`);
+            if (!ok) return;
+            btnCerrarSel.disabled = true;
+            const prevTxt = btnCerrarSel.textContent;
+            btnCerrarSel.textContent = 'Cerrando…';
+            await cerrarActividadesLote({ ids, finStr });
+            await cargarActividades();
+            try { btnCerrarSel.textContent = prevTxt; } catch {}
+          } catch (e) {
+            console.error(e);
+            alert('No se pudieron cerrar las actividades seleccionadas.');
+          } finally {
+            try { btnCerrarSel.disabled = false; btnCerrarSel.textContent = 'Cerrar selección'; } catch {}
           }
         });
       }
