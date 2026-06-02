@@ -4102,8 +4102,14 @@
         }
 
         if (btnBulkPeriodo) {
-            btnBulkPeriodo.addEventListener('click', () => {
-                aplicarPeriodoMasivo();
+            btnBulkPeriodo.addEventListener('click', async () => {
+                try {
+                    await aplicarPeriodoMasivo();
+                } catch (e) {
+                    console.error('Error en aplicarPeriodoMasivo (click)', e);
+                    const msg = (e && e.message) ? String(e.message) : String(e);
+                    alert(`No se pudo aplicar el período.\n${msg}`);
+                }
             });
         }
 
@@ -4132,7 +4138,15 @@
             selBulkPeriodo.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    aplicarPeriodoMasivo();
+                    (async () => {
+                        try {
+                            await aplicarPeriodoMasivo();
+                        } catch (err) {
+                            console.error('Error en aplicarPeriodoMasivo (enter)', err);
+                            const msg = (err && err.message) ? String(err.message) : String(err);
+                            alert(`No se pudo aplicar el período.\n${msg}`);
+                        }
+                    })();
                 }
             });
         }
