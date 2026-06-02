@@ -534,8 +534,12 @@
         }
 
         async function aplicarPeriodoMasivo() {
+            const selBulkPeriodoEl = document.getElementById('pl-bulk-periodo');
+            const btnBulkPeriodoEl = document.getElementById('btn-pruebas-bulk-periodo');
+            const chkBulkFechaEl = document.getElementById('chk-bulk-fecha');
+            const inputBulkFechaEl = document.getElementById('input-bulk-fecha');
             const filas = (typeof window.obtenerSeleccionadas === 'function') ? window.obtenerSeleccionadas() : [];
-            const periodo = (selBulkPeriodo && selBulkPeriodo.value) ? String(selBulkPeriodo.value).trim().toUpperCase() : '';
+            const periodo = (selBulkPeriodoEl && selBulkPeriodoEl.value) ? String(selBulkPeriodoEl.value).trim().toUpperCase() : '';
             if (!periodo) {
                 alert('Selecciona el período a aplicar (Anual, Post-trabajo o Reparación).');
                 return;
@@ -556,7 +560,7 @@
             } catch {}
 
             try {
-                try { if (btnBulkPeriodo) btnBulkPeriodo.disabled = true; } catch {}
+                try { if (btnBulkPeriodoEl) btnBulkPeriodoEl.disabled = true; } catch {}
                 const { getFirestore, doc, writeBatch } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -564,10 +568,10 @@
                 let batch = writeBatch(db);
                 let c = 0;
 
-                const usarFecha = !!(chkBulkFecha && chkBulkFecha.checked && (periodo === 'ANUAL' || periodo === 'POST-TRABAJO'));
+                const usarFecha = !!(chkBulkFechaEl && chkBulkFechaEl.checked && (periodo === 'ANUAL' || periodo === 'POST-TRABAJO'));
                 let fechaAsignar = null;
                 if (usarFecha) {
-                    const raw = (inputBulkFecha && inputBulkFecha.value) ? String(inputBulkFecha.value).trim() : '';
+                    const raw = (inputBulkFechaEl && inputBulkFechaEl.value) ? String(inputBulkFechaEl.value).trim() : '';
                     if (raw) {
                         const parts = raw.split('-').map(s => parseInt(s, 10));
                         if (parts.length === 3 && parts.every(n => Number.isFinite(n))) {
@@ -661,7 +665,7 @@
                     return next;
                 });
 
-                try { if (selBulkPeriodo) selBulkPeriodo.value = ''; } catch {}
+                try { if (selBulkPeriodoEl) selBulkPeriodoEl.value = ''; } catch {}
 
                 // Actualizar UI al instante con estado local
                 try { actualizarContadoresTiposLocal(pruebas); } catch {}
@@ -689,7 +693,7 @@
                 }
                 alert(`No se pudo aplicar el período. ${code ? `(${code})` : ''}\n${msg}`);
             } finally {
-                try { if (btnBulkPeriodo) btnBulkPeriodo.disabled = false; } catch {}
+                try { if (btnBulkPeriodoEl) btnBulkPeriodoEl.disabled = false; } catch {}
             }
         }
 
