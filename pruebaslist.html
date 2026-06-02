@@ -551,7 +551,27 @@
                 for (const reg of filas) {
                     const id = (reg && reg.id) ? String(reg.id).trim() : '';
                     if (!id) continue;
-                    batch.update(doc(db, 'pruebas', id), { periodo });
+
+                    // Si se marca como ANUAL, asignar proxima automáticamente (si está vacía) usando fechaRealizacion + 1 año.
+                    const update = { periodo };
+                    try {
+                        if (periodo === 'ANUAL') {
+                            const proximaActual = (reg && reg.proxima) ? String(reg.proxima).trim() : '';
+                            if (!proximaActual) {
+                                const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
+                                if (fr && !isNaN(fr.getTime())) {
+                                    const d = new Date(fr);
+                                    d.setFullYear(d.getFullYear() + 1);
+                                    d.setHours(0, 0, 0, 0);
+                                    if (!isNaN(d.getTime())) {
+                                        update.proxima = formateaDDMMAA(d);
+                                    }
+                                }
+                            }
+                        }
+                    } catch {}
+
+                    batch.update(doc(db, 'pruebas', id), update);
                     c++;
                     if (c % 400 === 0) {
                         await batch.commit();
@@ -564,10 +584,34 @@
                 pruebas = (Array.isArray(pruebas) ? pruebas : []).map(r => {
                     if (!r || !r.id) return r;
                     const match = filas.some(f => f && String(f.id || '') === String(r.id || ''));
-                    return match ? { ...r, periodo } : r;
+                    if (!match) return r;
+                    const next = { ...r, periodo };
+                    try {
+                        if (periodo === 'ANUAL') {
+                            const px = (next && next.proxima) ? String(next.proxima).trim() : '';
+                            if (!px) {
+                                const fr = parseFechaRealizacion(next.fechaRealizacion || next.fechaPrueba || '');
+                                if (fr && !isNaN(fr.getTime())) {
+                                    const d = new Date(fr);
+                                    d.setFullYear(d.getFullYear() + 1);
+                                    d.setHours(0, 0, 0, 0);
+                                    if (!isNaN(d.getTime())) next.proxima = formateaDDMMAA(d);
+                                }
+                            }
+                        }
+                    } catch {}
+                    return next;
                 });
 
                 try { if (selBulkPeriodo) selBulkPeriodo.value = ''; } catch {}
+
+                // Refrescar desde Firestore para que los rangos/chips se recalculen con datos actualizados
+                try {
+                    if (typeof leerPagina === 'function') {
+                        await leerPagina({ reset: true, forceNetwork: true });
+                    }
+                } catch {}
+                try { actualizarContadoresTiposLocal(pruebas); } catch {}
                 render();
             } catch (e) {
                 console.error(e);
