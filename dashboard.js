@@ -285,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function cargarResumenPruebas({ forceNetwork = false } = {}) {
             try {
+                try { if (spanPruebas) spanPruebas.dataset.loading = forceNetwork ? 'network' : 'cache'; } catch {}
                 const u = await esperarAuthLista();
                 if (!u) {
                     spanPruebas.textContent = '--';
@@ -444,10 +445,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
         cargarResumenPruebas({ forceNetwork: false });
 
+        // Refresco automático: permite que el dashboard se actualice aunque los cambios ocurran en otra computadora.
+        // (localStorage/BroadcastChannel solo aplican dentro del mismo navegador).
+        try {
+            let lastAutoRefresh = 0;
+            const AUTO_REFRESH_MS = 60 * 1000;
+            setInterval(() => {
+                try {
+                    if (document.visibilityState && document.visibilityState !== 'visible') return;
+                    const now = Date.now();
+                    if (now - lastAutoRefresh < AUTO_REFRESH_MS) return;
+                    lastAutoRefresh = now;
+                    try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                    cargarResumenPruebas({ forceNetwork: true });
+                } catch {}
+            }, 5000);
+
+            document.addEventListener('visibilitychange', () => {
+                try {
+                    if (document.visibilityState !== 'visible') return;
+                    const now = Date.now();
+                    if (now - lastAutoRefresh < 1500) return;
+                    lastAutoRefresh = now;
+                    try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                    cargarResumenPruebas({ forceNetwork: true });
+                } catch {}
+            });
+        } catch {}
+
         window.addEventListener('storage', (ev) => {
             try {
                 if (!ev || ev.key !== 'pct_pruebas_updated_at') return;
                 if (!spanPruebas) return;
+                try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                console.log('[dashboard] storage pct_pruebas_updated_at', ev.newValue);
                 cargarResumenPruebas({ forceNetwork: true });
             } catch {}
         });
@@ -459,6 +490,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (!ev || !ev.data) return;
                     if (ev.data.type !== 'pct_pruebas_updated') return;
+                    try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                    console.log('[dashboard] bc pct_pruebas_updated', ev.data);
                     cargarResumenPruebas({ forceNetwork: true });
                 } catch {}
             });
@@ -473,6 +506,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!Number.isFinite(v) || v <= 0) return;
                     if (v <= lastSeen) return;
                     lastSeen = v;
+                    try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                    console.log('[dashboard] poll pct_pruebas_updated_at', v);
                     cargarResumenPruebas({ forceNetwork: true });
                 } catch {}
             }, 2500);
