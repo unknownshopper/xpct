@@ -5416,12 +5416,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!actividadId) {
                     const equipoRef = get(idxEquipo);
 
+                    const buildEquipoVariants = (raw) => {
+                        const out = [];
+                        const base = String(raw || '').trim();
+                        if (base) out.push(base);
+                        try {
+                            const up = base.toUpperCase();
+                            const m = up.match(/^PCT\s*[- ]?\s*([A-Z]{2,4})\s*[- ]?\s*(\d{1,3})\s*$/);
+                            if (m) {
+                                const pref = String(m[1] || '').trim().toUpperCase();
+                                const numRaw = String(m[2] || '').trim();
+                                const n = String(parseInt(numRaw, 10));
+                                if (n && n !== 'NaN') {
+                                    out.push(`PCT-${pref}-${n.padStart(2, '0')}`);
+                                    out.push(`PCT-${pref}-${n.padStart(3, '0')}`);
+                                }
+                            }
+                        } catch {}
+                        return Array.from(new Set(out.filter(Boolean)));
+                    };
+                    const eqCandidates = buildEquipoVariants(equipoRef);
+
                     // 2.1) Intentar primero por array "equipos" (actividades multi-equipo)
                     try {
-                        if (equipoRef) {
+                        for (const eqTry of eqCandidates) {
+                            if (actividadId) break;
+                            if (!eqTry) continue;
                             const qArr = query(
                                 colRef,
-                                where('equipos', 'array-contains', equipoRef),
+                                where('equipos', 'array-contains', eqTry),
                                 orderBy('fechaRegistro', 'desc'),
                                 limit(1)
                             );
@@ -5442,25 +5465,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // 2.2) Fallback por campo "equipo" (actividades legacy / single-equipo)
                     if (!actividadId) {
-                        const q = query(
-                            colRef,
-                            where('equipo', '==', equipoRef),
-                            orderBy('fechaRegistro', 'desc'),
-                            limit(1)
-                        );
+                        try {
+                            for (const eqTry of eqCandidates) {
+                                if (actividadId) break;
+                                if (!eqTry) continue;
+                                const q = query(
+                                    colRef,
+                                    where('equipo', '==', eqTry),
+                                    orderBy('fechaRegistro', 'desc'),
+                                    limit(1)
+                                );
 
-                        const snap = await getDocs(q);
-                        if (!snap.empty) {
-                            const docAct = snap.docs[0];
-                            const data = docAct.data() || {};
-                            fechaEmbarque = data.fechaEmbarque || '';
-                            inicioServicio = data.inicioServicio || '';
-                            terminacionServicio = data.terminacionServicio || '';
-                            cliente = data.cliente || '';
-                            areaCliente = data.areaCliente || '';
-                            ubicacion = data.ubicacion || '';
-                            actividadId = docAct.id || '';
-                        }
+                                const snap = await getDocs(q);
+                                if (!snap.empty) {
+                                    const docAct = snap.docs[0];
+                                    const data = docAct.data() || {};
+                                    fechaEmbarque = data.fechaEmbarque || '';
+                                    inicioServicio = data.inicioServicio || '';
+                                    terminacionServicio = data.terminacionServicio || '';
+                                    cliente = data.cliente || '';
+                                    areaCliente = data.areaCliente || '';
+                                    ubicacion = data.ubicacion || '';
+                                    actividadId = docAct.id || '';
+                                }
+                            }
+                        } catch {}
                     }
                 }
             } catch (e) {

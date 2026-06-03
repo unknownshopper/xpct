@@ -1427,6 +1427,17 @@
                             const actId = (r.actividadId || r.__actividadIdMatched || '').toString().trim();
                             const estado = actId ? 'Inspección encontrada (con actividadId)' : 'Inspección encontrada (sin actividad ligada)';
                             lines.push(`${estado}`);
+                            try {
+                                const mMostRec = matchesInsp
+                                    .map(x => ({ r: x, ms: toMs(x ? (x.fecha || x.creadoEn) : null) }))
+                                    .filter(x => x && x.ms != null)
+                                    .sort((a, b) => (b.ms - a.ms))[0];
+                                if (mMostRec && mMostRec.r) {
+                                    const fTxt = formatearFechaRegistro(mMostRec.r.fecha || mMostRec.r.creadoEn);
+                                    const idShort = (mMostRec.r.id || '').toString().trim().slice(0, 8);
+                                    lines.push(`Más reciente: ${fTxt}${idShort ? ` · ${idShort}…` : ''}`);
+                                }
+                            } catch {}
                             if (matchesInsp.length > 1) lines.push(`Coincidencias en inspecciones: ${matchesInsp.length}`);
                         }
                         html = `No hay resultados visibles para: <strong>${filtroNow}</strong>.<br>${lines.map(x => `- ${x}`).join('<br>')}`;
@@ -1448,8 +1459,9 @@
                 const tbodyLocal = tbodyTarget;
                 if (!tbodyLocal) return;
 
-                if (filtroEstado === 'PENDIENTE' && esRealizadas) return;
-                if (filtroEstado === 'REALIZADA' && !esRealizadas) return;
+                // Si hay un filtro de búsqueda activo, mostramos ambos bloques aunque el usuario esté en modo Pendiente/Realizada
+                if (!filtro && filtroEstado === 'PENDIENTE' && esRealizadas) return;
+                if (!filtro && filtroEstado === 'REALIZADA' && !esRealizadas) return;
 
                 // Si no hay permisos de leer actividades, solo mostramos realizadas (las inspecciones existentes)
                 if (!actividadesPermitidas && !esRealizadas) {
@@ -1942,7 +1954,7 @@
 
             const hayRealizadas = (inspeccionesHuerfanas.length > 0) || Array.from(actividades).some(act => inspeccionPorActividad.has(act.id));
             if (secRealizadas) {
-                const mostrarRealizadas = (filtroEstado !== 'PENDIENTE') && hayRealizadas;
+                const mostrarRealizadas = (filtroEstado !== 'PENDIENTE' || !!filtro) && hayRealizadas;
                 secRealizadas.style.display = mostrarRealizadas ? 'block' : 'none';
             }
             if (tbodyRealizadas) {
@@ -1950,7 +1962,7 @@
             }
             try {
                 if (msgRealizadas) {
-                    const mostrar = (filtroEstado !== 'PENDIENTE') && !hayRealizadas;
+                    const mostrar = (filtroEstado !== 'PENDIENTE' || !!filtro) && !hayRealizadas;
                     msgRealizadas.style.display = mostrar ? 'block' : 'none';
                 }
             } catch {}
