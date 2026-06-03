@@ -4882,21 +4882,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const paramsUrlSave = new URLSearchParams(window.location.search || '');
             const inspIdUrlSave = (paramsUrlSave.get('inspId') || '').trim();
-            // Evitar duplicados por doble-tap o listeners duplicados: fijar un ID estable en el botón.
+            // Para nueva inspección, siempre generar un ID único.
+            // (Reusar un ID en el botón puede provocar overwrite de inspecciones distintas.)
             let localId = inspIdUrlSave;
-            try {
-                if (!localId) {
-                    const existing = (btnGuardar && btnGuardar.dataset && btnGuardar.dataset.inspLocalId)
-                        ? String(btnGuardar.dataset.inspLocalId).trim()
-                        : '';
-                    if (existing) localId = existing;
-                }
-            } catch {}
             if (!localId) {
                 localId = generarIdLocal('insp');
-                try {
-                    if (btnGuardar && btnGuardar.dataset) btnGuardar.dataset.inspLocalId = localId;
-                } catch {}
             }
             const isEditingExisting = !!inspIdUrlSave;
             const parametrosCapturados = [];
@@ -5424,24 +5414,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 2) Si no hubo actividadId en URL o no se encontró, buscar por equipo como respaldo
                 if (!actividadId) {
-                    const q = query(
-                        colRef,
-                        where('equipo', '==', get(idxEquipo)),
-                        orderBy('fechaRegistro', 'desc'),
-                        limit(1)
-                    );
+                    const equipoRef = get(idxEquipo);
 
-                    const snap = await getDocs(q);
-                    if (!snap.empty) {
-                        const docAct = snap.docs[0];
-                        const data = docAct.data() || {};
-                        fechaEmbarque = data.fechaEmbarque || '';
-                        inicioServicio = data.inicioServicio || '';
-                        terminacionServicio = data.terminacionServicio || '';
-                        cliente = data.cliente || '';
-                        areaCliente = data.areaCliente || '';
-                        ubicacion = data.ubicacion || '';
-                        actividadId = docAct.id || '';
+                    // 2.1) Intentar primero por array "equipos" (actividades multi-equipo)
+                    try {
+                        if (equipoRef) {
+                            const qArr = query(
+                                colRef,
+                                where('equipos', 'array-contains', equipoRef),
+                                orderBy('fechaRegistro', 'desc'),
+                                limit(1)
+                            );
+                            const snapArr = await getDocs(qArr);
+                            if (!snapArr.empty) {
+                                const docAct = snapArr.docs[0];
+                                const data = docAct.data() || {};
+                                fechaEmbarque = data.fechaEmbarque || '';
+                                inicioServicio = data.inicioServicio || '';
+                                terminacionServicio = data.terminacionServicio || '';
+                                cliente = data.cliente || '';
+                                areaCliente = data.areaCliente || '';
+                                ubicacion = data.ubicacion || '';
+                                actividadId = docAct.id || '';
+                            }
+                        }
+                    } catch {}
+
+                    // 2.2) Fallback por campo "equipo" (actividades legacy / single-equipo)
+                    if (!actividadId) {
+                        const q = query(
+                            colRef,
+                            where('equipo', '==', equipoRef),
+                            orderBy('fechaRegistro', 'desc'),
+                            limit(1)
+                        );
+
+                        const snap = await getDocs(q);
+                        if (!snap.empty) {
+                            const docAct = snap.docs[0];
+                            const data = docAct.data() || {};
+                            fechaEmbarque = data.fechaEmbarque || '';
+                            inicioServicio = data.inicioServicio || '';
+                            terminacionServicio = data.terminacionServicio || '';
+                            cliente = data.cliente || '';
+                            areaCliente = data.areaCliente || '';
+                            ubicacion = data.ubicacion || '';
+                            actividadId = docAct.id || '';
+                        }
                     }
                 }
             } catch (e) {
