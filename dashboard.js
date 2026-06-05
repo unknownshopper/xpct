@@ -319,6 +319,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const itemsZero = [];
             const latest = new Map();
 
+            const calcDueDate = (data, fr) => {
+                let dProx = parseProxima(data && data.proxima ? data.proxima : '');
+                if (!dProx && fr) {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0, 0, 0, 0);
+                    if (!isNaN(d.getTime())) dProx = d;
+                }
+                return dProx;
+            };
+
             arr.forEach(data => {
                 const periodoStr = (data && data.periodo ? String(data.periodo) : '').trim().toUpperCase();
                 if (periodoStr === 'ANUAL' || periodoStr === '') tAn += 1;
@@ -333,24 +344,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const key = `${normEquipoKey(equipo)}__${tipo}`;
 
                 const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
+                const dDue = calcDueDate(data, fr);
+                const dueMs = dDue ? dDue.getTime() : 0;
                 const prev = latest.get(key);
                 if (!prev) {
-                    latest.set(key, { data, equipo, fr });
+                    latest.set(key, { data, equipo, fr, dDue, dueMs });
                     return;
                 }
-                const a = prev.fr ? prev.fr.getTime() : 0;
-                const b = fr ? fr.getTime() : 0;
-                if (b >= a) latest.set(key, { data, equipo, fr });
+                const a = prev.dueMs || 0;
+                const b = dueMs || 0;
+                if (b >= a) latest.set(key, { data, equipo, fr, dDue, dueMs });
             });
 
-            latest.forEach(({ data, equipo, fr }) => {
-                let dProx = parseProxima(data && data.proxima ? data.proxima : '');
-                if (!dProx && fr) {
-                    const d = new Date(fr);
-                    d.setFullYear(d.getFullYear() + 1);
-                    d.setHours(0, 0, 0, 0);
-                    if (!isNaN(d.getTime())) dProx = d;
-                }
+            latest.forEach(({ data, equipo, dDue, fr }) => {
+                const dProx = dDue || calcDueDate(data, fr);
                 if (!dProx) return;
 
                 const diffMs = dProx.getTime() - hoy.getTime();
@@ -507,6 +514,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         const itemsZero = [];
                         const latest = new Map();
 
+                        const calcDueDate = (data, fr) => {
+                            let dProx = parseProxima(data && data.proxima ? data.proxima : '');
+                            if (!dProx && fr) {
+                                const d = new Date(fr);
+                                d.setFullYear(d.getFullYear() + 1);
+                                d.setHours(0,0,0,0);
+                                if (!isNaN(d.getTime())) dProx = d;
+                            }
+                            return dProx;
+                        };
+
                         snap.forEach(docSnap => {
                             const data = docSnap.data() || {};
 
@@ -523,24 +541,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             const key = `${normEquipoKey(equipo)}__${tipo}`;
 
                             const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
+                            const dDue = calcDueDate(data, fr);
+                            const dueMs = dDue ? dDue.getTime() : 0;
                             const prev = latest.get(key);
                             if (!prev) {
-                                latest.set(key, { data, equipo, fr });
+                                latest.set(key, { data, equipo, fr, dDue, dueMs });
                                 return;
                             }
-                            const a = prev.fr ? prev.fr.getTime() : 0;
-                            const b = fr ? fr.getTime() : 0;
-                            if (b >= a) latest.set(key, { data, equipo, fr });
+                            const a = prev.dueMs || 0;
+                            const b = dueMs || 0;
+                            if (b >= a) latest.set(key, { data, equipo, fr, dDue, dueMs });
                         });
 
-                        latest.forEach(({ data, equipo, fr }) => {
-                        let dProx = parseProxima(data.proxima || '');
-                        if (!dProx && fr) {
-                            const d = new Date(fr);
-                            d.setFullYear(d.getFullYear() + 1);
-                            d.setHours(0,0,0,0);
-                            if (!isNaN(d.getTime())) dProx = d;
-                        }
+                        latest.forEach(({ data, equipo, fr, dDue }) => {
+                        const dProx = dDue || calcDueDate(data, fr);
                         if (!dProx) return;
 
                             const diffMs = dProx.getTime() - hoy.getTime();
