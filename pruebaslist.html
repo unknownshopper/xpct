@@ -4484,6 +4484,20 @@
                 const payload = { periodo: nuevoValor || '' };
                 if (nuevoValor && nuevoValor !== 'ANUAL') {
                     payload.proxima = deleteField();
+                } else if ((nuevoValor === 'ANUAL' || !nuevoValor)) {
+                    try {
+                        const reg = (Array.isArray(pruebas) ? pruebas : []).find(r => r && r.id === id) || null;
+                        const pxActual = (reg && reg.proxima) ? String(reg.proxima).trim() : '';
+                        if (!pxActual) {
+                            const fr = parseFechaRealizacion((reg && (reg.fechaRealizacion || reg.fechaPrueba)) ? (reg.fechaRealizacion || reg.fechaPrueba) : '');
+                            if (fr && !isNaN(fr.getTime())) {
+                                const d = new Date(fr);
+                                d.setFullYear(d.getFullYear() + 1);
+                                d.setHours(0, 0, 0, 0);
+                                if (!isNaN(d.getTime())) payload.proxima = formateaDDMMAA(d);
+                            }
+                        }
+                    } catch {}
                 }
                 await updateDoc(ref, payload);
 
@@ -4492,11 +4506,29 @@
                         const next = { ...reg, periodo: nuevoValor || '' };
                         if (nuevoValor && nuevoValor !== 'ANUAL') {
                             try { delete next.proxima; } catch {}
+                        } else {
+                            try {
+                                if (payload && typeof payload.proxima === 'string') next.proxima = payload.proxima;
+                            } catch {}
                         }
+                        try { next._fechaRealDate = parseFechaRealizacion(next.fechaRealizacion || next.fechaPrueba || ''); } catch {}
+                        try { next._clasif = (typeof clasificarPrueba === 'function') ? clasificarPrueba(next) : (next._clasif || null); } catch {}
                         return next;
                     }
                     return reg;
                 });
+
+                try {
+                    if (typeof window.refrescarPruebaslistUI === 'function') {
+                        window.refrescarPruebaslistUI();
+                    } else {
+                        try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                        try { render(); } catch {}
+                    }
+                } catch {}
+
+                try { if (typeof cacheDashboardPruebasSnapshot === 'function') cacheDashboardPruebasSnapshot(pruebas); } catch {}
+                try { localStorage.setItem('pct_pruebas_updated_at', String(Date.now())); } catch {}
             } catch (e) {
                 console.error('No se pudo actualizar el Periodo para id ' + id, e);
                 alert('No se pudo guardar el cambio de Periodo. Revisa la consola para más detalles.');
