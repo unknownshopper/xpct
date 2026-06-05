@@ -411,7 +411,7 @@
                                 <th style="text-align:left; padding:0.4rem;">Periodo</th>
                                 <th style="text-align:left; padding:0.4rem;">Estado</th>
                                 <th style="text-align:left; padding:0.4rem;">Días para próxima Prueba</th>
-                                <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th id="th-pruebas-sort-equipo" style="text-align:left; padding:0.4rem; cursor:pointer; user-select:none;">Equipo</th>
                                 <th style="text-align:left; padding:0.4rem;">Serial</th>
                                 <th style="text-align:left; padding:0.4rem;">Producto</th>
                                 <th style="text-align:left; padding:0.4rem;">Descripción</th>
@@ -3305,6 +3305,36 @@
             return t;
         }
 
+        const thSortEquipo = document.getElementById('th-pruebas-sort-equipo');
+        let sortListado = { key: '', dir: 'asc' }; // key: '' | 'equipo'
+
+        function applySortHeaderEquipo() {
+            try {
+                if (!thSortEquipo) return;
+                const base = thSortEquipo.getAttribute('data-base-label') || thSortEquipo.textContent || 'Equipo';
+                if (!thSortEquipo.getAttribute('data-base-label')) thSortEquipo.setAttribute('data-base-label', base);
+                const isActive = sortListado.key === 'equipo';
+                const arrow = isActive ? (sortListado.dir === 'asc' ? ' ▲' : ' ▼') : '';
+                thSortEquipo.textContent = `${base}${arrow}`;
+            } catch {}
+        }
+
+        if (thSortEquipo) {
+            thSortEquipo.addEventListener('click', () => {
+                try {
+                    if (sortListado.key === 'equipo') {
+                        sortListado.dir = (sortListado.dir === 'asc') ? 'desc' : 'asc';
+                    } else {
+                        sortListado.key = 'equipo';
+                        sortListado.dir = 'asc';
+                    }
+                    applySortHeaderEquipo();
+                    try { render(); } catch {}
+                } catch {}
+            });
+            applySortHeaderEquipo();
+        }
+
         function render() {
             const filtro = (inputBuscar?.value || '').toLowerCase().trim();
 
@@ -3661,6 +3691,19 @@
                 return b._fechaRealDate.getTime() - a._fechaRealDate.getTime();
             });
 
+            if (sortListado.key === 'equipo') {
+                const desc = sortListado.dir === 'desc';
+                listaOrdenada.sort((a, b) => {
+                    const ea = normEquipoKey(a && a.equipo ? String(a.equipo) : '');
+                    const eb = normEquipoKey(b && b.equipo ? String(b.equipo) : '');
+                    if (ea === eb) return 0;
+                    if (!ea) return 1;
+                    if (!eb) return -1;
+                    const cmp = ea.localeCompare(eb);
+                    return desc ? -cmp : cmp;
+                });
+            }
+
             let cntPend = 0;
             let cntVenc = 0;
             let cntHist = 0;
@@ -3712,7 +3755,10 @@
                         vistos.add(eqK);
                         return true;
                     })
-                    .sort((a, b) => a.localeCompare(b))
+                    .sort((a, b) => {
+                        const cmp = a.localeCompare(b);
+                        return (sortListado.key === 'equipo' && sortListado.dir === 'desc') ? -cmp : cmp;
+                    })
                     .forEach(eqK => {
                         const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : '';
                         const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : '';
