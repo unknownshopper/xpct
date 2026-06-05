@@ -110,6 +110,29 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch {}
     }
 
+    async function getSnapCacheThenNetwork(colRef, { forceNetwork = false } = {}) {
+        try {
+            const mod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const { getDocsFromCache, getDocs } = mod;
+
+            let snap = null;
+            if (!forceNetwork) {
+                try { snap = await getDocsFromCache(colRef); } catch {}
+            }
+
+            if (snap && typeof snap.size === 'number' && snap.size > 0) return snap;
+
+            try {
+                const sr = await getDocs(colRef);
+                if (sr && typeof sr.size === 'number') return sr;
+            } catch {}
+
+            return (snap && typeof snap.size === 'number' && snap.size > 0) ? snap : null;
+        } catch {
+            return null;
+        }
+    }
+
     // Pruebas guardadas en Firestore (total y por vencer a 60/30/15 días)
     if (spanPruebas) {
         spanPruebas.textContent = 'Cargando...';
@@ -283,6 +306,156 @@ document.addEventListener('DOMContentLoaded', () => {
             return (v || '').toString().toUpperCase().trim();
         }
 
+        function computeResumenPruebasFromDocs(docs) {
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+
+            const arr = Array.isArray(docs) ? docs : [];
+            const total = arr.length;
+            let pv60 = 0, pv30 = 0, pv15 = 0, tAn = 0, tPT = 0, tRep = 0, tZero = 0;
+            const items60 = [];
+            const items30 = [];
+            const items15 = [];
+            const itemsZero = [];
+            const latest = new Map();
+
+            arr.forEach(data => {
+                const periodoStr = (data && data.periodo ? String(data.periodo) : '').trim().toUpperCase();
+                if (periodoStr === 'ANUAL' || periodoStr === '') tAn += 1;
+                else if (periodoStr === 'POST-TRABAJO') tPT += 1;
+                else if (periodoStr === 'REPARACION') tRep += 1;
+
+                if (!(periodoStr === 'ANUAL' || periodoStr === '')) return;
+
+                const equipo = (data && (data.equipo || data.activo || data['EQUIPO / ACTIVO']) ? (data.equipo || data.activo || data['EQUIPO / ACTIVO']) : '').toString().trim();
+                if (!equipo) return;
+                const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
+                const key = `${normEquipoKey(equipo)}__${tipo}`;
+
+                const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
+                const prev = latest.get(key);
+                if (!prev) {
+                    latest.set(key, { data, equipo, fr });
+                    return;
+                }
+                const a = prev.fr ? prev.fr.getTime() : 0;
+                const b = fr ? fr.getTime() : 0;
+                if (b >= a) latest.set(key, { data, equipo, fr });
+            });
+
+            latest.forEach(({ data, equipo, fr }) => {
+                let dProx = parseProxima(data && data.proxima ? data.proxima : '');
+                if (!dProx && fr) {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0, 0, 0, 0);
+                    if (!isNaN(d.getTime())) dProx = d;
+                }
+                if (!dProx) return;
+
+                const diffMs = dProx.getTime() - hoy.getTime();
+                const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                const proximaTxt = (typeof (data && data.proxima) === 'string') ? data.proxima : '';
+                if (dias <= 0) {
+                    tZero += 1;
+                    if (itemsZero.length < 2000) itemsZero.push({ equipo, proxima: proximaTxt, dias });
+                    return;
+                }
+                if (dias > 60) return;
+                if (dias >= 31 && dias <= 60) {
+                    pv60 += 1;
+                    if (items60.length < 2000) items60.push({ equipo, proxima: proximaTxt, dias });
+                } else if (dias >= 16 && dias <= 30) {
+                    pv30 += 1;
+                    if (items30.length < 2000) items30.push({ equipo, proxima: proximaTxt, dias });
+                } else if (dias >= 1 && dias <= 15) {
+                    pv15 += 1;
+                    if (items15.length < 2000) items15.push({ equipo, proxima: proximaTxt, dias });
+                }
+            });
+
+            return {
+                total,
+                porVencer60: pv60,
+                porVencer30: pv30,
+                porVencer15: pv15,
+                totalAnual: tAn,
+                totalPostTrabajo: tPT,
+                totalReparacion: tRep,
+                totalVencidas: tZero,
+                items60,
+                items30,
+                items15,
+                itemsZero,
+            };
+        }
+
+        function renderResumenPruebasComputed(out) {
+            try {
+                if (!out) return;
+                const {
+                    total,
+                    porVencer60,
+                    porVencer30,
+                    porVencer15,
+                    totalAnual,
+                    totalPostTrabajo,
+                    totalReparacion,
+                    totalVencidas,
+                    items60,
+                    items30,
+                    items15,
+                    itemsZero,
+                } = out;
+
+                renderTimelinePruebas({
+                    totalAnual,
+                    pv60: porVencer60,
+                    pv30: porVencer30,
+                    pv15: porVencer15,
+                    vencidas: totalVencidas,
+                    cero: totalVencidas,
+                    items60,
+                    items30,
+                    items15,
+                    itemsZero,
+                });
+
+                spanPruebas.innerHTML = `
+                    <div class="dash-stats" aria-label="Resumen de pruebas">
+                        <div class="dash-stat-row">
+                            <span class="row-left">📦 <span>Total</span></span>
+                            <span class="badge gray">${total}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">☠️ <span>0 días (vencidas)</span></span>
+                            <span class="badge black">${totalVencidas}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">🟦 <span>60–31 días</span></span>
+                            <span class="badge blue">${porVencer60}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">🟨 <span>30–16 días</span></span>
+                            <span class="badge amber">${porVencer30}</span>
+                        </div>
+                        <div class="dash-stat-row">
+                            <span class="row-left">🟥 <span>15–1 días</span></span>
+                            <span class="badge red">${porVencer15}</span>
+                        </div>
+                        <div class="dash-stat-row small" style="margin-top:0.15rem;">
+                            <span class="row-left">🧪 <span>Tipos</span></span>
+                            <span class="dash-badges-inline">
+                                <span class="badge gray" title="Pruebas anuales">Anual: ${totalAnual}</span>
+                                <span class="badge gray" title="Post-trabajo">Post-trabajo: ${totalPostTrabajo}</span>
+                                <span class="badge gray" title="Reparación">Reparación: ${totalReparacion}</span>
+                            </span>
+                        </div>
+                    </div>
+                `;
+            } catch {}
+        }
+
         async function cargarResumenPruebas({ forceNetwork = false } = {}) {
             try {
                 try { if (spanPruebas) spanPruebas.dataset.loading = forceNetwork ? 'network' : 'cache'; } catch {}
@@ -312,16 +485,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 let totalVencidas = '—';
 
                 try {
-                    let snap = null;
-                    if (forceNetwork) {
-                        try { snap = await getDocs(colRef); } catch {}
-                    } else {
-                        try { snap = await getDocsFromCache(colRef); } catch {}
-                        if (snap && typeof snap.size === 'number' && snap.size === 0) {
-                            try { snap = await getDocs(colRef); } catch {}
+                    const snap = await getSnapCacheThenNetwork(colRef, { forceNetwork });
+                    if (!snap) {
+                        if (!forceNetwork) {
+                            try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                            setTimeout(() => {
+                                try { cargarResumenPruebas({ forceNetwork: true }); } catch {}
+                            }, 1100);
                         }
+                        return;
                     }
-                    if (snap && typeof snap.size === 'number') {
+
+                    if (typeof snap.size === 'number') {
                         total = snap.size;
                         try { setCachedNumber('pct_pruebas_total_cached', total); } catch {}
 
@@ -444,6 +619,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         cargarResumenPruebas({ forceNetwork: false });
+
+        try {
+            let unsubPruebas = null;
+            let tDebounce = null;
+
+            (async () => {
+                try {
+                    const u = await esperarAuthLista();
+                    if (!u) return;
+
+                    const { getFirestore, collection, onSnapshot } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+                    const db = getFirestore();
+                    const colRef = collection(db, 'pruebas');
+
+                    const scheduleRender = (docs) => {
+                        try { if (tDebounce) clearTimeout(tDebounce); } catch {}
+                        tDebounce = setTimeout(() => {
+                            try {
+                                const out = computeResumenPruebasFromDocs(docs);
+                                renderResumenPruebasComputed(out);
+                            } catch {}
+                        }, 80);
+                    };
+
+                    unsubPruebas = onSnapshot(colRef, { includeMetadataChanges: true }, (snap) => {
+                        try {
+                            if (!snap) return;
+                            const fromCache = !!(snap.metadata && snap.metadata.fromCache);
+                            const hasWrites = !!(snap.metadata && snap.metadata.hasPendingWrites);
+                            if (fromCache && snap.size === 0 && !hasWrites) {
+                                try { spanPruebas.textContent = 'Actualizando...'; } catch {}
+                                return;
+                            }
+                            const docs = snap.docs.map(d => (d && d.data ? d.data() : {}));
+                            scheduleRender(docs);
+                        } catch {}
+                    }, () => {
+                        try {
+                            cargarResumenPruebas({ forceNetwork: true });
+                        } catch {}
+                    });
+
+                    window.addEventListener('beforeunload', () => {
+                        try { if (typeof unsubPruebas === 'function') unsubPruebas(); } catch {}
+                    });
+                } catch {}
+            })();
+        } catch {}
 
         function renderResumenPruebasDesdeCache() {
             try {
@@ -882,28 +1107,30 @@ document.addEventListener('DOMContentLoaded', () => {
         spanInspecciones.textContent = 'Cargando...';
 
         (async () => {
-            try {
-                const u = await esperarAuthLista();
-                if (!u) {
-                    spanInspecciones.textContent = '--';
-                    return;
-                }
-                // 1) Leer actividades desde Firestore para conocer el universo de actividades
-                const { getFirestore, collection, getDocs, getDocsFromCache } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
-
-                const db = getFirestore();
-                const colRef = collection(db, 'actividades');
-                let snap;
+            async function cargarResumenInspecciones({ forceNetwork = false } = {}) {
                 try {
-                    snap = await getDocsFromCache(colRef);
-                    if (snap && typeof snap.size === 'number' && snap.size === 0) {
-                        try { snap = await getDocs(colRef); } catch {}
+                    const u = await esperarAuthLista();
+                    if (!u) {
+                        spanInspecciones.textContent = '--';
+                        return;
                     }
-                } catch {
-                    snap = await getDocs(colRef);
-                }
+                    // 1) Leer actividades desde Firestore para conocer el universo de actividades
+                    const { getFirestore, collection } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+
+                    const db = getFirestore();
+                    const colRef = collection(db, 'actividades');
+                    const snap = await getSnapCacheThenNetwork(colRef, { forceNetwork });
+                    if (!snap) {
+                        if (!forceNetwork) {
+                            try { spanInspecciones.textContent = 'Actualizando...'; } catch {}
+                            setTimeout(() => {
+                                try { cargarResumenInspecciones({ forceNetwork: true }); } catch {}
+                            }, 1100);
+                        }
+                        return;
+                    }
 
                 const esActividadValida = (a) => {
                     try {
@@ -928,33 +1155,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     actividadIds.add(doc.id);
                 });
 
-                // 2) Leer inspecciones desde Firestore (con fallback a localStorage)
-                let listaInspecciones = [];
-                try {
-                    const { collection: col, getDocs: getDocsInsp, getDocsFromCache: getDocsFromCacheInsp } = await import(
-                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                    );
+                    // 2) Leer inspecciones desde Firestore (con fallback a localStorage)
+                    let listaInspecciones = [];
+                    try {
+                        const { collection: col } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
 
-                    const colInsp = col(db, 'inspecciones');
-                    let snapInsp;
-                    try {
-                        snapInsp = await getDocsFromCacheInsp(colInsp);
-                        if (snapInsp && typeof snapInsp.size === 'number' && snapInsp.size === 0) {
-                            try { snapInsp = await getDocsInsp(colInsp); } catch {}
+                        const colInsp = col(db, 'inspecciones');
+                        const snapInsp = await getSnapCacheThenNetwork(colInsp, { forceNetwork });
+                        if (!snapInsp) throw new Error('inspecciones_snapshot_empty');
+                        listaInspecciones = snapInsp.docs.map(d => ({ id: d.id, ...d.data() }));
+                    } catch {
+                        // Si falla Firestore, usar localStorage como respaldo
+                        try {
+                            const crudo = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
+                            if (Array.isArray(crudo)) listaInspecciones = crudo;
+                        } catch {
+                            listaInspecciones = [];
                         }
-                    } catch {
-                        snapInsp = await getDocsInsp(colInsp);
                     }
-                    listaInspecciones = snapInsp.docs.map(d => ({ id: d.id, ...d.data() }));
-                } catch {
-                    // Si falla Firestore, usar localStorage como respaldo
-                    try {
-                        const crudo = JSON.parse(localStorage.getItem('pct_inspecciones') || '[]');
-                        if (Array.isArray(crudo)) listaInspecciones = crudo;
-                    } catch {
-                        listaInspecciones = [];
-                    }
-                }
 
                 // 3) Determinar qué actividades ya tienen al menos una inspección
                 // Nota: hay inspecciones históricas guardadas sin actividadId. Para no inflar "Por realizar",
@@ -1005,22 +1225,139 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!actividadesConInspeccion.has(id)) pendientes += 1;
                 });
 
-                spanInspecciones.innerHTML = `
-                    <div class="dash-stats" aria-label="Resumen de inspecciones">
-                        <div class="dash-stat-row">
-                            <span class="row-left">⏳ <span>Por realizar</span></span>
-                            <span class="badge amber">${pendientes}</span>
+                    spanInspecciones.innerHTML = `
+                        <div class="dash-stats" aria-label="Resumen de inspecciones">
+                            <div class="dash-stat-row">
+                                <span class="row-left">⏳ <span>Por realizar</span></span>
+                                <span class="badge amber">${pendientes}</span>
+                            </div>
+                            <div class="dash-stat-row">
+                                <span class="row-left">✅ <span>Realizadas</span></span>
+                                <span class="badge blue">${realizadas}</span>
+                            </div>
                         </div>
-                        <div class="dash-stat-row">
-                            <span class="row-left">✅ <span>Realizadas</span></span>
-                            <span class="badge blue">${realizadas}</span>
-                        </div>
-                    </div>
-                `;
-            } catch (e) {
-                console.error('Error al leer resumen de inspecciones para el dashboard', e);
-                spanInspecciones.textContent = 'Error';
+                    `;
+                } catch (e) {
+                    console.error('Error al leer resumen de inspecciones para el dashboard', e);
+                    spanInspecciones.textContent = 'Error';
+                }
             }
+
+            await cargarResumenInspecciones({ forceNetwork: false });
+
+            try {
+                let unsubActs = null;
+                let unsubInsp = null;
+                let tDebounce = null;
+                let lastActs = null;
+                let lastInsp = null;
+
+                const renderIfReady = () => {
+                    try {
+                        if (!lastActs || !lastInsp) return;
+                        const snapActs = lastActs;
+                        const snapInsp = lastInsp;
+
+                        const actividadIds = new Set();
+                        const actIdsPorEquipo = new Map();
+                        snapActs.forEach(doc => {
+                            const data = doc.data ? doc.data() : null;
+                            if (!esActividadValida(data)) return;
+                            actividadIds.add(doc.id);
+                            const eq = (data && data.equipo ? String(data.equipo) : '').trim();
+                            if (!eq) return;
+                            if (!actIdsPorEquipo.has(eq)) actIdsPorEquipo.set(eq, []);
+                            actIdsPorEquipo.get(eq).push(doc.id);
+                        });
+
+                        const listaInspecciones = snapInsp.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+
+                        const actividadesConInspeccion = new Set();
+                        const inspeccionesSinActividad = [];
+                        (listaInspecciones || []).forEach(reg => {
+                            if (!reg) return;
+                            const actId = reg.actividadId ? String(reg.actividadId).trim() : '';
+                            if (actId && actividadIds.has(actId)) {
+                                actividadesConInspeccion.add(actId);
+                                return;
+                            }
+                            inspeccionesSinActividad.push(reg);
+                        });
+
+                        inspeccionesSinActividad.forEach(reg => {
+                            try {
+                                const eq = (reg && reg.equipo ? String(reg.equipo) : '').trim();
+                                if (!eq) return;
+                                const ids = actIdsPorEquipo.get(eq) || [];
+                                if (ids.length === 1) actividadesConInspeccion.add(ids[0]);
+                            } catch {}
+                        });
+
+                        const realizadas = actividadesConInspeccion.size;
+                        let pendientes = 0;
+                        actividadIds.forEach(id => {
+                            if (!actividadesConInspeccion.has(id)) pendientes += 1;
+                        });
+
+                        spanInspecciones.innerHTML = `
+                            <div class="dash-stats" aria-label="Resumen de inspecciones">
+                                <div class="dash-stat-row">
+                                    <span class="row-left">⏳ <span>Por realizar</span></span>
+                                    <span class="badge amber">${pendientes}</span>
+                                </div>
+                                <div class="dash-stat-row">
+                                    <span class="row-left">✅ <span>Realizadas</span></span>
+                                    <span class="badge blue">${realizadas}</span>
+                                </div>
+                            </div>
+                        `;
+                    } catch {}
+                };
+
+                const scheduleRender = () => {
+                    try { if (tDebounce) clearTimeout(tDebounce); } catch {}
+                    tDebounce = setTimeout(() => {
+                        try { renderIfReady(); } catch {}
+                    }, 80);
+                };
+
+                (async () => {
+                    try {
+                        const u = await esperarAuthLista();
+                        if (!u) return;
+                        const { getFirestore, collection, onSnapshot } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        const colActs = collection(db, 'actividades');
+                        const colInsp = collection(db, 'inspecciones');
+
+                        unsubActs = onSnapshot(colActs, { includeMetadataChanges: true }, (snap) => {
+                            try {
+                                const fromCache = !!(snap.metadata && snap.metadata.fromCache);
+                                const hasWrites = !!(snap.metadata && snap.metadata.hasPendingWrites);
+                                if (fromCache && snap.size === 0 && !hasWrites) return;
+                                lastActs = snap;
+                                scheduleRender();
+                            } catch {}
+                        });
+                        unsubInsp = onSnapshot(colInsp, { includeMetadataChanges: true }, (snap) => {
+                            try {
+                                const fromCache = !!(snap.metadata && snap.metadata.fromCache);
+                                const hasWrites = !!(snap.metadata && snap.metadata.hasPendingWrites);
+                                if (fromCache && snap.size === 0 && !hasWrites) return;
+                                lastInsp = snap;
+                                scheduleRender();
+                            } catch {}
+                        });
+
+                        window.addEventListener('beforeunload', () => {
+                            try { if (typeof unsubActs === 'function') unsubActs(); } catch {}
+                            try { if (typeof unsubInsp === 'function') unsubInsp(); } catch {}
+                        });
+                    } catch {}
+                })();
+            } catch {}
         })();
     }
 
@@ -1204,6 +1541,61 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+
+                try {
+                    let unsubActs = null;
+                    let tDebounce = null;
+
+                    const scheduleRender = (snap) => {
+                        try { if (tDebounce) clearTimeout(tDebounce); } catch {}
+                        tDebounce = setTimeout(() => {
+                            try {
+                                let totalNow = 0;
+                                let concluidasNow = 0;
+                                if (snap && typeof snap.size === 'number') {
+                                    totalNow = snap.size;
+                                    snap.forEach(d => {
+                                        const data = (d && d.data) ? (d.data() || {}) : {};
+                                        if (data.terminacionEsFinal === true) concluidasNow += 1;
+                                    });
+                                }
+                                const pendientesNow = Math.max(0, totalNow - concluidasNow);
+                                spanActividades.innerHTML = `
+                                    <div class="dash-stats" aria-label="Resumen de actividades">
+                                        <div class="dash-stat-row">
+                                            <span class="row-left">📋 <span>Total</span></span>
+                                            <span class="badge gray">${totalNow}</span>
+                                        </div>
+                                        <div class="dash-stat-row">
+                                            <span class="row-left">✅ <span>Concluidas</span></span>
+                                            <span class="badge blue">${concluidasNow}</span>
+                                        </div>
+                                        <div class="dash-stat-row">
+                                            <span class="row-left">⏳ <span>Pendientes</span></span>
+                                            <span class="badge amber">${pendientesNow}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            } catch {}
+                        }, 80);
+                    };
+
+                    const u = await esperarAuthLista();
+                    if (u) {
+                        const { onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        unsubActs = onSnapshot(colRef, { includeMetadataChanges: true }, (snap) => {
+                            try {
+                                const fromCache = !!(snap.metadata && snap.metadata.fromCache);
+                                const hasWrites = !!(snap.metadata && snap.metadata.hasPendingWrites);
+                                if (fromCache && snap.size === 0 && !hasWrites) return;
+                                scheduleRender(snap);
+                            } catch {}
+                        });
+                        window.addEventListener('beforeunload', () => {
+                            try { if (typeof unsubActs === 'function') unsubActs(); } catch {}
+                        });
+                    }
+                } catch {}
             } catch (e) {
                 console.error('Error al leer resumen de actividades para el dashboard', e);
                 spanActividades.textContent = 'Error';
