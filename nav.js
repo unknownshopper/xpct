@@ -732,9 +732,29 @@ document.addEventListener('DOMContentLoaded', () => {
             if (last) return; // ya mostrado hoy
         } catch {}
 
-        function parseProxima(str) {
-            if (!str) return null;
-            const s = String(str).trim();
+        function parseProxima(val) {
+            if (!val) return null;
+            try {
+                if (val && typeof val === 'object' && typeof val.toDate === 'function') {
+                    const d = val.toDate();
+                    if (isNaN(d.getTime())) return null;
+                    d.setHours(0, 0, 0, 0);
+                    return d;
+                }
+            } catch {}
+            if (val instanceof Date) {
+                const d = new Date(val);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+            if (typeof val === 'number' && isFinite(val)) {
+                const d = new Date(val);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+            const s = String(val).trim();
             if (!s) return null;
             if (s.includes('/')) {
                 const partes = s.split('/');
@@ -744,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mm = parseInt(mmStr, 10);
                 const aa = parseInt(aaStr, 10);
                 if (!dd || !mm || isNaN(aa)) return null;
-                const year = aa < 100 ? 2000 + aa : aa;
+                const year = aaStr.length <= 2 ? (2000 + aa) : aa;
                 const d = new Date(year, mm - 1, dd);
                 if (isNaN(d.getTime())) return null;
                 d.setHours(0, 0, 0, 0);
@@ -756,30 +776,108 @@ document.addEventListener('DOMContentLoaded', () => {
             return d;
         }
 
+        function parseFechaRealizacion(val) {
+            if (!val) return null;
+            const s = String(val).trim();
+            if (!s) return null;
+            if (s.includes('/')) {
+                const partes = s.split('/');
+                if (partes.length !== 3) return null;
+                const [ddStr, mmStr, aaStr] = partes;
+                const dd = parseInt(ddStr, 10);
+                const mm = parseInt(mmStr, 10);
+                const aa = parseInt(aaStr, 10);
+                if (!dd || !mm || isNaN(aa)) return null;
+                const year = aaStr.length <= 2 ? (2000 + aa) : aa;
+                const d = new Date(year, mm - 1, dd);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            }
+            const d = new Date(s);
+            if (isNaN(d.getTime())) return null;
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function normEquipoKey(v) {
+            let t = (v || '').toString();
+            t = t.replace(/\u00A0/g, ' ');
+            t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+            t = t.trim().toUpperCase();
+            return t;
+        }
+
+        function normPruebaKey(v) {
+            let t = (v || '').toString().trim().toUpperCase();
+            t = t.replace(/\s+/g, ' ');
+            if (t.includes('VT') || t.includes('PT') || t.includes('MT')) return 'VT/PT/MT';
+            if (t.includes('UTT')) return 'UTT';
+            if (t.includes('LT')) return 'LT';
+            return t || 'ANUAL';
+        }
+
         try {
-            const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const { getFirestore, collection, getDocsFromCache, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const db = getFirestore();
             const colRef = collection(db, 'pruebas');
-            const snap = await getDocs(colRef);
+
+            let snap = null;
+            try { snap = await getDocsFromCache(colRef); } catch {}
+            if (!snap || snap.empty) {
+                snap = await getDocs(colRef);
+            }
 
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
-            let c60 = 0, c30 = 0, c15 = 0, cv = 0;
+            let c60 = 0, c30 = 0, c15 = 0, c0 = 0;
+            const latest = new Map();
 
-            snap.forEach(doc => {
-                const data = doc.data() || {};
+            const calcDueDate = (data, fr) => {
+                let dProx = parseProxima(data && data.proxima ? data.proxima : '');
+                if (!dProx && fr) {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0, 0, 0, 0);
+                    if (!isNaN(d.getTime())) dProx = d;
+                }
+                return dProx;
+            };
+
+            snap.forEach(docSnap => {
+                const data = docSnap.data() || {};
                 const periodo = (data.periodo || '').toString().trim().toUpperCase();
-                if (periodo && periodo !== 'ANUAL') return; // solo ANUAL para alertas
-                const dProx = parseProxima(data.proxima || '');
-                if (!dProx) return;
-                const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                if (dias < 0) cv += 1;
-                else if (dias >= 30 && dias <= 60) c60 += 1;
-                else if (dias >= 15 && dias < 30) c30 += 1;
-                else if (dias >= 0 && dias < 15) c15 += 1;
+                if (!(periodo === 'ANUAL' || periodo === '')) return;
+
+                const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
+                if (!equipo) return;
+                const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
+                const key = `${normEquipoKey(equipo)}__${tipo}`;
+
+                const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
+                const dDue = calcDueDate(data, fr);
+                const dueMs = dDue ? dDue.getTime() : 0;
+                const prev = latest.get(key);
+                if (!prev) {
+                    latest.set(key, { data, fr, dDue, dueMs });
+                    return;
+                }
+                const a = prev.dueMs || 0;
+                const b = dueMs || 0;
+                if (b >= a) latest.set(key, { data, fr, dDue, dueMs });
             });
 
-            const total = c60 + c30 + c15 + cv;
+            latest.forEach(({ data, fr, dDue }) => {
+                const dProx = dDue || calcDueDate(data, fr);
+                if (!dProx) return;
+                const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                if (dias <= 0) c0 += 1;
+                else if (dias >= 31 && dias <= 60) c60 += 1;
+                else if (dias >= 16 && dias <= 30) c30 += 1;
+                else if (dias >= 1 && dias <= 15) c15 += 1;
+            });
+
+            const total = c60 + c30 + c15 + c0;
             if (!total) return;
 
             // Render toast
@@ -796,10 +894,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="toast-close" aria-label="Cerrar">×</button>
                 <div class="toast-title">Pruebas por vencer</div>
                 <div class="toast-body">
-                    ${c60 ? `🟦 60–30 días: <strong>${c60}</strong><br>` : ''}
-                    ${c30 ? `🟨 30–15 días: <strong>${c30}</strong><br>` : ''}
-                    ${c15 ? `🟥 15–0 días: <strong>${c15}</strong><br>` : ''}
-                    ${cv ? `⚠️ Vencidas: <strong>${cv}</strong><br>` : ''}
+                    ${c60 ? `🟦 60–31 días: <strong>${c60}</strong><br>` : ''}
+                    ${c30 ? `🟨 30–16 días: <strong>${c30}</strong><br>` : ''}
+                    ${c15 ? `🟥 15–1 días: <strong>${c15}</strong><br>` : ''}
+                    ${c0 ? `☠️ 0 días (vencidas): <strong>${c0}</strong><br>` : ''}
                     <div style="margin-top:6px;"><a href="pruebaslist.html" style="color:#93c5fd;text-decoration:underline;">Ver listado de pruebas</a></div>
                 </div>`;
             cont.appendChild(toast);
