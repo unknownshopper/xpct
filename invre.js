@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const wrapper = document.querySelector('.tabla-invre-wrapper');
     const inputFiltroTexto = document.getElementById('invre-filtro-texto');
     const selectFiltroReporte = document.getElementById('invre-filtro-reporte');
+    const btnExportSelected = document.getElementById('invre-export-selected');
+    const lblSelectedCount = document.getElementById('invre-selected-count');
     const resumenBody = document.getElementById('invre-resumen-body');
     const pickInput = document.getElementById('invre-pick-input');
     const pickDropdown = document.getElementById('invre-pick-dropdown');
@@ -134,9 +136,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const headersLocal = parseCSVLine(lineas[0]);
 
+            // Selección de filas (equipos) para exportación
+            const selectedRowIds = new Set();
+            let _rowIdSeed = 0;
+            const getRowId = (cols) => {
+                try {
+                    if (!cols || !cols.length) return '';
+                    if (cols.__pctRowId) return String(cols.__pctRowId);
+                    _rowIdSeed += 1;
+                    const id = `invre_${_rowIdSeed}`;
+                    try { Object.defineProperty(cols, '__pctRowId', { value: id, enumerable: false }); }
+                    catch { cols.__pctRowId = id; }
+                    return id;
+                } catch {
+                    _rowIdSeed += 1;
+                    return `invre_${_rowIdSeed}`;
+                }
+            };
+            const updateSelectedCount = () => {
+                try {
+                    if (lblSelectedCount) lblSelectedCount.textContent = `Seleccionados: ${selectedRowIds.size}`;
+                } catch {}
+            };
+            updateSelectedCount();
+
             // Construir cabecera con todos los campos
             const trHead = document.createElement('tr');
             trHead.style.background = '#f3f4f6';
+
+            // Columna de selección (header)
+            const thSel = document.createElement('th');
+            thSel.style.textAlign = 'center';
+            thSel.style.padding = '0.3rem';
+            thSel.style.whiteSpace = 'nowrap';
+            const chkAll = document.createElement('input');
+            chkAll.type = 'checkbox';
+            chkAll.title = 'Seleccionar / deseleccionar todo el inventario';
+            chkAll.addEventListener('change', () => {
+                try {
+                    if (chkAll.checked) {
+                        // Seleccionar TODO el inventario (todas las filas, no solo lo visible)
+                        try {
+                            filasDatos.forEach(cols => {
+                                const id = getRowId(cols);
+                                if (id) selectedRowIds.add(id);
+                            });
+                        } catch {}
+                    } else {
+                        selectedRowIds.clear();
+                    }
+                    updateSelectedCount();
+                    try { aplicaFiltrosYRender(); } catch {}
+                } catch {}
+            });
+            thSel.appendChild(chkAll);
+            trHead.appendChild(thSel);
+
             headersLocal.forEach(h => {
                 const th = document.createElement('th');
                 th.textContent = h;
@@ -150,6 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const filasDatos = lineas.slice(1)
                 .map(linea => parseCSVLine(linea))
                 .filter(cols => cols.length);
+
+            // Inicializar IDs de fila para selección/exports
+            try { filasDatos.forEach(cols => { getRowId(cols); }); } catch {}
 
             const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
             const idxDescripcion = headersLocal.indexOf('DESCRIPCION');
@@ -1037,6 +1095,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (repSel && rep !== repSel) return;
 
                     const tr = document.createElement('tr');
+
+                    // Columna de selección por fila
+                    const tdSel = document.createElement('td');
+                    tdSel.style.padding = '0.3rem';
+                    tdSel.style.borderBottom = '1px solid #e5e7eb';
+                    tdSel.style.textAlign = 'center';
+                    tdSel.style.whiteSpace = 'nowrap';
+                    const chk = document.createElement('input');
+                    chk.type = 'checkbox';
+                    const rowId = getRowId(cols);
+                    chk.checked = selectedRowIds.has(rowId);
+                    chk.addEventListener('change', (e) => {
+                        try {
+                            const checked = !!e.target.checked;
+                            if (checked) selectedRowIds.add(rowId);
+                            else selectedRowIds.delete(rowId);
+                            updateSelectedCount();
+
+                            // Mantener estado del checkbox master (solo refleja total seleccionado)
+                            try {
+                                if (chkAll) {
+                                    chkAll.checked = (selectedRowIds.size > 0 && selectedRowIds.size === filasDatos.length);
+                                    chkAll.indeterminate = (selectedRowIds.size > 0 && selectedRowIds.size < filasDatos.length);
+                                }
+                            } catch {}
+                        } catch {}
+                    });
+                    tdSel.appendChild(chk);
+                    tr.appendChild(tdSel);
+
                     cols.forEach((valor, idx) => {
                         const td = document.createElement('td');
                         td.style.padding = '0.3rem';
@@ -1112,10 +1200,72 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     tbody.appendChild(tr);
                 });
+
+                // Sincronizar estado visual del checkbox master
+                try {
+                    if (chkAll) {
+                        chkAll.checked = (selectedRowIds.size > 0 && selectedRowIds.size === filasDatos.length);
+                        chkAll.indeterminate = (selectedRowIds.size > 0 && selectedRowIds.size < filasDatos.length);
+                    }
+                } catch {}
             }
 
             // Render inicial
             aplicaFiltrosYRender();
+
+            function exportSelectedToCsv() {
+                try {
+                    if (!selectedRowIds.size) {
+                        alert('Selecciona al menos un equipo para exportar.');
+                        return;
+                    }
+
+                    const escCsv = (val) => {
+                        const s = String(val ?? '');
+                        if (/[",;\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+                        return s;
+                    };
+
+                    const lineasOut = [];
+                    lineasOut.push(headersLocal.map(escCsv).join(','));
+
+                    filasDatos.forEach(cols => {
+                        const id = getRowId(cols);
+                        if (!selectedRowIds.has(id)) return;
+                        // Exportar todas las columnas originales (idéntico a CSV base en estructura)
+                        const row = headersLocal.map((_, i) => (cols && i < cols.length ? cols[i] : ''));
+                        lineasOut.push(row.map(escCsv).join(','));
+                    });
+
+                    const hoy = new Date();
+                    const yyyy = hoy.getFullYear();
+                    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+                    const dd = String(hoy.getDate()).padStart(2, '0');
+
+                    const blob = new Blob([lineasOut.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `inventario_seleccion_${yyyy}${mm}${dd}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    // Limpiar selección después de exportar
+                    selectedRowIds.clear();
+                    updateSelectedCount();
+                    try { if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; } } catch {}
+                    try { aplicaFiltrosYRender(); } catch {}
+                } catch (e) {
+                    console.error('No se pudo exportar selección de inventario', e);
+                    alert('No se pudo exportar la selección.');
+                }
+            }
+
+            if (btnExportSelected) {
+                btnExportSelected.addEventListener('click', exportSelectedToCsv);
+            }
 
             // Render inicial del resumen por categoría
             try { renderResumen(); } catch {}
