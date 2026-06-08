@@ -1019,7 +1019,7 @@
         window.currentUserEmail = email;
 
         // Permisos por rol
-        const permitirEliminar = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+        const permitirEliminar = !!(window.isAdmin || email === 'sgi@pc-t.com.mx');
 
         // Visor: solo lectura (sin selección, sin acciones)
         try {
@@ -1385,7 +1385,7 @@
         const btnImportDeleteExisting = document.getElementById('btn-import-delete-existing');
         const btnImportCancel = document.getElementById('btn-import-cancel');
 
-        const permitirEliminar = !!(window.isAdmin || window.isDirector);
+        const permitirEliminar = !!(window.isAdmin || ((window.currentUserEmail || '').toString().trim().toLowerCase() === 'sgi@pc-t.com.mx'));
         // Ocultar botón eliminar si no tiene permiso. La cabecera de selección se mantiene visible para exportar.
         if (btnEliminar) btnEliminar.style.display = permitirEliminar ? '' : 'none';
 
@@ -4672,6 +4672,19 @@
         }
 
         async function eliminarSeleccionadas() {
+            // Seguridad: validar permiso aunque se fuerce el UI
+            try {
+                const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
+                const autorizado = !!(window.isAdmin || mail === 'sgi@pc-t.com.mx');
+                if (!autorizado) {
+                    alert('No autorizado para eliminar pruebas.');
+                    return;
+                }
+            } catch {
+                alert('No autorizado para eliminar pruebas.');
+                return;
+            }
+
             const filas = obtenerSeleccionadas();
             if (!filas.length) {
                 alert('No hay pruebas seleccionadas para eliminar.');
