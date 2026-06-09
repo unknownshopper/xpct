@@ -177,7 +177,7 @@ if (btnTogglePass) {
 
 btn.addEventListener("click", async () => {
     msg.textContent = "";
-    const email = (inputEmail.value || "").trim();
+    const email = (inputEmail.value || "").trim().toLowerCase();
     const password = inputPass.value || "";
 
     if (!email || !password) {
@@ -205,7 +205,20 @@ btn.addEventListener("click", async () => {
         // onAuthStateChanged hará la redirección
     } catch (e) {
         console.error(e);
-        msg.textContent = "No se pudo iniciar sesión. Verifica tus datos.";
+        const code = String(e && e.code ? e.code : '');
+        if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+            msg.textContent = "Correo o contraseña incorrectos. Verifica tus datos.";
+        } else if (code === 'auth/too-many-requests') {
+            msg.textContent = "Demasiados intentos fallidos. Espera unos minutos o restablece la contraseña.";
+        } else if (code === 'auth/user-disabled') {
+            msg.textContent = "La cuenta está deshabilitada. Contacta al administrador.";
+        } else if (code === 'auth/invalid-email') {
+            msg.textContent = "El correo no tiene un formato válido.";
+        } else if (code === 'auth/network-request-failed') {
+            msg.textContent = "No hay conexión o Firebase no responde. Revisa internet e intenta de nuevo.";
+        } else {
+            msg.textContent = `No se pudo iniciar sesión (${code || 'error desconocido'}). Contacta al administrador.`;
+        }
         btn.disabled = false;
         btn.textContent = "Entrar";
     }
