@@ -4345,19 +4345,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Función para abrir la cámara y capturar una foto
         async function abrirCamaraParaIndice(idx, onCapture) {
+            function abrirCamaraNativaDirecta() {
+                try {
+                    const nativeInput = document.createElement('input');
+                    nativeInput.type = 'file';
+                    nativeInput.accept = 'image/*';
+                    nativeInput.setAttribute('capture', 'environment');
+                    nativeInput.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;';
+                    document.body.appendChild(nativeInput);
+                    nativeInput.addEventListener('change', () => {
+                        try {
+                            const file = nativeInput.files && nativeInput.files[0] ? nativeInput.files[0] : null;
+                            if (file) onCapture(file);
+                        } catch {}
+                        try { nativeInput.remove(); } catch {}
+                    }, { once: true });
+                    nativeInput.click();
+                    return true;
+                } catch (e) {
+                    console.warn('No se pudo abrir cámara nativa directa', e);
+                    try { alert('No se pudo abrir la cámara del dispositivo.'); } catch {}
+                    return false;
+                }
+            }
+            const usarCamaraNativaPrimero = (() => {
+                try {
+                    const ua = String(navigator.userAgent || '');
+                    const touch = (navigator.maxTouchPoints || 0) > 1;
+                    return touch && /Android|Tablet|Mobile/i.test(ua);
+                } catch {
+                    return false;
+                }
+            })();
+            if (usarCamaraNativaPrimero) {
+                abrirCamaraNativaDirecta();
+                return;
+            }
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                if (abrirCamaraNativaDirecta()) return;
                 alert('La cámara no está disponible en este dispositivo/navegador.');
                 throw new Error('getUserMedia no soportado');
             }
             const overlay = document.createElement('div');
-            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999;padding:10px;';
             const box = document.createElement('div');
-            box.style.cssText = 'background:#fff;padding:12px;border-radius:10px;max-width:90vw;width:520px;';
+            box.style.cssText = 'background:#fff;padding:12px;border-radius:14px;max-width:96vw;width:min(1100px,96vw);max-height:96vh;display:flex;flex-direction:column;';
             const video = document.createElement('video');
             video.autoplay = true; video.playsInline = true;
-            video.style.cssText = 'width:100%;border-radius:8px;background:#000;';
+            video.style.cssText = 'width:100%;height:min(78vh,760px);object-fit:contain;border-radius:10px;background:#000;';
             const ctrls = document.createElement('div');
-            ctrls.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:8px;';
+            ctrls.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;';
             const btnSwitch = document.createElement('button');
             btnSwitch.textContent = 'Cambiar cámara';
             btnSwitch.style.display = 'none';
