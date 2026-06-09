@@ -197,12 +197,14 @@ btn.addEventListener("click", async () => {
             } catch {
                 await setPersistence(auth, inMemoryPersistence);
             }
-            localStorage.setItem('pct_auth_persist', remember ? 'local' : 'session');
-            if (remember) {
-                localStorage.setItem('pct_saved_email', email);
-            } else {
-                localStorage.removeItem('pct_saved_email');
-            }
+            try {
+                localStorage.setItem('pct_auth_persist', remember ? 'local' : 'session');
+                if (remember) {
+                    localStorage.setItem('pct_saved_email', email);
+                } else {
+                    localStorage.removeItem('pct_saved_email');
+                }
+            } catch {}
         } catch {}
 
         await signInWithEmailAndPassword(auth, email, password);
