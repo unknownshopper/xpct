@@ -3506,6 +3506,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     return false;
                 }
             };
+            const puedeSubirArchivoNow = () => {
+                try {
+                    return !!(window.isAdmin || window.isSgi);
+                } catch {
+                    return false;
+                }
+            };
             const inputFoto2 = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto2"]`) : null;
             const btnTomar2 = colEvid ? colEvid.querySelector('.btn-tomar-foto2') : null;
             const btnSubir2 = colEvid ? colEvid.querySelector('.btn-subir-foto2') : null;
@@ -3513,6 +3520,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnDel2 = colEvid ? colEvid.querySelector('.btn-eliminar-foto2') : null;
 
             const tieneChipsDano = !!(danoChipBtns && danoChipBtns.length);
+            try {
+                if (btnSubir) btnSubir.style.display = puedeSubirArchivoNow() ? '' : 'none';
+                if (btnSubir2) btnSubir2.style.display = puedeSubirArchivoNow() ? '' : 'none';
+                if (inputFoto) inputFoto.disabled = !puedeSubirArchivoNow();
+                if (inputFoto2) inputFoto2.disabled = !puedeSubirArchivoNow();
+            } catch {}
 
             if (esEstadoGeneral) {
                 try {
@@ -3891,18 +3904,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (colEvid) {
                         if (permitirEvidenciaBueno) {
+                            try {
+                                setActiveDano('');
+                                setSelDanos([]);
+                            } catch {}
                             colEvid.style.display = '';
-                            if (inputFoto) inputFoto.disabled = false;
+                            if (inputFoto) inputFoto.disabled = !puedeSubirArchivoNow();
                             if (btnTomar) btnTomar.disabled = false;
-                            if (btnSubir) btnSubir.disabled = false;
-                            if (btnDel1) btnDel1.disabled = false;
+                            if (btnSubir) {
+                                btnSubir.disabled = !puedeSubirArchivoNow();
+                                btnSubir.style.display = puedeSubirArchivoNow() ? '' : 'none';
+                            }
+                            if (btnDel1) btnDel1.disabled = !puedeEliminarEvidenciaNow();
                             try { syncUiEvidencias(); } catch {}
 
                             const can2 = puedeSubirEvidencia2Now();
-                            if (inputFoto2) inputFoto2.disabled = !can2;
+                            if (inputFoto2) inputFoto2.disabled = !puedeSubirArchivoNow();
                             if (btnTomar2) btnTomar2.disabled = !can2;
-                            if (btnSubir2) btnSubir2.disabled = !can2;
-                            if (btnDel2) btnDel2.disabled = !can2;
+                            if (btnSubir2) {
+                                btnSubir2.disabled = !puedeSubirArchivoNow();
+                                btnSubir2.style.display = puedeSubirArchivoNow() ? '' : 'none';
+                            }
+                            if (btnDel2) btnDel2.disabled = !puedeEliminarEvidenciaNow();
                         } else {
                             colEvid.style.display = 'none';
                             if (inputFoto) { inputFoto.disabled = true; try { inputFoto.value = ''; } catch {} }
@@ -4101,6 +4124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Handler para subir foto desde galería / archivos
             if (btnSubir && inputFoto) {
                 btnSubir.addEventListener('click', () => {
+                    if (!puedeSubirArchivoNow()) return;
                     try { inputFoto.click(); } catch {}
                 });
             }
@@ -4128,6 +4152,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (inputFoto) {
                 inputFoto.addEventListener('change', () => {
                     try {
+                        if (!puedeSubirArchivoNow()) {
+                            try { inputFoto.value = ''; } catch {}
+                            return;
+                        }
                         const file = inputFoto.files && inputFoto.files[0] ? inputFoto.files[0] : null;
                         if (!file) return;
                         const targetD = normDano(filaHtml.dataset.targetDano || '');
@@ -4208,14 +4236,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Handler para subir foto 2 desde galería / archivos
             if (btnSubir2 && inputFoto2) {
                 btnSubir2.addEventListener('click', () => {
-                    if (!puedeSubirEvidencia2Now()) return;
+                    if (!puedeSubirArchivoNow()) return;
                     try { inputFoto2.click(); } catch {}
                 });
             }
             if (inputFoto2) {
                 inputFoto2.addEventListener('change', () => {
                     try {
-                        if (!puedeSubirEvidencia2Now()) return;
+                        if (!puedeSubirArchivoNow()) {
+                            try { inputFoto2.value = ''; } catch {}
+                            return;
+                        }
                         const file = inputFoto2.files && inputFoto2.files[0] ? inputFoto2.files[0] : null;
                         if (!file) return;
                         try {
@@ -5580,6 +5611,78 @@ document.addEventListener('DOMContentLoaded', () => {
                     evidenciasPorDano,
                 });
             });
+
+            try {
+                if (isEditingExisting && Array.isArray(prevParams) && prevParams.length && Array.isArray(parametrosCapturados)) {
+                    const normParamName = (s) => String(s || '')
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    const prevByNameSave = new Map();
+                    prevParams.forEach((p) => {
+                        const k = normParamName(p && p.nombre);
+                        if (k && !prevByNameSave.has(k)) prevByNameSave.set(k, p);
+                    });
+                    const hasAnyEvidence = (obj) => {
+                        if (!obj) return false;
+                        if (
+                            obj.evidenciaNombre || obj.evidenciaPath || obj.evidenciaUrl ||
+                            obj.evidenciaNombre2 || obj.evidenciaPath2 || obj.evidenciaUrl2
+                        ) return true;
+                        try {
+                            const by = (obj.evidenciasPorDano && typeof obj.evidenciasPorDano === 'object') ? obj.evidenciasPorDano : null;
+                            return !!(by && Object.values(by).some(hasAnyEvidence));
+                        } catch {
+                            return false;
+                        }
+                    };
+                    const mergeEvidenceBucket = (nextBucket, prevBucket) => {
+                        const n = { ...(nextBucket || {}) };
+                        const p = (prevBucket && typeof prevBucket === 'object') ? prevBucket : {};
+                        if (!n.borrarEvid1) {
+                            if (!n.evidenciaNombre && p.evidenciaNombre) n.evidenciaNombre = p.evidenciaNombre;
+                            if (!n.evidenciaPath && p.evidenciaPath) n.evidenciaPath = p.evidenciaPath;
+                            if (!n.evidenciaUrl && p.evidenciaUrl) n.evidenciaUrl = p.evidenciaUrl;
+                        }
+                        if (!n.borrarEvid2) {
+                            if (!n.evidenciaNombre2 && p.evidenciaNombre2) n.evidenciaNombre2 = p.evidenciaNombre2;
+                            if (!n.evidenciaPath2 && p.evidenciaPath2) n.evidenciaPath2 = p.evidenciaPath2;
+                            if (!n.evidenciaUrl2 && p.evidenciaUrl2) n.evidenciaUrl2 = p.evidenciaUrl2;
+                        }
+                        return n;
+                    };
+                    for (let i = 0; i < parametrosCapturados.length; i++) {
+                        const next = parametrosCapturados[i] || {};
+                        const k = normParamName(next.nombre);
+                        const prev = (k && prevByNameSave.get(k)) || prevParams[i] || null;
+                        if (!prev) continue;
+
+                        const merged = mergeEvidenceBucket(next, prev);
+                        const prevByDano = (prev.evidenciasPorDano && typeof prev.evidenciasPorDano === 'object') ? prev.evidenciasPorDano : {};
+                        const nextByDano = (merged.evidenciasPorDano && typeof merged.evidenciasPorDano === 'object') ? merged.evidenciasPorDano : {};
+                        const outByDano = { ...(prevByDano || {}) };
+                        Object.keys(nextByDano || {}).forEach((dk) => {
+                            outByDano[dk] = mergeEvidenceBucket(nextByDano[dk], prevByDano[dk]);
+                        });
+                        if (Object.keys(outByDano).length) merged.evidenciasPorDano = outByDano;
+                        if (!Array.isArray(merged.danosSeleccionados) || !merged.danosSeleccionados.length) {
+                            if (Array.isArray(prev.danosSeleccionados) && prev.danosSeleccionados.length && hasAnyEvidence({ evidenciasPorDano: prevByDano })) {
+                                merged.danosSeleccionados = prev.danosSeleccionados.slice();
+                            }
+                        }
+                        merged.hasEvidencia = !!(
+                            merged.evidenciaNombre || merged.evidenciaPath || merged.evidenciaUrl ||
+                            merged.evidenciaNombre2 || merged.evidenciaPath2 || merged.evidenciaUrl2 ||
+                            (merged.evidenciasPorDano && Object.values(merged.evidenciasPorDano).some(hasAnyEvidence))
+                        );
+                        parametrosCapturados[i] = merged;
+                    }
+                }
+            } catch (e) {
+                console.warn('No se pudo preservar evidencias previas al guardar', e);
+            }
 
             if (obsFotoBlob) {
                 const ahoraObs = new Date();
