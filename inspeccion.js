@@ -5189,7 +5189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (tipoInspeccionSelect && tipoInspeccionChips && tipoInspeccionChips.length) {
-        const normalizarTipo = (v) => String(v || '').trim().toUpperCase();
+        const normalizarTipo = (v) => String(v || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
         const actualizarSeleccionTipo = () => {
             const val = normalizarTipo(tipoInspeccionSelect.value);
