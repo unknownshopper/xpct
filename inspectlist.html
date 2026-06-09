@@ -1078,12 +1078,15 @@
                         if (base) keys.push(base);
                         try {
                             const up = String(raw || '').trim().toUpperCase();
-                            const m = up.match(/^PCT\s*[- ]?\s*([A-Z]{2,4})\s*[- ]?\s*(\d{1,3})\s*$/);
+                            const m = up.match(/^(?:PCT\s*[- ]?\s*)?([A-Z]{2,5})\s*[- ]?\s*(\d{1,4})\s*$/);
                             if (m) {
                                 const pref = String(m[1] || '').trim().toUpperCase();
                                 const numRaw = String(m[2] || '').trim();
                                 const n = String(parseInt(numRaw, 10));
                                 if (n && n !== 'NaN') {
+                                    keys.push(`${pref}${n}`);
+                                    keys.push(`${pref}${n.padStart(2, '0')}`);
+                                    keys.push(`${pref}${n.padStart(3, '0')}`);
                                     keys.push(`PCT${pref}${n.padStart(2, '0')}`);
                                     keys.push(`PCT${pref}${n.padStart(3, '0')}`);
                                 }
@@ -1185,13 +1188,26 @@
                     });
                 } catch {}
 
-                // Calcular huérfanas: sin actividadId o con actividadId que ya no existe en las actividades actuales
+                // Calcular huérfanas/adicionales:
+                // - sin actividadId
+                // - con actividadId que ya no existe
+                // - inspecciones extra de una misma actividad que no quedaron como principal en el mapa
                 actividadesIds = new Set(Array.from(actividades || []).map(a => a && a.id ? String(a.id).trim() : '').filter(Boolean));
+                const inspeccionesPrincipalesIds = new Set();
+                try {
+                    inspeccionPorActividad.forEach(v => {
+                        const id = v && v.id ? String(v.id).trim() : '';
+                        if (id) inspeccionesPrincipalesIds.add(id);
+                    });
+                } catch {}
                 inspeccionesHuerfanas = inspecciones.filter(reg => {
                     if (!reg) return false;
+                    const regId = reg.id ? String(reg.id).trim() : '';
+                    if (regId && inspeccionesPrincipalesIds.has(regId)) return false;
                     const actId = reg.actividadId ? String(reg.actividadId).trim() : (reg.__actividadIdMatched ? String(reg.__actividadIdMatched).trim() : '');
                     if (!actId) return true;
-                    return !actividadesIds.has(actId);
+                    if (!actividadesIds.has(actId)) return true;
+                    return !!regId;
                 });
             } catch (e) {
                 const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
@@ -1200,19 +1216,19 @@
                 if (esPermiso) {
                     actividadesPermitidas = false;
                     actividades = [];
-                    // Sin actividades, consideramos huérfanas solo las que no tienen actividadId
-                    inspeccionesHuerfanas = inspecciones.filter(reg => reg && !reg.actividadId);
+                    // Sin actividades, mostrar todas las inspecciones como realizadas.
+                    inspeccionesHuerfanas = inspecciones.filter(reg => !!reg);
                 } else {
                     console.error('Error al leer actividades desde Firestore', e);
                     actividades = [];
-                    inspeccionesHuerfanas = inspecciones.filter(reg => reg && !reg.actividadId);
+                    inspeccionesHuerfanas = inspecciones.filter(reg => !!reg);
                 }
             }
  // Si no se permite leer actividades (ej. supervisor), construir el listado solo con inspecciones.
             // En este modo no es posible mostrar "pendientes" porque depende de la lista de actividades.
             if (!actividadesPermitidas && inspecciones.length) {
-                actividades = inspecciones.map(insp => ({
-                    id: insp.actividadId || insp.id,
+                actividades = inspecciones.map((insp, idx) => ({
+                    id: insp.id || insp.actividadId || `insp-${idx}`,
                     cliente: insp.cliente || '',
                     areaCliente: insp.areaCliente || '',
                     ubicacion: insp.ubicacion || '',
@@ -1220,6 +1236,23 @@
                     fechaRegistro: insp.fecha || '',
                     inspectorAsignado: insp.inspectorAsignado || ''
                 }));
+                try {
+                    inspeccionPorActividad.clear();
+                    inspecciones.forEach((insp, idx) => {
+                        if (!insp) return;
+                        const syntheticId = String(insp.id || insp.actividadId || `insp-${idx}`).trim();
+                        if (!syntheticId) return;
+                        inspeccionPorActividad.set(syntheticId, {
+                            ...insp,
+                            id: insp.id || syntheticId,
+                            _indexLocal: idx,
+                            actividadId: syntheticId,
+                            _syntheticFromInspection: true
+                        });
+                    });
+                    inspeccionPorActividadGlobal = inspeccionPorActividad;
+                } catch {}
+                inspeccionesHuerfanas = [];
             }
 
             // Contadores de tarjetas
@@ -1769,6 +1802,10 @@
             // Primero bloque de pendientes
             renderBloque(false, tbody);
 
+            if (tbodyRealizadas) {
+                renderBloque(true, tbodyRealizadas);
+            }
+
             // Si un filtro deja la vista vacía, mostrar estatus basado en actividades/inspecciones
             renderNoResultadosConStatus();
 
@@ -1805,12 +1842,15 @@
                         const keys = [];
                         if (invKeyEq) keys.push(invKeyEq);
                         try {
-                            const m = (equipoUp || '').match(/^PCT\s*[- ]?\s*([A-Z]{2,4})\s*[- ]?\s*(\d{1,3})\s*$/);
+                            const m = (equipoUp || '').match(/^(?:PCT\s*[- ]?\s*)?([A-Z]{2,5})\s*[- ]?\s*(\d{1,4})\s*$/);
                             if (m) {
                                 const pref = String(m[1] || '').trim().toUpperCase();
                                 const numRaw = String(m[2] || '').trim();
                                 const n = String(parseInt(numRaw, 10));
                                 if (n && n !== 'NaN') {
+                                    keys.push(`${pref}${n}`);
+                                    keys.push(`${pref}${n.padStart(2, '0')}`);
+                                    keys.push(`${pref}${n.padStart(3, '0')}`);
                                     const k2 = `PCT${pref}${n.padStart(2, '0')}`;
                                     const k3 = `PCT${pref}${n.padStart(3, '0')}`;
                                     keys.push(k2, k3);
@@ -1963,9 +2003,6 @@
             if (secRealizadas) {
                 const mostrarRealizadas = (filtroEstado !== 'PENDIENTE' || !!filtro) && hayRealizadas;
                 secRealizadas.style.display = mostrarRealizadas ? 'block' : 'none';
-            }
-            if (tbodyRealizadas) {
-                renderBloque(true, tbodyRealizadas);
             }
             try {
                 if (msgRealizadas) {
@@ -2235,9 +2272,11 @@
                     }
                 } catch {}
 
-                const actividadId = btn ? (btn.getAttribute('data-actividad-id') || '') : '';
                 const inspId = btn ? (btn.getAttribute('data-insp-id') || '') : '';
-                if (!inspId && !actividadId) return;
+                if (!inspId) {
+                    alert('No se puede eliminar: falta el ID exacto de la inspección.');
+                    return;
+                }
 
                 try {
                     const autorizado = !!(window.isAdmin || window.isSgi);
@@ -2254,32 +2293,17 @@
 
                 try {
                     // Eliminar de Firestore
-                    const { getFirestore, collection, query, where, getDocs, deleteDoc, doc } = await import(
+                    const { getFirestore, deleteDoc, doc } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                     );
 
                     const db = getFirestore();
-                    let ops = [];
-                    if (inspId) {
-                        ops = [deleteDoc(doc(db, 'inspecciones', inspId))];
-                        await Promise.all(ops);
-                        try {
-                            if (typeof window.pctAudit === 'function') {
-                                await window.pctAudit('inspecciones_delete_by_id', { inspId }, { throttleKey: `inspecciones_delete_by_id_${inspId}` });
-                            }
-                        } catch {}
-                    } else {
-                        const colInsp = collection(db, 'inspecciones');
-                        const q = query(colInsp, where('actividadId', '==', actividadId));
-                        const snap = await getDocs(q);
-                        ops = snap.docs.map(d => deleteDoc(doc(db, 'inspecciones', d.id)));
-                        await Promise.all(ops);
-                        try {
-                            if (typeof window.pctAudit === 'function') {
-                                await window.pctAudit('inspecciones_delete_by_actividad', { actividadId, count: ops.length }, { throttleKey: `inspecciones_delete_by_actividad_${actividadId}` });
-                            }
-                        } catch {}
-                    }
+                    await deleteDoc(doc(db, 'inspecciones', inspId));
+                    try {
+                        if (typeof window.pctAudit === 'function') {
+                            await window.pctAudit('inspecciones_delete_by_id', { inspId }, { throttleKey: `inspecciones_delete_by_id_${inspId}` });
+                        }
+                    } catch {}
                 } catch (e) {
                     console.error('No se pudo eliminar la inspección en Firestore', e);
                     alert('No se pudo eliminar la inspección. Revisa permisos o conexión.');
@@ -2297,7 +2321,7 @@
 
                 actuales = actuales.filter(reg => {
                     if (inspId) return reg && reg.id !== inspId;
-                    return reg && reg.actividadId !== actividadId;
+                    return true;
                 });
                 localStorage.setItem(claveInspecciones, JSON.stringify(actuales));
 

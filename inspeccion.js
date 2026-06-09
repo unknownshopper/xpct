@@ -5716,12 +5716,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (base) out.push(base);
                         try {
                             const up = base.toUpperCase();
-                            const m = up.match(/^PCT\s*[- ]?\s*([A-Z]{2,4})\s*[- ]?\s*(\d{1,3})\s*$/);
+                            const m = up.match(/^(?:PCT\s*[- ]?\s*)?([A-Z]{2,5})\s*[- ]?\s*(\d{1,4})\s*$/);
                             if (m) {
                                 const pref = String(m[1] || '').trim().toUpperCase();
                                 const numRaw = String(m[2] || '').trim();
                                 const n = String(parseInt(numRaw, 10));
                                 if (n && n !== 'NaN') {
+                                    out.push(`${pref}-${n}`);
+                                    out.push(`${pref}-${n.padStart(2, '0')}`);
+                                    out.push(`${pref}-${n.padStart(3, '0')}`);
                                     out.push(`PCT-${pref}-${n.padStart(2, '0')}`);
                                     out.push(`PCT-${pref}-${n.padStart(3, '0')}`);
                                 }
