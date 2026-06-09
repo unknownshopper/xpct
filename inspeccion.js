@@ -4361,10 +4361,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnSwitch = document.createElement('button');
             btnSwitch.textContent = 'Cambiar cámara';
             btnSwitch.style.display = 'none';
+            const btnNative = document.createElement('button');
+            btnNative.textContent = 'Cámara del dispositivo';
             const btnCancel = document.createElement('button'); btnCancel.textContent = 'Cancelar';
             const btnSnap = document.createElement('button'); btnSnap.textContent = 'Capturar';
             btnSnap.disabled = true;
-            ctrls.appendChild(btnSwitch); ctrls.appendChild(btnCancel); ctrls.appendChild(btnSnap);
+            ctrls.appendChild(btnSwitch); ctrls.appendChild(btnNative); ctrls.appendChild(btnCancel); ctrls.appendChild(btnSnap);
             box.appendChild(video); box.appendChild(ctrls); overlay.appendChild(box); document.body.appendChild(overlay);
 
             let currentFacing = 'environment'; // 'environment' (trasera) | 'user' (frontal)
@@ -4427,7 +4429,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (currentStream) currentStream.getTracks().forEach(t => t.stop());
                 } catch {}
+                try { video.pause(); } catch {}
+                try { video.srcObject = null; } catch {}
                 currentStream = null;
+            }
+
+            function abrirCamaraNativa() {
+                try {
+                    const nativeInput = document.createElement('input');
+                    nativeInput.type = 'file';
+                    nativeInput.accept = 'image/*';
+                    nativeInput.setAttribute('capture', 'environment');
+                    nativeInput.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;';
+                    document.body.appendChild(nativeInput);
+                    nativeInput.addEventListener('change', () => {
+                        try {
+                            const file = nativeInput.files && nativeInput.files[0] ? nativeInput.files[0] : null;
+                            if (file) {
+                                onCapture(file);
+                                stop();
+                            }
+                        } catch {}
+                        try { nativeInput.remove(); } catch {}
+                    }, { once: true });
+                    nativeInput.click();
+                } catch (e) {
+                    console.warn('No se pudo abrir cámara nativa', e);
+                    alert('No se pudo abrir la cámara del dispositivo.');
+                }
             }
 
             async function startStream() {
@@ -4509,12 +4538,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } catch {}
                 } catch {
+                    try { abrirCamaraNativa(); } catch {}
                     throw e;
                 }
             }
 
             function stop() { stopStream(); document.body.removeChild(overlay); }
             btnCancel.onclick = () => stop();
+            btnNative.onclick = () => abrirCamaraNativa();
             btnSwitch.onclick = async () => {
                 // Preferir alternar por deviceId (más confiable que facingMode en iOS)
                 const nxt = nextDeviceId();
