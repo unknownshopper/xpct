@@ -1604,7 +1604,7 @@
                                 }
                                 return '';
                             })()}
-                            ${(window.isAdmin) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
+                            ${(window.isAdmin || window.isSgi) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="${act.id}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
                         ` : (
                             (window.isAdmin || window.isSupervisor || window.isDirector)
                                 ? `<button type="button" class="insp-btn-eliminar-actividad" data-actividad-id="${act.id}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar actividad</button>`
@@ -2229,6 +2229,17 @@
                         const actividadId = btn.getAttribute('data-actividad-id') || '';
                         const inspId = btn.getAttribute('data-insp-id') || '';
                         if (!inspId && !actividadId) return;
+
+                        try {
+                            const autorizado = !!(window.isAdmin || window.isSgi);
+                            if (!autorizado) {
+                                alert('No autorizado para eliminar inspecciones.');
+                                return;
+                            }
+                        } catch {
+                            alert('No autorizado para eliminar inspecciones.');
+                            return;
+                        }
 
                         if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
 

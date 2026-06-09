@@ -185,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let guardandoInspeccion = false; // evita doble guardado
     const fotosTomadas = {}; // idx -> { blob } o { danos: { [DANO]: { blob1, blob2, del1, del2 } } }
     let fotoObs = null; // { blob }
+    let fotoObs2 = null; // { blob }
 
     let inspeccionEditData = null;
     let inspeccionIsEditingExisting = false;
@@ -357,12 +358,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     const docRef = doc(db, 'inspecciones', docId);
 
                     if (kind === 'obs') {
-                        await updateDoc(docRef, {
-                            observacionesFotoUrl: url,
-                            observacionesFotoPath: storagePath,
-                            observacionesFotoNombre: evidenciaNombre,
+                        const patch = {
                             syncStatus: 'SYNCED',
-                        });
+                        };
+                        if (slot === 2) {
+                            patch.observacionesFotoUrl2 = url;
+                            patch.observacionesFotoPath2 = storagePath;
+                            patch.observacionesFotoNombre2 = evidenciaNombre;
+                        } else {
+                            patch.observacionesFotoUrl = url;
+                            patch.observacionesFotoPath = storagePath;
+                            patch.observacionesFotoNombre = evidenciaNombre;
+                        }
+                        await updateDoc(docRef, patch);
+                        await idbDel(it._key);
+                        continue;
+                    }
+
+                    if (kind === 'sin_dano') {
+                        // Compatibilidad: si existen evidencias antiguas en cola, permitir que sincronicen.
+                        const patch = { syncStatus: 'SYNCED' };
+                        if (slot === 2) {
+                            patch.sinDanoFotoUrl2 = url;
+                            patch.sinDanoFotoPath2 = storagePath;
+                            patch.sinDanoFotoNombre2 = evidenciaNombre;
+                        } else {
+                            patch.sinDanoFotoUrl = url;
+                            patch.sinDanoFotoPath = storagePath;
+                            patch.sinDanoFotoNombre = evidenciaNombre;
+                        }
+                        await updateDoc(docRef, patch);
                         await idbDel(it._key);
                         continue;
                     }
@@ -562,9 +587,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 ));
                 const needsObs = !!(
                     ((inspConUrls.observacionesFotoPath || inspConUrls.observacionesFotoNombre) && !inspConUrls.observacionesFotoUrl)
+                    || ((inspConUrls.observacionesFotoPath2 || inspConUrls.observacionesFotoNombre2) && !inspConUrls.observacionesFotoUrl2)
                 );
 
-                if (needsParams || needsObs) {
+                const needsSinDano = !!(
+                    ((inspConUrls.sinDanoFotoPath || inspConUrls.sinDanoFotoNombre) && !inspConUrls.sinDanoFotoUrl)
+                    || ((inspConUrls.sinDanoFotoPath2 || inspConUrls.sinDanoFotoNombre2) && !inspConUrls.sinDanoFotoUrl2)
+                );
+
+                if (needsParams || needsObs || needsSinDano) {
                     const { getStorage, ref: stRef, getDownloadURL } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
                     );
@@ -635,23 +666,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     if (needsObs) {
-                        const candidatos = [];
-                        const pathDirecto = String(inspConUrls.observacionesFotoPath || '').trim();
-                        if (pathDirecto) candidatos.push(pathDirecto);
+                        const resolveOne = async (pathField, nameField, urlField) => {
+                            const candidatos = [];
+                            const pathDirecto = String(inspConUrls[pathField] || '').trim();
+                            if (pathDirecto) candidatos.push(pathDirecto);
 
-                        const name = String(inspConUrls.observacionesFotoNombre || '').trim();
-                        if (name) {
-                            if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
-                            if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
-                            if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
-                            if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                            const name = String(inspConUrls[nameField] || '').trim();
+                            if (name) {
+                                if (inspId) candidatos.push(`inspecciones/${inspId}/${name}`);
+                                if (localId) candidatos.push(`inspecciones/${localId}/${name}`);
+                                if (actId) candidatos.push(`inspecciones/${actId}/${name}`);
+                                if (inspIdQs) candidatos.push(`inspecciones/${inspIdQs}/${name}`);
+                            }
+
+                            const url = await resolverDesdeCandidatos(candidatos);
+                            if (url) inspConUrls = { ...(inspConUrls || {}), [urlField]: url };
+                        };
+
+                        if ((inspConUrls.observacionesFotoPath || inspConUrls.observacionesFotoNombre) && !inspConUrls.observacionesFotoUrl) {
+                            await resolveOne('observacionesFotoPath', 'observacionesFotoNombre', 'observacionesFotoUrl');
                         }
-
-                        const url = await resolverDesdeCandidatos(candidatos);
-                        if (url) {
-                            inspConUrls = { ...(inspConUrls || {}), observacionesFotoUrl: url };
+                        if ((inspConUrls.observacionesFotoPath2 || inspConUrls.observacionesFotoNombre2) && !inspConUrls.observacionesFotoUrl2) {
+                            await resolveOne('observacionesFotoPath2', 'observacionesFotoNombre2', 'observacionesFotoUrl2');
                         }
                     }
+
+                    // Nota: sinDaño fue removido del UI; se deja compatibilidad de datos pero no se resuelven URLs aquí.
                 }
             } catch {}
 
@@ -891,12 +931,21 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {}
             try {
                 const obsUrl = (inspConUrls.observacionesFotoUrl || '').toString().trim();
-                const imgObsPrev = document.getElementById('insp-obs-prev');
+                const imgObsPrev = document.getElementById('insp-obs-preview');
                 if (imgObsPrev && obsUrl) {
                     imgObsPrev.src = obsUrl;
                     imgObsPrev.style.display = '';
                 }
             } catch {}
+            try {
+                const obsUrl2 = (inspConUrls.observacionesFotoUrl2 || '').toString().trim();
+                const imgObsPrev2 = document.getElementById('insp-obs-preview2');
+                if (imgObsPrev2 && obsUrl2) {
+                    imgObsPrev2.src = obsUrl2;
+                    imgObsPrev2.style.display = '';
+                }
+            } catch {}
+            // sinDaño removido del UI
         } catch (e) {
             console.warn('No se pudo aplicar inspección existente en modo edición', e);
         }
@@ -1489,32 +1538,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     const obsFotoUrl = (data.observacionesFotoUrl || '').toString().trim();
                     const obsFotoPath = (data.observacionesFotoPath || '').toString().trim();
                     const obsFotoNombre = (data.observacionesFotoNombre || '').toString().trim();
-                    const obsHtml = (obsManual || obsFotoUrl || obsFotoPath || obsFotoNombre)
+                    const obsFotoUrl2 = (data.observacionesFotoUrl2 || '').toString().trim();
+                    const obsFotoPath2 = (data.observacionesFotoPath2 || '').toString().trim();
+                    const obsFotoNombre2 = (data.observacionesFotoNombre2 || '').toString().trim();
+
+                    const obsHtml = (obsManual || obsFotoUrl || obsFotoPath || obsFotoNombre || obsFotoUrl2 || obsFotoPath2 || obsFotoNombre2)
                         ? `
                             <div style="margin: 10px 0 12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff;">
                                 <div style="font-weight:900; color:#0f172a; margin-bottom:6px;">OBSERVACIONES</div>
                                 ${obsManual ? `<div style="white-space:pre-wrap; color:#0f172a;">${escapeHtml(obsManual)}</div>` : '<div style="color:#6b7280;">(Sin observaciones)</div>'}
-                                ${(obsFotoUrl || obsFotoPath || obsFotoNombre) ? `
-                                    <div style="margin-top:8px;">
-                                        <img
-                                            src="${obsFotoUrl ? obsFotoUrl : ''}"
-                                            alt="Foto observaciones"
-                                            class="insp-evid-thumb"
-                                            data-full="${obsFotoUrl ? obsFotoUrl : ''}"
-                                            data-evidencia-path="${escapeHtml(obsFotoPath)}"
-                                            data-evidencia-nombre="${escapeHtml(obsFotoNombre)}"
-                                            crossorigin="anonymous"
-                                            referrerpolicy="no-referrer"
-                                            loading="eager"
-                                            decoding="sync"
-                                            style="max-width:260px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${obsFotoUrl ? '' : 'display:none;'}"
-                                            onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
-                                        />
-                                        <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${obsFotoUrl ? 'display:none;' : ''}">
-                                            ${(obsFotoNombre ? `Evidencia: ${escapeHtml(obsFotoNombre)}` : (obsFotoPath ? 'Evidencia' : ''))}
+                                <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:10px;">
+                                    ${(obsFotoUrl || obsFotoPath || obsFotoNombre) ? `
+                                        <div>
+                                            <img
+                                                src="${obsFotoUrl ? obsFotoUrl : ''}"
+                                                alt="Foto observaciones 1"
+                                                class="insp-evid-thumb"
+                                                data-full="${obsFotoUrl ? obsFotoUrl : ''}"
+                                                data-evidencia-path="${escapeHtml(obsFotoPath)}"
+                                                data-evidencia-nombre="${escapeHtml(obsFotoNombre)}"
+                                                crossorigin="anonymous"
+                                                referrerpolicy="no-referrer"
+                                                loading="eager"
+                                                decoding="sync"
+                                                style="max-width:260px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${obsFotoUrl ? '' : 'display:none;'}"
+                                                onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
+                                            />
+                                            <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${obsFotoUrl ? 'display:none;' : ''}">
+                                                ${(obsFotoNombre ? `Evidencia: ${escapeHtml(obsFotoNombre)}` : (obsFotoPath ? 'Evidencia' : ''))}
+                                            </div>
                                         </div>
-                                    </div>
-                                ` : ''}
+                                    ` : ''}
+                                    ${(obsFotoUrl2 || obsFotoPath2 || obsFotoNombre2) ? `
+                                        <div>
+                                            <img
+                                                src="${obsFotoUrl2 ? obsFotoUrl2 : ''}"
+                                                alt="Foto observaciones 2"
+                                                class="insp-evid-thumb"
+                                                data-full="${obsFotoUrl2 ? obsFotoUrl2 : ''}"
+                                                data-evidencia-path="${escapeHtml(obsFotoPath2)}"
+                                                data-evidencia-nombre="${escapeHtml(obsFotoNombre2)}"
+                                                crossorigin="anonymous"
+                                                referrerpolicy="no-referrer"
+                                                loading="eager"
+                                                decoding="sync"
+                                                style="max-width:260px; width:100%; height:auto; border-radius:10px; border:1px solid #e5e7eb; cursor:zoom-in; ${obsFotoUrl2 ? '' : 'display:none;'}"
+                                                onerror="try{if(window.__pctEvidFallback){window.__pctEvidFallback(this);} }catch(e){}"
+                                            />
+                                            <div class="insp-evid-fallback" style="margin-top:6px; font-size:12px; color:#64748b; ${obsFotoUrl2 ? 'display:none;' : ''}">
+                                                ${(obsFotoNombre2 ? `Evidencia: ${escapeHtml(obsFotoNombre2)}` : (obsFotoPath2 ? 'Evidencia' : ''))}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
                             </div>
                           `
                         : '';
@@ -3167,15 +3243,39 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="insp-observaciones" style="margin-top:14px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#ffffff;">
                 <h3 style="margin:0 0 8px; font-size:1rem;">OBSERVACIONES</h3>
                 <textarea id="insp-obs-text" rows="3" placeholder="${esEquipoTercero ? 'Comentarios (requerido para TERCERO)' : 'Escribe observaciones generales (opcional)'}" style="width:100%; resize:vertical; padding:0.6rem; border:1px solid #e5e7eb; border-radius:10px; font-size:0.9rem;"></textarea>
+                <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+                    <div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <button type="button" class="btn" id="insp-obs-tomar-foto">Tomar foto 1</button>
+                            <button type="button" class="btn" id="insp-obs-subir-foto">Subir foto 1</button>
+                            <input type="file" id="insp-obs-foto" accept="image/*" style="display:none;">
+                        </div>
+                        <img alt="preview" id="insp-obs-preview" style="display:none; max-height:80px; border-radius:10px; margin-top:6px; border:1px solid #e5e7eb;" />
+                    </div>
+                    <div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <button type="button" class="btn" id="insp-obs-tomar-foto2">Tomar foto 2</button>
+                            <button type="button" class="btn" id="insp-obs-subir-foto2">Subir foto 2</button>
+                            <input type="file" id="insp-obs-foto2" accept="image/*" style="display:none;">
+                        </div>
+                        <img alt="preview" id="insp-obs-preview2" style="display:none; max-height:80px; border-radius:10px; margin-top:6px; border:1px solid #e5e7eb;" />
+                    </div>
+                </div>
             </div>
         `;
 
         try { fotoObs = null; } catch {}
+        try { fotoObs2 = null; } catch {}
         try {
             const btnTomarObs = document.getElementById('insp-obs-tomar-foto');
             const btnSubirObs = document.getElementById('insp-obs-subir-foto');
             const inputObsFoto = document.getElementById('insp-obs-foto');
             const imgObsPrev = document.getElementById('insp-obs-preview');
+
+            const btnTomarObs2 = document.getElementById('insp-obs-tomar-foto2');
+            const btnSubirObs2 = document.getElementById('insp-obs-subir-foto2');
+            const inputObsFoto2 = document.getElementById('insp-obs-foto2');
+            const imgObsPrev2 = document.getElementById('insp-obs-preview2');
 
             if (btnTomarObs) {
                 btnTomarObs.addEventListener('click', async () => {
@@ -3194,9 +3294,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
+            if (btnTomarObs2) {
+                btnTomarObs2.addEventListener('click', async () => {
+                    try {
+                        await abrirCamaraParaIndice(-2, (blob) => {
+                            fotoObs2 = { blob };
+                            try { if (inputObsFoto2) inputObsFoto2.value = ''; } catch {}
+                            if (imgObsPrev2) {
+                                imgObsPrev2.src = URL.createObjectURL(blob);
+                                imgObsPrev2.style.display = '';
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('No se pudo capturar foto 2 (observaciones)', e);
+                    }
+                });
+            }
+
             if (btnSubirObs && inputObsFoto) {
                 btnSubirObs.addEventListener('click', () => {
                     try { inputObsFoto.click(); } catch {}
+                });
+            }
+
+            if (btnSubirObs2 && inputObsFoto2) {
+                btnSubirObs2.addEventListener('click', () => {
+                    try { inputObsFoto2.click(); } catch {}
                 });
             }
 
@@ -3215,9 +3338,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             }
+
+            if (inputObsFoto2) {
+                inputObsFoto2.addEventListener('change', () => {
+                    try {
+                        const file = inputObsFoto2.files && inputObsFoto2.files[0] ? inputObsFoto2.files[0] : null;
+                        if (!file) return;
+                        fotoObs2 = null;
+                        if (imgObsPrev2) {
+                            imgObsPrev2.src = URL.createObjectURL(file);
+                            imgObsPrev2.style.display = '';
+                        }
+                    } catch (e) {
+                        console.warn('No se pudo leer la foto 2 seleccionada (observaciones)', e);
+                    }
+                });
+            }
         } catch {}
 
-        // Mostrar selector de daño y evidencia solo cuando el estado sea MALO
+        // Mostrar selector de daño y evidencia (en PRE-TRABAJO permitimos evidencias aunque esté BUENO)
         detalleContenedor.querySelectorAll('.parametros-fila').forEach((filaHtml, idx) => {
             const esEstadoGeneral = isEstadoGeneralFila(filaHtml);
             const radios = filaHtml.querySelectorAll(`input[name="param-${idx}-estado"]`);
@@ -3276,6 +3415,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (colEvid) colEvid.style.display = '';
                 } catch {}
             }
+
+            const getTipoInspeccionNow = () => {
+                try {
+                    const sel = document.getElementById('inspeccion-tipo');
+                    return sel ? String(sel.value || '').trim().toUpperCase() : '';
+                } catch {
+                    return '';
+                }
+            };
+
+            const syncMostrarEvidencia = () => {
+                try {
+                    if (!colEvid) return;
+                    const tipo = getTipoInspeccionNow();
+                    const allowByTipo = (tipo === 'PRE-TRABAJO');
+                    const estadoSel = filaHtml.querySelector(`input[name="param-${idx}-estado"]:checked`);
+                    const estadoVal = estadoSel ? String(estadoSel.value || '').trim().toUpperCase() : '';
+                    const show = !!(esEstadoGeneral || estadoVal === 'MALO' || allowByTipo);
+                    colEvid.style.display = show ? '' : 'none';
+                } catch {}
+            };
+
+            try { syncMostrarEvidencia(); } catch {}
+            try {
+                if (estadoSwitch) estadoSwitch.addEventListener('change', () => syncMostrarEvidencia());
+                radios.forEach(r => r.addEventListener('change', () => syncMostrarEvidencia()));
+                const selTipo = document.getElementById('inspeccion-tipo');
+                if (selTipo) selTipo.addEventListener('change', () => syncMostrarEvidencia());
+            } catch {}
 
             const normDano = (s) => String(s || '').trim().toUpperCase();
             const danoSlug = (s) => String(s || '')
@@ -3595,6 +3763,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 } else {
+                    const tipoActual = (() => {
+                        try {
+                            const sel = document.getElementById('inspeccion-tipo');
+                            return sel ? String(sel.value || '').trim().toUpperCase() : '';
+                        } catch { return ''; }
+                    })();
+                    const permitirEvidenciaBueno = (tipoActual === 'PRE-TRABAJO');
+
                     if (colDano) colDano.style.display = 'none';
                     if (selectDano) {
                         selectDano.disabled = true;
@@ -3609,25 +3785,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         inputOtro.value = '';
                     }
                     if (colEvid) {
-                        colEvid.style.display = 'none';
-                        if (inputFoto) { inputFoto.disabled = true; try { inputFoto.value = ''; } catch {} }
-                        if (btnTomar) btnTomar.disabled = true;
-                        if (btnSubir) btnSubir.disabled = true;
-                        if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
-                        if (btnDel1) { btnDel1.disabled = true; btnDel1.style.display = 'none'; }
+                        if (permitirEvidenciaBueno) {
+                            colEvid.style.display = '';
+                            if (inputFoto) inputFoto.disabled = false;
+                            if (btnTomar) btnTomar.disabled = false;
+                            if (btnSubir) btnSubir.disabled = false;
+                            if (btnDel1) btnDel1.disabled = false;
+                            try { syncUiEvidencias(); } catch {}
 
-                        try {
-                            if (btnTomar) btnTomar.style.display = '';
-                            if (btnSubir) btnSubir.style.display = '';
-                        } catch {}
+                            const can2 = puedeSubirEvidencia2Now();
+                            if (inputFoto2) inputFoto2.disabled = !can2;
+                            if (btnTomar2) btnTomar2.disabled = !can2;
+                            if (btnSubir2) btnSubir2.disabled = !can2;
+                            if (btnDel2) btnDel2.disabled = !can2;
+                        } else {
+                            colEvid.style.display = 'none';
+                            if (inputFoto) { inputFoto.disabled = true; try { inputFoto.value = ''; } catch {} }
+                            if (btnTomar) btnTomar.disabled = true;
+                            if (btnSubir) btnSubir.disabled = true;
+                            if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+                            if (btnDel1) { btnDel1.disabled = true; btnDel1.style.display = 'none'; }
 
-                        if (inputFoto2) { inputFoto2.disabled = true; try { inputFoto2.value = ''; } catch {} }
-                        if (btnTomar2) btnTomar2.disabled = true;
-                        if (btnSubir2) btnSubir2.disabled = true;
-                        if (imgPrev2) { imgPrev2.src = ''; imgPrev2.style.display = 'none'; }
-                        if (btnDel2) { btnDel2.disabled = true; btnDel2.style.display = 'none'; }
+                            try {
+                                if (btnTomar) btnTomar.style.display = '';
+                                if (btnSubir) btnSubir.style.display = '';
+                            } catch {}
 
-                        delete fotosTomadas[idx];
+                            if (inputFoto2) { inputFoto2.disabled = true; try { inputFoto2.value = ''; } catch {} }
+                            if (btnTomar2) btnTomar2.disabled = true;
+                            if (btnSubir2) btnSubir2.disabled = true;
+                            if (imgPrev2) { imgPrev2.src = ''; imgPrev2.style.display = 'none'; }
+                            if (btnDel2) { btnDel2.disabled = true; btnDel2.style.display = 'none'; }
+
+                            delete fotosTomadas[idx];
+                        }
                     }
                 }
             };
@@ -4393,7 +4584,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const obsManualPdf = (document.getElementById('insp-obs-text')?.value || '').toString().trim();
                 const inputObsPdf = document.getElementById('insp-obs-foto');
+                const inputObsPdf2 = document.getElementById('insp-obs-foto2');
                 const obsFotoPdf = (fotoObs && fotoObs.blob) ? fotoObs.blob : (inputObsPdf && inputObsPdf.files && inputObsPdf.files[0] ? inputObsPdf.files[0] : null);
+                const obsFotoPdf2 = (fotoObs2 && fotoObs2.blob) ? fotoObs2.blob : (inputObsPdf2 && inputObsPdf2.files && inputObsPdf2.files[0] ? inputObsPdf2.files[0] : null);
+
+                const toDataUrl = async (blob) => {
+                    if (!blob) return '';
+                    return await new Promise((resolve) => {
+                        try {
+                            const r = new FileReader();
+                            r.onload = () => resolve(String(r.result || ''));
+                            r.onerror = () => resolve('');
+                            r.readAsDataURL(blob);
+                        } catch {
+                            resolve('');
+                        }
+                    });
+                };
+
+                const obsFotoDataUrl = obsFotoPdf ? await toDataUrl(obsFotoPdf) : '';
+                const obsFotoDataUrl2 = obsFotoPdf2 ? await toDataUrl(obsFotoPdf2) : '';
 
                 encabezado.innerHTML = `
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px 16px; align-items:start;">
@@ -4423,23 +4633,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
 
-                if (obsManualPdf || obsFotoPdf) {
+                if (obsManualPdf || obsFotoPdf || obsFotoPdf2) {
                     const obsWrap = document.createElement('div');
                     obsWrap.style.cssText = 'margin-top:10px; padding-top:10px; border-top:1px solid #e5e7eb;';
-                    obsWrap.innerHTML = `
-                        <div style="font-weight:800; color:#111827; margin-bottom:6px;">OBSERVACIONES</div>
-                        ${obsManualPdf ? `<div style="white-space:pre-wrap; color:#111827;">${escapeHtml(obsManualPdf)}</div>` : '<div style="color:#6b7280;">(Sin observaciones)</div>'}
-                    `;
-                    if (obsFotoPdf) {
-                        try {
-                            const url = URL.createObjectURL(obsFotoPdf);
-                            const img = document.createElement('img');
-                            img.src = url;
-                            img.alt = 'Foto observaciones';
-                            img.style.cssText = 'display:block; margin-top:8px; max-height:140px; border-radius:10px; border:1px solid #e5e7eb;';
-                            obsWrap.appendChild(img);
-                        } catch {}
-                    }
+
+                    const parts = [];
+                    parts.push('<div style="font-weight:800; color:#111827; margin:10px 0 6px;">OBSERVACIONES</div>');
+                    parts.push(obsManualPdf
+                        ? `<div style="white-space:pre-wrap; color:#111827;">${escapeHtml(obsManualPdf)}</div>`
+                        : '<div style="color:#6b7280;">(Sin observaciones)</div>'
+                    );
+
+                    const obsImgs = [];
+                    if (obsFotoDataUrl) obsImgs.push(`<img src="${obsFotoDataUrl}" alt="Foto observaciones 1" style="max-height:140px; border-radius:10px; border:1px solid #e5e7eb;" />`);
+                    if (obsFotoDataUrl2) obsImgs.push(`<img src="${obsFotoDataUrl2}" alt="Foto observaciones 2" style="max-height:140px; border-radius:10px; border:1px solid #e5e7eb;" />`);
+                    if (obsImgs.length) parts.push(`<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:10px;">${obsImgs.join('')}</div>`);
+
+                    obsWrap.innerHTML = parts.join('');
                     encabezado.appendChild(obsWrap);
                 }
 
@@ -4934,14 +5144,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             const inputObsFoto = document.getElementById('insp-obs-foto');
+            const inputObsFoto2 = document.getElementById('insp-obs-foto2');
             const obsFotoBlob = (fotoObs && fotoObs.blob) ? fotoObs.blob : (inputObsFoto && inputObsFoto.files && inputObsFoto.files[0] ? inputObsFoto.files[0] : null);
+            const obsFotoBlob2 = (fotoObs2 && fotoObs2.blob) ? fotoObs2.blob : (inputObsFoto2 && inputObsFoto2.files && inputObsFoto2.files[0] ? inputObsFoto2.files[0] : null);
             let obsFotoNombre = '';
             let obsFotoPath = '';
+            let obsFotoNombre2 = '';
+            let obsFotoPath2 = '';
 
             const prevParams = Array.isArray(inspeccionEditData && inspeccionEditData.parametros) ? inspeccionEditData.parametros : [];
             const prevObsFotoNombre = (inspeccionEditData && inspeccionEditData.observacionesFotoNombre) ? String(inspeccionEditData.observacionesFotoNombre) : '';
             const prevObsFotoPath = (inspeccionEditData && inspeccionEditData.observacionesFotoPath) ? String(inspeccionEditData.observacionesFotoPath) : '';
             const prevObsFotoUrl = (inspeccionEditData && inspeccionEditData.observacionesFotoUrl) ? String(inspeccionEditData.observacionesFotoUrl) : '';
+            const prevObsFotoNombre2 = (inspeccionEditData && inspeccionEditData.observacionesFotoNombre2) ? String(inspeccionEditData.observacionesFotoNombre2) : '';
+            const prevObsFotoPath2 = (inspeccionEditData && inspeccionEditData.observacionesFotoPath2) ? String(inspeccionEditData.observacionesFotoPath2) : '';
+            const prevObsFotoUrl2 = (inspeccionEditData && inspeccionEditData.observacionesFotoUrl2) ? String(inspeccionEditData.observacionesFotoUrl2) : '';
             const filas = document.querySelectorAll('.parametros-fila');
             filas.forEach((filaHtml, idx) => {
                 const nombre = filaHtml.querySelector('.col-nombre')?.textContent?.trim() || '';
@@ -4976,8 +5193,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 const danosSeleccionados = (tieneChipsDano && (estado || '').toUpperCase() === 'MALO') ? getSelDanos() : [];
                 const evidenciasPorDano = {};
 
-                if (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO')) {
+                const allowEvidOnBueno = (tipoInspeccion === 'PRE-TRABAJO');
+                if (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) {
                     if (tieneChipsDano) {
+                        // PRE-TRABAJO (BUENO) sin chips seleccionados: permitir evidencia por parámetro (legacy)
+                        // en lugar de evidenciasPorDano.
+                        if (allowEvidOnBueno && (!Array.isArray(danosSeleccionados) || !danosSeleccionados.length)) {
+                            borrarEvid1 = !!(fotosTomadas[idx] && fotosTomadas[idx].del1);
+                            borrarEvid2 = !!(fotosTomadas[idx] && fotosTomadas[idx].del2);
+
+                            const fotoBlob = (fotosTomadas[idx]?.blob) || (inputFoto && inputFoto.files && inputFoto.files[0]) || null;
+                            if (fotoBlob) {
+                                const ahora = new Date();
+                                const dd = String(ahora.getDate()).padStart(2, '0');
+                                const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                                const yy = String(ahora.getFullYear()).slice(-2);
+                                const fechaSafe = `${dd}-${mm}-${yy}`;
+                                const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
+                                const slug = String(nombre || '')
+                                    .toLowerCase()
+                                    .normalize('NFD')
+                                    .replace(/[\u0300-\u036f]/g, '')
+                                    .replace(/[^a-z0-9]+/g, '-')
+                                    .replace(/^-+|-+$/g, '')
+                                    .slice(0, 28);
+                                const idxSafe = String(idx).padStart(2, '0');
+                                evidenciaNombre = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}.jpg`;
+                                evidenciaPath = `inspecciones/${localId}/${evidenciaNombre}`;
+                                fotosParaSubir.push({ idx, dano: '', slot: 1, nombre, file: fotoBlob, evidenciaNombre });
+                            }
+
+                            const puedeSubirEvidencia2 = esEstadoGeneral ? true : !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                            const fotoBlob2 = puedeSubirEvidencia2
+                                ? ((fotosTomadas[idx]?.blob2) || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]) || null)
+                                : null;
+                            if (fotoBlob2) {
+                                const ahora = new Date();
+                                const dd = String(ahora.getDate()).padStart(2, '0');
+                                const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                                const yy = String(ahora.getFullYear()).slice(-2);
+                                const fechaSafe = `${dd}-${mm}-${yy}`;
+                                const equipoId = get(idxEquipo) || 'SIN_EQUIPO';
+                                const slug = String(nombre || '')
+                                    .toLowerCase()
+                                    .normalize('NFD')
+                                    .replace(/[\u0300-\u036f]/g, '')
+                                    .replace(/[^a-z0-9]+/g, '-')
+                                    .replace(/^-+|-+$/g, '')
+                                    .slice(0, 28);
+                                const idxSafe = String(idx).padStart(2, '0');
+                                evidenciaNombre2 = `${equipoId}-${fechaSafe}-${idxSafe}${slug ? '-' + slug : ''}-2.jpg`;
+                                evidenciaPath2 = `inspecciones/${localId}/${evidenciaNombre2}`;
+                                fotosParaSubir.push({ idx, dano: '', slot: 2, nombre, file: fotoBlob2, evidenciaNombre: evidenciaNombre2 });
+                            }
+                        } else {
                         // Por chip: cada daño tiene evidencia propia
                         const prevByDano = (filaHtml && filaHtml.__prevEvidenciasPorDano && typeof filaHtml.__prevEvidenciasPorDano === 'object') ? filaHtml.__prevEvidenciasPorDano : {};
                         const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSupervisor);
@@ -5005,9 +5274,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             .replace(/^-+|-+$/g, '')
                             .slice(0, 16);
 
-                        (danosSeleccionados || []).forEach((danoKey) => {
+                        const danosIter = (allowEvidOnBueno && (!Array.isArray(danosSeleccionados) || !danosSeleccionados.length))
+                            ? ['']
+                            : (danosSeleccionados || []);
+
+                        (danosIter || []).forEach((danoKey) => {
                             const dk = String(danoKey || '').trim().toUpperCase();
-                            if (!dk) return;
+                            // En PRE-TRABAJO (BUENO) permitimos evidencias sin daño seleccionado.
                             let prevD = prevByDano && prevByDano[dk] ? prevByDano[dk] : {};
                             try {
                                 if ((!prevD || typeof prevD !== 'object' || (!prevD.evidenciaNombre && !prevD.evidenciaPath && !prevD.evidenciaUrl)) && isEditingExisting) {
@@ -5047,13 +5320,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             let evidenciaPath22 = '';
 
                             if (foto1) {
-                                evidenciaNombre1 = `${equipoId}-${fechaSafe}-${idxSafe}${slugParam ? '-' + slugParam : ''}-${slugDano(dk)}.jpg`;
+                                const danoPart = dk ? `-${slugDano(dk)}` : '';
+                                evidenciaNombre1 = `${equipoId}-${fechaSafe}-${idxSafe}${slugParam ? '-' + slugParam : ''}${danoPart}.jpg`;
                                 evidenciaPath1 = `inspecciones/${localId}/${evidenciaNombre1}`;
                                 fotosParaSubir.push({ idx, dano: dk, slot: 1, nombre, file: foto1, evidenciaNombre: evidenciaNombre1 });
                             }
 
                             if (foto2) {
-                                evidenciaNombre22 = `${equipoId}-${fechaSafe}-${idxSafe}${slugParam ? '-' + slugParam : ''}-${slugDano(dk)}-2.jpg`;
+                                const danoPart = dk ? `-${slugDano(dk)}` : '';
+                                evidenciaNombre22 = `${equipoId}-${fechaSafe}-${idxSafe}${slugParam ? '-' + slugParam : ''}${danoPart}-2.jpg`;
                                 evidenciaPath22 = `inspecciones/${localId}/${evidenciaNombre22}`;
                                 fotosParaSubir.push({ idx, dano: dk, slot: 2, nombre, file: foto2, evidenciaNombre: evidenciaNombre22 });
                             }
@@ -5069,6 +5344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             };
                             evidenciasPorDano[dk] = out;
                         });
+                        }
                     } else {
                         // Legacy por parámetro (sin chips)
                         borrarEvid1 = !!(fotosTomadas[idx] && fotosTomadas[idx].del1);
@@ -5189,10 +5465,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 obsFotoPath = `inspecciones/${localId}/${obsFotoNombre}`;
             }
 
+            if (obsFotoBlob2) {
+                const ahoraObs = new Date();
+                const ddObs = String(ahoraObs.getDate()).padStart(2, '0');
+                const mmObs = String(ahoraObs.getMonth() + 1).padStart(2, '0');
+                const yyObs = String(ahoraObs.getFullYear()).slice(-2);
+                const HHObs = String(ahoraObs.getHours()).padStart(2, '0');
+                const MMObs = String(ahoraObs.getMinutes()).padStart(2, '0');
+                const SSObs = String(ahoraObs.getSeconds()).padStart(2, '0');
+                const equipoIdObs = get(idxEquipo) || 'SIN_EQUIPO';
+                obsFotoNombre2 = `${equipoIdObs}-${ddObs}${mmObs}${yyObs}-${HHObs}${MMObs}${SSObs}-observaciones-2.jpg`;
+                obsFotoPath2 = `inspecciones/${localId}/${obsFotoNombre2}`;
+            }
+
             // Preservar evidencia de observaciones previa si no se adjuntó nueva
             if (!obsFotoBlob && isEditingExisting && (prevObsFotoNombre || prevObsFotoPath || prevObsFotoUrl)) {
                 if (!obsFotoNombre) obsFotoNombre = prevObsFotoNombre;
                 if (!obsFotoPath) obsFotoPath = prevObsFotoPath;
+            }
+
+            if (!obsFotoBlob2 && isEditingExisting && (prevObsFotoNombre2 || prevObsFotoPath2 || prevObsFotoUrl2)) {
+                if (!obsFotoNombre2) obsFotoNombre2 = prevObsFotoNombre2;
+                if (!obsFotoPath2) obsFotoPath2 = prevObsFotoPath2;
             }
 
             // Validaciones requeridas por parámetro
@@ -5559,6 +5853,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 observacionesManual: obsTextoManual,
                 observacionesFotoNombre: obsFotoNombre,
                 observacionesFotoPath: obsFotoPath,
+                observacionesFotoNombre2: obsFotoNombre2,
+                observacionesFotoPath2: obsFotoPath2,
                 syncStatus: 'PENDING',
             };
 
@@ -5712,6 +6008,30 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                         } catch {}
                     }
+
+                    if (obsFotoBlob2 && obsFotoNombre2) {
+                        if (!navigator.onLine) {
+                            throw new Error('OFFLINE');
+                        }
+                        const pthObs2 = `inspecciones/${localId}/${obsFotoNombre2}`;
+                        const stRefObs2 = ref(storage, pthObs2);
+                        await uploadBytes(stRefObs2, obsFotoBlob2);
+                        const urlObs2 = await getDownloadURL(stRefObs2);
+                        await updateDoc(docRef, {
+                            observacionesFotoUrl2: urlObs2,
+                            observacionesFotoPath2: pthObs2,
+                            observacionesFotoNombre2: obsFotoNombre2,
+                        });
+                        try {
+                            patchInspeccionLocalPorId(localId, {
+                                observacionesFotoUrl2: urlObs2,
+                                observacionesFotoPath2: pthObs2,
+                                observacionesFotoNombre2: obsFotoNombre2,
+                            });
+                        } catch {}
+                    }
+
+                    // sinDaño removido del UI
                 } catch (e) {
                     console.warn('No se pudieron subir evidencias a Storage:', e);
 
@@ -5749,6 +6069,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                 seed,
                             }, obsFotoBlob);
                         }
+
+                        if (obsFotoBlob2 && obsFotoNombre2) {
+                            const storagePath = `inspecciones/${localId}/${obsFotoNombre2}`;
+                            await enqueueEvidenceUpload({
+                                docId: localId,
+                                kind: 'obs',
+                                idx: 0,
+                                dano: '',
+                                slot: 2,
+                                evidenciaNombre: obsFotoNombre2,
+                                storagePath,
+                                seed,
+                            }, obsFotoBlob2);
+                        }
+
+                        // sinDaño removido del UI
                     } catch (qe) {
                         console.warn('No se pudo encolar evidencia pendiente', qe);
                     }
