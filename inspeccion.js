@@ -4553,6 +4553,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const yy = String(ahora.getFullYear()).slice(-2);
                 const HH = String(ahora.getHours()).padStart(2, '0');
                 const MM = String(ahora.getMinutes()).padStart(2, '0');
+                const fechaSafe = `${dd}-${mm}-${yy}`;
                 const equipo = equipoSel || 'SIN_EQUIPO';
                 const tipoInspeccionSel = (document.getElementById('inspeccion-tipo')?.value || '').toString();
                 let usuario = '';
@@ -4865,6 +4866,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     scale: 2,
                     useCORS: true,
                 });
+                const scaleFactor = canvas.width / wrapperWidthCss;
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
 
                 // Limpiar wrapper temporal
@@ -5003,6 +5005,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (e) {
                 console.warn('No se pudo exportar el PDF:', e);
+                try { alert('No se pudo generar el PDF. Revisa la consola para más detalle.'); } catch {}
             }
         });
     }
