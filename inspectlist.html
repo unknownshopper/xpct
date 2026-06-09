@@ -1294,6 +1294,10 @@
 
             let visibles = 0;
 
+            if (window.isSgi && Array.isArray(inspecciones)) {
+                inspeccionesHuerfanas = inspecciones.slice();
+            }
+
             function normEq(s) {
                 return (s || '')
                     .toString()
@@ -1802,7 +1806,7 @@
             // Primero bloque de pendientes
             renderBloque(false, tbody);
 
-            if (tbodyRealizadas) {
+            if (tbodyRealizadas && !window.isSgi) {
                 renderBloque(true, tbodyRealizadas);
             }
 
