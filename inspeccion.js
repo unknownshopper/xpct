@@ -55,6 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const puedeOmitirFotos = () => {
         try {
             if (esEquipoTercero) return false;
+            const selTipo = document.getElementById('inspeccion-tipo');
+            const tipo = selTipo ? String(selTipo.value || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
+            if (tipo && tipo !== 'POST-TRABAJO') return true;
             return !!window.isSgi;
         } catch {
             return false;
@@ -3547,7 +3550,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (!colEvid) return;
                     const tipo = getTipoInspeccionNow();
-                    const allowByTipo = (tipo === 'PRE-TRABAJO');
+                    const allowByTipo = (tipo === 'PRE-TRABAJO' || tipo === 'RECEPCION');
                     const estadoSel = filaHtml.querySelector(`input[name="param-${idx}-estado"]:checked`);
                     const estadoVal = estadoSel ? String(estadoSel.value || '').trim().toUpperCase() : '';
                     const show = !!(esEstadoGeneral || estadoVal === 'MALO' || allowByTipo);
@@ -3887,7 +3890,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return sel ? String(sel.value || '').trim().toUpperCase() : '';
                         } catch { return ''; }
                     })();
-                    const permitirEvidenciaBueno = (tipoActual === 'PRE-TRABAJO');
+                    const permitirEvidenciaBueno = (tipoActual === 'PRE-TRABAJO' || tipoActual === 'RECEPCION');
 
                     if (colDano) colDano.style.display = 'none';
                     if (selectDano) {
@@ -5241,6 +5244,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', () => {
                 const v = normalizarTipo(btn.getAttribute('data-val'));
                 tipoInspeccionSelect.value = v;
+                try { tipoInspeccionSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
                 actualizarSeleccionTipo();
             });
         });
@@ -5413,7 +5417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const danosSeleccionados = (tieneChipsDano && (estado || '').toUpperCase() === 'MALO') ? getSelDanos() : [];
                 const evidenciasPorDano = {};
 
-                const allowEvidOnBueno = (tipoInspeccion === 'PRE-TRABAJO');
+                const allowEvidOnBueno = (tipoInspeccion === 'PRE-TRABAJO' || tipoInspeccion === 'RECEPCION');
                 if (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) {
                     if (tieneChipsDano) {
                         // PRE-TRABAJO (BUENO) sin chips seleccionados: permitir evidencia por parámetro (legacy)
