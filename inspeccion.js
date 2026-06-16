@@ -4371,6 +4371,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     return false;
                 }
             }
+            const esAndroidTouch = (() => {
+                try {
+                    const ua = String(navigator.userAgent || '');
+                    const touch = (navigator.maxTouchPoints || 0) > 1;
+                    return touch && /Android|Tablet|Mobile/i.test(ua);
+                } catch {
+                    return false;
+                }
+            })();
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 if (abrirCamaraNativaDirecta()) return;
                 alert('La cámara no está disponible en este dispositivo/navegador.');
@@ -4383,6 +4392,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const video = document.createElement('video');
             video.autoplay = true; video.playsInline = true;
             video.style.cssText = 'width:100%;height:min(78vh,760px);object-fit:contain;border-radius:10px;background:#000;';
+            const avisoCamaraNativa = document.createElement('div');
+            avisoCamaraNativa.textContent = 'En esta tablet usa el botón "Cámara del dispositivo" para tomar la foto.';
+            avisoCamaraNativa.style.cssText = 'display:none;text-align:center;font-weight:800;color:#111827;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px;margin-bottom:10px;';
             const ctrls = document.createElement('div');
             ctrls.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;';
             const btnSwitch = document.createElement('button');
@@ -4395,7 +4407,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnSnap = document.createElement('button'); btnSnap.textContent = 'Capturar';
             btnSnap.disabled = true;
             ctrls.appendChild(btnSwitch); ctrls.appendChild(btnNative); ctrls.appendChild(btnCancel); ctrls.appendChild(btnSnap);
-            box.appendChild(video); box.appendChild(ctrls); overlay.appendChild(box); document.body.appendChild(overlay);
+            box.appendChild(avisoCamaraNativa); box.appendChild(video); box.appendChild(ctrls); overlay.appendChild(box); document.body.appendChild(overlay);
 
             let currentFacing = 'environment'; // 'environment' (trasera) | 'user' (frontal)
             let currentStream = null;
@@ -4546,28 +4558,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch {}
             }
 
-            await refreshDevices();
-            try {
-                await startStream();
-            } catch (e) {
-                // Fallback: si falla, intentar sin facingMode (algunos devices fallan constraints)
+            if (esAndroidTouch) {
                 try {
-                    stopStream();
-                    currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                    video.srcObject = currentStream;
-                    try { await video.play(); } catch {}
+                    avisoCamaraNativa.style.display = '';
+                    video.style.display = 'none';
+                    btnSwitch.style.display = 'none';
+                    btnSnap.style.display = 'none';
+                    setTimeout(() => {
+                        try { abrirCamaraNativa(); } catch {}
+                    }, 80);
+                } catch {}
+            } else {
+                await refreshDevices();
+                try {
+                    await startStream();
+                } catch (e) {
+                // Fallback: si falla, intentar sin facingMode (algunos devices fallan constraints)
                     try {
-                        if (video.videoWidth && video.videoHeight) btnSnap.disabled = false;
-                        else {
-                            // Esperar un poco y habilitar si ya hay dimensiones
-                            setTimeout(() => {
-                                try { if (video.videoWidth && video.videoHeight) btnSnap.disabled = false; } catch {}
-                            }, 800);
-                        }
-                    } catch {}
-                } catch {
-                    try { abrirCamaraNativa(); } catch {}
-                    throw e;
+                        stopStream();
+                        currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                        video.srcObject = currentStream;
+                        try { await video.play(); } catch {}
+                        try {
+                            if (video.videoWidth && video.videoHeight) btnSnap.disabled = false;
+                            else {
+                                // Esperar un poco y habilitar si ya hay dimensiones
+                                setTimeout(() => {
+                                    try { if (video.videoWidth && video.videoHeight) btnSnap.disabled = false; } catch {}
+                                }, 800);
+                            }
+                        } catch {}
+                    } catch {
+                        try { abrirCamaraNativa(); } catch {}
+                        throw e;
+                    }
                 }
             }
 
