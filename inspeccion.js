@@ -3670,49 +3670,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!tieneChipsDano) return;
                 try {
                     danoChipBtns.forEach(btn => {
+                        let wrap = btn.querySelector('.chip-thumbs');
+                        if (wrap) wrap.remove();
                         const v = normDano(btn.getAttribute('data-val') || '');
                         if (!v) return;
                         const has = danoTieneFoto1(v) || danoTieneFoto2(v);
-
-                        let wrap = btn.querySelector('.chip-thumbs');
-                        if (!wrap) {
-                            wrap = document.createElement('span');
-                            wrap.className = 'chip-thumbs';
-                            wrap.style.cssText = 'display:inline-flex; gap:4px; margin-left:8px; vertical-align:middle;';
-                            btn.appendChild(wrap);
-                        }
-
-                        if (!has) {
-                            wrap.innerHTML = '';
-                            wrap.style.display = 'none';
-                            btn.classList.remove('is-occupied');
-                            return;
-                        }
-
-                        wrap.style.display = 'inline-flex';
-                        btn.classList.add('is-occupied');
-
-                        const { u1, u2 } = getChipThumbUrls(v);
-                        const mk = (u) => {
-                            const img = document.createElement('img');
-                            img.src = u;
-                            img.alt = 'thumb';
-                            img.style.cssText = 'width:18px; height:18px; object-fit:cover; border-radius:4px; border:1px solid #e5e7eb;';
-                            img.addEventListener('click', (ev) => {
-                                try { ev.stopPropagation(); } catch {}
-                                try {
-                                    if (!u) return;
-                                    const w = window.open('', '_blank');
-                                    if (w) w.document.write(`<img src="${u}" style="max-width:100%;height:auto;"/>`);
-                                } catch {}
-                            });
-                            return img;
-                        };
-
-                        wrap.innerHTML = '';
-                        if (u1) wrap.appendChild(mk(u1));
-                        if (u2) wrap.appendChild(mk(u2));
+                        if (has) btn.classList.add('is-occupied');
+                        else btn.classList.remove('is-occupied');
                     });
+                } catch {}
+            };
+
+            const syncPreviewDanoActivo = () => {
+                if (!tieneChipsDano) return;
+                try {
+                    const act = getActiveDano();
+                    if (!act) return;
+                    const { u1, u2 } = getChipThumbUrls(act);
+                    if (imgPrev) {
+                        if (u1) {
+                            imgPrev.src = u1;
+                            imgPrev.style.display = '';
+                            try { filaHtml.dataset.evid1Exists = '1'; } catch {}
+                        } else {
+                            imgPrev.src = '';
+                            imgPrev.style.display = 'none';
+                        }
+                    }
+                    if (imgPrev2) {
+                        if (u2) {
+                            imgPrev2.src = u2;
+                            imgPrev2.style.display = '';
+                            try { filaHtml.dataset.evid2Exists = '1'; } catch {}
+                        } else {
+                            imgPrev2.src = '';
+                            imgPrev2.style.display = 'none';
+                        }
+                    }
                 } catch {}
             };
 
@@ -3808,6 +3802,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!v) return;
                 setActiveDano(v);
                 actualizarSeleccionChips();
+                syncPreviewDanoActivo();
                 actualizarVisibilidadOtro();
             };
 
@@ -4056,6 +4051,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     try { if (inputFoto) inputFoto.value = ''; } catch {}
                                     try { if (inputFoto2) inputFoto2.value = ''; } catch {}
                                     renderChipThumbs();
+                                    syncPreviewDanoActivo();
                                     actualizarSeleccionChips();
                                     syncUiEvidencias();
                                     return;
@@ -4106,6 +4102,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     }
                                     try { if (inputFoto2) inputFoto2.value = ''; } catch {}
                                     renderChipThumbs();
+                                    syncPreviewDanoActivo();
                                     actualizarSeleccionChips();
                                     syncUiEvidencias();
                                     return;
