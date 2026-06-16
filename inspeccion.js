@@ -2966,7 +2966,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const equipoSinFlejeConRotulo = /BRIDA CIEGA|BRIDA DE PRUEBA|BRIDA DE PASO|BRIDA ADAPTADORA/.test(textoEquipo);
 
-        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isDirector || window.isSgi);
+        const puedeSubirEvidencia2 = !!(window.isAdmin || window.isSupervisor || window.isSgi);
 
         const esNuevaInspeccion = !inspeccionIsEditingExisting;
         const parametrosRenderFinal = (esNuevaInspeccion && parametrosRender.length)
@@ -3511,7 +3511,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             const puedeSubirArchivoNow = () => {
                 try {
-                    return !!(window.isAdmin || window.isSgi);
+                    return !!(window.isAdmin || window.isSupervisor || window.isSgi);
                 } catch {
                     return false;
                 }
@@ -4371,19 +4371,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return false;
                 }
             }
-            const usarCamaraNativaPrimero = (() => {
-                try {
-                    const ua = String(navigator.userAgent || '');
-                    const touch = (navigator.maxTouchPoints || 0) > 1;
-                    return touch && /Android|Tablet|Mobile/i.test(ua);
-                } catch {
-                    return false;
-                }
-            })();
-            if (usarCamaraNativaPrimero) {
-                abrirCamaraNativaDirecta();
-                return;
-            }
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 if (abrirCamaraNativaDirecta()) return;
                 alert('La cámara no está disponible en este dispositivo/navegador.');
@@ -4403,6 +4390,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSwitch.style.display = 'none';
             const btnNative = document.createElement('button');
             btnNative.textContent = 'Cámara del dispositivo';
+            btnNative.style.cssText = 'font-weight:800;background:#0f766e;color:#fff;border:0;border-radius:10px;padding:10px 12px;';
             const btnCancel = document.createElement('button'); btnCancel.textContent = 'Cancelar';
             const btnSnap = document.createElement('button'); btnSnap.textContent = 'Capturar';
             btnSnap.disabled = true;
@@ -5251,6 +5239,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tipoInspeccionSelect.addEventListener('change', actualizarSeleccionTipo);
         actualizarSeleccionTipo();
+        setTimeout(() => {
+            try { tipoInspeccionSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+        }, 0);
     }
 
     if (btnGuardar) {
