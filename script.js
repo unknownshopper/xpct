@@ -1197,13 +1197,46 @@ function procesarTextoEquipos(texto) {
 
     if (!partes.length) return false;
 
+    const normalizarEquipoBusqueda = (s) => String(s || '')
+        .trim()
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/^PCT[-\s]*/i, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/[^A-Z0-9-]/g, '')
+        .replace(/[O0]/g, '0')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    function resolverEquipoInventario(fragmento) {
+        const raw = String(fragmento || '').trim();
+        if (!raw) return '';
+        if (infoPorEquipoAct[raw]) return raw;
+
+        const q = normalizarEquipoBusqueda(raw);
+        if (!q) return raw;
+
+        const keys = Object.keys(infoPorEquipoAct || {});
+        let hit = keys.find(eq => normalizarEquipoBusqueda(eq) === q);
+        if (hit) return hit;
+
+        hit = keys.find(eq => {
+            const n = normalizarEquipoBusqueda(eq);
+            return n.endsWith(q) || q.endsWith(n);
+        });
+        if (hit) return hit;
+
+        return raw;
+    }
+
     let agregado = false;
     partes.forEach(fragmento => {
         if (!fragmento) return;
 
         // Tomar solo la primera "palabra" (antes de cualquier espacio/tab),
         // asumiendo que el código de equipo no tiene espacios.
-        const eq = fragmento.split(/\s+/)[0];
+        const eq = resolverEquipoInventario(fragmento.split(/\s+/)[0]);
         if (!eq) return;
 
         // No permitir agregar equipos que ya tienen actividad abierta
