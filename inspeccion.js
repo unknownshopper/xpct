@@ -6290,7 +6290,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let guardadoFirestoreOk = false;
             let lastFirestoreError = null;
             try {
-                const { getFirestore, serverTimestamp, doc, setDoc, updateDoc } = await import(
+                const { getFirestore, serverTimestamp, doc, setDoc, updateDoc, getDocFromServer } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } = await import(
@@ -6307,8 +6307,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 await setDoc(docRef, payload, { merge: true });
+
+                // Confirmar que el documento exista en servidor antes de declarar éxito.
+                // En móviles, Firestore puede resolver setDoc con escritura en cola local.
+                try {
+                    const confirmar = async () => {
+                        const snapSrv = await getDocFromServer(docRef);
+                        if (!snapSrv.exists()) throw new Error('NOT_COMMITTED');
+                        return true;
+                    };
+                    const timeoutMs = 6500;
+                    await Promise.race([
+                        confirmar(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('CONFIRM_TIMEOUT')), timeoutMs))
+                    ]);
+                } catch (e) {
+                    throw e;
+                }
+
                 guardadoFirestoreOk = true;
-                patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
+                patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED', lastSyncError: '' });
 
                 try {
                     // Subir evidencias (fotos) a Storage y luego persistir evidenciaUrl/evidenciaPath en Firestore
