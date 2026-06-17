@@ -6569,6 +6569,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) {
                 lastFirestoreError = e;
                 console.warn('No se pudo guardar la inspección en Firestore, solo local:', e);
+                try {
+                    const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                    const msg = (e && e.message) ? String(e.message) : '';
+                    const errTxt = code ? `${code}${msg ? ' - ' + msg : ''}` : (msg || '');
+                    patchInspeccionLocalPorId(localId, { syncStatus: 'PENDING', lastSyncError: errTxt });
+                } catch {}
             }
 
             // Carga opcional a Dropbox si hay configuración
@@ -6675,6 +6681,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </p>
                     ${detalleError ? `<p style="font-size:0.78rem; color:#6b7280; text-align:center; word-break:break-word;">${escapeHtml(detalleError)}</p>` : ''}
                 `;
+
+                try {
+                    const t = detalleError ? `\n${detalleError}` : '';
+                    alert(`No se pudo guardar en Firestore.\nLa inspección quedó guardada solo en este dispositivo (pendiente de sincronizar).${t}`);
+                } catch {}
 
                 try {
                     btnGuardar.innerHTML = prevBtnHtml;
