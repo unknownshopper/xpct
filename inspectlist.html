@@ -359,6 +359,7 @@
         let filtroEstado = null; // null | 'PENDIENTE' | 'REALIZADA'
         let sortKey = 'fecha_real'; // null | 'fecha_real'
         let sortDir = -1; // -1 desc | 1 asc
+        let autoResetHecho = false;
 
         // Mapa global actualizado en cada carga, para que los botones PDF siempre usen la data más reciente
         let inspeccionPorActividadGlobal = new Map();
@@ -2086,6 +2087,26 @@
             if (lblCont) {
                 lblCont.textContent = `${visibles} registro${visibles === 1 ? '' : 's'}`;
             }
+
+            // Fail-safe: si hay datos (contadores) pero no se renderizó ninguna fila,
+            // probablemente quedó un filtro activo/atascado. Limpiar una vez y recargar.
+            try {
+                if (!autoResetHecho) {
+                    const totalRows =
+                        (tbody ? tbody.querySelectorAll('tr').length : 0)
+                        + (tbodyRealizadas ? tbodyRealizadas.querySelectorAll('tr').length : 0)
+                        + (tbodyHuerfanas ? tbodyHuerfanas.querySelectorAll('tr').length : 0);
+                    const nPend = parseInt(String(cardPendientes ? cardPendientes.textContent : '0'), 10) || 0;
+                    const nReal = parseInt(String(cardRealizadas ? cardRealizadas.textContent : '0'), 10) || 0;
+                    if (totalRows === 0 && (nPend > 0 || nReal > 0)) {
+                        autoResetHecho = true;
+                        filtroEstado = null;
+                        try { if (inputBuscar) inputBuscar.value = ''; } catch {}
+                        setTimeout(() => cargarDatos(), 0);
+                        return;
+                    }
+                }
+            } catch {}
 
             // Acciones PDF solo cuando estamos en Realizadas (para evitar confusión con pendientes)
             if (secAccionesPdf) {
