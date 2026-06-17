@@ -3488,6 +3488,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch {}
 
+            try {
+                if (esEstadoGeneral && colEvid) {
+                    const b = colEvid.querySelector('.btn-subir-foto');
+                    if (b) b.style.display = puedeSubirArchivoNow() ? '' : 'none';
+                }
+            } catch {}
+
             const inputFoto = colEvid ? colEvid.querySelector(`input[name="param-${idx}-foto"]`) : null;
             const btnTomar = colEvid ? colEvid.querySelector('.btn-tomar-foto') : null;
             const btnSubir = colEvid ? colEvid.querySelector('.btn-subir-foto') : null;
@@ -3739,7 +3746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const act = getActiveDano();
                         // En modo chips, siempre permitir agregar evidencia al chip activo.
                         if (btnTomar) btnTomar.style.display = '';
-                        if (btnSubir) btnSubir.style.display = '';
+                        if (btnSubir) btnSubir.style.display = puedeSubirArchivoNow() ? '' : 'none';
 
                         const has1Act = act ? danoTieneFoto1(act) : false;
                         const has2Act = act ? danoTieneFoto2(act) : false;
@@ -3749,7 +3756,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         // Botones del slot 2: siempre visibles en chip mode si el rol lo permite
                         if (btnTomar2) btnTomar2.style.display = can2 ? '' : 'none';
-                        if (btnSubir2) btnSubir2.style.display = can2 ? '' : 'none';
+                        if (btnSubir2) btnSubir2.style.display = (can2 && puedeSubirArchivoNow()) ? '' : 'none';
                     } else {
                         const has1 = foto1YaExiste();
                         if (btnTomar) btnTomar.style.display = has1 ? 'none' : '';
@@ -3827,18 +3834,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             colEvid.style.display = '';
                             if (inputFoto) inputFoto.disabled = false;
                             if (btnTomar) btnTomar.disabled = false;
-                            if (btnSubir) btnSubir.disabled = false;
+                            if (btnSubir) btnSubir.disabled = !puedeSubirArchivoNow();
                             if (btnDel1) btnDel1.disabled = !puedeEliminarEvidenciaNow();
                             try { syncUiEvidencias(); } catch {}
 
                             const can2 = puedeSubirEvidencia2Now();
                             if (inputFoto2) inputFoto2.disabled = !can2;
                             if (btnTomar2) btnTomar2.disabled = !can2;
-                            if (btnSubir2) btnSubir2.disabled = !can2;
+                            if (btnSubir2) btnSubir2.disabled = !can2 || !puedeSubirArchivoNow();
                             if (btnDel2) btnDel2.disabled = !puedeEliminarEvidenciaNow();
                             try {
                                 if (btnTomar2) btnTomar2.style.display = can2 ? '' : 'none';
-                                if (btnSubir2) btnSubir2.style.display = can2 ? '' : 'none';
+                                if (btnSubir2) btnSubir2.style.display = (can2 && puedeSubirArchivoNow()) ? '' : 'none';
                                 if (btnDel2) btnDel2.style.display = 'none';
                                 if (imgPrev2) imgPrev2.style.display = 'none';
                             } catch {}
@@ -3862,7 +3869,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         colEvid.style.display = '';
                         if (inputFoto) inputFoto.disabled = false;
                         if (btnTomar) btnTomar.disabled = false;
-                        if (btnSubir) btnSubir.disabled = false;
+                        if (btnSubir) btnSubir.disabled = !puedeSubirArchivoNow();
 
                         if (btnDel1) btnDel1.disabled = !puedeEliminarEvidenciaNow();
                         syncUiEvidencias();
@@ -3871,7 +3878,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const can2 = puedeSubirEvidencia2Now();
                         if (inputFoto2) inputFoto2.disabled = !can2;
                         if (btnTomar2) btnTomar2.disabled = !can2;
-                        if (btnSubir2) btnSubir2.disabled = !can2;
+                        if (btnSubir2) btnSubir2.disabled = !can2 || !puedeSubirArchivoNow();
                         if (btnDel2) {
                             btnDel2.disabled = !puedeEliminarEvidenciaNow();
                             const has2 = !foto2Vacia();
@@ -4032,7 +4039,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btnTomar) {
                 btnTomar.addEventListener('click', async () => {
                     try {
-                        await abrirCamaraParaIndice(idx, (blob) => {
+                        const idxUse = (() => {
+                            try {
+                                const v = btnTomar.getAttribute('data-idx');
+                                const n = Number(v);
+                                return Number.isFinite(n) ? n : idx;
+                            } catch {
+                                return idx;
+                            }
+                        })();
+                        await abrirCamaraParaIndice(idxUse, (blob) => {
+                            const imgPrevUse = document.getElementById(`preview-foto-${idxUse}`);
+                            const imgPrev2Use = document.getElementById(`preview-foto2-${idxUse}`);
                             try {
                                 const act = getActiveDano();
                                 if (tieneChipsDano && act) {
@@ -4059,21 +4077,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             } catch {}
                             // Si ya existe Foto 1 y Foto 2 está vacía (y el rol lo permite), mandar a slot 2 automáticamente
                             if (puedeSubirEvidencia2Now() && foto1YaExiste() && foto2Vacia()) {
-                                fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: blob, del2: false };
+                                fotosTomadas[idxUse] = { ...(fotosTomadas[idxUse] || {}), blob2: blob, del2: false };
                                 try { if (inputFoto2) inputFoto2.value = ''; } catch {}
-                                if (imgPrev2) {
-                                    imgPrev2.src = URL.createObjectURL(blob);
-                                    imgPrev2.style.display = '';
+                                if (imgPrev2Use) {
+                                    imgPrev2Use.src = URL.createObjectURL(blob);
+                                    imgPrev2Use.style.display = '';
                                 }
                                 try { filaHtml.dataset.evid2Exists = '1'; } catch {}
                                 if (btnDel2) btnDel2.style.display = '';
                                 syncUiEvidencias();
                             } else {
-                                fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob, del1: false };
+                                fotosTomadas[idxUse] = { ...(fotosTomadas[idxUse] || {}), blob, del1: false };
                                 try { if (inputFoto) inputFoto.value = ''; } catch {}
-                                if (imgPrev) {
-                                    imgPrev.src = URL.createObjectURL(blob);
-                                    imgPrev.style.display = '';
+                                if (imgPrevUse) {
+                                    imgPrevUse.src = URL.createObjectURL(blob);
+                                    imgPrevUse.style.display = '';
                                 }
                                 try { filaHtml.dataset.evid1Exists = '1'; } catch {}
                                 if (btnDel1) btnDel1.style.display = '';
@@ -4091,7 +4109,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnTomar2.addEventListener('click', async () => {
                     try {
                         if (!puedeSubirEvidencia2) return;
-                        await abrirCamaraParaIndice(idx, (blob) => {
+                        const idxUse = (() => {
+                            try {
+                                const v = btnTomar2.getAttribute('data-idx');
+                                const n = Number(v);
+                                return Number.isFinite(n) ? n : idx;
+                            } catch {
+                                return idx;
+                            }
+                        })();
+                        await abrirCamaraParaIndice(idxUse, (blob) => {
+                            const imgPrev2Use = document.getElementById(`preview-foto2-${idxUse}`);
                             try {
                                 const act = getActiveDano();
                                 if (tieneChipsDano && act) {
@@ -4108,11 +4136,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                     return;
                                 }
                             } catch {}
-                            fotosTomadas[idx] = { ...(fotosTomadas[idx] || {}), blob2: blob };
+                            fotosTomadas[idxUse] = { ...(fotosTomadas[idxUse] || {}), blob2: blob };
                             try { if (inputFoto2) inputFoto2.value = ''; } catch {}
-                            if (imgPrev2) {
-                                imgPrev2.src = URL.createObjectURL(blob);
-                                imgPrev2.style.display = '';
+                            if (imgPrev2Use) {
+                                imgPrev2Use.src = URL.createObjectURL(blob);
+                                imgPrev2Use.style.display = '';
                             }
                         });
                     } catch (e) {
@@ -4345,6 +4373,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Función para abrir la cámara y capturar una foto
         async function abrirCamaraParaIndice(idx, onCapture) {
+            async function normalizarYComprimirImagen(fileOrBlob) {
+                try {
+                    const f = fileOrBlob;
+                    const size = (f && typeof f.size === 'number') ? f.size : 0;
+                    if (!size || size < 700 * 1024) return f;
+                    const bmp = await createImageBitmap(f);
+                    const maxDim = 1600;
+                    const scale = Math.min(1, maxDim / Math.max(bmp.width || 1, bmp.height || 1));
+                    const w = Math.max(1, Math.round((bmp.width || 1) * scale));
+                    const h = Math.max(1, Math.round((bmp.height || 1) * scale));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return f;
+                    ctx.drawImage(bmp, 0, 0, w, h);
+                    const blob = await new Promise((resolve) => {
+                        try {
+                            canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.78);
+                        } catch {
+                            resolve(null);
+                        }
+                    });
+                    try { bmp.close(); } catch {}
+                    return blob || f;
+                } catch {
+                    return fileOrBlob;
+                }
+            }
+
+            const onCaptureNorm = (fileOrBlob) => {
+                Promise.resolve(normalizarYComprimirImagen(fileOrBlob))
+                    .then((b) => { try { onCapture(b || fileOrBlob); } catch {} })
+                    .catch(() => { try { onCapture(fileOrBlob); } catch {} });
+            };
+
             function abrirCamaraNativaDirecta() {
                 try {
                     const nativeInput = document.createElement('input');
@@ -4356,7 +4420,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     nativeInput.addEventListener('change', () => {
                         try {
                             const file = nativeInput.files && nativeInput.files[0] ? nativeInput.files[0] : null;
-                            if (file) onCapture(file);
+                            if (file) onCaptureNorm(file);
                         } catch {}
                         try { nativeInput.remove(); } catch {}
                     }, { once: true });
@@ -4483,7 +4547,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const file = nativeInput.files && nativeInput.files[0] ? nativeInput.files[0] : null;
                             if (file) {
-                                onCapture(file);
+                                onCaptureNorm(file);
                                 stop();
                             }
                         } catch {}
@@ -4635,7 +4699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     canvas.toBlob((blob) => {
                         try {
                             if (blob && blob.size) {
-                                onCapture(blob);
+                                onCaptureNorm(blob);
                                 stop();
                                 return;
                             }
@@ -4651,7 +4715,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const u8arr = new Uint8Array(n);
                             while (n--) u8arr[n] = bstr.charCodeAt(n);
                             const b = new Blob([u8arr], { type: (mime && mime[1]) ? mime[1] : 'image/jpeg' });
-                            if (b && b.size) onCapture(b);
+                            if (b && b.size) onCaptureNorm(b);
                         } catch {}
                         stop();
                     }, 'image/jpeg', 0.9);
