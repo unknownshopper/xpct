@@ -2919,6 +2919,27 @@
             });
         }
 
+        // En móviles, al volver a esta página puede usarse bfcache y no re-ejecutar DOMContentLoaded.
+        // Forzar recarga de datos al mostrar la página o volver a enfocarla.
+        try {
+            window.addEventListener('pageshow', () => {
+                try { cargarDatos(); } catch {}
+            });
+        } catch {}
+
+        try {
+            document.addEventListener('visibilitychange', () => {
+                try { if (!document.hidden) cargarDatos(); } catch {}
+            });
+        } catch {}
+
+        // Refresco periódico suave para evitar listados desactualizados por navegación.
+        try {
+            setInterval(() => {
+                try { if (!document.hidden) cargarDatos(); } catch {}
+            }, 45000);
+        } catch {}
+
         cargarDatos();
     });
     </script>
