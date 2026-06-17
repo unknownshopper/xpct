@@ -972,6 +972,30 @@
                 }
             }
 
+            // Mezclar siempre inspecciones locales (por ejemplo capturadas offline) con las de Firestore.
+            // Esto evita que el inspector "pierda" el registro de lo realizado hoy si aún no sincroniza.
+            try {
+                const localRawAll = leerListaInspeccionesLocalRaw();
+                if (Array.isArray(localRawAll) && localRawAll.length) {
+                    const byId = new Map();
+                    (inspecciones || []).forEach(r => {
+                        try {
+                            const id = String((r && (r.id || r.localId)) || '').trim();
+                            if (!id) return;
+                            byId.set(id, r);
+                        } catch {}
+                    });
+                    localRawAll.forEach(r => {
+                        try {
+                            const id = String((r && (r.id || r.localId)) || '').trim();
+                            if (!id) return;
+                            if (!byId.has(id)) byId.set(id, r);
+                        } catch {}
+                    });
+                    inspecciones = Array.from(byId.values());
+                }
+            } catch {}
+
             // Mapa por actividadId para cruce rápido
             const inspeccionPorActividad = new Map();
             inspecciones.forEach((reg, idx) => {

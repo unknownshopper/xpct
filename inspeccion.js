@@ -5397,6 +5397,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 localId = generarIdLocal('insp');
             }
             const isEditingExisting = !!inspIdUrlSave;
+            const isStaleInspId = (() => {
+                try {
+                    if (!isEditingExisting) return false;
+                    // Fail-safe: si hay inspId pero no se cargó el documento a editar,
+                    // asumir stale para evitar pisar una inspección existente.
+                    if (!inspeccionEditData) return true;
+                    const eqPrev = (inspeccionEditData && inspeccionEditData.equipo != null) ? String(inspeccionEditData.equipo || '').trim() : '';
+                    const actPrev = (inspeccionEditData && inspeccionEditData.actividadId != null) ? String(inspeccionEditData.actividadId || '').trim() : '';
+                    const eqNow = String(valor || '').trim();
+                    const actNow = (actividadId != null) ? String(actividadId || '').trim() : '';
+                    if (eqPrev && eqNow && eqPrev !== eqNow) return true;
+                    if (actPrev && actNow && actPrev !== actNow) return true;
+                    return false;
+                } catch {
+                    return false;
+                }
+            })();
+
+            if (isStaleInspId) {
+                localId = generarIdLocal('insp');
+            }
+
+            const isEditingExistingBase = !!(isEditingExisting && !isStaleInspId);
+            const prevTipoInspeccionEdit = (inspeccionEditData && inspeccionEditData.tipoInspeccion)
+                ? String(inspeccionEditData.tipoInspeccion || '').trim().toUpperCase()
+                : '';
+            const isForkFromExisting = !!(isEditingExistingBase && prevTipoInspeccionEdit && prevTipoInspeccionEdit !== tipoInspeccion);
+            if (isForkFromExisting) {
+                localId = generarIdLocal('insp');
+            }
+            const isEditingExistingEffective = !!(isEditingExistingBase && !isForkFromExisting);
             const parametrosCapturados = [];
             const fotosParaSubir = [];
             const obsTextoManual = (document.getElementById('insp-obs-text')?.value || '').toString().trim();
@@ -5700,7 +5731,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Preservar evidencia previa si estamos editando y no se adjuntó una nueva
-                if (isEditingExisting && (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) && !evidenciaNombre && !borrarEvid1) {
+                if (isEditingExistingEffective && (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) && !evidenciaNombre && !borrarEvid1) {
                     const prev = (prevParams && prevParams[idx]) ? prevParams[idx] : null;
                     if (prev) {
                         const prevNombre = (prev.evidenciaNombre != null) ? String(prev.evidenciaNombre) : '';
@@ -5715,7 +5746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Preservar evidencia 2 previa si estamos editando y no se adjuntó una nueva
-                if (isEditingExisting && (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) && !evidenciaNombre2 && !borrarEvid2) {
+                if (isEditingExistingEffective && (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) && !evidenciaNombre2 && !borrarEvid2) {
                     const prev = (prevParams && prevParams[idx]) ? prevParams[idx] : null;
                     if (prev) {
                         const prevNombre2 = (prev.evidenciaNombre2 != null) ? String(prev.evidenciaNombre2) : '';
@@ -5859,12 +5890,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Preservar evidencia de observaciones previa si no se adjuntó nueva
-            if (!obsFotoBlob && !borrarFotoObs && isEditingExisting && (prevObsFotoNombre || prevObsFotoPath || prevObsFotoUrl)) {
+            if (!obsFotoBlob && !borrarFotoObs && isEditingExistingEffective && (prevObsFotoNombre || prevObsFotoPath || prevObsFotoUrl)) {
                 if (!obsFotoNombre) obsFotoNombre = prevObsFotoNombre;
                 if (!obsFotoPath) obsFotoPath = prevObsFotoPath;
             }
 
-            if (!obsFotoBlob2 && !borrarFotoObs2 && isEditingExisting && (prevObsFotoNombre2 || prevObsFotoPath2 || prevObsFotoUrl2)) {
+            if (!obsFotoBlob2 && !borrarFotoObs2 && isEditingExistingEffective && (prevObsFotoNombre2 || prevObsFotoPath2 || prevObsFotoUrl2)) {
                 if (!obsFotoNombre2) obsFotoNombre2 = prevObsFotoNombre2;
                 if (!obsFotoPath2) obsFotoPath2 = prevObsFotoPath2;
             }
@@ -6282,7 +6313,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     // Subir evidencias (fotos) a Storage y luego persistir evidenciaUrl/evidenciaPath en Firestore
                     const storage = getStorage();
-                    if (borrarFotoObs || borrarFotoObs2) {
+                    if ((borrarFotoObs || borrarFotoObs2) && isEditingExistingEffective) {
                         const patchObsDel = {};
                         if (borrarFotoObs) {
                             patchObsDel.observacionesFotoNombre = '';
@@ -6302,7 +6333,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         await updateDoc(docRef, patchObsDel);
                     }
-                    if (Array.isArray(parametrosCapturados) && parametrosCapturados.length && Array.isArray(prevParams) && prevParams.length) {
+                    if (isEditingExistingEffective && Array.isArray(parametrosCapturados) && parametrosCapturados.length && Array.isArray(prevParams) && prevParams.length) {
                         for (let i = 0; i < parametrosCapturados.length; i++) {
                             const pNext = parametrosCapturados[i] || {};
                             const pPrev = prevParams[i] || {};
@@ -6594,6 +6625,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const selTipo = document.getElementById('inspeccion-tipo');
                     if (selTipo) selTipo.value = '';
+                } catch {}
+
+                // Evitar que una pestaña con ?inspId= siga pisando el mismo documento en guardados posteriores.
+                try {
+                    const u = new URL(window.location.href);
+                    u.searchParams.delete('inspId');
+                    window.history.replaceState({}, '', u.toString());
                 } catch {}
 
                 try {
