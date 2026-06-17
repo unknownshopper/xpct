@@ -103,12 +103,29 @@ const auth = window.auth;
 // Si ya está logueado, redirigimos según Custom Claims
 onAuthStateChanged(auth, async (user) => {
     if (!user) return;
+    const getNext = () => {
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            const raw = String(params.get('next') || '').trim();
+            if (!raw) return '';
+            // Evitar open-redirect: solo permitir rutas relativas dentro del sitio
+            if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('//')) return '';
+            if (!raw.startsWith('/')) {
+                // permitir "inspeccion.html?..." o "folder/page.html" como relativo
+                return raw;
+            }
+            return raw;
+        } catch {
+            return '';
+        }
+    };
+    const next = getNext();
     try {
         const token = await user.getIdTokenResult(true); // force refresh after role changes
         const role = (token?.claims?.role) || null;
         if (role) {
             // Al ingresar al sistema siempre aterriza en dashboard (index)
-            location.href = 'index.html';
+            location.href = next || 'index.html';
         } else {
             // Sin rol asignado: mostrar mensaje y reintentar refrescar claims unos segundos
             const msg = document.getElementById('login-mensaje');
@@ -128,7 +145,7 @@ onAuthStateChanged(auth, async (user) => {
                     const r = (t?.claims?.role) || null;
                     if (r) {
                         clearInterval(timer);
-                        location.href = 'index.html';
+                        location.href = next || 'index.html';
                         return;
                     }
                 } catch {}
