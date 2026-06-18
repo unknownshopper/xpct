@@ -6153,12 +6153,30 @@ document.addEventListener('DOMContentLoaded', () => {
                             const qArr = query(
                                 colRef,
                                 where('equipos', 'array-contains', eqTry),
-                                orderBy('fechaRegistro', 'desc'),
-                                limit(1)
+                                limit(8)
                             );
                             const snapArr = await getDocs(qArr);
                             if (!snapArr.empty) {
-                                const docAct = snapArr.docs[0];
+                                const toMsLocal = (v) => {
+                                    if (!v) return null;
+                                    try { if (v && typeof v.toDate === 'function') return v.toDate().getTime(); } catch {}
+                                    try { if (v && typeof v === 'object' && typeof v.seconds === 'number') return v.seconds * 1000; } catch {}
+                                    const d = new Date(v);
+                                    return isNaN(d.getTime()) ? null : d.getTime();
+                                };
+                                let bestDoc = null;
+                                let bestMs = null;
+                                snapArr.docs.forEach(d => {
+                                    try {
+                                        const data = d.data() || {};
+                                        const ms = toMsLocal(data.fechaRegistro || data.creadoEn || data.createdAt || data.fecha || null);
+                                        if (bestMs == null || (ms != null && ms > bestMs)) {
+                                            bestMs = ms;
+                                            bestDoc = d;
+                                        }
+                                    } catch {}
+                                });
+                                const docAct = bestDoc || snapArr.docs[0];
                                 const data = docAct.data() || {};
                                 fechaEmbarque = data.fechaEmbarque || '';
                                 inicioServicio = data.inicioServicio || '';
@@ -6180,13 +6198,31 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const q = query(
                                     colRef,
                                     where('equipo', '==', eqTry),
-                                    orderBy('fechaRegistro', 'desc'),
-                                    limit(1)
+                                    limit(8)
                                 );
 
                                 const snap = await getDocs(q);
                                 if (!snap.empty) {
-                                    const docAct = snap.docs[0];
+                                    const toMsLocal = (v) => {
+                                        if (!v) return null;
+                                        try { if (v && typeof v.toDate === 'function') return v.toDate().getTime(); } catch {}
+                                        try { if (v && typeof v === 'object' && typeof v.seconds === 'number') return v.seconds * 1000; } catch {}
+                                        const d = new Date(v);
+                                        return isNaN(d.getTime()) ? null : d.getTime();
+                                    };
+                                    let bestDoc = null;
+                                    let bestMs = null;
+                                    snap.docs.forEach(d => {
+                                        try {
+                                            const data = d.data() || {};
+                                            const ms = toMsLocal(data.fechaRegistro || data.creadoEn || data.createdAt || data.fecha || null);
+                                            if (bestMs == null || (ms != null && ms > bestMs)) {
+                                                bestMs = ms;
+                                                bestDoc = d;
+                                            }
+                                        } catch {}
+                                    });
+                                    const docAct = bestDoc || snap.docs[0];
                                     const data = docAct.data() || {};
                                     fechaEmbarque = data.fechaEmbarque || '';
                                     inicioServicio = data.inicioServicio || '';
