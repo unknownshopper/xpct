@@ -182,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let formatosPorCodigo = {};
     let mapaDanos = []; // [{ match: 'recubrimiento', opciones: [...] }]
     let anilloRetenedorPorActivo = new Map();
+    let insertosPorActivo = new Map();
     let inventarioCargado = false;
     let formatosCargados = false;
     let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
@@ -2467,6 +2468,45 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('No se pudo cargar docs/TUBERIA4206conanilloretenedor.csv', err);
             anilloRetenedorPorActivo = new Map();
         });
+
+    // Cargar tabla de Insertos por activo (override de parámetros)
+    fetch('docs/xINSERTOS.csv', { cache: 'no-store' })
+        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar xINSERTOS.csv')))
+        .then(txt => {
+            try {
+                const lineas = String(txt || '').split(/\r?\n/).filter(l => l.trim() !== '');
+                if (!lineas.length) {
+                    insertosPorActivo = new Map();
+                    return;
+                }
+                const h = parseCSVLine(lineas[0]).map(x => String(x || '').trim().toUpperCase());
+                const idxActivo = h.indexOf('ACTIVO');
+                const idxFlag = h.indexOf('INSERTOS Y ANILLO RETENEDOR');
+                if (idxActivo < 0 || idxFlag < 0) {
+                    insertosPorActivo = new Map();
+                    return;
+                }
+                const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+                const m = new Map();
+                lineas.slice(1).forEach(l => {
+                    const cols = parseCSVLine(l);
+                    const activo = idxActivo >= 0 ? (cols[idxActivo] || '') : '';
+                    const flag = idxFlag >= 0 ? (cols[idxFlag] || '') : '';
+                    const k = normKey(activo);
+                    if (!k) return;
+                    const v = String(flag || '').trim().toUpperCase();
+                    if (v === 'SI' || v === 'S' || v === 'YES' || v === 'Y' || v === '1' || v === 'TRUE') m.set(k, true);
+                    else if (v === 'NO' || v === 'N' || v === '0' || v === 'FALSE') m.set(k, false);
+                });
+                insertosPorActivo = m;
+            } catch {
+                insertosPorActivo = new Map();
+            }
+        })
+        .catch(err => {
+            console.warn('No se pudo cargar docs/xINSERTOS.csv', err);
+            insertosPorActivo = new Map();
+        });
     
     // Cuando el usuario escribe y elige un equipo en el input/datalist
     function actualizarDetalleDesdeInput() {
@@ -2637,8 +2677,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Regla: Insertos
-        // - Para todos los TUBO 4206: quitar el parámetro de insertos
-        // - Para TUBO 1502 y 602: asegurar que sí exista el parámetro de insertos
+        // - Si existe override por ACTIVO (docs/xINSERTOS.csv): respetarlo
+        // - Si no hay override: aplicar regla legacy por tipo de producto
         try {
             const productoUpper = (get(idxProducto) || '').toString().toUpperCase().trim();
             const descUpper = (get(idxDescripcion) || '').toString().toUpperCase();
@@ -2654,11 +2694,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const sinInsertos = (arr) => (arr || []).filter(p => !isInsertos(p));
             const traeInsertos = (arr) => (arr || []).some(p => isInsertos(p));
 
-            if (esTubo && es4206) {
-                parametrosInspeccionFiltrados = sinInsertos(parametrosInspeccionFiltrados);
-            } else if (esTubo && (es1502 || es602)) {
-                if (!traeInsertos(parametrosInspeccionFiltrados)) {
-                    parametrosInspeccionFiltrados = parametrosInspeccionFiltrados.concat(['Insertos']);
+            const kActivo = norm(valor);
+            const hasOverride = !!(insertosPorActivo && insertosPorActivo.has(kActivo));
+            if (hasOverride) {
+                const tieneInsertos = !!insertosPorActivo.get(kActivo);
+                if (tieneInsertos) {
+                    if (!traeInsertos(parametrosInspeccionFiltrados)) {
+                        parametrosInspeccionFiltrados = parametrosInspeccionFiltrados.concat(['Insertos']);
+                    }
+                } else {
+                    parametrosInspeccionFiltrados = sinInsertos(parametrosInspeccionFiltrados);
+                }
+            } else {
+                if (esTubo && es4206) {
+                    parametrosInspeccionFiltrados = sinInsertos(parametrosInspeccionFiltrados);
+                } else if (esTubo && (es1502 || es602)) {
+                    if (!traeInsertos(parametrosInspeccionFiltrados)) {
+                        parametrosInspeccionFiltrados = parametrosInspeccionFiltrados.concat(['Insertos']);
+                    }
                 }
             }
         } catch {}
@@ -2934,10 +2987,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 ];
             }
 
+            // Insertos: permitir registrar que el equipo no trae (no aplica lavadura)
+            if (base.includes('insertos') || base.includes('inserto')) {
+                return [
+                    '',
+                    'NO TRAE',
+                    'GOLPE',
+                    'DEFORMACION',
+                    'ABRASION',
+                    'CORTADO',
+                    'OTRO'
+                ];
+            }
+
             // Anillo retenedor, insertos, mariposa, piñón
             if (
                 base.includes('anillo retenedor') ||
-                base.includes('insertos') ||
                 base.includes('mariposa') ||
                 base.includes('piñón') || base.includes('piñon') || base.includes('pinon')
             ) {
