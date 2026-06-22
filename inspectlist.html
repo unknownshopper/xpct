@@ -3063,9 +3063,6 @@
 
         // Refresco periódico suave para evitar listados desactualizados por navegación.
         try {
-            setInterval(() => {
-                try { if (!document.hidden) cargarDatos(); } catch {}
-            }, 45000);
         } catch {}
 
         cargarDatos();
