@@ -493,6 +493,10 @@
                         img.setAttribute('data-src', url);
                         img.src = url;
                         img.style.display = '';
+                    } else {
+                        // Evitar reintentos infinitos (y spam de 404) cuando la evidencia ya no existe.
+                        img.setAttribute('data-src', '__MISSING__');
+                        img.style.display = 'none';
                     }
                 } catch {}
             }
@@ -1397,6 +1401,16 @@
                 return normEq(s).replace(/[^a-z0-9]+/g, '');
             }
 
+            function esFiltroEquipoExacto(f) {
+                try {
+                    const k = normEqCompact(f || '');
+                    // Detecta códigos tipo: PCT-XO-017 / PCT XO 017 / PCTXO017
+                    return /^pct[a-z]{2,4}\d{1,4}$/.test(k);
+                } catch {
+                    return false;
+                }
+            }
+
             function renderNoResultadosConStatus() {
                 try {
                     if (!msg || !inputBuscar) return;
@@ -1712,8 +1726,15 @@
                     const thumbMalo = insp ? buildThumbMalo(insp) : '';
 
                     const textoBuscar = `${cliente} ${area} ${equipoRender} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp} ${fechaBuscar}`.toLowerCase();
-                    if (filtro && !textoBuscar.includes(filtro)) {
-                        return;
+                    if (filtro) {
+                        if (esFiltroEquipoExacto(filtro)) {
+                            const fk = normEqCompact(filtro);
+                            const k1 = normEqCompact(equipoRender);
+                            const k2 = normEqCompact(equipo);
+                            if (!fk || (k1 !== fk && k2 !== fk)) return;
+                        } else if (!textoBuscar.includes(filtro)) {
+                            return;
+                        }
                     }
 
                     let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
