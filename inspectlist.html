@@ -1611,13 +1611,19 @@
                 if (esRealizadas) {
                     try {
                         const items = [];
+                        const actIdSet = new Set();
                         (actividades || []).forEach(act => {
                             const insp = act && act.id ? inspeccionPorActividad.get(act.id) : null;
                             if (!insp) return;
+                            try { actIdSet.add(String(act.id || '').trim()); } catch {}
                             items.push({ act, insp, _kind: 'act' });
                         });
                         (inspeccionesHuerfanas || []).forEach(insp => {
                             if (!insp) return;
+                            try {
+                                const aid = String(insp.actividadId || insp.__actividadIdMatched || '').trim();
+                                if (aid && actIdSet.has(aid)) return;
+                            } catch {}
                             items.push({ act: null, insp, _kind: 'insp' });
                         });
                         subset = items;
