@@ -2795,11 +2795,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const ladoB = String(c2 || 'B').toUpperCase();
                     const roscaOut = [];
                     const pinonOut = [];
+                    const mariposaOut = [];
                     try {
                         if (ladoA === 'H') roscaOut.push('Rosca A (H)');
                         if (ladoA === 'M') pinonOut.push('Piñón A (M)');
                         if (ladoB === 'H') roscaOut.push('Rosca B (H)');
                         if (ladoB === 'M') pinonOut.push('Piñón B (M)');
+
+                        // Regla: al haber Piñón normalmente hay Mariposa (misma cara M)
+                        if (ladoA === 'M') mariposaOut.push('Mariposa A (M)');
+                        if (ladoB === 'M') mariposaOut.push('Mariposa B (M)');
                     } catch {}
 
                     // Si el formato traía rosca/piñón, reemplazar por el bloque completo.
@@ -2807,6 +2812,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if ((tieneRosca || tienePinon) || roscaOut.length || pinonOut.length) {
                         roscaOut.forEach(x => out.push(x));
                         pinonOut.forEach(x => out.push(x));
+                        mariposaOut.forEach(x => out.push(x));
                     }
                 }
 
@@ -2821,16 +2827,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const isPinon = (np) => !!(np && (np.includes('piñon') || np.includes('pinon')));
             const roscaLabels = [];
             const pinonLabels = [];
+            const mariposaLabels = [];
             try {
                 for (let i = 0; i < 3; i++) {
                     const lado = String(teeLados[i] || '').toUpperCase();
                     if (lado === 'H') roscaLabels.push(`Rosca ${roscaLabels.length + 1} (H)`);
                     if (lado === 'M') pinonLabels.push(`Piñón ${pinonLabels.length + 1} (M)`);
+                    if (lado === 'M') mariposaLabels.push(`Mariposa ${mariposaLabels.length + 1} (M)`);
                 }
             } catch {}
 
             let roscaEmitted = false;
             let pinonEmitted = false;
+            let mariposaEmitted = false;
             parametrosInspeccionFiltrados.forEach(p => {
                 const np = normParam(p);
                 if (isAreaSellado(np)) {
@@ -2844,20 +2853,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isRosca(np)) {
                     // Emitir el bloque completo (roscas + piñones) en la primera aparición
                     // para mantenerlos juntos operativamente.
-                    if (!roscaEmitted || !pinonEmitted) {
+                    if (!roscaEmitted || !pinonEmitted || !mariposaEmitted) {
                         if (!roscaEmitted) roscaLabels.forEach(lbl => out.push(lbl));
                         if (!pinonEmitted) pinonLabels.forEach(lbl => out.push(lbl));
+                        if (!mariposaEmitted) mariposaLabels.forEach(lbl => out.push(lbl));
                         roscaEmitted = true;
                         pinonEmitted = true;
+                        mariposaEmitted = true;
                     }
                     return;
                 }
                 if (isPinon(np)) {
-                    if (!roscaEmitted || !pinonEmitted) {
+                    if (!roscaEmitted || !pinonEmitted || !mariposaEmitted) {
                         if (!roscaEmitted) roscaLabels.forEach(lbl => out.push(lbl));
                         if (!pinonEmitted) pinonLabels.forEach(lbl => out.push(lbl));
+                        if (!mariposaEmitted) mariposaLabels.forEach(lbl => out.push(lbl));
                         roscaEmitted = true;
                         pinonEmitted = true;
+                        mariposaEmitted = true;
                     }
                     return;
                 }
@@ -2866,10 +2879,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // Si el formato no traía explícitamente rosca/piñón, pero el tipo H/M lo requiere, agregarlos.
-            if ((!roscaEmitted || !pinonEmitted) && (roscaLabels.length || pinonLabels.length)) {
+            if ((!roscaEmitted || !pinonEmitted || !mariposaEmitted) && (roscaLabels.length || pinonLabels.length || mariposaLabels.length)) {
                 if (!roscaEmitted) roscaLabels.forEach(lbl => out.push(lbl));
                 if (!pinonEmitted) pinonLabels.forEach(lbl => out.push(lbl));
+                if (!mariposaEmitted) mariposaLabels.forEach(lbl => out.push(lbl));
             }
+
+            // Regla de seguridad: si por alguna razón quedó Piñón sin Mariposa, agregar Mariposa genérica.
+            try {
+                const hasPinon = out.some(x => {
+                    const s = normParam(x);
+                    return !!(s && (s.includes('piñon') || s.includes('pinon')));
+                });
+                const hasMariposa = out.some(x => {
+                    const s = normParam(x);
+                    return !!(s && s.includes('mariposa'));
+                });
+                if (hasPinon && !hasMariposa) out.push('Mariposa');
+            } catch {}
             return out;
         })();
 
