@@ -71,6 +71,41 @@ function parseFecha(str) {
   return d;
 }
 
+function parseCSVLine(line) {
+  const out = [];
+  let cur = '';
+  let inQuotes = false;
+  const s = String(line ?? '');
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '"') {
+      if (inQuotes && s[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === ',' && !inQuotes) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function fmtYYYYMMDD(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}${mm}${dd}`;
+}
+
 function ensureAdmin() {
   if (admin.apps && admin.apps.length) return;
   admin.initializeApp();
@@ -408,6 +443,177 @@ export const sendAlertsDaily = onSchedule(
   async () => {
     const out = await calcularYEnviar({ testMode: false, force: false });
     console.log('sendAlertsDaily result:', out);
+  }
+);
+
+export const importPanual1 = onRequest(
+  {
+    secrets: ['PANUAL_IMPORT_KEY'],
+    timeoutSeconds: 540,
+    memory: '1GiB',
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const key = (req.query.key || req.get('x-panual-key') || '').toString();
+      const expected = (process.env.PANUAL_IMPORT_KEY || '').toString();
+      if (!expected || key !== expected) {
+        res.status(401).send('Unauthorized');
+        return;
+      }
+
+      ensureAdmin();
+      const db = admin.firestore();
+
+      const csvUrl = (req.query.csvUrl || '').toString().trim();
+      const body = req.body || {};
+      const csvInline = (body && typeof body.csv === 'string') ? body.csv : '';
+
+      let csvText = '';
+      if (csvInline && csvInline.trim()) {
+        csvText = csvInline;
+      } else if (csvUrl) {
+        const r = await fetch(csvUrl, { method: 'GET', headers: { 'cache-control': 'no-store' } });
+        if (!r.ok) throw new Error(`No se pudo cargar csvUrl (${r.status})`);
+        csvText = await r.text();
+      } else {
+        res.status(400).send('Missing csvUrl query param or {csv} body');
+        return;
+      }
+
+      const rawLines = csvText.split(/\r?\n/);
+      const lines = rawLines
+        .map(l => (l ?? '').toString())
+        .filter(l => l.trim() !== '');
+
+      if (!lines.length) {
+        res.status(400).send('CSV vacío');
+        return;
+      }
+
+      let headerIdx = -1;
+      let headers = [];
+      for (let i = 0; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]).map(x => String(x || '').trim());
+        const h = cols.join(' ').toUpperCase();
+        if (h.includes('NO. ACTIVO') && h.includes('FECHA')) {
+          headerIdx = i;
+          headers = cols;
+          break;
+        }
+      }
+      if (headerIdx < 0) {
+        res.status(400).send('No se encontró cabecera con NO. ACTIVO y FECHA');
+        return;
+      }
+
+      const idxTipo = headers.findIndex(h => h.toUpperCase() === 'TIPO');
+      const idxActivo = headers.findIndex(h => h.toUpperCase().includes('NO. ACTIVO'));
+      const idxSerial = headers.findIndex(h => h.toUpperCase().includes('NO. SERIAL'));
+      const idxReporte = headers.findIndex(h => h.toUpperCase().includes('REPORTE'));
+      const idxFecha = headers.findIndex(h => h.toUpperCase() === 'FECHA');
+      const idxObs = headers.findIndex(h => h.toUpperCase().includes('OBSERV'));
+
+      if (idxActivo < 0 || idxFecha < 0) {
+        res.status(400).send('Cabecera inválida: faltan columnas NO. ACTIVO o FECHA');
+        return;
+      }
+
+      const porEquipo = new Map();
+      const errores = [];
+
+      for (let i = headerIdx + 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        const equipo = String(cols[idxActivo] || '').trim();
+        if (!equipo) continue;
+        const frStr = String(cols[idxFecha] || '').trim();
+        const fr = parseFecha(frStr);
+        if (!fr) {
+          errores.push({ line: i + 1, equipo, reason: 'FECHA_INVALIDA', fecha: frStr });
+          continue;
+        }
+
+        const keyEq = normEquipoKey(equipo);
+        const prev = porEquipo.get(keyEq);
+        if (!prev || (prev.fr && fr.getTime() > prev.fr.getTime())) {
+          porEquipo.set(keyEq, {
+            equipo,
+            tipo: idxTipo >= 0 ? String(cols[idxTipo] || '').trim() : '',
+            serial: idxSerial >= 0 ? String(cols[idxSerial] || '').trim() : '',
+            noReporte: idxReporte >= 0 ? String(cols[idxReporte] || '').trim() : '',
+            observaciones: idxObs >= 0 ? String(cols[idxObs] || '').trim() : '',
+            fr,
+            frStr,
+            srcLine: i + 1,
+          });
+        }
+      }
+
+      const items = Array.from(porEquipo.values());
+      if (!items.length) {
+        res.status(400).json({ ok: false, message: 'No hubo filas válidas para importar', errores });
+        return;
+      }
+
+      const importedAt = admin.firestore.FieldValue.serverTimestamp();
+      const batchLimit = 400;
+      let createdOrUpdated = 0;
+      let batches = 0;
+
+      for (let i = 0; i < items.length; i += batchLimit) {
+        const chunk = items.slice(i, i + batchLimit);
+        const batch = db.batch();
+        chunk.forEach(it => {
+          const equipoKey = normEquipoKey(it.equipo);
+          const dayKey = fmtYYYYMMDD(it.fr);
+          const docId = `panual1__${equipoKey}__${dayKey}`;
+          const ref = db.collection('pruebas').doc(docId);
+
+          const proxima = new Date(it.fr);
+          proxima.setFullYear(proxima.getFullYear() + 1);
+          proxima.setHours(0, 0, 0, 0);
+
+          batch.set(ref, {
+            equipo: it.equipo,
+            periodo: 'ANUAL',
+            pruebaTipo: 'ANUAL',
+            fechaRealizacion: admin.firestore.Timestamp.fromDate(it.fr),
+            proxima: !isNaN(proxima.getTime()) ? admin.firestore.Timestamp.fromDate(proxima) : null,
+            noReporte: it.noReporte || '',
+            numeroSerie: it.serial || '',
+            serial: it.serial || '',
+            tipoEquipo: it.tipo || '',
+            observaciones: it.observaciones || '',
+            importTag: 'panual1',
+            importLine: it.srcLine,
+            importSourceFecha: it.frStr,
+            importAt: importedAt,
+          }, { merge: true });
+        });
+
+        await batch.commit();
+        batches += 1;
+        createdOrUpdated += chunk.length;
+      }
+
+      res.status(200).json({
+        ok: true,
+        mode: 'INSERT_DEDUP_MOST_RECENT',
+        pruebaTipo: 'ANUAL',
+        periodo: 'ANUAL',
+        equiposInCsv: items.length,
+        writes: createdOrUpdated,
+        batches,
+        errores,
+      });
+    } catch (err) {
+      console.error('importPanual1 error:', err);
+      res.status(500).send(err?.message || String(err));
+    }
   }
 );
 
