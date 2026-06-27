@@ -469,6 +469,28 @@ export const importPanual1 = onRequest(
       ensureAdmin();
       const db = admin.firestore();
 
+      // Pre-cargar los tipos de prueba ANUAL existentes por equipo para poder reiniciar
+      // el cronómetro por cada tipo (LT/UTT/VT..., etc.) según lo que ya existe en el sistema.
+      const tiposAnualPorEquipo = new Map();
+      try {
+        const snapAll = await db.collection('pruebas').get();
+        snapAll.forEach(doc => {
+          const data = doc.data() || {};
+          const periodoStr = (data.periodo || '').toString().trim().toUpperCase();
+          if (periodoStr && periodoStr !== 'ANUAL') return;
+          const eq = (data.equipo || data.equipoId || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
+          if (!eq) return;
+          const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
+          const ek = normEquipoKey(eq);
+          if (!ek) return;
+          const set = tiposAnualPorEquipo.get(ek) || new Set();
+          set.add(tipo || 'ANUAL');
+          tiposAnualPorEquipo.set(ek, set);
+        });
+      } catch {
+        // si falla, seguimos y creamos como ANUAL únicamente
+      }
+
       const csvUrl = (req.query.csvUrl || '').toString().trim();
       const body = req.body || {};
       const csvInline = (body && typeof body.csv === 'string') ? body.csv : '';
@@ -570,29 +592,36 @@ export const importPanual1 = onRequest(
         chunk.forEach(it => {
           const equipoKey = normEquipoKey(it.equipo);
           const dayKey = fmtYYYYMMDD(it.fr);
-          const docId = `panual1__${equipoKey}__${dayKey}`;
-          const ref = db.collection('pruebas').doc(docId);
 
-          const proxima = new Date(it.fr);
-          proxima.setFullYear(proxima.getFullYear() + 1);
-          proxima.setHours(0, 0, 0, 0);
+          const tipos = tiposAnualPorEquipo.get(equipoKey);
+          const listaTipos = (tipos && tipos.size) ? Array.from(tipos.values()) : ['ANUAL'];
 
-          batch.set(ref, {
-            equipo: it.equipo,
-            periodo: 'ANUAL',
-            pruebaTipo: 'ANUAL',
-            fechaRealizacion: admin.firestore.Timestamp.fromDate(it.fr),
-            proxima: !isNaN(proxima.getTime()) ? admin.firestore.Timestamp.fromDate(proxima) : null,
-            noReporte: it.noReporte || '',
-            numeroSerie: it.serial || '',
-            serial: it.serial || '',
-            tipoEquipo: it.tipo || '',
-            observaciones: it.observaciones || '',
-            importTag: 'panual1',
-            importLine: it.srcLine,
-            importSourceFecha: it.frStr,
-            importAt: importedAt,
-          }, { merge: true });
+          for (const tipo of listaTipos) {
+            const tipoKey = normPruebaKey(tipo || 'ANUAL') || 'ANUAL';
+            const docId = `panual1__${equipoKey}__${tipoKey}__${dayKey}`;
+            const ref = db.collection('pruebas').doc(docId);
+
+            const proxima = new Date(it.fr);
+            proxima.setFullYear(proxima.getFullYear() + 1);
+            proxima.setHours(0, 0, 0, 0);
+
+            batch.set(ref, {
+              equipo: it.equipo,
+              periodo: 'ANUAL',
+              pruebaTipo: tipoKey,
+              fechaRealizacion: admin.firestore.Timestamp.fromDate(it.fr),
+              proxima: !isNaN(proxima.getTime()) ? admin.firestore.Timestamp.fromDate(proxima) : null,
+              noReporte: it.noReporte || '',
+              numeroSerie: it.serial || '',
+              serial: it.serial || '',
+              tipoEquipo: it.tipo || '',
+              observaciones: it.observaciones || '',
+              importTag: 'panual1',
+              importLine: it.srcLine,
+              importSourceFecha: it.frStr,
+              importAt: importedAt,
+            }, { merge: true });
+          }
         });
 
         await batch.commit();
