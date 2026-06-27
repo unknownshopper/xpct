@@ -275,12 +275,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function getSnapPreferCacheThenNetwork(colRef) {
             try {
-                const sc = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).getDocsFromCache(colRef);
-                if (sc && typeof sc.size === 'number' && sc.size > 0) return sc;
+                const sr = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).getDocs(colRef);
+                if (sr) return sr;
             } catch {}
             try {
-                const sr = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).getDocs(colRef);
-                return sr;
+                const sc = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).getDocsFromCache(colRef);
+                if (sc) return sc;
             } catch {}
             return null;
         }
