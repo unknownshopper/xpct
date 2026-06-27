@@ -115,19 +115,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const mod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const { getDocsFromCache, getDocs } = mod;
 
-            let snap = null;
+            let snapCache = null;
             if (!forceNetwork) {
-                try { snap = await getDocsFromCache(colRef); } catch {}
+                try { snapCache = await getDocsFromCache(colRef); } catch {}
             }
-
-            if (snap && typeof snap.size === 'number' && snap.size > 0) return snap;
 
             try {
                 const sr = await getDocs(colRef);
                 if (sr && typeof sr.size === 'number') return sr;
             } catch {}
 
-            return (snap && typeof snap.size === 'number' && snap.size > 0) ? snap : null;
+            return (snapCache && typeof snapCache.size === 'number' && snapCache.size > 0) ? snapCache : null;
         } catch {
             return null;
         }
