@@ -52,6 +52,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } catch {}
 
+    // iOS (incluyendo Chrome): intentar disparar prompt de ubicación con la primera interacción del usuario.
+    // Si el permiso está en estado "prompt", esto ayuda a que el usuario lo vea a tiempo.
+    try {
+        window.addEventListener('pointerdown', () => {
+            try {
+                if (geoWarmupDone) return;
+                geoWarmupDone = true;
+                capturarGpsTexto().catch(() => {});
+            } catch {}
+        }, { once: true });
+    } catch {}
+
     const puedeOmitirFotos = () => {
         try {
             if (esEquipoTercero) return false;
@@ -187,6 +199,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let formatosCargados = false;
     let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
     let guardandoInspeccion = false; // evita doble guardado
+    let geoDenied = false;
+    let geoDeniedAlerted = false;
+    let geoWarmupDone = false;
     const fotosTomadas = {}; // idx -> { blob } o { danos: { [DANO]: { blob1, blob2, del1, del2 } } }
     let fotoObs = null; // { blob }
     let fotoObs2 = null; // { blob }
@@ -1206,6 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const getPosition = () => new Promise(resolve => {
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
+                        geoDenied = false;
                         const txt = toStr(pos);
                         // Cachear último GPS válido
                         try {
@@ -1220,6 +1236,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             console.warn('Geolocalización falló', { code: err && err.code, message: err && err.message });
                         } catch {}
+                        try {
+                            // 1 = PERMISSION_DENIED
+                            if (err && Number(err.code) === 1) geoDenied = true;
+                        } catch {}
                         const cached = getCached();
                         resolve(cached || 'Sin GPS');
                     },
@@ -1230,7 +1250,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 if (navigator.permissions && navigator.permissions.query) {
                     const status = await navigator.permissions.query({ name: 'geolocation' });
-                    if (status.state === 'denied') return 'Sin GPS';
+                    if (status.state === 'denied') {
+                        geoDenied = true;
+                        return 'Sin GPS';
+                    }
                     return await getPosition();
                 }
             } catch {}
@@ -6348,6 +6371,22 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {
                 ubicacionGps = '';
             }
+
+            // iOS: si el usuario negó geolocalización, avisar cómo habilitarla.
+            // (El browser no puede forzar el prompt nuevamente si ya fue negado.)
+            try {
+                if (geoDenied && !geoDeniedAlerted) {
+                    geoDeniedAlerted = true;
+                    alert(
+                        'No se pudo obtener la ubicación (permiso denegado).\n\n' +
+                        'Para habilitarla en iPhone:\n' +
+                        '1) iOS Ajustes > Privacidad y seguridad > Localización > ACTIVAR\n' +
+                        '2) iOS Ajustes > Chrome > Localización (o Permisos) > Permitir\n' +
+                        '3) En Chrome: Permitir ubicación para este sitio\n\n' +
+                        'Luego vuelve a intentar guardar.'
+                    );
+                }
+            } catch {}
 
             // Normalizar: no persistir el literal "Sin GPS" como valor de ubicación
             try {
