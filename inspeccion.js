@@ -5459,12 +5459,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
             const idxReporte = headers.indexOf('REPORTE P/P');
-            let fila = equipos.find(cols => idxEquipo >= 0 && cols[idxEquipo] === valor);
+            const valorKey = normKey(valor);
+            let fila = equipos.find(cols => {
+                try {
+                    if (idxEquipo < 0) return false;
+                    const v = (cols && idxEquipo < cols.length) ? cols[idxEquipo] : '';
+                    return normKey(v) === valorKey;
+                } catch {
+                    return false;
+                }
+            });
             if (!fila) {
                 // Para TERCERO: permitir guardar inspección mínima aunque no exista en inventario
                 if (esEquipoTercero && String(valor || '').toUpperCase().trim() === 'TERCERO') {
                     fila = [];
                 } else {
+                    try { alert(`Equipo no encontrado en inventario: ${valor}`); } catch {}
                     try {
                         btnGuardar.innerHTML = prevBtnHtml;
                         btnGuardar.disabled = prevBtnDisabled;
