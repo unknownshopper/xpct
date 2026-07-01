@@ -2033,6 +2033,7 @@
 
                 const hoy = hoySinHora();
                 const latest = new Map();
+                const latestDueByKey = {};
                 const normPrueba = (v) => (v || '').toString().toUpperCase().trim();
                 const categoria = (reg) => {
                     const p = normPrueba(reg && (reg.prueba || reg.pruebaTipo) ? (reg.prueba || reg.pruebaTipo) : '');
@@ -2069,6 +2070,13 @@
                     const prevMs = prev ? (prev.dueMs || 0) : 0;
                     if (!prev || dueMs >= prevMs) latest.set(key, { dueMs, cat });
                 });
+
+                try {
+                    latest.forEach((v, key) => {
+                        if (!v || !v.dueMs) return;
+                        latestDueByKey[key] = v.dueMs;
+                    });
+                } catch {}
 
                 let cnt0 = 0, cnt60 = 0, cnt30 = 0, cnt15 = 0, cntGT60 = 0;
                 const infCont = {
@@ -2121,7 +2129,8 @@
                     window._pctFullSnapshotCounters = {
                         at: Date.now(),
                         chips: { gt60: cntGT60, d60: cnt60, d30: cnt30, d15: cnt15, d0: cnt0 },
-                        inf: infCont
+                        inf: infCont,
+                        latestDueByKey
                     };
                 } catch {}
 
@@ -4227,6 +4236,24 @@
                 // Aplicar filtro por periodo si está activo
                 const periodoNorm = (reg.periodo || '').toString().trim().toUpperCase() || 'ANUAL';
                 if (filtroPeriodo && periodoNorm !== filtroPeriodo) return;
+
+                // Si hay un chip de rango activo, alinear el listado a la misma regla que los chips:
+                // solo la última ANUAL por equipo+tipo (según fecha próxima efectiva del snapshot completo).
+                try {
+                    if (filtroRango && esAnualReg && !esHistoricoReg && window._pctFullSnapshotCounters && window._pctFullSnapshotCounters.latestDueByKey) {
+                        const at = Number(window._pctFullSnapshotCounters.at || 0);
+                        const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+                        if (isFresh) {
+                            const tipoK = (typeof normalizaPrueba === 'function')
+                                ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
+                                : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
+                            const keyK = `${normEquipoKey(eqK || '')}__${String(tipoK || '').toUpperCase().trim()}`;
+                            const dueMsLatest = window._pctFullSnapshotCounters.latestDueByKey[keyK];
+                            const dueMsRow = proximaBase ? proximaBase.getTime() : 0;
+                            if (dueMsLatest && dueMsRow && dueMsRow !== dueMsLatest) return;
+                        }
+                    }
+                } catch {}
 
                 // Aplicar filtro por rango si está activo (solo vigentes), rangos: 60–31, 30–16, 15–1
                 // Importante: SOLO filtra ANUAL; si el filtroPeriodo fuerza POST-TRABAJO o REPARACION, no aplica rangos
