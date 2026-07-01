@@ -120,6 +120,41 @@ function safeReadLocalFile(relPath) {
   }
 }
 
+async function fetchTextWithTimeout(url, timeoutMs = 12000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, { signal: ac.signal });
+    if (!resp.ok) return '';
+    return await resp.text();
+  } catch {
+    return '';
+  } finally {
+    try { clearTimeout(t); } catch {}
+  }
+}
+
+async function loadCanonicalMaps() {
+  const invLocal = safeReadLocalFile('docs/INVENTARIOTOTAL04-202602.csv');
+  const aliasLocal = safeReadLocalFile('docs/malescritos.csv');
+
+  // Fallback: cargar desde hosting (si no se empaquetaron en Functions)
+  const baseUrl = String(process.env.CANONICAL_CSV_BASE_URL || 'https://unknownshopper.github.io/xpct').replace(/\/+$/, '');
+  const invText = invLocal || await fetchTextWithTimeout(`${baseUrl}/docs/INVENTARIOTOTAL04-202602.csv`);
+  const aliasText = aliasLocal || await fetchTextWithTimeout(`${baseUrl}/docs/malescritos.csv`);
+
+  return {
+    aliasMap: loadAliasesFromCsvText(aliasText),
+    serialPorEquipoInv: loadSerialPorEquipoFromInventarioCsvText(invText),
+  };
+}
+
+let _canonicalMapsPromise = null;
+function getCanonicalMaps() {
+  if (!_canonicalMapsPromise) _canonicalMapsPromise = loadCanonicalMaps();
+  return _canonicalMapsPromise;
+}
+
 function loadAliasesFromCsvText(text) {
   const map = {};
   try {
@@ -210,10 +245,7 @@ async function queryUltimasAnuales() {
   const porEquipoPrueba = new Map();
 
   // Canonicalización (Opción A): alias + inventario como fuente de verdad
-  const aliasCsv = safeReadLocalFile('docs/malescritos.csv');
-  const invCsv = safeReadLocalFile('docs/INVENTARIOTOTAL04-202602.csv');
-  const aliasMap = loadAliasesFromCsvText(aliasCsv);
-  const serialPorEquipoInv = loadSerialPorEquipoFromInventarioCsvText(invCsv);
+  const { aliasMap, serialPorEquipoInv } = await getCanonicalMaps();
 
   snap.forEach(doc => {
     const data = doc.data() || {};
@@ -576,10 +608,7 @@ export const normalizePruebasEquipos = onRequest(
       const dryRun = String(req.query.dryRun || '').trim() === '1';
       const limit = Math.max(1, Math.min(10000, parseInt(String(req.query.limit || '0'), 10) || 0));
 
-      const aliasCsv = safeReadLocalFile('docs/malescritos.csv');
-      const invCsv = safeReadLocalFile('docs/INVENTARIOTOTAL04-202602.csv');
-      const aliasMap = loadAliasesFromCsvText(aliasCsv);
-      const serialPorEquipoInv = loadSerialPorEquipoFromInventarioCsvText(invCsv);
+      const { aliasMap, serialPorEquipoInv } = await getCanonicalMaps();
 
       const batchLimit = 400;
       let scanned = 0;
