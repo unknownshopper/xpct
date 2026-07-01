@@ -1544,9 +1544,22 @@
         function resolverEquipoYSerialCanon(equipoRaw, serialRaw) {
             const eq0 = normEquipoKey(String(equipoRaw || ''));
             const sr0 = normSerialKey(String(serialRaw || ''));
-            const eqCanon = (eq0 && aliasEquipoMalAEquipoCorrecto && aliasEquipoMalAEquipoCorrecto[eq0])
+            let eqCanon = (eq0 && aliasEquipoMalAEquipoCorrecto && aliasEquipoMalAEquipoCorrecto[eq0])
                 ? String(aliasEquipoMalAEquipoCorrecto[eq0] || '')
                 : eq0;
+            try {
+                // Intentar canonicalización por inventario (ej: PCT-XO-77 => PCT-XO-077)
+                if (eqCanon && !(serialPorEquipoInv && serialPorEquipoInv[eqCanon])) {
+                    const m = String(eqCanon).match(/^(.*-)(\d{1,3})$/);
+                    if (m && m[1] && m[2] && m[2].length < 3) {
+                        const padded = `${m[1]}${String(m[2]).padStart(3, '0')}`;
+                        const paddedKey = normEquipoKey(padded);
+                        if (paddedKey && ((serialPorEquipoInv && serialPorEquipoInv[paddedKey]) || (equiposInventario && equiposInventario.has && equiposInventario.has(paddedKey)))) {
+                            eqCanon = paddedKey;
+                        }
+                    }
+                }
+            } catch {}
             let srCanon = sr0;
             try {
                 const fromInv = (eqCanon && serialPorEquipoInv && serialPorEquipoInv[eqCanon])

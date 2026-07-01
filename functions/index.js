@@ -167,7 +167,20 @@ function loadSerialPorEquipoFromInventarioCsvText(text) {
 function resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv }) {
   const eq0 = normEquipoKey(equipoRaw);
   const sr0 = String(serialRaw || '').trim();
-  const eqCanon = (eq0 && aliasMap && aliasMap[eq0]) ? String(aliasMap[eq0] || '') : eq0;
+  let eqCanon = (eq0 && aliasMap && aliasMap[eq0]) ? String(aliasMap[eq0] || '') : eq0;
+  try {
+    // Intentar canonicalización por inventario (ej: PCT-XO-77 => PCT-XO-077)
+    if (eqCanon && !(serialPorEquipoInv && serialPorEquipoInv[eqCanon])) {
+      const m = String(eqCanon).match(/^(.*-)(\d{1,3})$/);
+      if (m && m[1] && m[2] && m[2].length < 3) {
+        const padded = `${m[1]}${String(m[2]).padStart(3, '0')}`;
+        const paddedKey = normEquipoKey(padded);
+        if (paddedKey && serialPorEquipoInv && serialPorEquipoInv[paddedKey]) {
+          eqCanon = paddedKey;
+        }
+      }
+    }
+  } catch {}
   let srCanon = sr0;
   try {
     const srInv = (eqCanon && serialPorEquipoInv && serialPorEquipoInv[eqCanon])
@@ -534,6 +547,104 @@ export const sendAlertsDaily = onSchedule(
   async () => {
     const out = await calcularYEnviar({ testMode: false, force: false });
     console.log('sendAlertsDaily result:', out);
+  }
+);
+
+export const normalizePruebasEquipos = onRequest(
+  {
+    secrets: ['NORMALIZE_KEY'],
+    timeoutSeconds: 540,
+    memory: '1GiB',
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+      }
+
+      const key = (req.query.key || req.get('x-normalize-key') || '').toString();
+      const expected = (process.env.NORMALIZE_KEY || '').toString();
+      if (!expected || key !== expected) {
+        res.status(401).send('Unauthorized');
+        return;
+      }
+
+      ensureAdmin();
+      const db = admin.firestore();
+
+      const dryRun = String(req.query.dryRun || '').trim() === '1';
+      const limit = Math.max(1, Math.min(10000, parseInt(String(req.query.limit || '0'), 10) || 0));
+
+      const aliasCsv = safeReadLocalFile('docs/malescritos.csv');
+      const invCsv = safeReadLocalFile('docs/INVENTARIOTOTAL04-202602.csv');
+      const aliasMap = loadAliasesFromCsvText(aliasCsv);
+      const serialPorEquipoInv = loadSerialPorEquipoFromInventarioCsvText(invCsv);
+
+      const batchLimit = 400;
+      let scanned = 0;
+      let changed = 0;
+      let applied = 0;
+      const samples = [];
+
+      const snap = await db.collection('pruebas').get();
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += batchLimit) {
+        if (limit && scanned >= limit) break;
+        const chunk = docs.slice(i, i + batchLimit);
+        let batch = null;
+        if (!dryRun) batch = db.batch();
+
+        for (const d of chunk) {
+          if (limit && scanned >= limit) break;
+          scanned += 1;
+          const data = d.data() || {};
+
+          const equipoRaw = (data.equipo || data.equipoId || data.activo || '').toString().trim();
+          const serialRaw = (data.numeroSerie || data.serial || '').toString().trim();
+          if (!equipoRaw) continue;
+
+          const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+          const equipoCanon = resolved.equipoCanon;
+          const serialCanon = resolved.serialCanon;
+
+          const equipoCurrent = (data.equipo || '').toString().trim();
+          const serialCurrent = (data.serial || '').toString().trim();
+          const numeroSerieCurrent = (data.numeroSerie || '').toString().trim();
+
+          const updates = {};
+          if (equipoCanon && equipoCanon !== normEquipoKey(equipoCurrent)) {
+            updates.equipo = equipoCanon;
+          }
+          if (serialCanon) {
+            if (serialCurrent && serialCanon !== serialCurrent) updates.serial = serialCanon;
+            if (numeroSerieCurrent && serialCanon !== numeroSerieCurrent) updates.numeroSerie = serialCanon;
+            if (!serialCurrent && !numeroSerieCurrent) updates.serial = serialCanon;
+          }
+
+          const keys = Object.keys(updates);
+          if (!keys.length) continue;
+
+          changed += 1;
+          if (samples.length < 30) {
+            samples.push({ docId: d.id, from: { equipo: data.equipo || '', serial: data.serial || data.numeroSerie || '' }, to: { equipo: updates.equipo || data.equipo || '', serial: updates.serial || updates.numeroSerie || data.serial || data.numeroSerie || '' } });
+          }
+
+          if (!dryRun && batch) {
+            batch.update(d.ref, updates);
+          }
+        }
+
+        if (!dryRun && batch) {
+          await batch.commit();
+          applied += 1;
+        }
+      }
+
+      res.status(200).json({ ok: true, dryRun, scanned, changed, batchesCommitted: applied, samples });
+    } catch (e) {
+      res.status(500).send(String(e && e.message ? e.message : e));
+    }
   }
 );
 
