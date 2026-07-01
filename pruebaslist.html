@@ -1594,7 +1594,6 @@
                     const cachedNow = Number(localStorage.getItem('pct_pruebas_total_cached') || '0');
                     if (cachedNow && !isNaN(cachedNow) && cachedNow > 0) {
                         _totalServer = cachedNow;
-                        return;
                     }
                 } catch {}
 
@@ -1955,6 +1954,14 @@
         function cacheDashboardPruebasSnapshot(list) {
             try {
                 const arr = Array.isArray(list) ? list : [];
+                try {
+                    const dashTotalPrev = parseInt(String(localStorage.getItem('pct_dash_pruebas_total') || ''), 10);
+                    const serverTotal = (typeof _totalServer === 'number' && isFinite(_totalServer) && _totalServer > 0) ? _totalServer : null;
+                    const knownTotal = (dashTotalPrev && !isNaN(dashTotalPrev) && dashTotalPrev > 0) ? dashTotalPrev : serverTotal;
+                    if (knownTotal && arr.length < knownTotal) {
+                        return;
+                    }
+                } catch {}
                 const hoy = hoySinHora();
                 let total = arr.length;
                 let tAn = 0, tPT = 0, tRep = 0;
@@ -2009,6 +2016,121 @@
                 localStorage.setItem('pct_dash_pruebas_cached_at', String(Date.now()));
             } catch {}
         }
+
+        async function recalcularChipsDesdeSnapshotCompleto() {
+            try {
+                const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
+                const lblAlert0 = document.getElementById('pruebas-alert-0');
+                if (!lblAlert60 || !lblAlert30 || !lblAlert15 || !lblAlert0 || !lblAlertGT60) return;
+
+                const { getFirestore, collection, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const colRef = collection(db, 'pruebas');
+                const snap = await getDocs(colRef);
+                const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                const hoy = hoySinHora();
+                const latest = new Map();
+                const normPrueba = (v) => (v || '').toString().toUpperCase().trim();
+                const categoria = (reg) => {
+                    const p = normPrueba(reg && (reg.prueba || reg.pruebaTipo) ? (reg.prueba || reg.pruebaTipo) : '');
+                    if (!p) return null;
+                    if (p.includes('UTT')) return 'utt';
+                    if (p.includes('LT')) return 'lt';
+                    if (p.includes('VT') || p.includes('PT') || p.includes('MT')) return 'vpm';
+                    return null;
+                };
+                (Array.isArray(docs) ? docs : []).forEach(reg => {
+                    const periodoStr = (reg && reg.periodo ? String(reg.periodo) : '').trim().toUpperCase();
+                    if (!(periodoStr === 'ANUAL' || periodoStr === '')) return;
+
+                    const eq = (reg && (reg.equipo || reg.activo || reg['EQUIPO / ACTIVO']) ? (reg.equipo || reg.activo || reg['EQUIPO / ACTIVO']) : '').toString().trim();
+                    if (!eq) return;
+                    const tipo = normPrueba(reg.pruebaTipo || reg.prueba || 'ANUAL');
+                    const key = `${normEquipoKey(eq)}__${tipo}`;
+
+                    const cat = categoria(reg);
+                    if (!cat) return;
+
+                    let dProx = parseProxima(reg && reg.proxima ? reg.proxima : '');
+                    if (!dProx) {
+                        const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || reg.fecha || '');
+                        if (fr) {
+                            const d = new Date(fr);
+                            d.setFullYear(d.getFullYear() + 1);
+                            d.setHours(0,0,0,0);
+                            if (!isNaN(d.getTime())) dProx = d;
+                        }
+                    }
+                    const dueMs = dProx ? dProx.getTime() : 0;
+                    const prev = latest.get(key);
+                    const prevMs = prev ? (prev.dueMs || 0) : 0;
+                    if (!prev || dueMs >= prevMs) latest.set(key, { dueMs, cat });
+                });
+
+                let cnt0 = 0, cnt60 = 0, cnt30 = 0, cnt15 = 0, cntGT60 = 0;
+                const infCont = {
+                    lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                    vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                    utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                };
+
+                latest.forEach(v => {
+                    const dueMs = v && v.dueMs ? v.dueMs : 0;
+                    if (!dueMs) return;
+                    const cat = v && v.cat ? v.cat : null;
+                    if (!cat) return;
+                    const dias = Math.round((dueMs - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    if (dias <= 0) { cnt0 += 1; return; }
+                    if (dias > 60) { cntGT60 += 1; return; }
+                    if (dias >= 31) cnt60 += 1;
+                    else if (dias >= 16) cnt30 += 1;
+                    else if (dias >= 1) cnt15 += 1;
+                });
+
+                // Tabla informativa por categoría
+                latest.forEach(v => {
+                    const dueMs = v && v.dueMs ? v.dueMs : 0;
+                    if (!dueMs) return;
+                    const cat = v && v.cat ? v.cat : null;
+                    if (!cat || !infCont[cat]) return;
+                    const dias = Math.round((dueMs - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    if (isNaN(dias)) return;
+                    if (dias <= 0) { infCont[cat].d0 += 1; return; }
+                    if (dias > 60) infCont[cat].gt60 += 1;
+                    else if (dias >= 31) infCont[cat].d60 += 1;
+                    else if (dias >= 16) infCont[cat].d30 += 1;
+                    else if (dias >= 1) infCont[cat].d15 += 1;
+                });
+
+                lblAlertGT60.textContent = String(cntGT60);
+                lblAlert60.textContent = String(cnt60);
+                lblAlert30.textContent = String(cnt30);
+                lblAlert15.textContent = String(cnt15);
+                lblAlert0.textContent = String(cnt0);
+                try {
+                    if (cardR60Val) cardR60Val.textContent = String(cnt60);
+                    if (cardR30Val) cardR30Val.textContent = String(cnt30);
+                    if (cardR15Val) cardR15Val.textContent = String(cnt15);
+                    if (cardR0Val)  cardR0Val.textContent  = String(cnt0);
+                } catch {}
+
+                try {
+                    window._pctFullSnapshotCounters = {
+                        at: Date.now(),
+                        chips: { gt60: cntGT60, d60: cnt60, d30: cnt30, d15: cnt15, d0: cnt0 },
+                        inf: infCont
+                    };
+                } catch {}
+
+                try { render(); } catch {}
+            } catch (e) {
+                console.warn('No se pudieron recalcular chips desde snapshot completo', e);
+            }
+        }
+        try { window.recalcularChipsDesdeSnapshotCompleto = recalcularChipsDesdeSnapshotCompleto; } catch {}
         actualizarContadoresTiposLocal(pruebas);
 
         function aplicarConteosDesdeCsvPreview(rows) {
@@ -2189,6 +2311,54 @@
 
         async function cargarInventarioDesdeCsv() {
             try {
+                // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage y sincronizados con Firestore
+                const claveEstadoOverride = 'pct_invre_estado_override';
+                let mapaEstadoOverride = {};
+                try {
+                    const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+                    const parsed = JSON.parse(crudo);
+                    if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
+                } catch {
+                    mapaEstadoOverride = {};
+                }
+
+                try {
+                    let canSyncFromFirestore = false;
+                    try {
+                        const auth = window.auth;
+                        const u = auth && auth.currentUser ? auth.currentUser : null;
+                        if (u && typeof u.getIdTokenResult === 'function') {
+                            const tok = await u.getIdTokenResult();
+                            const role = (tok && tok.claims && tok.claims.role) ? String(tok.claims.role) : '';
+                            canSyncFromFirestore = (role === 'admin' || role === 'director');
+                        } else {
+                            canSyncFromFirestore = !!(window.isAdmin || window.isDirector);
+                        }
+                    } catch {
+                        canSyncFromFirestore = !!(window.isAdmin || window.isDirector);
+                    }
+
+                    if (canSyncFromFirestore) {
+                        const { getFirestore, collection, getDocs } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        const colRef = collection(db, 'inventarioEstados');
+                        const snap = await getDocs(colRef);
+                        snap.forEach(docSnap => {
+                            const data = docSnap.data() || {};
+                            const equipoId = (docSnap.id || data.equipoId || '').toString().trim();
+                            let edo = (data.edo || '').toString().trim().toUpperCase();
+                            if (!edo) edo = 'ON';
+                            const eqK = normEquipoKey(equipoId);
+                            if (eqK) mapaEstadoOverride[eqK] = edo;
+                        });
+                        try {
+                            localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
+                        } catch {}
+                    }
+                } catch {}
+
                 const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv');
                 if (!resp.ok) return;
                 const texto = await resp.text();
@@ -2219,8 +2389,11 @@
                     setEq.add(eq);
                     if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
                     if (idxEdo >= 0) {
-                        const edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
-                        if (edo && !mapaEdo[eq]) mapaEdo[eq] = edo;
+                        let edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
+                        if (!edo) edo = 'ON';
+                        const override = (mapaEstadoOverride && eq && mapaEstadoOverride[eq]) ? String(mapaEstadoOverride[eq]).trim().toUpperCase() : '';
+                        const edoEf = override || edo;
+                        if (edoEf && !mapaEdo[eq]) mapaEdo[eq] = edoEf;
                     }
                     if (idxDesc >= 0) {
                         const desc = (cols[idxDesc] || '').toString().trim();
@@ -3328,16 +3501,18 @@
             if (periodo && periodo !== 'ANUAL') return { estado: 'SIN_FECHA', proxima: null };
 
             let proxima = parseProxima(reg.proxima || '');
-            // Si no hay 'proxima' pero es ANUAL, intentar derivarla de fechaRealizacion + 12 meses
+            // ANUAL: igual que dashboard: si hay 'proxima' se respeta; si no, derivar de fechaRealizacion + 12 meses.
             if (!proxima) {
-                const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
-                // Backward compat: sin periodo => tratar como ANUAL
-                if ((periodo === 'ANUAL' || !periodo) && fr) {
-                    const d = new Date(fr);
-                    d.setFullYear(d.getFullYear() + 1);
-                    d.setHours(0,0,0,0);
-                    if (!isNaN(d.getTime())) proxima = d;
-                }
+                try {
+                    const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
+                    // Backward compat: sin periodo => tratar como ANUAL
+                    if ((periodo === 'ANUAL' || !periodo) && fr) {
+                        const d = new Date(fr);
+                        d.setFullYear(d.getFullYear() + 1);
+                        d.setHours(0,0,0,0);
+                        if (!isNaN(d.getTime())) proxima = d;
+                    }
+                } catch {}
             }
             if (!proxima) return { estado: 'SIN_FECHA', proxima: null };
             const hoy = hoySinHora();
@@ -3638,6 +3813,38 @@
                     if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
                     if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
                     if (inf.utt.d0)   inf.utt.d0.textContent   = String(cont.utt.d0);
+                }
+            } catch {}
+
+            // Si hay contadores del snapshot completo, preferirlos para la tabla informativa.
+            try {
+                if (!_csvPreviewActive && window._pctFullSnapshotCounters && window._pctFullSnapshotCounters.inf) {
+                    const at = Number(window._pctFullSnapshotCounters.at || 0);
+                    const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+                    if (isFresh) {
+                        const c = window._pctFullSnapshotCounters.inf;
+                        if (c.lt) {
+                            if (inf.lt.gt60) inf.lt.gt60.textContent = String(c.lt.gt60 || 0);
+                            if (inf.lt.d60)  inf.lt.d60.textContent  = String(c.lt.d60 || 0);
+                            if (inf.lt.d30)  inf.lt.d30.textContent  = String(c.lt.d30 || 0);
+                            if (inf.lt.d15)  inf.lt.d15.textContent  = String(c.lt.d15 || 0);
+                            if (inf.lt.d0)   inf.lt.d0.textContent   = String(c.lt.d0 || 0);
+                        }
+                        if (c.vpm) {
+                            if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(c.vpm.gt60 || 0);
+                            if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(c.vpm.d60 || 0);
+                            if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(c.vpm.d30 || 0);
+                            if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(c.vpm.d15 || 0);
+                            if (inf.vpm.d0)   inf.vpm.d0.textContent   = String(c.vpm.d0 || 0);
+                        }
+                        if (c.utt) {
+                            if (inf.utt.gt60) inf.utt.gt60.textContent = String(c.utt.gt60 || 0);
+                            if (inf.utt.d60)  inf.utt.d60.textContent  = String(c.utt.d60 || 0);
+                            if (inf.utt.d30)  inf.utt.d30.textContent  = String(c.utt.d30 || 0);
+                            if (inf.utt.d15)  inf.utt.d15.textContent  = String(c.utt.d15 || 0);
+                            if (inf.utt.d0)   inf.utt.d0.textContent   = String(c.utt.d0 || 0);
+                        }
+                    }
                 }
             } catch {}
 
@@ -4003,9 +4210,14 @@
                         diasChip = Math.round(diffMs / (1000 * 60 * 60 * 24));
                     }
 
-                    if (!prev || (reg._fechaRealDate && prev.fechaMs !== null && reg._fechaRealDate.getTime() > prev.fechaMs)) {
+                    // Alinear con dashboard: escoger el "último" por fecha próxima (due date), no por fecha de realización.
+                    const dueMs = proximaBase ? proximaBase.getTime() : 0;
+                    const prevDueMs = prev && typeof prev.dueMs === 'number' ? prev.dueMs : 0;
+
+                    if (!prev || (dueMs && dueMs >= prevDueMs)) {
                         latestIndic.set(key, {
                             fechaMs: reg._fechaRealDate ? reg._fechaRealDate.getTime() : null,
+                            dueMs,
                             estado,
                             dias: diasChip
                         });
@@ -4223,6 +4435,58 @@
                 });
             } catch {}
 
+            // Si hay contadores del snapshot completo, preferirlos para chips/rangos.
+            try {
+                if (!_csvPreviewActive && window._pctFullSnapshotCounters && window._pctFullSnapshotCounters.chips) {
+                    const at = Number(window._pctFullSnapshotCounters.at || 0);
+                    const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+                    if (isFresh) {
+                        const c = window._pctFullSnapshotCounters.chips;
+                        if (c && typeof c === 'object') {
+                            if (typeof c.gt60 === 'number') cntChipGT60 = c.gt60;
+                            if (typeof c.d60 === 'number')  cntChip60  = c.d60;
+                            if (typeof c.d30 === 'number')  cntChip30  = c.d30;
+                            if (typeof c.d15 === 'number')  cntChip15  = c.d15;
+                            if (typeof c.d0 === 'number')   cntChip0   = c.d0;
+                        }
+                    }
+                }
+            } catch {}
+
+            // Si el dataset está incompleto, preferir contadores cacheados del dashboard (snapshot completo) para chips/rangos.
+            try {
+                const dashTotal = parseInt(String(localStorage.getItem('pct_dash_pruebas_total') || ''), 10);
+                const byServer = (typeof _totalServer === 'number' && _totalServer > 0 && (pruebas && pruebas.length < _totalServer));
+                const byDash = (dashTotal && !Number.isNaN(dashTotal) && dashTotal > 0 && (pruebas && pruebas.length < dashTotal));
+                const isPartial = byServer || byDash;
+                if (isPartial) {
+                    const c60 = parseInt(String(localStorage.getItem('pct_dash_pruebas_60') || ''), 10);
+                    const c30 = parseInt(String(localStorage.getItem('pct_dash_pruebas_30') || ''), 10);
+                    const c15 = parseInt(String(localStorage.getItem('pct_dash_pruebas_15') || ''), 10);
+                    const c0  = parseInt(String(localStorage.getItem('pct_dash_pruebas_0')  || ''), 10);
+                    if (!Number.isNaN(c60)) cntChip60 = c60;
+                    if (!Number.isNaN(c30)) cntChip30 = c30;
+                    if (!Number.isNaN(c15)) cntChip15 = c15;
+                    if (!Number.isNaN(c0))  cntChip0  = c0;
+                }
+            } catch {}
+
+            // Si existe cache reciente del dashboard, usarlo para evitar discrepancias visuales.
+            try {
+                const cachedAt = parseInt(String(localStorage.getItem('pct_dash_pruebas_cached_at') || ''), 10);
+                const isFresh = cachedAt && !Number.isNaN(cachedAt) && (Date.now() - cachedAt) < (10 * 60 * 1000);
+                if (isFresh) {
+                    const c60 = parseInt(String(localStorage.getItem('pct_dash_pruebas_60') || ''), 10);
+                    const c30 = parseInt(String(localStorage.getItem('pct_dash_pruebas_30') || ''), 10);
+                    const c15 = parseInt(String(localStorage.getItem('pct_dash_pruebas_15') || ''), 10);
+                    const c0  = parseInt(String(localStorage.getItem('pct_dash_pruebas_0')  || ''), 10);
+                    if (!Number.isNaN(c60)) cntChip60 = c60;
+                    if (!Number.isNaN(c30)) cntChip30 = c30;
+                    if (!Number.isNaN(c15)) cntChip15 = c15;
+                    if (!Number.isNaN(c0))  cntChip0  = c0;
+                }
+            } catch {}
+
             if (!_csvPreviewActive) {
                 if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
                 if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
@@ -4253,6 +4517,18 @@
         }
 
         try { window.refrescarPruebaslistUI = refrescarPruebaslistUI; } catch {}
+
+        try {
+            // Mantener chips alineados con dashboard: usar snapshot completo al cargar.
+            const tryRun = (n) => {
+                try {
+                    recalcularChipsDesdeSnapshotCompleto();
+                } catch {}
+                if (n <= 1) return;
+                setTimeout(() => { try { tryRun(n - 1); } catch {} }, 1200);
+            };
+            setTimeout(() => { try { tryRun(3); } catch {} }, 250);
+        } catch {}
 
         if (inputBuscar) {
             inputBuscar.addEventListener('input', () => {

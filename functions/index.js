@@ -272,7 +272,8 @@ async function queryUltimasAnuales() {
       const d = new Date(fechaReal);
       d.setFullYear(d.getFullYear() + 1);
       d.setHours(0, 0, 0, 0);
-      if (!isNaN(d.getTime())) proxima = d;
+      const derived = !isNaN(d.getTime()) ? d : null;
+      if (derived) proxima = derived;
     }
 
     let failReason = '';
