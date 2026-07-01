@@ -1536,9 +1536,26 @@
         let productoPorSerialInv = {};
         let serialPorEquipoInv = {};
         let edoPorEquipoInv = {};
+        let aliasEquipoMalAEquipoCorrecto = {};
         // Áreas por equipo/serial y tipo de prueba (derivadas de invre2.csv)
         let areaPorEquipoPruebaInv = {};
         let areaPorSerialPruebaInv = {};
+
+        function resolverEquipoYSerialCanon(equipoRaw, serialRaw) {
+            const eq0 = normEquipoKey(String(equipoRaw || ''));
+            const sr0 = normSerialKey(String(serialRaw || ''));
+            const eqCanon = (eq0 && aliasEquipoMalAEquipoCorrecto && aliasEquipoMalAEquipoCorrecto[eq0])
+                ? String(aliasEquipoMalAEquipoCorrecto[eq0] || '')
+                : eq0;
+            let srCanon = sr0;
+            try {
+                const fromInv = (eqCanon && serialPorEquipoInv && serialPorEquipoInv[eqCanon])
+                    ? normSerialKey(serialPorEquipoInv[eqCanon])
+                    : '';
+                if (fromInv) srCanon = fromInv;
+            } catch {}
+            return { equipoCanon: eqCanon, serialCanon: srCanon };
+        }
 
         async function leerFirestore() {
             try {
@@ -2266,7 +2283,35 @@
             }
         }
 
+        async function cargarAliasesMalescritos() {
+            try {
+                const resp = await fetch('docs/malescritos.csv');
+                if (!resp.ok) return;
+                const texto = await resp.text();
+                const parsed = parseCsv(texto);
+                const headers = parsed.headers || [];
+                const rows = parsed.rows || [];
+                if (!headers.length || !rows.length) return;
+
+                const idxMal = headers.indexOf('Equipo mal escrito');
+                const idxOk = headers.indexOf('Equipo correcto');
+                if (idxMal < 0 || idxOk < 0) return;
+
+                const map = {};
+                rows.forEach(cols => {
+                    const mal = (idxMal >= 0 ? cols[idxMal] : '') || '';
+                    const ok = (idxOk >= 0 ? cols[idxOk] : '') || '';
+                    const kmal = normEquipoKey(String(mal || ''));
+                    const kok = normEquipoKey(String(ok || ''));
+                    if (!kmal || !kok) return;
+                    map[kmal] = kok;
+                });
+                aliasEquipoMalAEquipoCorrecto = map;
+            } catch {}
+        }
+
         await cargarInventarioDesdeCsv();
+        await cargarAliasesMalescritos();
 
         // ================== Importación CSV (solo admin) ==================
         let importRowsReady = [];
@@ -2274,8 +2319,9 @@
         let lastCsvText = '';
 
         function composeKey(r) {
-            const equipo = (r.equipo||'').trim().toUpperCase();
-            const numeroSerie = (r.numeroSerie||r.serial||'').trim().toUpperCase();
+            const resolved = resolverEquipoYSerialCanon(r.equipo, (r.numeroSerie||r.serial||''));
+            const equipo = (resolved.equipoCanon||'').trim().toUpperCase();
+            const numeroSerie = (resolved.serialCanon||'').trim().toUpperCase();
             const periodo = (r.periodo||'').trim().toUpperCase();
             const prueba = (r.prueba||'').trim().toUpperCase();
             const fechaRealizacion = (r.fechaRealizacion||'').trim();
@@ -2296,8 +2342,9 @@
         }
 
         function composeKeyRelaxed(r) {
-            const equipo = (r.equipo||'').trim().toUpperCase();
-            const numeroSerie = (r.numeroSerie||r.serial||'').trim().toUpperCase();
+            const resolved = resolverEquipoYSerialCanon(r.equipo, (r.numeroSerie||r.serial||''));
+            const equipo = (resolved.equipoCanon||'').trim().toUpperCase();
+            const numeroSerie = (resolved.serialCanon||'').trim().toUpperCase();
             const periodo = (r.periodo||'').trim().toUpperCase();
             const prueba = (r.prueba||'').trim().toUpperCase();
             const fechaRealizacion = (r.fechaRealizacion||'').trim();
@@ -3858,11 +3905,13 @@
             }
 
             listaOrdenada.forEach(reg => {
-                const eqK = normEquipoKey(reg.equipo);
-                const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
-                const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
-                const serialKey = normSerialKey(serialRaw);
-                const serialCelda = (serialKey || serialInv || '').toString().trim();
+                const resolved = resolverEquipoYSerialCanon(
+                    (reg && reg.equipo != null) ? reg.equipo : '',
+                    (reg && (reg.numeroSerie || reg.serial) != null) ? (reg.numeroSerie || reg.serial) : ''
+                );
+                const eqK = resolved.equipoCanon;
+                const serialCelda = (resolved.serialCanon || '').toString().trim();
+                const serialKey = normSerialKey(serialCelda);
                 const prodDerivado = (productoPorEquipoInv && eqK && productoPorEquipoInv[eqK])
                     ? String(productoPorEquipoInv[eqK])
                     : (productoPorSerialInv && serialKey && productoPorSerialInv[serialKey])
@@ -3877,7 +3926,7 @@
                 const prod = (reg && reg.producto) ? String(reg.producto) : prodDerivado;
                 const desc = (reg && reg.descripcion) ? String(reg.descripcion) : descDerivado;
 
-                const textoBuscar = `${reg.equipo || ''} ${serialInv} ${prod || ''} ${desc || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
+                const textoBuscar = `${eqK || ''} ${serialCelda || ''} ${prod || ''} ${desc || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro && !textoBuscar.includes(filtro)) return;
 
                 // Filtro por cobertura (100/parcial/sin) aplicado al listado grande por equipo
@@ -3885,8 +3934,7 @@
                     // Nota: la categoría 'sin' significa equipos del inventario sin NINGÚN registro.
                     // Por definición, no existen filas en el listado grande para esos equipos.
                     if (filtroCobertura === 'sin') return;
-                    const eqK = normEquipoKey(reg.equipo);
-                    const cov = (window._equiposCobertura && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
+                    const cov = (window._equiposCobertura && eqK && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
                     if (!cov) return;
                     if (cov.cat !== filtroCobertura) return;
                 }
@@ -3927,7 +3975,7 @@
                 // Chips (solo última ANUAL por equipo+tipo): recolectar candidato
                 const scopedForIndicators = isScopedIndicator(reg);
                 if (scopedForIndicators && esAnualReg && !esHistoricoReg) {
-                    const eqK2 = normEquipoKey(reg.equipo);
+                    const eqK2 = eqK;
                     const tipo = (typeof normalizaPrueba === 'function')
                         ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
                         : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
@@ -4064,7 +4112,7 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${diasParaProxima}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.equipo || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serialCelda || '—'}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>

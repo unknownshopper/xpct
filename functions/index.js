@@ -5,6 +5,9 @@ import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { DateTime } from 'luxon';
 
+import fs from 'fs';
+import path from 'path';
+
 setGlobalOptions({ region: 'us-central1' });
 
 const TZ = process.env.TZ || 'America/Mexico_City';
@@ -98,6 +101,83 @@ function parseCSVLine(line) {
   return out;
 }
 
+function safeReadLocalFile(relPath) {
+  try {
+    const cwd = process.cwd();
+    const candidates = [
+      path.resolve(cwd, relPath),
+      path.resolve(cwd, '..', relPath),
+      path.resolve(cwd, '..', '..', relPath),
+    ];
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+      } catch {}
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+function loadAliasesFromCsvText(text) {
+  const map = {};
+  try {
+    const lines = String(text || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
+    if (!lines.length) return map;
+    const headers = parseCSVLine(lines[0]).map(h => String(h || '').trim());
+    const idxMal = headers.indexOf('Equipo mal escrito');
+    const idxOk = headers.indexOf('Equipo correcto');
+    if (idxMal < 0 || idxOk < 0) return map;
+    lines.slice(1).forEach(l => {
+      const cols = parseCSVLine(l);
+      const mal = (idxMal >= 0 && idxMal < cols.length) ? cols[idxMal] : '';
+      const ok = (idxOk >= 0 && idxOk < cols.length) ? cols[idxOk] : '';
+      const kmal = normEquipoKey(mal);
+      const kok = normEquipoKey(ok);
+      if (!kmal || !kok) return;
+      map[kmal] = kok;
+    });
+  } catch {}
+  return map;
+}
+
+function loadSerialPorEquipoFromInventarioCsvText(text) {
+  const serialPorEquipo = {};
+  try {
+    const lines = String(text || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
+    if (!lines.length) return serialPorEquipo;
+    const headers = parseCSVLine(lines[0]).map(h => String(h || '').trim());
+    const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+    const idxSerial = headers.indexOf('SERIAL');
+    if (idxEquipo < 0) return serialPorEquipo;
+    lines.slice(1).forEach(l => {
+      const cols = parseCSVLine(l);
+      const eq = (idxEquipo >= 0 && idxEquipo < cols.length) ? cols[idxEquipo] : '';
+      const sr = (idxSerial >= 0 && idxSerial < cols.length) ? cols[idxSerial] : '';
+      const eqK = normEquipoKey(eq);
+      const srK = String(sr || '').trim();
+      if (!eqK) return;
+      if (srK && !serialPorEquipo[eqK]) serialPorEquipo[eqK] = srK;
+    });
+  } catch {}
+  return serialPorEquipo;
+}
+
+function resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv }) {
+  const eq0 = normEquipoKey(equipoRaw);
+  const sr0 = String(serialRaw || '').trim();
+  const eqCanon = (eq0 && aliasMap && aliasMap[eq0]) ? String(aliasMap[eq0] || '') : eq0;
+  let srCanon = sr0;
+  try {
+    const srInv = (eqCanon && serialPorEquipoInv && serialPorEquipoInv[eqCanon])
+      ? String(serialPorEquipoInv[eqCanon] || '').trim()
+      : '';
+    if (srInv) srCanon = srInv;
+  } catch {}
+  return { equipoCanon: eqCanon, serialCanon: srCanon };
+}
+
 function fmtYYYYMMDD(d) {
   if (!d || isNaN(d.getTime())) return '';
   const yyyy = d.getFullYear();
@@ -116,19 +196,30 @@ async function queryUltimasAnuales() {
   const snap = await db.collection('pruebas').get();
   const porEquipoPrueba = new Map();
 
+  // Canonicalización (Opción A): alias + inventario como fuente de verdad
+  const aliasCsv = safeReadLocalFile('docs/malescritos.csv');
+  const invCsv = safeReadLocalFile('docs/INVENTARIOTOTAL04-202602.csv');
+  const aliasMap = loadAliasesFromCsvText(aliasCsv);
+  const serialPorEquipoInv = loadSerialPorEquipoFromInventarioCsvText(invCsv);
+
   snap.forEach(doc => {
     const data = doc.data() || {};
     const periodo = (data.periodo || '').toString().trim().toUpperCase();
     if (periodo && periodo !== 'ANUAL') return;
 
     const equipoRaw = (data.equipo || data.equipoId || data.activo || '').toString().trim();
-    const equipoDisplay = equipoRaw || doc.id;
-    const equipoKey = normEquipoKey(equipoRaw);
+    const serialRaw = (data.numeroSerie || data.serial || '').toString().trim();
+    const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+    const equipoCanon = resolved.equipoCanon;
+    const serialCanon = resolved.serialCanon;
+
+    const equipoDisplay = equipoCanon || equipoRaw || doc.id;
+    const equipoKey = normEquipoKey(equipoDisplay);
 
     const prueba = (data.prueba || data.pruebaTipo || '').toString().trim();
     const pruebaKey = normPruebaKey(prueba || 'ANUAL');
 
-    const serial = (data.numeroSerie || data.serial || '').toString().trim();
+    const serial = serialCanon;
     const fechaReal = parseFecha(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
 
     let proxima = parseFecha(data.proxima || '');
