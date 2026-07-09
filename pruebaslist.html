@@ -1514,7 +1514,15 @@
         let pruebas = [];
         let _lastDoc = null;
         const _pageLimit = 200;
-        const claveLocal = 'pct_pruebas';
+        const _uidCacheKey = (() => {
+            try {
+                const u = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
+                return (u && u.uid) ? String(u.uid) : 'anon';
+            } catch { return 'anon'; }
+        })();
+        const claveLocal = `pct_pruebas_${_uidCacheKey}`;
+        const claveTotalCached = `pct_pruebas_total_cached_${_uidCacheKey}`;
+        const claveCooldownCount = `pct_pruebas_count_cooldown_until_${_uidCacheKey}`;
         let _totalServer = null;
         let _isLoadingAll = false;
         let _isLoadingMore = false;
@@ -1526,6 +1534,28 @@
         try {
             window.pctGetPruebas = () => (Array.isArray(pruebas) ? pruebas : []);
             window.pruebas = window.pctGetPruebas();
+        } catch {}
+
+        try {
+            const u = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
+            const email = u && u.email ? String(u.email) : '';
+            const uid = u && u.uid ? String(u.uid) : '';
+            (async () => {
+                try {
+                    let role = '';
+                    try {
+                        const tok = await (u && typeof u.getIdTokenResult === 'function' ? u.getIdTokenResult() : null);
+                        role = (tok && tok.claims && tok.claims.role) ? String(tok.claims.role) : '';
+                    } catch {}
+                    console.debug('[pruebaslist] sesión', {
+                        email,
+                        uid: uid ? uid.slice(0, 8) : '',
+                        role,
+                        isInspector: !!window.isInspector,
+                        cacheKeys: { claveLocal, claveTotalCached, claveCooldownCount }
+                    });
+                } catch {}
+            })();
         } catch {}
 
         // Inventario base desde invre.csv/invre2.csv para mostrar todos los equipos, incluso sin pruebas.
@@ -1570,6 +1600,18 @@
             return { equipoCanon: eqCanon, serialCanon: srCanon };
         }
 
+        function equipoOperativoDesdeInv(equipoRaw) {
+            try {
+                const eqK = normEquipoKey(String(equipoRaw || ''));
+                if (!eqK) return true;
+                const edo = (edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).trim().toUpperCase() : '';
+                if (!edo) return true;
+                return (edo === 'ON' || edo === 'ACTIVO' || edo === 'WIP');
+            } catch {
+                return true;
+            }
+        }
+
         async function leerFirestore() {
             try {
                 const { getFirestore, collection, getDocs } = await import(
@@ -1591,7 +1633,7 @@
                 // Si ya hay un total cacheado, usarlo y NO disparar agregación.
                 // Esto evita el spam de 429 (RunAggregationQuery) en consola.
                 try {
-                    const cachedNow = Number(localStorage.getItem('pct_pruebas_total_cached') || '0');
+                    const cachedNow = Number(localStorage.getItem(claveTotalCached) || '0');
                     if (cachedNow && !isNaN(cachedNow) && cachedNow > 0) {
                         _totalServer = cachedNow;
                     }
@@ -1600,9 +1642,9 @@
                 // Cooldown para evitar 429 por agregación (getCountFromServer) en Firestore.
                 // Si se excede cuota, esperamos un tiempo antes de reintentar.
                 try {
-                    const until = Number(localStorage.getItem('pct_pruebas_count_cooldown_until') || '0');
+                    const until = Number(localStorage.getItem(claveCooldownCount) || '0');
                     if (until && !isNaN(until) && Date.now() < until) {
-                        const cached = Number(localStorage.getItem('pct_pruebas_total_cached') || '0');
+                        const cached = Number(localStorage.getItem(claveTotalCached) || '0');
                         _totalServer = (cached && !isNaN(cached) && cached > 0) ? cached : null;
                         if (_totalServer == null) {
                             try {
@@ -1615,7 +1657,7 @@
                                 const approx = snapCacheOnly.size;
                                 if (typeof approx === 'number' && isFinite(approx) && approx > 0) {
                                     _totalServer = approx;
-                                    try { localStorage.setItem('pct_pruebas_total_cached', String(approx)); } catch {}
+                                    try { localStorage.setItem(claveTotalCached, String(approx)); } catch {}
                                 }
                             } catch {}
                         }
@@ -1631,13 +1673,13 @@
                 _totalServer = agg.data().count;
                 try {
                     if (typeof _totalServer === 'number' && isFinite(_totalServer) && _totalServer > 0) {
-                        localStorage.setItem('pct_pruebas_total_cached', String(_totalServer));
+                        localStorage.setItem(claveTotalCached, String(_totalServer));
                     }
                 } catch {}
             } catch (e) {
                 const cached = (() => {
                     try {
-                        const v = Number(localStorage.getItem('pct_pruebas_total_cached') || '0');
+                        const v = Number(localStorage.getItem(claveTotalCached) || '0');
                         return (v && !isNaN(v) && v > 0) ? v : null;
                     } catch { return null; }
                 })();
@@ -1648,7 +1690,7 @@
                 if (is429) {
                     try {
                         const minutes = 15;
-                        localStorage.setItem('pct_pruebas_count_cooldown_until', String(Date.now() + minutes * 60 * 1000));
+                        localStorage.setItem(claveCooldownCount, String(Date.now() + minutes * 60 * 1000));
                     } catch {}
                     console.warn('Firestore rate limit: se omite conteo total temporalmente (cooldown).');
                 }
@@ -1665,7 +1707,7 @@
                         const approx = snapCacheOnly.size;
                         if (typeof approx === 'number' && isFinite(approx) && approx > 0) {
                             _totalServer = approx;
-                            try { localStorage.setItem('pct_pruebas_total_cached', String(approx)); } catch {}
+                            try { localStorage.setItem(claveTotalCached, String(approx)); } catch {}
                         }
                     } catch {}
                 }
@@ -1802,7 +1844,7 @@
                 if (!_lastDoc) {
                     try {
                         if (Array.isArray(pruebas) && pruebas.length) {
-                            localStorage.setItem('pct_pruebas_total_cached', String(pruebas.length));
+                            localStorage.setItem(claveTotalCached, String(pruebas.length));
                             _totalServer = pruebas.length;
                         }
                     } catch {}
@@ -1830,7 +1872,7 @@
                     _isLoadingAll = false;
                     try {
                         if (Array.isArray(pruebas) && pruebas.length) {
-                            localStorage.setItem('pct_pruebas_total_cached', String(pruebas.length));
+                            localStorage.setItem(claveTotalCached, String(pruebas.length));
                             _totalServer = pruebas.length;
                         }
                     } catch {}
@@ -1866,7 +1908,7 @@
                 // Si ya cargamos todo, fijar cache total para que en el siguiente reload no dependa de aggregation (429)
                 try {
                     if (Array.isArray(pruebas) && pruebas.length) {
-                        localStorage.setItem('pct_pruebas_total_cached', String(pruebas.length));
+                        localStorage.setItem(claveTotalCached, String(pruebas.length));
                         _totalServer = pruebas.length;
                         try { actualizarContadoresTiposLocal(pruebas); } catch {}
                     }
@@ -1909,7 +1951,7 @@
                     const loaded = Array.isArray(pruebas) ? pruebas.length : 0;
                     if (loaded && (typeof _totalServer !== 'number' || _totalServer < loaded)) {
                         _totalServer = loaded;
-                        try { localStorage.setItem('pct_pruebas_total_cached', String(loaded)); } catch {}
+                        try { localStorage.setItem(claveTotalCached, String(loaded)); } catch {}
                     }
                 } catch {}
                 try { actualizarContadoresTiposLocal(pruebas); } catch {}
@@ -1978,6 +2020,7 @@
                     if (p && p !== 'ANUAL') return;
                     const eq = (reg && reg.equipo) ? String(reg.equipo).trim() : '';
                     if (!eq) return;
+                    if (!equipoOperativoDesdeInv(eq)) return;
                     const tipo = ((reg && (reg.pruebaTipo || reg.prueba)) ? String(reg.pruebaTipo || reg.prueba) : 'ANUAL').toUpperCase().trim();
                     const key = `${normEquipoKey(eq)}__${tipo}`;
                     const fr = parseFechaRealizacion((reg && (reg.fechaRealizacion || reg.fechaPrueba)) ? (reg.fechaRealizacion || reg.fechaPrueba) : '') || hoy;
@@ -2049,6 +2092,7 @@
 
                     const eq = (reg && (reg.equipo || reg.activo || reg['EQUIPO / ACTIVO']) ? (reg.equipo || reg.activo || reg['EQUIPO / ACTIVO']) : '').toString().trim();
                     if (!eq) return;
+                    if (!equipoOperativoDesdeInv(eq)) return;
                     const tipo = normPrueba(reg.pruebaTipo || reg.prueba || 'ANUAL');
                     const key = `${normEquipoKey(eq)}__${tipo}`;
 
@@ -2174,6 +2218,7 @@
             arr.forEach(reg => {
                 const eq = (reg.equipo || '').toString();
                 if (!eq) return;
+                if (!equipoOperativoDesdeInv(eq)) return;
                 const periodo = (reg.periodo || '').toString().trim().toUpperCase();
                 if (periodo && periodo !== 'ANUAL') return;
                 const fr = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
@@ -2188,6 +2233,7 @@
                 const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
                 const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
                 if (!esAnualReg) return;
+                if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
                 const clasif = clasificarPrueba(reg);
                 const estado = clasif ? clasif.estado : 'SIN_FECHA';
                 if (estado === 'VENCIDA') { cntVenc += 1; return; }
@@ -2208,6 +2254,7 @@
                 const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
                 const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
                 if (!esAnualReg) return;
+                if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
                 const clasif = clasificarPrueba(reg);
                 const estado = clasif ? clasif.estado : 'SIN_FECHA';
                 if (estado === 'VENCIDA') { cntChip0 += 1; return; }
@@ -2237,6 +2284,7 @@
                 const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
                 const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
                 if (!esAnualReg) return;
+                if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
                 const cat = categoriaPruebaPreview(reg);
                 if (!cat) return;
                 const clasif = clasificarPrueba(reg);
@@ -3068,7 +3116,7 @@
                     // Refrescar conteo cacheado para evitar que se quede en 1685 bajo 429/cooldown
                     // Cuando solo hay 200 cargadas, el conteo real cargado no sirve; usar incremento por importación.
                     try {
-                        const prevCached = parseInt(String(localStorage.getItem('pct_pruebas_total_cached') || ''), 10);
+                        const prevCached = parseInt(String(localStorage.getItem(claveTotalCached) || ''), 10);
                         const okImported = Number(res && res.ok ? res.ok : 0);
                         const loadedCount = (existingKeys && typeof existingKeys.size === 'number' && existingKeys.size > 0)
                             ? existingKeys.size
@@ -3080,7 +3128,7 @@
                             nextCached = Math.max((Number.isFinite(prevCached) ? prevCached : 0), loadedCount);
                         }
                         if (nextCached > 0) {
-                            localStorage.setItem('pct_pruebas_total_cached', String(nextCached));
+                            localStorage.setItem(claveTotalCached, String(nextCached));
                             _totalServer = nextCached;
                         }
                     } catch {}
@@ -3994,6 +4042,15 @@
             // Alinear chips con backend/Rangos: usar solo la última ANUAL por equipo + tipo de prueba
             const latestIndic = new Map();
 
+            const esOperativoEqK = (eqK) => {
+                try {
+                    if (!eqK) return true;
+                    const edo = (edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).trim().toUpperCase() : '';
+                    if (!edo) return true;
+                    return (edo === 'ON' || edo === 'ACTIVO' || edo === 'WIP');
+                } catch { return true; }
+            };
+
             const filasVisibles = [];
 
             if (filtroCobertura === 'sin') {
@@ -4205,6 +4262,7 @@
                 const scopedForIndicators = isScopedIndicator(reg);
                 if (scopedForIndicators && esAnualReg && !esHistoricoReg) {
                     const eqK2 = eqK;
+                    if (!esOperativoEqK(eqK2)) return;
                     const tipo = (typeof normalizaPrueba === 'function')
                         ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
                         : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
@@ -4252,6 +4310,12 @@
                             const dueMsRow = proximaBase ? proximaBase.getTime() : 0;
                             if (dueMsLatest && dueMsRow && dueMsRow !== dueMsLatest) return;
                         }
+                    }
+                } catch {}
+
+                try {
+                    if (filtroRango && esAnualReg && !esHistoricoReg) {
+                        if (!esOperativoEqK(eqK)) return;
                     }
                 } catch {}
 
