@@ -2368,7 +2368,7 @@
                     }
                 } catch {}
 
-                const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv');
+                const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' });
                 if (!resp.ok) return;
                 const texto = await resp.text();
                 const parsed = parseCsv(texto);
