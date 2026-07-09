@@ -300,11 +300,79 @@ document.addEventListener('DOMContentLoaded', () => {
             return t.toUpperCase().trim();
         }
 
+        let _edoPorEquipoPromise = null;
+        async function cargarEstadoPorEquipoDesdeInventario() {
+            if (_edoPorEquipoPromise) return _edoPorEquipoPromise;
+            _edoPorEquipoPromise = (async () => {
+                const mapa = {};
+                try {
+                    const claveEstadoOverride = 'pct_invre_estado_override';
+                    let overrides = {};
+                    try {
+                        const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+                        const parsed = JSON.parse(crudo);
+                        if (parsed && typeof parsed === 'object') overrides = parsed;
+                    } catch {}
+
+                    const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' });
+                    if (!resp.ok) return mapa;
+                    const texto = await resp.text();
+                    const lineas = String(texto || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
+                    if (!lineas.length) return mapa;
+
+                    const parseLine = (line) => {
+                        const out = [];
+                        let cur = '';
+                        let inside = false;
+                        for (let i = 0; i < line.length; i++) {
+                            const ch = line[i];
+                            const next = line[i + 1];
+                            if (ch === '"') {
+                                if (inside && next === '"') { cur += '"'; i++; }
+                                else inside = !inside;
+                            } else if (ch === ',' && !inside) {
+                                out.push(cur);
+                                cur = '';
+                            } else {
+                                cur += ch;
+                            }
+                        }
+                        out.push(cur);
+                        return out;
+                    };
+
+                    const headers = parseLine(lineas[0]).map(h => String(h || '').trim());
+                    const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+                    const idxEdo = headers.indexOf('EDO');
+                    if (idxEquipo < 0 || idxEdo < 0) return mapa;
+
+                    for (const l of lineas.slice(1)) {
+                        const cols = parseLine(l);
+                        const eq = (idxEquipo >= 0 && idxEquipo < cols.length) ? normEquipoKey(cols[idxEquipo]) : '';
+                        if (!eq) continue;
+                        let edo = (idxEdo >= 0 && idxEdo < cols.length) ? String(cols[idxEdo] || '').trim().toUpperCase() : '';
+                        if (!edo) edo = 'ON';
+                        const ov = overrides && overrides[eq] ? String(overrides[eq] || '').trim().toUpperCase() : '';
+                        const edoEf = ov || edo;
+                        if (!mapa[eq]) mapa[eq] = edoEf;
+                    }
+                } catch {}
+                return mapa;
+            })();
+            return _edoPorEquipoPromise;
+        }
+
+        function equipoOperativo(estado) {
+            const e = String(estado || '').trim().toUpperCase();
+            if (!e) return true;
+            return (e === 'ON' || e === 'ACTIVO' || e === 'WIP');
+        }
+
         function normPruebaKey(v) {
             return (v || '').toString().toUpperCase().trim();
         }
 
-        function computeResumenPruebasFromDocs(docs) {
+        function computeResumenPruebasFromDocs(docs, edoPorEquipo = null) {
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
 
@@ -338,6 +406,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const equipo = (data && (data.equipo || data.activo || data['EQUIPO / ACTIVO']) ? (data.equipo || data.activo || data['EQUIPO / ACTIVO']) : '').toString().trim();
                 if (!equipo) return;
+
+                try {
+                    const eqK = normEquipoKey(equipo);
+                    const edo = (edoPorEquipo && eqK) ? edoPorEquipo[eqK] : '';
+                    if (edo && !equipoOperativo(edo)) return;
+                } catch {}
+
                 const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
                 const key = `${normEquipoKey(equipo)}__${tipo}`;
 
@@ -469,6 +544,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     spanPruebas.textContent = '--';
                     return;
                 }
+
+                const edoPorEquipo = await cargarEstadoPorEquipoDesdeInventario();
                 const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -535,6 +612,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
                             if (!equipo) return;
+
+                            try {
+                                const eqK = normEquipoKey(equipo);
+                                const edo = (edoPorEquipo && eqK) ? edoPorEquipo[eqK] : '';
+                                if (edo && !equipoOperativo(edo)) return;
+                            } catch {}
+
                             const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
                             const key = `${normEquipoKey(equipo)}__${tipo}`;
 
