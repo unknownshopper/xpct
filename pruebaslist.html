@@ -1816,11 +1816,10 @@
             }
         }
 
-        // Cargar primera página: primero cache, luego red si está vacío.
         try {
-            await leerPagina({ reset: true, forceNetwork: false });
+            await leerPagina({ reset: true, forceNetwork: true });
             if (!pruebas || !pruebas.length) {
-                await leerPagina({ reset: true, forceNetwork: true });
+                await leerPagina({ reset: true, forceNetwork: false });
             }
         } catch (e) {
             console.error('Fallo al cargar pruebas (inicio)', e);
