@@ -146,6 +146,7 @@ async function loadCanonicalMaps() {
   return {
     aliasMap: loadAliasesFromCsvText(aliasText),
     serialPorEquipoInv: loadSerialPorEquipoFromInventarioCsvText(invText),
+    edoPorEquipoInv: loadEdoPorEquipoFromInventarioCsvText(invText),
   };
 }
 
@@ -197,6 +198,35 @@ function loadSerialPorEquipoFromInventarioCsvText(text) {
     });
   } catch {}
   return serialPorEquipo;
+}
+
+function loadEdoPorEquipoFromInventarioCsvText(text) {
+  const edoPorEquipo = {};
+  try {
+    const lines = String(text || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
+    if (!lines.length) return edoPorEquipo;
+    const headers = parseCSVLine(lines[0]).map(h => String(h || '').trim());
+    const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+    const idxEdo = headers.indexOf('EDO');
+    if (idxEquipo < 0 || idxEdo < 0) return edoPorEquipo;
+    lines.slice(1).forEach(l => {
+      const cols = parseCSVLine(l);
+      const eq = (idxEquipo >= 0 && idxEquipo < cols.length) ? cols[idxEquipo] : '';
+      const edo = (idxEdo >= 0 && idxEdo < cols.length) ? cols[idxEdo] : '';
+      const eqK = normEquipoKey(eq);
+      let e = String(edo || '').trim().toUpperCase();
+      if (!e) e = 'ON';
+      if (!eqK) return;
+      if (!edoPorEquipo[eqK]) edoPorEquipo[eqK] = e;
+    });
+  } catch {}
+  return edoPorEquipo;
+}
+
+function equipoOperativoFromEdo(edo) {
+  const e = String(edo || '').trim().toUpperCase();
+  if (!e) return true;
+  return (e === 'ON' || e === 'ACTIVO' || e === 'WIP');
 }
 
 function resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv }) {
@@ -469,6 +499,24 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   const db = admin.firestore();
   const ultimas = await queryUltimasAnuales();
 
+  let edoPorEquipo = {};
+  try {
+    const { edoPorEquipoInv } = await getCanonicalMaps();
+    edoPorEquipo = { ...(edoPorEquipoInv || {}) };
+  } catch {}
+
+  try {
+    const snapEdo = await db.collection('inventarioEstados').get();
+    snapEdo.forEach(d => {
+      const data = d.data() || {};
+      const eqId = normEquipoKey(d.id || data.equipoId || '');
+      if (!eqId) return;
+      let edo = String(data.edo || '').trim().toUpperCase();
+      if (!edo) edo = 'ON';
+      edoPorEquipo[eqId] = edo;
+    });
+  } catch {}
+
   const { toList, bccList } = getMailRecipients();
   const mailDisabled = isMailDisabled();
   const onlyHour = getMailOnlyHour();
@@ -481,6 +529,11 @@ async function calcularYEnviar({ testMode = false, force = false }) {
 
   for (const reg of ultimas) {
     const equipoKey = reg.equipo || reg.docId;
+    try {
+      const eqK = normEquipoKey(equipoKey);
+      const edo = (edoPorEquipo && eqK) ? edoPorEquipo[eqK] : '';
+      if (edo && !equipoOperativoFromEdo(edo)) continue;
+    } catch {}
     const pruebaKey = normPruebaKey(reg.prueba || 'ANUAL');
 
     if (reg.failReason) {

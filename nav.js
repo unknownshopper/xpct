@@ -817,10 +817,75 @@ document.addEventListener('DOMContentLoaded', () => {
             return t || 'ANUAL';
         }
 
+        async function cargarEdoPorEquipoDesdeInventario() {
+            const mapa = {};
+            try {
+                const claveEstadoOverride = 'pct_invre_estado_override';
+                let overrides = {};
+                try {
+                    const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+                    const parsed = JSON.parse(crudo);
+                    if (parsed && typeof parsed === 'object') overrides = parsed;
+                } catch {}
+
+                const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' });
+                if (!resp.ok) return mapa;
+                const texto = await resp.text();
+                const lineas = String(texto || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
+                if (!lineas.length) return mapa;
+
+                const parseLine = (line) => {
+                    const out = [];
+                    let cur = '';
+                    let inside = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const ch = line[i];
+                        const next = line[i + 1];
+                        if (ch === '"') {
+                            if (inside && next === '"') { cur += '"'; i++; }
+                            else inside = !inside;
+                        } else if (ch === ',' && !inside) {
+                            out.push(cur);
+                            cur = '';
+                        } else {
+                            cur += ch;
+                        }
+                    }
+                    out.push(cur);
+                    return out;
+                };
+
+                const headers = parseLine(lineas[0]).map(h => String(h || '').trim());
+                const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+                const idxEdo = headers.indexOf('EDO');
+                if (idxEquipo < 0 || idxEdo < 0) return mapa;
+
+                for (const l of lineas.slice(1)) {
+                    const cols = parseLine(l);
+                    const eqK = (idxEquipo >= 0 && idxEquipo < cols.length) ? normEquipoKey(cols[idxEquipo]) : '';
+                    if (!eqK) continue;
+                    let edo = (idxEdo >= 0 && idxEdo < cols.length) ? String(cols[idxEdo] || '').trim().toUpperCase() : '';
+                    if (!edo) edo = 'ON';
+                    const ov = overrides && overrides[eqK] ? String(overrides[eqK] || '').trim().toUpperCase() : '';
+                    const edoEf = ov || edo;
+                    if (!mapa[eqK]) mapa[eqK] = edoEf;
+                }
+            } catch {}
+            return mapa;
+        }
+
+        function equipoOperativo(edo) {
+            const e = String(edo || '').trim().toUpperCase();
+            if (!e) return true;
+            return (e === 'ON' || e === 'ACTIVO' || e === 'WIP');
+        }
+
         try {
             const { getFirestore, collection, getDocsFromCache, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const db = getFirestore();
             const colRef = collection(db, 'pruebas');
+
+            const edoPorEquipo = await cargarEdoPorEquipoDesdeInventario();
 
             let snap = null;
             try { snap = await getDocsFromCache(colRef); } catch {}
@@ -851,6 +916,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const equipo = (data.equipo || data.activo || data['EQUIPO / ACTIVO'] || '').toString().trim();
                 if (!equipo) return;
+                try {
+                    const eqK = normEquipoKey(equipo);
+                    const edo = (edoPorEquipo && eqK) ? edoPorEquipo[eqK] : '';
+                    if (edo && !equipoOperativo(edo)) return;
+                } catch {}
                 const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
                 const key = `${normEquipoKey(equipo)}__${tipo}`;
 
