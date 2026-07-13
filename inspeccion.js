@@ -337,6 +337,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (processingEvidQueue) return;
             if (!navigator.onLine) return;
             if (!window.auth || !window.auth.currentUser) return;
+
+            // Forzar refresh de token para asegurar custom claims (role) en móvil.
+            // Esto evita permission-denied por tokens viejos cuando el usuario acaba de recibir claims.
+            try {
+                if (window.auth.currentUser && typeof window.auth.currentUser.getIdToken === 'function') {
+                    await window.auth.currentUser.getIdToken(true);
+                }
+            } catch {}
+
+            // Datos de usuario para trazabilidad: rellenar si faltaron durante el guardado offline.
+            let usuarioInspeccionEmail = '';
+            let usuarioInspeccion = '';
+            try {
+                if (window.auth && window.auth.currentUser && window.auth.currentUser.email) {
+                    usuarioInspeccionEmail = String(window.auth.currentUser.email).toLowerCase();
+                }
+            } catch {}
+            try {
+                usuarioInspeccion = resolverNombreUsuarioActual() || normalizarNombreUsuario(usuarioInspeccionEmail);
+            } catch {}
+
             const q = loadEvidQueue();
             if (!q.length) return;
             processingEvidQueue = true;
@@ -381,6 +402,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (kind === 'obs') {
                         const patch = {
                             syncStatus: 'SYNCED',
+                            usuarioInspeccion: usuarioInspeccion || '',
+                            usuarioInspeccionEmail: usuarioInspeccionEmail || '',
                         };
                         if (slot === 2) {
                             patch.observacionesFotoUrl2 = url;
@@ -398,7 +421,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (kind === 'sin_dano') {
                         // Compatibilidad: si existen evidencias antiguas en cola, permitir que sincronicen.
-                        const patch = { syncStatus: 'SYNCED' };
+                        const patch = {
+                            syncStatus: 'SYNCED',
+                            usuarioInspeccion: usuarioInspeccion || '',
+                            usuarioInspeccionEmail: usuarioInspeccionEmail || '',
+                        };
                         if (slot === 2) {
                             patch.sinDanoFotoUrl2 = url;
                             patch.sinDanoFotoPath2 = storagePath;
@@ -457,7 +484,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     params[idx] = p;
-                    await updateDoc(docRef, { parametros: params, syncStatus: 'SYNCED' });
+                    await updateDoc(docRef, {
+                        parametros: params,
+                        syncStatus: 'SYNCED',
+                        usuarioInspeccion: usuarioInspeccion || '',
+                        usuarioInspeccionEmail: usuarioInspeccionEmail || '',
+                    });
 
                     await idbDel(it._key);
                 } catch (e) {
