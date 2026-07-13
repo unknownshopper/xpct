@@ -1220,70 +1220,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
                 } catch {}
             }
-
-            async function solicitarGuardarEnIOS(blob, filename) {
-                try {
-                    if (!blob) return;
-                    const name = String(filename || '').trim() || `INSP-${Date.now()}.jpg`;
-                    const blobUrl = URL.createObjectURL(blob);
-
-                    const overlay = document.createElement('div');
-                    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.72);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px;';
-
-                    const box = document.createElement('div');
-                    box.style.cssText = 'background:#fff;border-radius:14px;max-width:520px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,0.35);overflow:hidden;';
-                    box.innerHTML = `
-                        <div style="padding:12px 14px;border-bottom:1px solid #e5e7eb;">
-                            <div style="font-weight:900;color:#0f172a;">Guardar evidencia</div>
-                            <div style="margin-top:4px;font-size:12px;color:#64748b;">Para evitar pérdida de evidencia, guarda la foto en el dispositivo.</div>
-                        </div>
-                        <div style="padding:12px 14px;">
-                            <img src="${blobUrl}" alt="Evidencia" style="width:100%;height:auto;border-radius:12px;border:1px solid #e5e7eb;" />
-                            <div style="margin-top:10px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
-                                <button type="button" data-action="cancel" style="padding:10px 12px;border-radius:10px;border:1px solid #d1d5db;background:#ffffff;font-weight:800;">Continuar</button>
-                                <button type="button" data-action="save" style="padding:10px 12px;border-radius:10px;border:0;background:#0f766e;color:#ffffff;font-weight:900;">Guardar / Compartir</button>
-                            </div>
-                            <div data-msg style="margin-top:8px;font-size:12px;color:#64748b;"></div>
-                        </div>
-                    `;
-                    overlay.appendChild(box);
-                    document.body.appendChild(overlay);
-
-                    const msg = box.querySelector('[data-msg]');
-                    const btnSave = box.querySelector('button[data-action="save"]');
-                    const btnCancel = box.querySelector('button[data-action="cancel"]');
-
-                    const close = () => {
-                        try { overlay.remove(); } catch {}
-                        try { URL.revokeObjectURL(blobUrl); } catch {}
-                    };
-
-                    if (btnCancel) btnCancel.addEventListener('click', close);
-                    overlay.addEventListener('click', (ev) => {
-                        if (ev.target === overlay) close();
-                    });
-
-                    if (btnSave) {
-                        btnSave.addEventListener('click', async () => {
-                            try {
-                                if (msg) msg.textContent = '';
-                                const file = new File([blob], name, { type: 'image/jpeg' });
-                                const canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [file] }));
-                                if (navigator.share && canShareFiles) {
-                                    await navigator.share({ files: [file], title: 'Evidencia', text: name });
-                                    if (msg) msg.textContent = 'Compartido. Selecciona “Guardar imagen” o “Guardar en Fotos”.';
-                                    return;
-                                }
-                                try { window.open(blobUrl, '_blank', 'noopener'); } catch {}
-                                if (msg) msg.textContent = 'Se abrió la foto. Mantén presionada la imagen y elige “Guardar en Fotos”.';
-                            } catch {
-                                try { window.open(blobUrl, '_blank', 'noopener'); } catch {}
-                                if (msg) msg.textContent = 'No se pudo abrir el panel de compartir. Mantén presionada la imagen para guardar.';
-                            }
-                        });
-                    }
-                } catch {}
-            }
         } catch {}
     }
 
@@ -1851,6 +1787,117 @@ document.addEventListener('DOMContentLoaded', () => {
                             } catch {}
                         } catch {}
                     };
+
+                    try {
+                        if (typeof window.__pctSolicitarGuardarEvidencia !== 'function') {
+                            window.__pctSolicitarGuardarEvidencia = async (blobOrFile, filename) => {
+                                try {
+                                    const blob = blobOrFile;
+                                    if (!blob) return;
+                                    const name = String(filename || '').trim() || `INSP-${Date.now()}.jpg`;
+                                    const blobUrl = URL.createObjectURL(blob);
+
+                                    const isIOS = (() => {
+                                        try {
+                                            const ua = String(navigator.userAgent || '');
+                                            const plat = String(navigator.platform || '');
+                                            const touch = (navigator.maxTouchPoints || 0) > 1;
+                                            const iOS1 = /iPad|iPhone|iPod/i.test(ua);
+                                            const iOS2 = (plat === 'MacIntel' && touch);
+                                            return iOS1 || iOS2;
+                                        } catch {
+                                            return false;
+                                        }
+                                    })();
+
+                                    const overlay = document.createElement('div');
+                                    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.72);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px;';
+
+                                    const box = document.createElement('div');
+                                    box.style.cssText = 'background:#fff;border-radius:14px;max-width:520px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,0.35);overflow:hidden;';
+                                    box.innerHTML = `
+                                        <div style="padding:12px 14px;border-bottom:1px solid #e5e7eb;">
+                                            <div style="font-weight:900;color:#0f172a;">Guardar evidencia</div>
+                                            <div style="margin-top:4px;font-size:12px;color:#64748b;">Para evitar pérdida de evidencia, guarda la foto en el dispositivo.</div>
+                                        </div>
+                                        <div style="padding:12px 14px;">
+                                            <img src="${blobUrl}" alt="Evidencia" style="width:100%;height:auto;border-radius:12px;border:1px solid #e5e7eb;" />
+                                            <div style="margin-top:10px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+                                                <button type="button" data-action="cancel" style="padding:10px 12px;border-radius:10px;border:1px solid #d1d5db;background:#ffffff;font-weight:800;">Continuar</button>
+                                                <button type="button" data-action="save" style="padding:10px 12px;border-radius:10px;border:0;background:#0f766e;color:#ffffff;font-weight:900;">Guardar / Compartir</button>
+                                            </div>
+                                            <div data-msg style="margin-top:8px;font-size:12px;color:#64748b;"></div>
+                                        </div>
+                                    `;
+                                    overlay.appendChild(box);
+                                    document.body.appendChild(overlay);
+
+                                    const msg = box.querySelector('[data-msg]');
+                                    const btnSave = box.querySelector('button[data-action="save"]');
+                                    const btnCancel = box.querySelector('button[data-action="cancel"]');
+
+                                    const close = () => {
+                                        try { overlay.remove(); } catch {}
+                                        try { URL.revokeObjectURL(blobUrl); } catch {}
+                                    };
+
+                                    if (btnCancel) btnCancel.addEventListener('click', close);
+                                    overlay.addEventListener('click', (ev) => {
+                                        if (ev.target === overlay) close();
+                                    });
+
+                                    const intentarDescarga = () => {
+                                        try {
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = name;
+                                            a.style.display = 'none';
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            setTimeout(() => {
+                                                try { a.remove(); } catch {}
+                                                try { URL.revokeObjectURL(url); } catch {}
+                                            }, 1200);
+                                            return true;
+                                        } catch {
+                                            return false;
+                                        }
+                                    };
+
+                                    if (btnSave) {
+                                        btnSave.addEventListener('click', async () => {
+                                            try {
+                                                if (msg) msg.textContent = '';
+                                                const file = new File([blob], name, { type: 'image/jpeg' });
+                                                const canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+                                                if (navigator.share && canShareFiles) {
+                                                    await navigator.share({ files: [file], title: 'Evidencia', text: name });
+                                                    if (msg) msg.textContent = 'Listo. En el menú selecciona “Guardar imagen” o “Guardar en Fotos”.';
+                                                    return;
+                                                }
+
+                                                if (intentarDescarga()) {
+                                                    if (msg) msg.textContent = 'Se intentó guardar como descarga. Revisa Descargas/Archivos.';
+                                                    return;
+                                                }
+
+                                                try { if (isIOS) window.open(blobUrl, '_blank', 'noopener'); } catch {}
+                                                if (msg) msg.textContent = isIOS
+                                                    ? 'Se abrió la foto. Mantén presionada la imagen y elige “Guardar en Fotos”.'
+                                                    : 'No se pudo compartir. Revisa descargas o intenta desde otro navegador.';
+                                            } catch {
+                                                try { if (isIOS) window.open(blobUrl, '_blank', 'noopener'); } catch {}
+                                                if (msg) msg.textContent = isIOS
+                                                    ? 'Mantén presionada la imagen y elige “Guardar en Fotos”.'
+                                                    : 'No se pudo guardar. Intenta desde otro navegador.';
+                                            }
+                                        });
+                                    }
+                                } catch {}
+                            };
+                        }
+                    } catch {}
 
                     const lb = document.createElement('div');
                     lb.id = 'insp-lightbox';
@@ -4411,6 +4458,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         const file = inputFoto.files && inputFoto.files[0] ? inputFoto.files[0] : null;
                         if (!file) return;
+                        try {
+                            const equipo = (() => {
+                                try {
+                                    const elEq = document.getElementById('equipo');
+                                    return elEq ? String(elEq.value || '').trim() : '';
+                                } catch { return ''; }
+                            })();
+                            const eqSafe = (equipo || 'EQUIPO').toString().trim().replace(/[^a-zA-Z0-9_-]+/g, '-');
+                            const now = new Date();
+                            const y = now.getFullYear();
+                            const mo = String(now.getMonth() + 1).padStart(2, '0');
+                            const d = String(now.getDate()).padStart(2, '0');
+                            const hh = String(now.getHours()).padStart(2, '0');
+                            const mi = String(now.getMinutes()).padStart(2, '0');
+                            const ss = String(now.getSeconds()).padStart(2, '0');
+                            const idxPart = `P${String(idx)}`;
+                            const filename = `INSP-${eqSafe}-${y}${mo}${d}-${hh}${mi}${ss}-${idxPart}.jpg`;
+                            if (typeof window.__pctSolicitarGuardarEvidencia === 'function') {
+                                window.__pctSolicitarGuardarEvidencia(file, filename);
+                            }
+                        } catch {}
                         const targetD = normDano(filaHtml.dataset.targetDano || '');
                         const isChipMode = !!(tieneChipsDano && targetD);
 
@@ -4502,6 +4570,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         const file = inputFoto2.files && inputFoto2.files[0] ? inputFoto2.files[0] : null;
                         if (!file) return;
+                        try {
+                            const equipo = (() => {
+                                try {
+                                    const elEq = document.getElementById('equipo');
+                                    return elEq ? String(elEq.value || '').trim() : '';
+                                } catch { return ''; }
+                            })();
+                            const eqSafe = (equipo || 'EQUIPO').toString().trim().replace(/[^a-zA-Z0-9_-]+/g, '-');
+                            const now = new Date();
+                            const y = now.getFullYear();
+                            const mo = String(now.getMonth() + 1).padStart(2, '0');
+                            const d = String(now.getDate()).padStart(2, '0');
+                            const hh = String(now.getHours()).padStart(2, '0');
+                            const mi = String(now.getMinutes()).padStart(2, '0');
+                            const ss = String(now.getSeconds()).padStart(2, '0');
+                            const idxPart = `P${String(idx)}`;
+                            const filename = `INSP-${eqSafe}-${y}${mo}${d}-${hh}${mi}${ss}-${idxPart}-2.jpg`;
+                            if (typeof window.__pctSolicitarGuardarEvidencia === 'function') {
+                                window.__pctSolicitarGuardarEvidencia(file, filename);
+                            }
+                        } catch {}
                         try {
                             const act = getActiveDano();
                             if (tieneChipsDano && act) {
@@ -4656,6 +4745,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch {}
             }
 
+            async function solicitarGuardarEvidencia(blob, filename) {
+                try {
+                    if (!blob) return;
+                    const name = String(filename || '').trim() || `INSP-${Date.now()}.jpg`;
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.72);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px;';
+
+                    const box = document.createElement('div');
+                    box.style.cssText = 'background:#fff;border-radius:14px;max-width:520px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,0.35);overflow:hidden;';
+                    box.innerHTML = `
+                        <div style="padding:12px 14px;border-bottom:1px solid #e5e7eb;">
+                            <div style="font-weight:900;color:#0f172a;">Guardar evidencia</div>
+                            <div style="margin-top:4px;font-size:12px;color:#64748b;">Para evitar pérdida de evidencia, guarda la foto en el dispositivo.</div>
+                        </div>
+                        <div style="padding:12px 14px;">
+                            <img src="${blobUrl}" alt="Evidencia" style="width:100%;height:auto;border-radius:12px;border:1px solid #e5e7eb;" />
+                            <div style="margin-top:10px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+                                <button type="button" data-action="cancel" style="padding:10px 12px;border-radius:10px;border:1px solid #d1d5db;background:#ffffff;font-weight:800;">Continuar</button>
+                                <button type="button" data-action="save" style="padding:10px 12px;border-radius:10px;border:0;background:#0f766e;color:#ffffff;font-weight:900;">Guardar / Compartir</button>
+                            </div>
+                            <div data-msg style="margin-top:8px;font-size:12px;color:#64748b;"></div>
+                        </div>
+                    `;
+                    overlay.appendChild(box);
+                    document.body.appendChild(overlay);
+
+                    const msg = box.querySelector('[data-msg]');
+                    const btnSave = box.querySelector('button[data-action="save"]');
+                    const btnCancel = box.querySelector('button[data-action="cancel"]');
+
+                    const close = () => {
+                        try { overlay.remove(); } catch {}
+                        try { URL.revokeObjectURL(blobUrl); } catch {}
+                    };
+
+                    if (btnCancel) btnCancel.addEventListener('click', close);
+                    overlay.addEventListener('click', (ev) => {
+                        if (ev.target === overlay) close();
+                    });
+
+                    if (btnSave) {
+                        btnSave.addEventListener('click', async () => {
+                            try {
+                                if (msg) msg.textContent = '';
+                                const file = new File([blob], name, { type: 'image/jpeg' });
+                                const canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+                                if (navigator.share && canShareFiles) {
+                                    await navigator.share({ files: [file], title: 'Evidencia', text: name });
+                                    if (msg) msg.textContent = 'Listo. En el menú selecciona “Guardar imagen” o “Guardar en Fotos”.';
+                                    return;
+                                }
+
+                                try {
+                                    intentarGuardarEnDispositivo(blob, name);
+                                    if (msg) msg.textContent = 'Se intentó guardar como descarga. Revisa Descargas/Archivos.';
+                                    return;
+                                } catch {}
+
+                                try { if (isIOS) window.open(blobUrl, '_blank', 'noopener'); } catch {}
+                                if (msg) msg.textContent = isIOS
+                                    ? 'Se abrió la foto. Mantén presionada la imagen y elige “Guardar en Fotos”.'
+                                    : 'No se pudo compartir. Revisa descargas o intenta desde otro navegador.';
+                            } catch {
+                                try { if (isIOS) window.open(blobUrl, '_blank', 'noopener'); } catch {}
+                                if (msg) msg.textContent = isIOS
+                                    ? 'Mantén presionada la imagen y elige “Guardar en Fotos”.'
+                                    : 'No se pudo guardar. Intenta desde otro navegador.';
+                            }
+                        });
+                    }
+                } catch {}
+            }
+
             async function normalizarYComprimirImagen(fileOrBlob) {
                 try {
                     const f = fileOrBlob;
@@ -4693,8 +4857,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const finalBlob = b || fileOrBlob;
                             const name = nombreArchivoAutoSave();
                             try {
-                                if (isIOS) solicitarGuardarEnIOS(finalBlob, name);
-                                else intentarGuardarEnDispositivo(finalBlob, name);
+                                solicitarGuardarEvidencia(finalBlob, name);
                             } catch {}
                             try { onCapture(finalBlob); } catch {}
                         } catch {
