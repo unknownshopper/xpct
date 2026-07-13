@@ -974,7 +974,11 @@
             return map[key] || key;
         }
 
+        let cargarDatosRunId = 0;
+
         async function cargarDatos() {
+            const runId = ++cargarDatosRunId;
+            const stale = () => runId !== cargarDatosRunId;
             tbody.innerHTML = '';
             msg.style.display = 'none';
             if (tbodyRealizadas) tbodyRealizadas.innerHTML = '';
@@ -998,6 +1002,7 @@
             try {
                 await asegurarSerialesInventario();
             } catch {}
+            if (stale()) return;
 
             // 0) Render de pendientes de sincronización local (este dispositivo)
             try {
@@ -1068,6 +1073,8 @@
                     inspecciones = [];
                 }
             }
+
+            if (stale()) return;
 
             // Mezclar siempre inspecciones locales (por ejemplo capturadas offline) con las de Firestore.
             // Esto evita que el inspector "pierda" el registro de lo realizado hoy si aún no sincroniza.
@@ -1376,6 +1383,8 @@
                     inspeccionesHuerfanas = inspecciones.filter(reg => !!reg);
                 }
             }
+
+            if (stale()) return;
  // Si no se permite leer actividades (ej. supervisor), construir el listado solo con inspecciones.
             // En este modo no es posible mostrar "pendientes" porque depende de la lista de actividades.
             if (!actividadesPermitidas && inspecciones.length) {
@@ -1703,6 +1712,14 @@
                         const insp = act.id ? inspeccionPorActividad.get(act.id) : null;
                         const tieneInsp = !!insp;
                         if (tieneInsp) return false;
+
+                        // Si la actividad ya fue cerrada (terminación final), no debe aparecer como pendiente de inspección.
+                        try {
+                            const fin = (act && act.terminacionServicio != null) ? String(act.terminacionServicio).trim() : '';
+                            const esFinal = !!(act && act.terminacionEsFinal);
+                            if (fin && esFinal) return false;
+                        } catch {}
+
                         return true;
                     }).map(act => ({ act, insp: null, _kind: 'act' }));
                 }
