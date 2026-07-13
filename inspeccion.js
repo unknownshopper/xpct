@@ -1706,7 +1706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             if (!candidatos.length) return;
 
-                            const { getStorage, ref: stRef, getBytes } = await import(
+                            const { getStorage, ref: stRef, getBytes, getDownloadURL } = await import(
                                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
                             );
                             const storage = getStorage();
@@ -1714,10 +1714,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             let bytes = null;
                             let lastErrCode = '';
                             let lastPath = '';
+                            let urlDirecta = '';
                             for (const pth of candidatos) {
                                 try {
                                     lastPath = pth;
-                                    bytes = await getBytes(stRef(storage, pth));
+                                    // iPad/iPhone pueden subir fotos grandes; getBytes por default limita a 10MB.
+                                    // Subimos el límite para permitir thumbnails típicas (sin romper memoria).
+                                    bytes = await getBytes(stRef(storage, pth), 25 * 1024 * 1024);
                                     if (bytes) break;
                                 } catch (e) {
                                     const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
@@ -1725,15 +1728,26 @@ document.addEventListener('DOMContentLoaded', () => {
                                     try {
                                         console.warn('No se pudo cargar evidencia (getBytes)', { path: pth, code });
                                     } catch {}
+
+                                    // Fallback: si getBytes falla (tamaño / reglas / etc), intentar URL firmada
+                                    try {
+                                        const u = await getDownloadURL(stRef(storage, pth));
+                                        if (u) {
+                                            urlDirecta = u;
+                                            break;
+                                        }
+                                    } catch {}
                                 }
                             }
-                            if (!bytes) return;
 
-                            const blob = new Blob([bytes], { type: 'image/jpeg' });
-                            const blobUrl = URL.createObjectURL(blob);
-                            imgEl.src = blobUrl;
-                            imgEl.setAttribute('data-full', blobUrl);
-                            imgEl.dataset.pctBlobOk = '1';
+                            if (!bytes && !urlDirecta) return;
+
+                            const finalUrl = bytes
+                                ? URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }))
+                                : urlDirecta;
+                            imgEl.src = finalUrl;
+                            imgEl.setAttribute('data-full', finalUrl);
+                            imgEl.dataset.pctBlobOk = bytes ? '1' : '0';
                             try {
                                 const fb = imgEl.parentElement && imgEl.parentElement.querySelector('.insp-evid-fallback');
                                 if (fb) fb.style.display = 'none';
