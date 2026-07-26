@@ -2634,34 +2634,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
 
-    // Cargar catálogo de daños (solo para diagnóstico de cobertura inicialmente)
-    fetch('docs/danos.csv')
-        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar danos.csv')))
-        .then(txt => {
-            const lineas = txt.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (lineas.length <= 1) return;
-            const header = parseCSVLine(lineas[0]).map(h => (h || '').toLowerCase().trim());
-            const idxParam = header.indexOf('parametro');
-            const idxOpc = header.indexOf('opciones');
-            if (idxParam < 0 || idxOpc < 0) return;
+    // Cargar catálogo de daños desde Firestore (sin depender de CSV en runtime)
+    (async () => {
+        try {
+            const db = getFirestore();
+            const snap = await getDocs(collection(db, 'catalogo_danos'));
+
             const normalize = (s) => (s || '')
                 .toLowerCase()
                 .normalize('NFD')
                 .replace(/[\u0300-\u036f]/g, '')
                 .trim();
-            mapaDanos = lineas.slice(1)
-                .map(l => parseCSVLine(l))
-                .map(cols => {
-                    const m = normalize(cols[idxParam] || '');
-                    const opciones = String(cols[idxOpc] || '')
-                        .split('|').map(x => x.trim()).filter(Boolean);
-                    return m ? { match: m, opciones } : null;
-                })
-                .filter(Boolean);
-        })
-        .catch(err => {
-            console.warn('No se pudo cargar docs/danos.csv para diagnóstico', err);
-        });
+
+            const out = [];
+            snap.forEach(docSnap => {
+                const data = docSnap.data() || {};
+                const parametro = String(data.parametro || data.parametroKey || docSnap.id || '').trim();
+                if (!parametro) return;
+                const opciones = Array.isArray(data.opciones)
+                    ? data.opciones.map(x => String(x || '').trim()).filter(Boolean)
+                    : String(data.opciones || '').split('|').map(x => x.trim()).filter(Boolean);
+                const m = normalize(parametro);
+                if (!m) return;
+                out.push({ match: m, opciones });
+            });
+
+            mapaDanos = out;
+        } catch (err) {
+            console.warn('No se pudo cargar catalogo_danos', err);
+            mapaDanos = [];
+        }
+    })();
 
     // Cargar overrides por equipo desde Firestore (sin depender de CSV en runtime)
     (async () => {
