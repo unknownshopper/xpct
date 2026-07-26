@@ -110,6 +110,10 @@
                     <div class="dash-card-label">Inspecciones realizadas (histórico)</div>
                     <div class="dash-card-value" id="insp-card-realizadas">0</div>
                 </div>
+                <div class="dash-card" id="insp-card-wrap-no-atendidas" style="display:none;">
+                    <div class="dash-card-label">No atendidas (daño / MALO)</div>
+                    <div class="dash-card-value" id="insp-card-no-atendidas">0</div>
+                </div>
             </section>
 
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-sync-local" style="margin-bottom:0.75rem;">
@@ -138,6 +142,36 @@
                 <p id="mensaje-sync-local" style="font-size:0.85rem; color:#4b5563; margin-top:0.5rem; display:none;"></p>
                 <p id="mensaje-sin-sync-local" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay inspecciones pendientes de sincronizar en este dispositivo.
+                </p>
+                </div>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-no-atendidas" style="margin-top:0.75rem; display:none;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
+                    <h3 style="margin:0; font-size:1rem;">No atendidas (equipos con daño)</h3>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                        <button type="button" id="btn-insp-email-no-atendidas" style="display:none; font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Enviar correo</button>
+                        <button type="button" class="insp-sec-toggle" data-target="insp-no-atendidas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                    </div>
+                </div>
+                <div id="insp-no-atendidas-body">
+                <table id="tabla-inspecciones-no-atendidas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#fef2f2;">
+                            <th style="text-align:left; padding:0.4rem;">Última inspección</th>
+                            <th style="text-align:left; padding:0.4rem;">Días sin atención</th>
+                            <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Serial</th>
+                            <th style="text-align:left; padding:0.4rem;">Tipo</th>
+                            <th style="text-align:left; padding:0.4rem;">Usuario</th>
+                            <th style="text-align:left; padding:0.4rem;">Observaciones</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-inspecciones-no-atendidas"></tbody>
+                </table>
+                <p id="mensaje-sin-no-atendidas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                    No hay equipos con daño pendientes de atender.
                 </p>
                 </div>
             </div>
@@ -238,7 +272,10 @@
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-realizadas" style="margin-top:0.75rem; display:none;">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
                     <h3 style="margin:0; font-size:1rem;">Inspecciones realizadas</h3>
-                    <button type="button" class="insp-sec-toggle" data-target="insp-realizadas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <input type="search" id="insp-buscar-realizadas" placeholder="Buscar en realizadas..." style="min-width: 220px;" autocomplete="off">
+                        <button type="button" class="insp-sec-toggle" data-target="insp-realizadas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                    </div>
                 </div>
                 <div id="insp-realizadas-body">
                 <table id="tabla-inspecciones-realizadas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
@@ -344,7 +381,11 @@
         const btnSyncClear = document.getElementById('btn-insp-sync-clear');
         const secHuerfanas = document.getElementById('insp-seccion-huerfanas');
         const secRealizadas = document.getElementById('insp-seccion-realizadas');
+        const secNoAtendidas = document.getElementById('insp-seccion-no-atendidas');
+        const tbodyNoAtendidas = document.getElementById('tbody-inspecciones-no-atendidas');
+        const msgNoAtendidas = document.getElementById('mensaje-sin-no-atendidas');
         const inputBuscar = document.getElementById('insp-buscar');
+        const inputBuscarRealizadas = document.getElementById('insp-buscar-realizadas');
         const lblCont = document.getElementById('insp-contador');
         const chkTodos = document.getElementById('insp-select-todos');
         const chkTodosHuerfanas = document.getElementById('insp-select-todos-huerfanas');
@@ -352,12 +393,15 @@
         const secAccionesPdf = document.getElementById('insp-acciones-pdf');
         const btnPdfIndividual = document.getElementById('btn-insp-pdf-individual');
         const btnPdfLote = document.getElementById('btn-insp-pdf-lote');
+        const btnEmailNoAtendidas = document.getElementById('btn-insp-email-no-atendidas');
         const cardPendientes = document.getElementById('insp-card-pendientes');
         const cardRealizadas = document.getElementById('insp-card-realizadas');
+        const cardNoAtendidas = document.getElementById('insp-card-no-atendidas');
         const filtroIndicador = document.getElementById('insp-filtro-indicador');
         const btnResetFiltro = document.getElementById('insp-btn-reset-filtro');
         const cardWrapPend = document.getElementById('insp-card-wrap-pendientes');
         const cardWrapReal = document.getElementById('insp-card-wrap-realizadas');
+        const cardWrapNoAtendidas = document.getElementById('insp-card-wrap-no-atendidas');
         const thEvaluacion = document.getElementById('insp-th-evaluacion');
         const thFechaReal = document.getElementById('insp-th-fecha-real');
         const thFechaRealHuerfana = document.getElementById('insp-th-fecha-real-huerfana');
@@ -907,6 +951,74 @@
         let equipoPorKey = new Map();
         let inventarioSerialesPromise = null;
 
+        function msToDiasSinAtencion(ms) {
+            try {
+                if (!ms || isNaN(ms)) return '';
+                const d0 = new Date(ms);
+                if (isNaN(d0.getTime())) return '';
+                d0.setHours(0, 0, 0, 0);
+                const hoy = new Date();
+                hoy.setHours(0, 0, 0, 0);
+                const diff = Math.floor((hoy.getTime() - d0.getTime()) / 86400000);
+                if (diff < 0) return '0';
+                return String(diff);
+            } catch {
+                return '';
+            }
+        }
+
+        async function enviarCorreoNoAtendidas() {
+            try {
+                if (!btnEmailNoAtendidas) return;
+                const user = window.auth && window.auth.currentUser ? window.auth.currentUser : null;
+                if (!user) return;
+                const allowed = !!(window.isSgi || window.isAdmin || window.isDirector);
+                if (!allowed) {
+                    alert('No tienes permisos para enviar este correo.');
+                    return;
+                }
+
+                btnEmailNoAtendidas.disabled = true;
+                const prevTxt = btnEmailNoAtendidas.textContent;
+                btnEmailNoAtendidas.textContent = 'Enviando...';
+
+                const token = await user.getIdToken();
+                const projectId = (window.firebaseConfig && window.firebaseConfig.projectId)
+                    ? String(window.firebaseConfig.projectId)
+                    : (window.firebaseApp && window.firebaseApp.options && window.firebaseApp.options.projectId)
+                        ? String(window.firebaseApp.options.projectId)
+                        : '';
+                if (!projectId) throw new Error('projectId_missing');
+
+                const base = `https://us-central1-${projectId}.cloudfunctions.net`;
+                const r = await fetch(`${base}/sendNoAtendidasEmail`, {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        'authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ source: 'inspectlist' }),
+                });
+
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data || data.ok !== true) {
+                    const msg = (data && data.error) ? String(data.error) : `HTTP ${r.status}`;
+                    throw new Error(msg);
+                }
+                alert(`Correo enviado. Equipos: ${data.count || 0}`);
+                btnEmailNoAtendidas.textContent = prevTxt;
+                btnEmailNoAtendidas.disabled = false;
+            } catch (e) {
+                try {
+                    if (btnEmailNoAtendidas) {
+                        btnEmailNoAtendidas.disabled = false;
+                        btnEmailNoAtendidas.textContent = 'Enviar correo';
+                    }
+                } catch {}
+                alert(`No se pudo enviar el correo: ${e && e.message ? e.message : e}`);
+            }
+        }
+
         async function asegurarSerialesInventario() {
             if (inventarioSerialesPromise) return inventarioSerialesPromise;
             inventarioSerialesPromise = (async () => {
@@ -993,10 +1105,24 @@
             if (chkTodosRealizadas) chkTodosRealizadas.checked = false;
             if (cardPendientes) cardPendientes.textContent = '0';
             if (cardRealizadas) cardRealizadas.textContent = '0';
+            if (cardNoAtendidas) cardNoAtendidas.textContent = '0';
+
+            if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+            if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
+            if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
+            if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = 'none';
 
             actualizarIndicadoresSort();
 
-            let filtro = (inputBuscar?.value || '').toLowerCase().trim();
+            const normFiltro = (v) => (v || '')
+                .toString()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            let filtro = normFiltro(inputBuscar?.value || '');
+            let filtroRealizadas = normFiltro(inputBuscarRealizadas?.value || '');
 
             // Para mostrar serial en pendientes, necesitamos el mapa de inventario
             try {
@@ -1522,7 +1648,7 @@
                             const puedeAccion = puedeInspeccionar && edoInspeccionable(edo);
                             const btnInspeccionar = puedeAccion
                                 ? `<button type="button" class="insp-btn-ir-inspeccion" data-equipo="${String(eqDisp).replace(/"/g, '&quot;')}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Inspeccionar</button>`
-                                : '—';
+                                : '-';
                             const tr = document.createElement('tr');
                             tr.className = 'insp-fila-pendiente insp-fila-inventario';
                             tr.innerHTML = `
@@ -1533,13 +1659,13 @@
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${eqDisp}</td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${sr || ''}</td>
-                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">En inventario${edo ? ` (EDO: ${edo})` : ''} · Sin actividad</td>
-                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
-                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">—</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${btnInspeccionar}</td>
                             `;
                             if (puedeAccion) {
@@ -1656,7 +1782,28 @@
                 } catch {}
             }
 
-            function renderBloque(esRealizadas, tbodyTarget) {
+            const resumenEquipoCache = new Map();
+            async function getResumenEquipo(eqId) {
+                const k = String(eqId || '').trim();
+                if (!k) return null;
+                if (resumenEquipoCache.has(k)) return resumenEquipoCache.get(k);
+                try {
+                    const { getFirestore, doc, getDoc } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+                    const db = getFirestore();
+                    const ref = doc(db, 'resumenes_equipos', k);
+                    const snap = await getDoc(ref);
+                    const data = (snap && snap.exists && snap.exists()) ? (snap.data() || null) : null;
+                    resumenEquipoCache.set(k, data);
+                    return data;
+                } catch {
+                    resumenEquipoCache.set(k, null);
+                    return null;
+                }
+            }
+
+            async function renderBloque(esRealizadas, tbodyTarget) {
                 let clienteActualKey = '';
                 let clienteActualLabel = '';
                 let areaActual = '';
@@ -1737,6 +1884,26 @@
                     });
                 }
 
+                // Prefetch de resúmenes por equipo para evitar N lecturas durante render
+                try {
+                    const uniq = new Set();
+                    subset.forEach(item => {
+                        const act = item && item.act ? item.act : null;
+                        const insp = item && item.insp ? item.insp : null;
+                        const equipo = insp?.equipo || (act ? act.equipo : '') || '';
+                        const eqId = String(equipo || '').trim();
+                        if (eqId) uniq.add(eqId);
+                    });
+                    const ids = Array.from(uniq.values());
+                    const maxParallel = 25;
+                    let i = 0;
+                    while (i < ids.length) {
+                        const chunk = ids.slice(i, i + maxParallel);
+                        await Promise.all(chunk.map(id => getResumenEquipo(id)));
+                        i += maxParallel;
+                    }
+                } catch {}
+
                 subset.forEach(item => {
                     const act = item && item.act ? item.act : null;
                     const insp = item && item.insp ? item.insp : null;
@@ -1760,9 +1927,13 @@
                     const clienteRaw = insp?.cliente || (act ? act.cliente : '') || '';
                     const cliente = canonCliente(clienteRaw);
                     const area = insp?.areaCliente || (act ? act.areaCliente : '') || '';
-                    let lugar = insp?.ubicacion || (act ? act.ubicacion : '') || '';
+                    let lugar = insp?.ubicacionGps || insp?.ubicacion || (act ? act.ubicacion : '') || '';
                     if (String(lugar || '').trim().toUpperCase() === 'SIN GPS') lugar = '';
                     const equipo = insp?.equipo || (act ? act.equipo : '') || '';
+                    const resumenEq = resumenEquipoCache.get(String(equipo || '').trim()) || null;
+                    const bloqueado = !!(resumenEq && resumenEq.aptoOperacion === false);
+                    const motivoBloqueo = bloqueado ? String(resumenEq.motivoBloqueo || '').trim() : '';
+                    const ltOk = !!(resumenEq && resumenEq.pruebas && resumenEq.pruebas.ltVigenteEfectivo === true);
                     const actTipoUp = (act && act.tipo ? String(act.tipo) : '').toString().trim().toUpperCase();
                     const equipoUp = (String(equipo || '').trim().toUpperCase());
                     const invKeyEq = normKeyCompact(equipo);
@@ -1816,14 +1987,15 @@
 
                     const thumbMalo = insp ? buildThumbMalo(insp) : '';
 
-                    const textoBuscar = `${cliente} ${area} ${equipoRender} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp} ${fechaBuscar}`.toLowerCase();
-                    if (filtro) {
+                    const textoBuscar = normFiltro(`${cliente} ${area} ${equipoRender} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp} ${fechaBuscar}`);
+                    const fUse = esRealizadas ? (filtroRealizadas || filtro) : filtro;
+                    if (fUse) {
                         if (esFiltroEquipoExacto(filtro)) {
                             const fk = normEqCompact(filtro);
                             const k1 = normEqCompact(equipoRender);
                             const k2 = normEqCompact(equipo);
                             if (!fk || (k1 !== fk && k2 !== fk)) return;
-                        } else if (!textoBuscar.includes(filtro)) {
+                        } else if (!textoBuscar.includes(fUse)) {
                             return;
                         }
                     }
@@ -1944,6 +2116,9 @@
                     const ultimaRecepcion = formatearUltimaRecepcion(act);
                     const fechaRealCol = esRealizadas ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>` : '';
                     const ultimaRecepCol = esRealizadas ? '' : `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${ultimaRecepcion}</td>`;
+                    const evaluacionPend = bloqueado
+                        ? `Pendiente - BLOQUEADO${motivoBloqueo ? ` (${motivoBloqueo})` : ''}`
+                        : (!ltOk ? 'Pendiente - LT/ANUAL VENCIDA' : 'Pendiente');
                     tr.innerHTML = `
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
                             <input type="checkbox" class="insp-select-fila" data-actividad-id="${act && act.id ? act.id : ''}" data-cliente="${cliente}" data-area="${area}">
@@ -1956,7 +2131,7 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInspHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
                         ${ultimaRecepCol}
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? (evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto) : 'Pendiente'}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? (evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto) : evaluacionPend}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}${thumbMalo}</td>
@@ -2017,11 +2192,148 @@
             }
 
             // Primero bloque de pendientes
-            renderBloque(false, tbody);
+            await renderBloque(false, tbody);
 
             if (tbodyRealizadas) {
-                renderBloque(true, tbodyRealizadas);
+                await renderBloque(true, tbodyRealizadas);
             }
+
+            // Render de "No atendidas": equipos cuyo último registro de inspección es NO operativo.
+            try {
+                if (secNoAtendidas && tbodyNoAtendidas) {
+                    const byEq = new Map();
+                    (inspecciones || []).forEach(insp => {
+                        try {
+                            if (!insp) return;
+                            const eq = (insp.equipo || '').toString().trim();
+                            if (!eq) return;
+                            const k = normEqCompact(eq);
+                            if (!k) return;
+                            const ms = toMs(insp.fecha || insp.creadoEn) ?? 0;
+                            const prev = byEq.get(k);
+                            const prevMs = prev ? (toMs(prev.fecha || prev.creadoEn) ?? 0) : 0;
+                            if (!prev || ms >= prevMs) {
+                                byEq.set(k, insp);
+                            }
+                        } catch {}
+                    });
+
+                    const noAt = Array.from(byEq.values()).filter(insp => {
+                        try {
+                            const params = Array.isArray(insp?.parametros) ? insp.parametros : [];
+                            if (!params.length) return false;
+                            const hayFallo = params.some(p => {
+                                const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
+                                return est === 'MALO' || est === 'NO LEGIBLE';
+                            });
+                            return hayFallo;
+                        } catch {
+                            return false;
+                        }
+                    }).sort((a, b) => {
+                        const msA = toMs(a?.fecha || a?.creadoEn) ?? 0;
+                        const msB = toMs(b?.fecha || b?.creadoEn) ?? 0;
+                        return (msB - msA);
+                    });
+
+                    if (cardNoAtendidas) cardNoAtendidas.textContent = String(noAt.length);
+                    if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = noAt.length ? '' : 'none';
+
+                    if (!noAt.length) {
+                        secNoAtendidas.style.display = '';
+                        if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
+                        if (msgNoAtendidas) msgNoAtendidas.style.display = '';
+                    } else {
+                        secNoAtendidas.style.display = '';
+                        if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
+                        tbodyNoAtendidas.innerHTML = '';
+                        noAt.forEach(insp => {
+                            const eq = (insp?.equipo || '').toString().trim();
+                            const equipoUp = (String(eq || '').trim().toUpperCase());
+                            const invKeyEq = normKeyCompact(eq);
+                            const inventarioListo = !!(equipoPorKey && typeof equipoPorKey.size === 'number' && equipoPorKey.size > 0);
+                            const keysInventario = (() => {
+                                const keys = [];
+                                if (invKeyEq) keys.push(invKeyEq);
+                                try {
+                                    const m = (equipoUp || '').match(/^PCT\s*[- ]?\s*([A-Z]{2,4})\s*[- ]?\s*(\d{1,3})\s*$/);
+                                    if (m) {
+                                        const pref = String(m[1] || '').trim().toUpperCase();
+                                        const numRaw = String(m[2] || '').trim();
+                                        const n = String(parseInt(numRaw, 10));
+                                        if (n && n !== 'NaN') {
+                                            const k2 = `PCT${pref}${n.padStart(2, '0')}`;
+                                            const k3 = `PCT${pref}${n.padStart(3, '0')}`;
+                                            keys.push(k2, k3);
+                                        }
+                                    }
+                                } catch {}
+                                return Array.from(new Set(keys));
+                            })();
+                            const invKeyCanon = (inventarioListo ? (keysInventario.find(k => equipoPorKey.has(k)) || '') : '') || invKeyEq;
+                            const equipoCanon = (inventarioListo && invKeyCanon && equipoPorKey.has(invKeyCanon)) ? String(equipoPorKey.get(invKeyCanon) || '').trim() : '';
+                            const equipoRender = equipoCanon || eq;
+                            const serial = insp?.serial || (invKeyCanon ? (serialPorEquipo.get(invKeyCanon) || '') : '') || '';
+                            const tipoInsp = (insp?.tipoInspeccion || '').toString().trim();
+                            const obs = (insp?.observaciones || '').toString();
+                            const fechaTxt = formatearFechaRegistro(insp?.fecha || insp?.creadoEn);
+                            const diasSinAt = msToDiasSinAtencion(toMs(insp?.fecha || insp?.creadoEn) ?? 0);
+                            const usuarioNoAt = (insp?.usuarioInspeccion || insp?.usuarioInspeccionEmail || '').toString().trim();
+                            const inspId = (insp?.id || '').toString().trim();
+                            const thumbMalo = buildThumbMalo(insp);
+
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${escAttr(fechaTxt)}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#991b1b;">${escAttr(diasSinAt)}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(equipoRender)}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(serial)}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(tipoInsp)}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(usuarioNoAt)}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(obs)}${thumbMalo}</td>
+                                <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                                    <a class="btn" href="inspeccion.html?equipo=${encodeURIComponent(equipoRender)}&tipo=REINSPECCION" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; text-decoration:none; margin-right:0.25rem;">Reinspección</a>
+                                    ${inspId ? `<a class="btn" href="inspeccion.html?view=1&inspId=${encodeURIComponent(inspId)}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; text-decoration:none;">Ver última</a>` : ''}
+                                </td>
+                            `;
+                            tbodyNoAtendidas.appendChild(tr);
+                        });
+
+                        setTimeout(() => {
+                            try {
+                                tbodyNoAtendidas.querySelectorAll('img.insp-thumb-malo').forEach(img => {
+                                    if (img.dataset.boundClick === '1') return;
+                                    img.dataset.boundClick = '1';
+                                    img.addEventListener('click', (ev) => {
+                                        try { ev.stopPropagation(); } catch {}
+                                        const u = String(img.getAttribute('data-src') || img.getAttribute('src') || '').trim();
+                                        if (u) window.open(u, '_blank');
+                                    });
+                                });
+                            } catch {}
+                            resolverThumbsMalo();
+                        }, 0);
+                    }
+                }
+            } catch (e) {
+                try {
+                    if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                    if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = 'none';
+                } catch {}
+                console.warn('No se pudo renderizar No atendidas', e);
+            }
+
+            // Botón de correo "No atendidas": visible solo para SGI/admin/director
+            try {
+                if (btnEmailNoAtendidas) {
+                    const allowed = !!(window.isSgi || window.isAdmin || window.isDirector);
+                    btnEmailNoAtendidas.style.display = allowed ? '' : 'none';
+                    if (!btnEmailNoAtendidas.dataset.boundClick) {
+                        btnEmailNoAtendidas.dataset.boundClick = '1';
+                        btnEmailNoAtendidas.addEventListener('click', () => { enviarCorreoNoAtendidas(); });
+                    }
+                }
+            } catch {}
 
             // Si un filtro deja la vista vacía, mostrar estatus basado en actividades/inspecciones
             renderNoResultadosConStatus();
@@ -3155,6 +3467,12 @@
 
         if (inputBuscar) {
             inputBuscar.addEventListener('input', () => {
+                cargarDatos();
+            });
+        }
+
+        if (inputBuscarRealizadas) {
+            inputBuscarRealizadas.addEventListener('input', () => {
                 cargarDatos();
             });
         }

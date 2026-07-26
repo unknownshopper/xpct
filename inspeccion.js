@@ -32,10 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // Permitir deep-link desde inspectlist con ?equipo=...
+    // Permitir deep-link desde inspectlist con ?equipo=... y/o ?tipo=...
     try {
         const paramsEq = new URLSearchParams(window.location.search || '');
         const eqUrl = (paramsEq.get('equipo') || '').toString().trim();
+        const tipoUrl = (paramsEq.get('tipo') || '').toString().trim();
         if (inputEquipo) {
             if (eqUrl) {
                 inputEquipo.value = eqUrl;
@@ -43,6 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputEquipo.value = `TERCERO ${terceroEquipoUrl}`;
             }
             try { inputEquipo.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+        }
+        if (tipoInspeccionSelect && tipoUrl) {
+            tipoInspeccionSelect.value = tipoUrl.toString().trim().toUpperCase();
+            try { tipoInspeccionSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
         }
     } catch {}
 
@@ -2423,17 +2428,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Cargar inventario de equipos
-    fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
-            }
-            return response.text();
-        })
-        .then(texto => {
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (lineas.length === 0) return;
+    // Cargar inventario de equipos desde Firestore (sin CSV en runtime)
+    (async () => {
+        try {
+            const { getFirestore, collection, getDocs } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
 
             const cleanStr = (v) => {
                 try {
@@ -2446,23 +2447,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            headers = parseCSVLine(lineas[0]);
+            headers = [
+                'EQUIPO / ACTIVO',
+                'PRODUCTO',
+                'SERIAL',
+                'DESCRIPCION',
+                'DIAMETRO 1',
+                'TIPO 1',
+                'CONEXIÓN 1',
+                'CONEXIÓN 2',
+                'CONEXIÓN 3',
+                'PRESION 1',
+                'X 1',
+                'SERVICIO',
+                'A / L',
+                'TEMP',
+                'TIPO EQUIPO',
+                'ACERO',
+                'REPORTE P/P',
+                'EDO'
+            ];
             const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+            const idxProducto = headers.indexOf('PRODUCTO');
             const idxDescripcion = headers.indexOf('DESCRIPCION');
             const idxEdo = headers.indexOf('EDO');
             const idxSerial = getIdxSerial(headers);
+            const idxReporte = headers.indexOf('REPORTE P/P');
+            const idxAcero = headers.indexOf('ACERO');
+            const idxDiam1 = headers.indexOf('DIAMETRO 1');
+            const idxTipo1 = headers.indexOf('TIPO 1');
+            const idxCon1 = headers.indexOf('CONEXIÓN 1');
+            const idxPres1 = headers.indexOf('PRESION 1');
+            const idxX1 = headers.indexOf('X 1');
+            const idxServicio = headers.indexOf('SERVICIO');
+            const idxAL = headers.indexOf('A / L');
+            const idxTemp = headers.indexOf('TEMP');
+            const idxTipoEquipo = headers.indexOf('TIPO EQUIPO');
 
-            equipos = lineas.slice(1).map(linea => {
-                const cols = parseCSVLine(linea);
-                // Asegurar que todas las filas tengan el mismo número de columnas que el header.
-                // Evita que índices como SERIAL queden fuera de rango cuando la fila termina "corta".
-                if (cols.length < headers.length) {
-                    cols.length = headers.length;
-                    for (let i = 0; i < cols.length; i++) {
-                        if (typeof cols[i] === 'undefined') cols[i] = '';
-                    }
-                }
-                return cols;
+            equipos = [];
+            const snapEquipos = await getDocs(collection(db, 'equipos'));
+            snapEquipos.forEach(docSnap => {
+                const data = docSnap.data() || {};
+                const equipoId = String(docSnap.id || data.equipoKey || data.equipoDisplay || '').trim();
+                if (!equipoId) return;
+                const producto = String(data.producto || '').trim();
+                const descripcion = String(data.descripcion || '').trim();
+                const serial = String(data.serial || '').trim();
+                const reporte = String(data.reportePP || '').trim();
+                const acero = String(data.acero || '').trim();
+                const diametro1 = String(data.diametro1 || '').trim();
+                const tipo1 = String(data.tipo1 || '').trim();
+                const conexion1 = String(data.conexion1 || '').trim();
+                const presion1 = String(data.presion1 || '').trim();
+                const x1 = String(data.x1 || '').trim();
+                const servicio = String(data.servicio || '').trim();
+                const al = String(data.al || '').trim();
+                const temp = String(data.temp || '').trim();
+                const tipoEquipo = String(data.tipoEquipo || '').trim();
+
+                const cols = new Array(headers.length).fill('');
+                cols[idxEquipo] = equipoId;
+                cols[idxProducto] = producto;
+                cols[idxDescripcion] = descripcion;
+                cols[idxSerial] = serial;
+                cols[idxReporte] = reporte;
+                cols[idxAcero] = acero;
+                cols[idxDiam1] = diametro1;
+                cols[idxTipo1] = tipo1;
+                cols[idxCon1] = conexion1;
+                cols[idxPres1] = presion1;
+                cols[idxX1] = x1;
+                cols[idxServicio] = servicio;
+                cols[idxAL] = al;
+                cols[idxTemp] = temp;
+                cols[idxTipoEquipo] = tipoEquipo;
+                cols[idxEdo] = 'ON';
+                equipos.push(cols);
             });
 
             try {
@@ -2472,6 +2532,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Poblar datalist (usar overrides de estado; solo equipos con estado efectivo ON)
             equiposActivos = [];
+            try {
+                if (datalistEquipos) datalistEquipos.innerHTML = '';
+            } catch {}
             equipos.forEach(cols => {
                 const equipoId = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
                 const equipoIdKey = normKey(equipoId);
@@ -2509,7 +2572,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inventarioCargado = true;
             // Intentar inicializar desde actividadId si aplica
             inicializarDesdeActividadUrl();
-            // Si el usuario ya seleccionó/escribió un equipo antes de terminar de cargar el CSV,
+            // Si el usuario ya seleccionó/escribió un equipo antes de terminar de cargar,
             // refrescar la ficha y parámetros ahora que el inventario ya está listo.
             try {
                 if (inputEquipo && inputEquipo.value && inputEquipo.value.trim()) {
@@ -2520,45 +2583,35 @@ document.addEventListener('DOMContentLoaded', () => {
             aplicarInspeccionExistenteAutoPdf();
             // Solo lectura (si viene view=1)
             aplicarInspeccionExistenteSoloLectura();
-        })
-        .catch(err => {
+        } catch (err) {
             console.error(err);
             alert('Error al cargar el inventario.');
-        });
+        }
+    })();
 
-    // Cargar formatos de inspección
-    fetch('docs/forxmat.csv')
-        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar forxmat.csv')))
-        .then(txt => {
-            const lineas = txt.split(/\r?\n/).filter(l => l.trim() !== '');
-            let formatoActual = '';
+    // Cargar formatos de inspección desde Firestore (sin CSV en runtime)
+    (async () => {
+        try {
+            const { getFirestore, collection, getDocs } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
 
             Object.keys(formatosPorCodigo).forEach(k => delete formatosPorCodigo[k]);
             formatosPorCodigo = {};
 
-            lineas.forEach(linea => {
-                const cols = parseCSVLine(linea);
-                const nombre = (cols[0] || '').toString().trim();
-                if (!nombre) return;
+            const snapFormatos = await getDocs(collection(db, 'formatos_inspeccion'));
+            snapFormatos.forEach(docSnap => {
+                const data = docSnap.data() || {};
+                const formatoKey = (data && data.formatoKey) ? String(data.formatoKey).trim() : '';
+                const parametros = Array.isArray(data && data.parametros) ? data.parametros : [];
+                if (!formatoKey) return;
 
-                // Encabezado de formato: en forxmat.csv los bloques empiezan con algo como 'PCT-FR-...'
-                if (/^PCT\b/i.test(nombre)) {
-                    formatoActual = nombre;
-                    if (!formatosPorCodigo[formatoActual]) {
-                        formatosPorCodigo[formatoActual] = [];
-                    }
+                formatosPorCodigo[formatoKey] = parametros.slice();
 
-                    // También indexar por clave normalizada para tolerar variantes (p.ej. DSA/SSA)
-                    const kNorm = normFormatoKey(formatoActual);
-                    if (kNorm && kNorm !== formatoActual && !formatosPorCodigo[kNorm]) {
-                        formatosPorCodigo[kNorm] = formatosPorCodigo[formatoActual];
-                    }
-                    return;
-                }
-
-                // Parámetro dentro del formato actual
-                if (formatoActual && formatosPorCodigo[formatoActual]) {
-                    formatosPorCodigo[formatoActual].push(nombre);
+                const kNorm = normFormatoKey(formatoKey);
+                if (kNorm && kNorm !== formatoKey && !formatosPorCodigo[kNorm]) {
+                    formatosPorCodigo[kNorm] = formatosPorCodigo[formatoKey];
                 }
             });
 
@@ -2569,17 +2622,17 @@ document.addEventListener('DOMContentLoaded', () => {
             aplicarInspeccionExistenteSoloLectura();
             // Edición (si viene inspId sin view=1)
             aplicarInspeccionExistenteEditable();
-            // Si el usuario ya seleccionó/escribió un equipo antes de terminar de cargar forxmat.csv,
+            // Si el usuario ya seleccionó/escribió un equipo antes de terminar de cargar,
             // refrescar la ficha y parámetros ahora que los formatos ya están listos.
             try {
                 if (inputEquipo && inputEquipo.value && inputEquipo.value.trim()) {
                     actualizarDetalleDesdeInput();
                 }
             } catch {}
-        })
-        .catch(err => {
+        } catch (err) {
             console.error(err);
-        });
+        }
+    })();
 
     // Cargar catálogo de daños (solo para diagnóstico de cobertura inicialmente)
     fetch('docs/danos.csv')
@@ -2610,83 +2663,37 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('No se pudo cargar docs/danos.csv para diagnóstico', err);
         });
 
-    // Cargar tabla de Anillo retenedor por activo (override de parámetros)
-    fetch('docs/TUBERIA4206conanilloretenedor.csv', { cache: 'no-store' })
-        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar TUBERIA4206conanilloretenedor.csv')))
-        .then(txt => {
-            try {
-                const lineas = String(txt || '').split(/\r?\n/).filter(l => l.trim() !== '');
-                if (!lineas.length) {
-                    anilloRetenedorPorActivo = new Map();
-                    return;
-                }
-                const h = parseCSVLine(lineas[0]).map(x => String(x || '').trim().toUpperCase());
-                const idxActivo = h.indexOf('ACTIVO');
-                const idxAnillo = h.indexOf('ANILLO RETENEDOR');
-                if (idxActivo < 0 || idxAnillo < 0) {
-                    anilloRetenedorPorActivo = new Map();
-                    return;
-                }
-                const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
-                const m = new Map();
-                lineas.slice(1).forEach(l => {
-                    const cols = parseCSVLine(l);
-                    const activo = idxActivo >= 0 ? (cols[idxActivo] || '') : '';
-                    const anillo = idxAnillo >= 0 ? (cols[idxAnillo] || '') : '';
-                    const k = normKey(activo);
-                    if (!k) return;
-                    const v = String(anillo || '').trim().toUpperCase();
-                    if (v === 'SI' || v === 'S' || v === 'YES' || v === 'Y' || v === '1' || v === 'TRUE') m.set(k, true);
-                    else if (v === 'NO' || v === 'N' || v === '0' || v === 'FALSE') m.set(k, false);
-                });
-                anilloRetenedorPorActivo = m;
-            } catch {
-                anilloRetenedorPorActivo = new Map();
-            }
-        })
-        .catch(err => {
-            console.warn('No se pudo cargar docs/TUBERIA4206conanilloretenedor.csv', err);
-            anilloRetenedorPorActivo = new Map();
-        });
+    // Cargar overrides por equipo desde Firestore (sin depender de CSV en runtime)
+    (async () => {
+        try {
+            const db = getFirestore();
+            const snap = await getDocs(collection(db, 'equipos_overrides'));
+            const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+            const mapAnillo = new Map();
+            const mapInsertos = new Map();
 
-    // Cargar tabla de Insertos por activo (override de parámetros)
-    fetch('docs/xINSERTOS.csv', { cache: 'no-store' })
-        .then(r => r.ok ? r.text() : Promise.reject(new Error('No se pudo cargar xINSERTOS.csv')))
-        .then(txt => {
-            try {
-                const lineas = String(txt || '').split(/\r?\n/).filter(l => l.trim() !== '');
-                if (!lineas.length) {
-                    insertosPorActivo = new Map();
-                    return;
+            snap.forEach(docSnap => {
+                const id = String(docSnap.id || '').trim();
+                const data = docSnap.data() || {};
+                const k = normKey(id || data.equipoId || data.equipoKey || data.activo || '');
+                if (!k) return;
+
+                if (typeof data.tieneAnilloRetenedor === 'boolean') {
+                    mapAnillo.set(k, !!data.tieneAnilloRetenedor);
                 }
-                const h = parseCSVLine(lineas[0]).map(x => String(x || '').trim().toUpperCase());
-                const idxActivo = h.indexOf('ACTIVO');
-                const idxFlag = h.indexOf('INSERTOS Y ANILLO RETENEDOR');
-                if (idxActivo < 0 || idxFlag < 0) {
-                    insertosPorActivo = new Map();
-                    return;
+                if (typeof data.tieneInsertos === 'boolean') {
+                    mapInsertos.set(k, !!data.tieneInsertos);
                 }
-                const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
-                const m = new Map();
-                lineas.slice(1).forEach(l => {
-                    const cols = parseCSVLine(l);
-                    const activo = idxActivo >= 0 ? (cols[idxActivo] || '') : '';
-                    const flag = idxFlag >= 0 ? (cols[idxFlag] || '') : '';
-                    const k = normKey(activo);
-                    if (!k) return;
-                    const v = String(flag || '').trim().toUpperCase();
-                    if (v === 'SI' || v === 'S' || v === 'YES' || v === 'Y' || v === '1' || v === 'TRUE') m.set(k, true);
-                    else if (v === 'NO' || v === 'N' || v === '0' || v === 'FALSE') m.set(k, false);
-                });
-                insertosPorActivo = m;
-            } catch {
-                insertosPorActivo = new Map();
-            }
-        })
-        .catch(err => {
-            console.warn('No se pudo cargar docs/xINSERTOS.csv', err);
+            });
+
+            anilloRetenedorPorActivo = mapAnillo;
+            insertosPorActivo = mapInsertos;
+        } catch (err) {
+            console.warn('No se pudo cargar equipos_overrides', err);
+            anilloRetenedorPorActivo = new Map();
             insertosPorActivo = new Map();
-        });
+        }
+    })();
     
     // Cuando el usuario escribe y elige un equipo en el input/datalist
     function actualizarDetalleDesdeInput() {
@@ -2857,7 +2864,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Regla: Insertos
-        // - Si existe override por ACTIVO (docs/xINSERTOS.csv): respetarlo
+        // - Si existe override por ACTIVO (Firestore: equipos_overrides): respetarlo
         // - Si no hay override: aplicar regla legacy por tipo de producto
         try {
             const productoUpper = (get(idxProducto) || '').toString().toUpperCase().trim();
@@ -3431,7 +3438,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const showVal = (v) => {
             const s = (v == null) ? '' : String(v);
             const t = s.trim();
-            return t ? t : '—';
+            return t ? t : '-';
         };
         const hasVal = (v) => {
             const s = (v == null) ? '' : String(v);
@@ -3441,8 +3448,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const equipoDisplay = esEquipoTercero
             ? `TERCERO${terceroEquipoUrl ? ` ${terceroEquipoUrl}` : ''}`
             : get(idxEquipo);
-        const productoDisplay = esEquipoTercero ? '—' : get(idxProducto);
-        const serialDisplay = esEquipoTercero ? '—' : get(idxSerial);
+        const productoDisplay = esEquipoTercero ? '-' : get(idxProducto);
+        const serialDisplay = esEquipoTercero ? '-' : get(idxSerial);
         const descBase = esEquipoTercero ? (terceroDescripcionUrl || 'EQUIPO DE TERCERO') : get(idxDescripcion);
         const descExtra = esEquipoTercero
             ? `
@@ -6737,7 +6744,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (gpsTxt.toUpperCase() === 'SIN GPS') ubicacionGps = '';
             } catch {}
 
-            if (!ubicacion) ubicacion = ubicacionGps || ubicacion;
+            try {
+                const gpsTxt = (ubicacionGps || '').toString().trim();
+                if (gpsTxt) {
+                    ubicacion = gpsTxt;
+                }
+            } catch {}
 
             // Usuario actual: guardar email para trazabilidad y nombre normalizado para reporteo/PDF
             let usuarioInspeccionEmail = '';
