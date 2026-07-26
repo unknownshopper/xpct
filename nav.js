@@ -264,6 +264,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isVisor = role === 'visor';
                     const isAuxger = role === 'auxger';
 
+                    // Ocultar links a páginas legacy (CSV) para que no existan rutas de navegación.
+                    // Los archivos pueden permanecer como vestigio/histórico, pero no deben estar linkeados.
+                    try {
+                        const legacyHrefs = [
+                            'invre2.html',
+                            'forxmat.html',
+                            'pruebar.html',
+                            'tees.html',
+                            'certifisos.html',
+                            'certif-import.html',
+                        ];
+                        legacyHrefs.forEach(href => {
+                            document.querySelectorAll(`a[href="${href}"]`).forEach(a => {
+                                const li = a.closest('li') || a;
+                                li.style.display = 'none';
+                            });
+                        });
+                    } catch {}
+
                     function ensureActividadNavDropdown(visible) {
                         try {
                             const navUl = navMain.querySelector(':scope > ul');
@@ -809,12 +828,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function normPruebaKey(v) {
-            let t = (v || '').toString().trim().toUpperCase();
-            t = t.replace(/\s+/g, ' ');
-            if (t.includes('VT') || t.includes('PT') || t.includes('MT')) return 'VT/PT/MT';
-            if (t.includes('UTT')) return 'UTT';
-            if (t.includes('LT')) return 'LT';
-            return t || 'ANUAL';
+            const t = (v || '').toString().trim().toUpperCase();
+            if (!t) return 'ANUAL';
+            const compact = t.replace(/\s+/g, '');
+            if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+            if (compact.includes('UTT')) return 'UTT';
+            if (compact.includes('LT')) return 'LT';
+            return t;
         }
 
         async function cargarEdoPorEquipoDesdeInventario() {
@@ -964,9 +984,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="toast-close" aria-label="Cerrar">×</button>
                 <div class="toast-title">Pruebas por vencer</div>
                 <div class="toast-body">
-                    ${c60 ? `🟦 60–31 días: <strong>${c60}</strong><br>` : ''}
-                    ${c30 ? `🟨 30–16 días: <strong>${c30}</strong><br>` : ''}
-                    ${c15 ? `🟥 15–1 días: <strong>${c15}</strong><br>` : ''}
+                    ${c60 ? `🟦 60-31 días: <strong>${c60}</strong><br>` : ''}
+                    ${c30 ? `🟨 30-16 días: <strong>${c30}</strong><br>` : ''}
+                    ${c15 ? `🟥 15-1 días: <strong>${c15}</strong><br>` : ''}
                     ${c0 ? `☠️ 0 días (vencidas): <strong>${c0}</strong><br>` : ''}
                     <div style="margin-top:6px;"><a href="pruebaslist.html" style="color:#93c5fd;text-decoration:underline;">Ver listado de pruebas</a></div>
                 </div>`;
