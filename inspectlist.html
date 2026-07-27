@@ -444,16 +444,123 @@
 
         let mostrarEquiposSinInspeccion = false;
 
-        async function contarEquiposSinInspeccion() {
+        let pendientesRenderizadasUltimaCarga = 0;
+
+        const secPendientes = document.getElementById('insp-seccion-pendientes');
+        let filtroCardsSnapshot = null;
+
+        function aplicarFiltroCardsSinRecargar() {
             try {
-                const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                if (!filtroCardsSnapshot) {
+                    filtroCardsSnapshot = {
+                        pend: secPendientes ? secPendientes.style.display : null,
+                        real: secRealizadas ? secRealizadas.style.display : null,
+                        huer: secHuerfanas ? secHuerfanas.style.display : null,
+                        pdf: secAccionesPdf ? secAccionesPdf.style.display : null,
+                    };
+                }
+
+                // Si estaba activo el modo "equipos sin inspección", salir de ese modo al tocar tarjetas.
+                if (secSinInsp) secSinInsp.style.display = 'none';
+                mostrarEquiposSinInspeccion = false;
+
+                if (filtroEstado === 'PENDIENTE') {
+                    if (secPendientes) secPendientes.style.display = '';
+                    if (secRealizadas) secRealizadas.style.display = 'none';
+                    if (secHuerfanas) secHuerfanas.style.display = 'none';
+                    if (secAccionesPdf) secAccionesPdf.style.display = 'none';
+                } else if (filtroEstado === 'REALIZADA') {
+                    if (secPendientes) secPendientes.style.display = 'none';
+                    if (secRealizadas) secRealizadas.style.display = '';
+                    if (secHuerfanas) secHuerfanas.style.display = '';
+                    if (secAccionesPdf) secAccionesPdf.style.display = 'flex';
+                } else {
+                    if (secPendientes && filtroCardsSnapshot && filtroCardsSnapshot.pend != null) secPendientes.style.display = filtroCardsSnapshot.pend;
+                    if (secRealizadas && filtroCardsSnapshot && filtroCardsSnapshot.real != null) secRealizadas.style.display = filtroCardsSnapshot.real;
+                    if (secHuerfanas && filtroCardsSnapshot && filtroCardsSnapshot.huer != null) secHuerfanas.style.display = filtroCardsSnapshot.huer;
+                    if (secAccionesPdf && filtroCardsSnapshot && filtroCardsSnapshot.pdf != null) secAccionesPdf.style.display = filtroCardsSnapshot.pdf;
+                }
+
+                try { actualizarFiltroCards(); } catch {}
+                try { renderNoResultadosConStatus(); } catch {}
+            } catch {}
+        }
+
+        async function contarEquiposSinInspeccion() {
+            let m = null;
+            try {
+                m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            } catch (e) {
+                try {
+                    if (!window.__pctLogSinInspImportErr) {
+                        window.__pctLogSinInspImportErr = 1;
+                        console.warn('[inspectlist] No se pudo importar firebase-firestore (conteo sin inspección).', e);
+                    }
+                } catch {}
+                return null;
+            }
+
+            try {
                 const db = window.db ? window.db : m.getFirestore();
                 const q = m.query(m.collection(db, 'resumenes_equipos'), m.where('inspeccion', '==', null));
-                const snap = await m.getCountFromServer(q);
-                const n = (snap && snap.data && typeof snap.data().count === 'number') ? snap.data().count : 0;
-                return n;
-            } catch {
-                return 0;
+
+                // Preferente: count aggregation
+                if (typeof m.getCountFromServer === 'function') {
+                    const snap = await m.getCountFromServer(q);
+                    const n = (snap && snap.data && typeof snap.data().count === 'number') ? snap.data().count : 0;
+                    if (n > 0) return n;
+
+                    // Fallback: algunos docs viejos pueden no tener el campo "inspeccion" (undefined),
+                    // y "== null" no los incluye. Hacemos un escaneo acotado y filtramos localmente.
+                    try {
+                        if (!window.__pctLogSinInspFallback0) {
+                            window.__pctLogSinInspFallback0 = 1;
+                            console.warn('[inspectlist] Conteo sin inspección regresó 0; usando fallback (docs sin campo inspeccion).');
+                        }
+                    } catch {}
+
+                    const qAll = m.query(m.collection(db, 'resumenes_equipos'), m.limit(2500));
+                    const snapAll = await m.getDocs(qAll);
+                    let c = 0;
+                    snapAll.forEach(docu => {
+                        try {
+                            const d = docu && typeof docu.data === 'function' ? docu.data() : null;
+                            if (d && d.inspeccion == null) c++;
+                        } catch {}
+                    });
+                    return c;
+                }
+
+                // Fallback: contar docs (puede ser más pesado; se usa solo si no existe getCountFromServer)
+                const snap2 = await m.getDocs(q);
+                const n2 = (snap2 && typeof snap2.size === 'number') ? snap2.size : 0;
+                if (n2 > 0) return n2;
+
+                try {
+                    if (!window.__pctLogSinInspFallback0) {
+                        window.__pctLogSinInspFallback0 = 1;
+                        console.warn('[inspectlist] Conteo sin inspección regresó 0; usando fallback (docs sin campo inspeccion).');
+                    }
+                } catch {}
+
+                const qAll = m.query(m.collection(db, 'resumenes_equipos'), m.limit(2500));
+                const snapAll = await m.getDocs(qAll);
+                let c = 0;
+                snapAll.forEach(docu => {
+                    try {
+                        const d = docu && typeof docu.data === 'function' ? docu.data() : null;
+                        if (d && d.inspeccion == null) c++;
+                    } catch {}
+                });
+                return c;
+            } catch (e) {
+                try {
+                    if (!window.__pctLogSinInspCountErr) {
+                        window.__pctLogSinInspCountErr = 1;
+                        console.warn('[inspectlist] Falló conteo de equipos sin inspección. Revisa reglas/CSP/conectividad.', e);
+                    }
+                } catch {}
+                return null;
             }
         }
 
@@ -470,6 +577,33 @@
                     if (!equipoKey) return;
                     out.push({ equipoKey, edo: String(data.edo || '').trim(), aptoOperacion: data.aptoOperacion, motivoBloqueo: String(data.motivoBloqueo || '').trim() });
                 });
+
+                // Fallback: algunos docs viejos pueden no tener el campo "inspeccion" (undefined),
+                // y "== null" no los incluye. Si salió vacío, hacer un escaneo acotado y filtrar localmente.
+                if (out.length === 0) {
+                    try {
+                        if (!window.__pctLogSinInspFallbackList0) {
+                            window.__pctLogSinInspFallbackList0 = 1;
+                            console.warn('[inspectlist] Listado sin inspección vacío; usando fallback (docs sin campo inspeccion).');
+                        }
+                    } catch {}
+
+                    const qAll = m.query(m.collection(db, 'resumenes_equipos'), m.limit(2500));
+                    const snapAll = await m.getDocs(qAll);
+                    const out2 = [];
+                    snapAll.forEach(docu => {
+                        try {
+                            const data = docu.data() || {};
+                            if (!(data && data.inspeccion == null)) return;
+                            const equipoKey = String(data.equipoKey || docu.id || '').trim();
+                            if (!equipoKey) return;
+                            out2.push({ equipoKey, edo: String(data.edo || '').trim(), aptoOperacion: data.aptoOperacion, motivoBloqueo: String(data.motivoBloqueo || '').trim() });
+                        } catch {}
+                    });
+                    out2.sort((a, b) => (a.equipoKey < b.equipoKey ? -1 : (a.equipoKey > b.equipoKey ? 1 : 0)));
+                    return out2;
+                }
+
                 out.sort((a, b) => (a.equipoKey < b.equipoKey ? -1 : (a.equipoKey > b.equipoKey ? 1 : 0)));
                 return out;
             } catch {
@@ -536,9 +670,7 @@
                 if (secNoAtendidas) secNoAtendidas.style.display = 'none';
                 if (secRealizadas) secRealizadas.style.display = 'none';
                 if (secHuerfanas) secHuerfanas.style.display = 'none';
-                if (tbody) tbody.innerHTML = '';
-                if (tbodyRealizadas) tbodyRealizadas.innerHTML = '';
-                if (tbodyHuerfanas) tbodyHuerfanas.innerHTML = '';
+                if (secPendientes) secPendientes.style.display = 'none';
                 if (msg) msg.style.display = 'none';
                 if (msgRealizadas) msgRealizadas.style.display = 'none';
                 if (msgHuerfanas) msgHuerfanas.style.display = 'none';
@@ -1730,7 +1862,22 @@
                 }
                 if (cardPendientes) {
                     if (actividadesPermitidas) {
-                        const pendientes = actividades.filter(act => !inspeccionPorActividad.has(act.id)).length;
+                        const pendientes = actividades.filter(act => {
+                            try {
+                                if (!act || !act.id) return false;
+                                if (inspeccionPorActividad.has(act.id)) return false;
+
+                                // Mismo criterio que en el render de pendientes:
+                                // Si la actividad ya fue cerrada (terminación final), no debe contar como pendiente.
+                                const fin = (act && act.terminacionServicio != null) ? String(act.terminacionServicio).trim() : '';
+                                const esFinal = !!(act && act.terminacionEsFinal);
+                                if (fin && esFinal) return false;
+
+                                return true;
+                            } catch {
+                                return false;
+                            }
+                        }).length;
                         cardPendientes.textContent = String(pendientes);
                     } else {
                         cardPendientes.textContent = '0';
@@ -1741,8 +1888,8 @@
             // Contador: equipos sin inspección (usa resumenes_equipos)
             try {
                 const nSin = await contarEquiposSinInspeccion();
-                if (cardSinInsp) cardSinInsp.textContent = String(nSin || 0);
-                if (cardWrapSinInsp) cardWrapSinInsp.style.display = (nSin && nSin > 0) ? '' : '';
+                if (cardSinInsp) cardSinInsp.textContent = (nSin == null) ? '—' : String(nSin || 0);
+                if (cardWrapSinInsp) cardWrapSinInsp.style.display = '';
             } catch {}
 
             if (!actividades.length && !inspecciones.length) {
@@ -2068,6 +2215,9 @@
             }
 
             async function renderBloque(esRealizadas, tbodyTarget) {
+                if (!esRealizadas) {
+                    pendientesRenderizadasUltimaCarga = 0;
+                }
                 let clienteActualKey = '';
                 let clienteActualLabel = '';
                 let areaActual = '';
@@ -2433,6 +2583,10 @@
 
                     tbodyLocal.appendChild(tr);
                     visibles += 1;
+
+                    if (!esRealizadas) {
+                        pendientesRenderizadasUltimaCarga += 1;
+                    }
                 });
 
                 setTimeout(() => {
@@ -2453,6 +2607,11 @@
 
             // Primero bloque de pendientes
             await renderBloque(false, tbody);
+            try {
+                if (cardPendientes && actividadesPermitidas) {
+                    cardPendientes.textContent = String(pendientesRenderizadasUltimaCarga || 0);
+                }
+            } catch {}
 
             if (tbodyRealizadas) {
                 await renderBloque(true, tbodyRealizadas);
@@ -2851,14 +3010,14 @@
                 cardWrapPend.dataset.filterBound = '1';
                 cardWrapPend.addEventListener('click', () => {
                     filtroEstado = (filtroEstado === 'PENDIENTE') ? null : 'PENDIENTE';
-                    cargarDatos();
+                    aplicarFiltroCardsSinRecargar();
                 });
             }
             if (cardWrapReal && !cardWrapReal.dataset.filterBound) {
                 cardWrapReal.dataset.filterBound = '1';
                 cardWrapReal.addEventListener('click', () => {
                     filtroEstado = (filtroEstado === 'REALIZADA') ? null : 'REALIZADA';
-                    cargarDatos();
+                    aplicarFiltroCardsSinRecargar();
                 });
             }
 
