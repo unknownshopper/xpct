@@ -41,7 +41,7 @@ async function main() {
     auth: { user, pass },
   });
 
-  const subject = args.subject || `Prueba SMTP – ${new Date().toISOString()}`;
+  const subject = args.subject || `Prueba SMTP - ${new Date().toISOString()}`;
   const text = args.text || 'Correo de prueba SMTP (XPCT).';
   const html = args.html || `<div style="font-family:Arial;">${text}</div>`;
 

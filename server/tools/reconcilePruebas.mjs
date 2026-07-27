@@ -95,7 +95,7 @@ function norm(val) {
 }
 
 function normalizeNoReporte(val) {
-  return norm(val).replace(/[·•–—]/g, '-');
+  return norm(val).replace(/[\u00B7\u2022\u2013\u2014]/g, '-');
 }
 
 function normalizePrueba(val) {

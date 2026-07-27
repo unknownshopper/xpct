@@ -4,6 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const datalistEquipos = document.getElementById('lista-equipos-pruebas');
     if (!inputEquipo || !datalistEquipos) return; // No estamos en pruebas.html
 
+    try {
+        // Si pruebas.js ya migró a Firestore para inventario, no ejecutar el flujo legacy CSV.
+        if (window && window.__pruebasUsaInventarioFirestore) return;
+    } catch {}
+
     let filasInv = [];
     let headersInv = [];
     const infoPorEquipo = {}; // { serial, propiedad, material }
@@ -254,6 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let filasAct = [];
     const infoPorEquipoAct = {}; // { serial, estado, propiedad, descripcion }
     let equiposSeleccionados = [];
+    const estadoOperacionPorEquipoAct = {}; // { [eq]: { aptoOperacion, motivoBloqueo } }
 
     // Modo de captura para TERCERO: no usar inventario ni sugerencias
     let esTercero = false;
@@ -416,6 +422,118 @@ document.addEventListener('DOMContentLoaded', () => {
     async function obtenerEstadoPruebasPorEquipoActividad(equipoId) {
         if (!equipoId) return null;
 
+        async function leerResumenEquipoDesdeFirestore() {
+            try {
+                const { getFirestore, doc, getDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const ref = doc(db, 'resumenes_equipos', String(equipoId));
+                const snap = await getDoc(ref);
+                if (!snap.exists()) return null;
+                return snap.data() || null;
+            } catch {
+                return null;
+            }
+        }
+
+        try {
+            const r = await leerResumenEquipoDesdeFirestore();
+            if (r && r.pruebas) {
+                // Compat: si el resumen está presente, usarlo como fuente de verdad para validación.
+                const anyPrueba = !!(r.pruebas.LT || r.pruebas.UTT || r.pruebas['VT/PT/MT']);
+                const ltOk = (r.pruebas && r.pruebas.ltVigenteEfectivo === true);
+                return {
+                    total: anyPrueba ? 1 : 0,
+                    vigentes: ltOk ? 1 : 0,
+                    vencidas: (anyPrueba && !ltOk) ? 1 : 0,
+                    ultima: null,
+                    estadoUltima: anyPrueba ? (ltOk ? 'VIGENTE' : 'VENCIDA') : 'SIN_PRUEBA',
+                    aptoOperacion: (r.aptoOperacion !== false),
+                    motivoBloqueo: String(r.motivoBloqueo || '').trim(),
+                };
+            }
+        } catch {}
+
+        async function leerBloqueoOperativoDesdeFirestore() {
+            try {
+                const { getFirestore, doc, getDoc, collection, query, where, getDocs, limit } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+
+                const db = getFirestore();
+
+                let edo = '';
+                try {
+                    const snapEdo = await getDoc(doc(db, 'inventarioEstados', String(equipoId)));
+                    if (snapEdo.exists()) {
+                        const d = snapEdo.data() || {};
+                        edo = String(d.edo || '').trim().toUpperCase();
+                    }
+                } catch {}
+                if (!edo) edo = 'ON';
+
+                let insp = null;
+                try {
+                    const colInsp = collection(db, 'inspecciones');
+                    const q = query(colInsp, where('equipo', '==', String(equipoId)), limit(20));
+                    const snap = await getDocs(q);
+                    if (snap && !snap.empty) {
+                        let best = null;
+                        let bestMs = 0;
+                        snap.forEach(ds => {
+                            const data = ds.data() || {};
+                            let ms = 0;
+                            const c = data.creadoEn;
+                            if (c && typeof c.toMillis === 'function') ms = c.toMillis();
+                            else if (c && typeof c.seconds === 'number') ms = c.seconds * 1000;
+                            else {
+                                const f = (data.fecha || '').toString();
+                                const p = Date.parse(f);
+                                if (!Number.isNaN(p)) ms = p;
+                            }
+                            if (!best || ms > bestMs) {
+                                best = { id: ds.id, ...data };
+                                bestMs = ms;
+                            }
+                        });
+                        insp = best;
+                    }
+                } catch {}
+
+                const calcEstadoGeneral = (i) => {
+                    try {
+                        const eg = (i && i.estadoGeneral != null) ? String(i.estadoGeneral).trim().toUpperCase() : '';
+                        if (eg) return eg;
+                        const params = (i && Array.isArray(i.parametros)) ? i.parametros : [];
+                        const anyBad = params.some(p => String((p && (p.estado || p.resultado)) || '').trim().toUpperCase() === 'MALO');
+                        return anyBad ? 'MALO' : 'BUENO';
+                    } catch {
+                        return 'BUENO';
+                    }
+                };
+
+                const inspEstado = insp ? calcEstadoGeneral(insp) : 'BUENO';
+
+                let aptoOperacion = true;
+                let motivoBloqueo = '';
+                if (edo === 'WIP') {
+                    aptoOperacion = false;
+                    motivoBloqueo = 'WIP';
+                } else if (edo && edo !== 'ON') {
+                    aptoOperacion = false;
+                    motivoBloqueo = 'EDO';
+                } else if (insp && inspEstado === 'MALO') {
+                    aptoOperacion = false;
+                    motivoBloqueo = 'INSPECCION_MALO';
+                }
+
+                return { aptoOperacion, motivoBloqueo, edo, inspEstado };
+            } catch {
+                return null;
+            }
+        }
+
         const claveLocal = 'pct_pruebas';
         let pruebas = [];
 
@@ -473,6 +591,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        const bloqueoOper = await leerBloqueoOperativoDesdeFirestore();
+
         const desdeFs = await leerDesdeFirestore();
         if (desdeFs && Array.isArray(desdeFs)) {
             pruebas = desdeFs;
@@ -494,6 +614,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 vencidas: 0,
                 ultima: null,
                 estadoUltima: 'SIN_PRUEBA',
+                aptoOperacion: bloqueoOper ? (bloqueoOper.aptoOperacion !== false) : true,
+                motivoBloqueo: bloqueoOper ? String(bloqueoOper.motivoBloqueo || '').trim() : '',
             };
         }
 
@@ -516,6 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
             vencidas,
             ultima,
             estadoUltima: ultima._clasif.estado,
+            aptoOperacion: bloqueoOper ? (bloqueoOper.aptoOperacion !== false) : true,
+            motivoBloqueo: bloqueoOper ? String(bloqueoOper.motivoBloqueo || '').trim() : '',
         };
     }
 
@@ -974,15 +1098,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const sinPrueba = [];
             const vencidas = [];
+            const bloqueados = [];
 
             Object.entries(resumenPruebasPorEquipo).forEach(([eq, info]) => {
                 if (!info) return;
+                if (info.aptoOperacion === false) {
+                    const m = (info.motivoBloqueo || '').toString().trim();
+                    bloqueados.push(m ? `${eq} (${m})` : eq);
+                    return;
+                }
                 if (info.estadoUltima === 'SIN_PRUEBA' || info.estadoUltima === 'SIN_FECHA') {
                     sinPrueba.push(eq);
                 } else if (info.estadoUltima === 'VENCIDA') {
                     vencidas.push(eq);
                 }
             });
+
+            if (bloqueados.length) {
+                alert('No se puede registrar la actividad porque hay equipos NO aptos para operar:\n\n- ' + bloqueados.join('\n- '));
+                return;
+            }
 
             if (sinPrueba.length || vencidas.length) {
                 let mensaje = 'Advertencia:\n\n';
@@ -1141,9 +1276,16 @@ function renderEquiposSeleccionados() {
 
     equiposSeleccionados.forEach(eq => {
         const info = infoPorEquipoAct[eq] || {};
+        const stOp = estadoOperacionPorEquipoAct[eq] || null;
 
         const row = document.createElement('div');
         row.className = 'actividad-equipos-row';
+        if (stOp && stOp.aptoOperacion === false) {
+            row.style.borderLeft = '6px solid #dc2626';
+            row.style.background = '#fff1f2';
+            const m = (stOp.motivoBloqueo || '').toString().trim();
+            row.title = m ? `NO APTO: ${m}` : 'NO APTO PARA OPERAR';
+        }
 
         const colEquipo = document.createElement('span');
         colEquipo.textContent = eq;
@@ -1230,39 +1372,57 @@ function procesarTextoEquipos(texto) {
         return raw;
     }
 
+    return { partes, resolverEquipoInventario };
+}
+
+async function procesarTextoEquiposAsync(texto) {
+    const parsed = procesarTextoEquipos(texto);
+    if (!parsed || !parsed.partes || !parsed.partes.length) return false;
+
     let agregado = false;
-    partes.forEach(fragmento => {
-        if (!fragmento) return;
+    for (const fragmento of parsed.partes) {
+        if (!fragmento) continue;
 
-        // Tomar solo la primera "palabra" (antes de cualquier espacio/tab),
-        // asumiendo que el código de equipo no tiene espacios.
-        const eq = resolverEquipoInventario(fragmento.split(/\s+/)[0]);
-        if (!eq) return;
+        const eq = parsed.resolverEquipoInventario(fragmento.split(/\s+/)[0]);
+        if (!eq) continue;
 
-        // No permitir agregar equipos que ya tienen actividad abierta
         if (equipoTieneActividadAbierta(eq)) {
             alert(`El equipo ${eq} ya tiene una actividad en servicio (sin fecha de terminación). Termina esa actividad antes de crear una nueva.`);
-            return;
+            continue;
         }
 
-        if (equiposSeleccionados.includes(eq)) return;
+        if (equiposSeleccionados.includes(eq)) continue;
+
+        try {
+            const info = await obtenerEstadoPruebasPorEquipoActividad(eq);
+            if (info && info.aptoOperacion === false) {
+                const m = (info.motivoBloqueo || '').toString().trim();
+                alert(`No se puede agregar el equipo ${eq} porque NO está apto para operar${m ? ` (${m})` : ''}.`);
+                estadoOperacionPorEquipoAct[eq] = { aptoOperacion: false, motivoBloqueo: m };
+                continue;
+            }
+            if (info) {
+                estadoOperacionPorEquipoAct[eq] = {
+                    aptoOperacion: info.aptoOperacion !== false,
+                    motivoBloqueo: (info.motivoBloqueo || '').toString().trim(),
+                };
+            }
+        } catch (e) {
+            console.warn('No se pudo validar aptoOperacion al agregar equipo (se permitirá agregar)', e);
+        }
+
         equiposSeleccionados.push(eq);
         agregado = true;
-    });
-
-    if (agregado) {
-        renderEquiposSeleccionados();
     }
 
+    if (agregado) renderEquiposSeleccionados();
     return agregado;
 }
 
-function agregarEquipoDesdeInput() {
+async function agregarEquipoDesdeInput() {
     const valorRaw = inputEquipo.value || '';
-    const huboCambios = procesarTextoEquipos(valorRaw);
-    if (huboCambios) {
-        inputEquipo.value = '';
-    }
+    const huboCambios = await procesarTextoEquiposAsync(valorRaw);
+    if (huboCambios) inputEquipo.value = '';
 }
 
 function autocompletarDatosAutoActividad() {
@@ -1297,9 +1457,9 @@ function autocompletarDatosAutoActividad() {
     }
 }
 
-inputEquipo.addEventListener('change', () => {
+inputEquipo.addEventListener('change', async () => {
     // Cuando cambia manualmente el texto, intentamos agregarlo al lote
-    agregarEquipoDesdeInput();
+    await agregarEquipoDesdeInput();
     autocompletarDatosAutoActividad();
 });
 
@@ -1312,10 +1472,7 @@ inputEquipo.addEventListener('keydown', (e) => {
         if (!valorActual) return;
 
         e.preventDefault();
-        const huboCambios = procesarTextoEquipos(inputEquipo.value);
-        if (huboCambios) {
-            inputEquipo.value = '';
-        }
+        agregarEquipoDesdeInput();
     }
 });
 
@@ -1471,13 +1628,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const fechaPrueba = (document.getElementById('prueba-fecha') || {}).value || '';
         const resultado = (document.getElementById('prueba-resultado') || {}).value || '';
 
+        function canonPruebaTipo(v) {
+            const t = String(v || '').toUpperCase().trim();
+            if (!t) return 'ANUAL';
+            const compact = t.replace(/\s+/g, '');
+            if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+            if (compact.includes('UTT')) return 'UTT';
+            if (compact.includes('LT')) return 'LT';
+            return t;
+        }
+
         const equipo = (document.getElementById('inv-equipo') || {}).value || '';
         const serial = (document.getElementById('inv-serial') || {}).value || '';
         const edo = (document.getElementById('inv-edo') || {}).value || '';
         const propiedad = (document.getElementById('inv-propiedad') || {}).value || '';
         const producto = (document.getElementById('inv-producto') || {}).value || '';
         const descripcion = (document.getElementById('inv-descripcion') || {}).value || '';
-        const pruebaTipo = (document.getElementById('inv-prueba') || {}).value || '';
+        const pruebaTipo = canonPruebaTipo((document.getElementById('inv-prueba') || {}).value || '');
         const pruebaDetalle = (document.getElementById('inv-prueba-detalle') || {}).value || '';
         const tipoEquipo = (document.getElementById('inv-tipo-equipo') || {}).value || '';
         const material = (document.getElementById('inv-material') || {}).value || '';

@@ -126,13 +126,13 @@
                         > 60 días: <strong id="pruebas-alert-gt60">0</strong>
                     </div>
                     <div id="chip-60" class="chip chip-large chip-blue" style="cursor:pointer;">
-                        60–31 días: <strong id="pruebas-alert-60">0</strong>
+                        60-31 días: <strong id="pruebas-alert-60">0</strong>
                     </div>
                     <div id="chip-30" class="chip chip-large chip-amber" style="cursor:pointer;">
-                        30–16 días: <strong id="pruebas-alert-30">0</strong>
+                        30-16 días: <strong id="pruebas-alert-30">0</strong>
                     </div>
                     <div id="chip-15" class="chip chip-large chip-red" style="cursor:pointer;">
-                        15–1 días: <strong id="pruebas-alert-15">0</strong>
+                        15-1 días: <strong id="pruebas-alert-15">0</strong>
                     </div>
                     <div id="chip-0" class="chip chip-large chip-black" style="cursor:pointer;">
                         💀 0 días (vencidas): <strong id="pruebas-alert-0">0</strong>
@@ -297,15 +297,15 @@
                         <div id="panel-pruebas-rangos" style="display:none; position:absolute; left:0; top:calc(100% + 6px); z-index:30; min-width:360px; max-width:520px; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,0.18); padding:0.75rem;">
                             <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.5rem;">
                                 <div class="dash-card" id="card-rango-60" style="cursor:pointer;">
-                                    <div class="dash-card-label">60–31 días</div>
+                                    <div class="dash-card-label">60-31 días</div>
                                     <div class="dash-card-value" id="card-rango-60-val">0</div>
                                 </div>
                                 <div class="dash-card" id="card-rango-30" style="cursor:pointer;">
-                                    <div class="dash-card-label">30–16 días</div>
+                                    <div class="dash-card-label">30-16 días</div>
                                     <div class="dash-card-value" id="card-rango-30-val">0</div>
                                 </div>
                                 <div class="dash-card" id="card-rango-15" style="cursor:pointer;">
-                                    <div class="dash-card-label">15–1 días</div>
+                                    <div class="dash-card-label">15-1 días</div>
                                     <div class="dash-card-value" id="card-rango-15-val">0</div>
                                 </div>
                                 <div class="dash-card" id="card-rango-0" style="cursor:pointer;">
@@ -977,15 +977,15 @@
 
                     const summaryStr = useBase
                         ? (
-                            `Resumen conjuntos — Base + CSV (nominal): <strong>${nominal}</strong>, Base ∪ CSV (deduplicada): <strong>${union}</strong>${note} — ` +
+                            `Resumen conjuntos - Base + CSV (nominal): <strong>${nominal}</strong>, Base ∪ CSV (deduplicada): <strong>${union}</strong>${note} - ` +
                             `CSV válidos (filas): <strong>${csvTotalRows}</strong>, CSV llaves únicas: <strong>${csvCount}</strong>, Base: <strong>${effectiveExistingCount}</strong>, Intersección: <strong>${inter}</strong>, ` +
-                            `Solo CSV: <strong>${onlyCsv}</strong>, Solo base: <strong>${onlyExisting}</strong> — ${volumeLabel}: <strong>${globalNominal}</strong>`
-                          ) + (dupCount ? ` — Duplicados intra-CSV: <strong>${dupCount}</strong>` : '')
+                            `Solo CSV: <strong>${onlyCsv}</strong>, Solo base: <strong>${onlyExisting}</strong> - ${volumeLabel}: <strong>${globalNominal}</strong>`
+                          ) + (dupCount ? ` - Duplicados intra-CSV: <strong>${dupCount}</strong>` : '')
                         : (
-                            `Resumen conjuntos — CSV válidos (filas): <strong>${csvTotalRows}</strong>, CSV llaves únicas: <strong>${csvCount}</strong>, Existentes: <strong>${effectiveExistingCount}</strong>, ` +
+                            `Resumen conjuntos - CSV válidos (filas): <strong>${csvTotalRows}</strong>, CSV llaves únicas: <strong>${csvCount}</strong>, Existentes: <strong>${effectiveExistingCount}</strong>, ` +
                             `Intersección: <strong>${inter}</strong>, Solo CSV: <strong>${onlyCsv}</strong>, Solo existentes: <strong>${onlyExisting}</strong>, ` +
                             `Unión (deduplicada): <strong>${union}</strong>, ${volumeLabel}: <strong>${nominal}</strong>`
-                          ) + (dupCount ? ` — Duplicados intra-CSV: <strong>${dupCount}</strong>` : '');
+                          ) + (dupCount ? ` - Duplicados intra-CSV: <strong>${dupCount}</strong>` : '');
                     if (sumEl) {
                         sumEl.innerHTML = summaryStr;
                     } else {
@@ -1223,6 +1223,66 @@
         const lblAlert60 = document.getElementById('pruebas-alert-60');
         const lblAlert30 = document.getElementById('pruebas-alert-30');
         const lblAlert15 = document.getElementById('pruebas-alert-15');
+
+        // Resumen materializado (resumenes/global): preferirlo para contadores/chips
+        (async () => {
+            try {
+                if (_csvPreviewActive) return;
+                if (window.isInspector) return;
+                const { getFirestore, doc, getDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db0 = getFirestore();
+                const ref = doc(db0, 'resumenes', 'global');
+                const snap0 = await getDoc(ref);
+                const data0 = (snap0 && snap0.exists && snap0.exists()) ? (snap0.data() || null) : null;
+                if (!data0) return;
+                const pa = data0.pruebasAnuales || null;
+                const pt = data0.pruebasTotals || null;
+                if (!pa || !pt) return;
+
+                try {
+                    if (lblAlert60 && pa.bucket60_30 != null) lblAlert60.textContent = String(pa.bucket60_30);
+                    if (lblAlert30 && pa.bucket30_15 != null) lblAlert30.textContent = String(pa.bucket30_15);
+                    if (lblAlert15 && pa.bucket15_0 != null) lblAlert15.textContent = String(pa.bucket15_0);
+                    const lblAlert0 = document.getElementById('pruebas-alert-0');
+                    if (lblAlert0 && pa.vencidas != null) lblAlert0.textContent = String(pa.vencidas);
+                } catch {}
+
+                try {
+                    if (cardR60Val && pa.bucket60_30 != null) cardR60Val.textContent = String(pa.bucket60_30);
+                    if (cardR30Val && pa.bucket30_15 != null) cardR30Val.textContent = String(pa.bucket30_15);
+                    if (cardR15Val && pa.bucket15_0 != null) cardR15Val.textContent = String(pa.bucket15_0);
+                    if (cardR0Val && pa.vencidas != null) cardR0Val.textContent = String(pa.vencidas);
+                } catch {}
+
+                try {
+                    if (lblAnual && pt.anualDocs != null) {
+                        lblAnual.textContent = `ANUAL (${pt.anualDocs})`;
+                        lblAnual.dataset.count = String(pt.anualDocs);
+                    }
+                    if (lblPT && pt.postTrabajoDocs != null) {
+                        lblPT.textContent = `POST-TRABAJO (${pt.postTrabajoDocs})`;
+                        lblPT.dataset.count = String(pt.postTrabajoDocs);
+                    }
+                    if (lblRep && pt.reparacionDocs != null) {
+                        lblRep.textContent = `REPARACION (${pt.reparacionDocs})`;
+                        lblRep.dataset.count = String(pt.reparacionDocs);
+                    }
+                } catch {}
+
+                try {
+                    const porRealizar = Number(pa.bucket60_30 || 0) + Number(pa.bucket30_15 || 0) + Number(pa.bucket15_0 || 0);
+                    if (lblPend) lblPend.textContent = `${porRealizar} por realizar`;
+                    if (lblVenc) lblVenc.textContent = `${Number(pa.vencidas || 0)} vencida${Number(pa.vencidas || 0) === 1 ? '' : 's'}`;
+                    if (lblHist) lblHist.textContent = `${Number(pt.totalDocs || 0)} en histórico`;
+                } catch {}
+
+                try {
+                    window._pctResumenGlobal = { at: Date.now(), data: data0 };
+                } catch {}
+            } catch {}
+        })();
 
         const lblResumenParcial = document.getElementById('pruebas-resumen-parcial');
         const btnCompletarResumen = document.getElementById('btn-pruebas-completar-resumen');
@@ -1475,7 +1535,7 @@
                 btnImportDeleteExisting.disabled = true;
                 try {
                     const res = await deleteExistingFromCsv(importRowsReady||[]);
-                    importSummary.innerHTML += ` — Eliminados: <strong>${res.delOk}</strong>, No encontrados: ${res.delMiss}, Fallidos: ${res.delFail}`;
+                    importSummary.innerHTML += ` - Eliminados: <strong>${res.delOk}</strong>, No encontrados: ${res.delMiss}, Fallidos: ${res.delFail}`;
                     const desdeFs2 = await leerFirestore();
                     if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
                     buildExistingKeys();
@@ -1527,7 +1587,7 @@
         let _isLoadingAll = false;
         let _isLoadingMore = false;
 
-        let _paginationMode = 'creadoEn';
+        let _paginationMode = 'creadoEnMs';
         let _loadedIds = new Set();
 
         // Exponer dataset para diagnóstico en consola
@@ -1714,7 +1774,7 @@
             }
         }
 
-        // Lectura paginada (orden por creadoEn desc). Cache primero; red solo bajo demanda.
+        // Lectura paginada (orden por creadoEnMs/creadoEn desc). Cache primero; red solo bajo demanda.
         async function leerPagina({ reset = false, forceNetwork = false } = {}) {
             try {
                 const { getFirestore, collection, getDocs, getDocsFromCache, query, orderBy, limit, startAfter, documentId, where } = await import(
@@ -1726,7 +1786,7 @@
                 if (reset) {
                     _lastDoc = null;
                     pruebas = [];
-                    _paginationMode = 'creadoEn';
+                    _paginationMode = 'creadoEnMs';
                     _loadedIds = new Set();
                     try { window.pruebas = window.pctGetPruebas(); } catch {}
                 }
@@ -1737,14 +1797,18 @@
                 let qBase;
                 if (isInspector) {
                     // Inspector: limitar a últimas 32 horas para reducir lecturas y volumen.
-                    qBase = query(colRef, where('creadoEn', '>=', cutoffDate), orderBy('creadoEn', 'desc'), limit(_pageLimit));
-                    if (_lastDoc) qBase = query(colRef, where('creadoEn', '>=', cutoffDate), orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+                    const cutoffMs = cutoffDate ? cutoffDate.getTime() : (Date.now() - (32 * 60 * 60 * 1000));
+                    qBase = query(colRef, where('creadoEnMs', '>=', cutoffMs), orderBy('creadoEnMs', 'desc'), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, where('creadoEnMs', '>=', cutoffMs), orderBy('creadoEnMs', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
                 } else if (_paginationMode === 'docId') {
                     qBase = query(colRef, orderBy(documentId()), limit(_pageLimit));
                     if (_lastDoc) qBase = query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit));
-                } else {
+                } else if (_paginationMode === 'creadoEn') {
                     qBase = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
                     if (_lastDoc) qBase = query(colRef, orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+                } else {
+                    qBase = query(colRef, orderBy('creadoEnMs', 'desc'), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, orderBy('creadoEnMs', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
                 }
 
                 let snap = null;
@@ -1761,8 +1825,22 @@
                 if (!snap || snap.empty) {
                     // Para inspector no hacemos fallback a docId (evitar recorrer toda la colección)
                     if (!isInspector) {
-                        // Fallback: hay datasets antiguos sin "creadoEn" o casos donde la ordenación no regresa docs.
-                        // Usar una paginación estable por documentId para poder recorrer TODA la colección.
+                        // Fallback 1: si estamos en creadoEnMs y no regresó docs (dataset legado), caer a creadoEn.
+                        if (_paginationMode !== 'creadoEn') {
+                            try {
+                                _paginationMode = 'creadoEn';
+                                _lastDoc = null;
+                                const qAlt = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
+                                snap = forceNetwork ? await getDocs(qAlt) : (await getDocsFromCache(qAlt).catch(() => null)) || (await getDocs(qAlt));
+                            } catch {}
+                        }
+                    }
+                }
+
+                if (!snap || snap.empty) {
+                    // Para inspector no hacemos fallback a docId (evitar recorrer toda la colección)
+                    if (!isInspector) {
+                        // Fallback 2: recorrer toda la colección por documentId.
                         try {
                             _paginationMode = 'docId';
                             const qFallback = _lastDoc
@@ -2029,6 +2107,26 @@
                     }
                 });
 
+                // Override de negocio: LT se resetea si el equipo tiene anual vigente en UTT/VPM.
+                const bestDueMsByEq = new Map();
+                try {
+                    latest.forEach(({ reg, fr }) => {
+                        const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                        if (!eqK) return;
+                        let dProx = parseProxima(reg && reg.proxima ? reg.proxima : '');
+                        if (!dProx && fr) {
+                            const d = new Date(fr);
+                            d.setFullYear(d.getFullYear() + 1);
+                            d.setHours(0, 0, 0, 0);
+                            if (!isNaN(d.getTime())) dProx = d;
+                        }
+                        if (!dProx) return;
+                        const ms = dProx.getTime();
+                        const prev = bestDueMsByEq.get(eqK) || 0;
+                        if (ms > prev) bestDueMsByEq.set(eqK, ms);
+                    });
+                } catch {}
+
                 let pv60 = 0, pv30 = 0, pv15 = 0, z = 0;
                 latest.forEach(({ reg, fr }) => {
                     let dProx = parseProxima(reg && reg.proxima ? reg.proxima : '');
@@ -2039,6 +2137,22 @@
                         if (!isNaN(d.getTime())) dProx = d;
                     }
                     if (!dProx) return;
+
+                    // Aplicar override a LT
+                    try {
+                        const tipoRaw = (reg && (reg.pruebaTipo || reg.prueba)) ? String(reg.pruebaTipo || reg.prueba) : '';
+                        const tipoCanon = tipoRaw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        if (tipoCanon === 'LT') {
+                            const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                            const best = eqK ? (bestDueMsByEq.get(eqK) || 0) : 0;
+                            if (best && best > dProx.getTime()) {
+                                const d2 = new Date(best);
+                                d2.setHours(0, 0, 0, 0);
+                                dProx = d2;
+                            }
+                        }
+                    } catch {}
+
                     const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
                     if (dias <= 0) { z += 1; return; }
                     if (dias > 60) return;
@@ -2654,21 +2768,10 @@
             try {
                 const v = String(p || '').toUpperCase().trim();
                 if (!v) return '';
-                // Normalizar variantes comunes a un valor canónico
-                // Ej: "VT / PT / MT" , "VT/PT/MT" , "VT-PT-MT" => "VT/PT/MT"
                 const compact = v.replace(/\s+/g, '');
-                if (compact === 'VT/PT/MT' || compact === 'VT/PT/MT,' || compact === 'VT/PT/MT;') return 'VT/PT/MT';
-                if (compact === 'VT/PT/MT'.replace(/\//g,'') ) return 'VT/PT/MT';
-                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
-                if (compact === 'VT/PT/MT' || compact === 'VT/PT/MT') return 'VT/PT/MT';
-                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
-                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
-                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
-                if (compact === 'VT/PT/MT') return 'VT/PT/MT';
-                // Detección por contenido para cadena con separadores
-                if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) {
-                    return 'VT/PT/MT';
-                }
+                if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+                if (compact.includes('UTT')) return 'UTT';
+                if (compact.includes('LT')) return 'LT';
                 return v;
             } catch {
                 return String(p || '').toUpperCase().trim();
@@ -3106,7 +3209,7 @@
                     } catch {}
 
                     const res = await doImportToFirestore(importRowsReady||[]);
-                    importSummary.innerHTML += ` — Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
+                    importSummary.innerHTML += ` - Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
                     // Recargar listado
                     const desdeFs2 = await leerFirestore();
                     if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
@@ -3805,15 +3908,48 @@
                     ? reg._fechaRealDate
                     : parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '');
 
+                // Elegir el registro vigente por la fecha de próxima (due date) más alta.
+                // Esto evita discrepancias cuando hay múltiples documentos por equipo+tipo (emisor externo vs PCT).
+                let prox = parseProxima(reg.proxima || '');
+                if (!prox && fr) {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0,0,0,0);
+                    if (!isNaN(d.getTime())) prox = d;
+                }
+                const dueMs = prox ? prox.getTime() : 0;
+
                 const prev = latestAnualPorEquipoTipo.get(key);
                 if (!prev) {
-                    latestAnualPorEquipoTipo.set(key, { reg, fr, cat });
+                    latestAnualPorEquipoTipo.set(key, { reg, fr, cat, dueMs });
                 } else {
+                    const prevDueMs = (typeof prev.dueMs === 'number') ? prev.dueMs : 0;
+                    if (dueMs && (!prevDueMs || dueMs > prevDueMs)) {
+                        latestAnualPorEquipoTipo.set(key, { reg, fr, cat, dueMs });
+                        return;
+                    }
+                    if (dueMs && prevDueMs && dueMs < prevDueMs) return;
+
                     const a = prev.fr ? prev.fr.getTime() : 0;
                     const b = fr ? fr.getTime() : 0;
-                    if (b >= a) latestAnualPorEquipoTipo.set(key, { reg, fr, cat });
+                    if (b >= a) latestAnualPorEquipoTipo.set(key, { reg, fr, cat, dueMs });
                 }
             });
+
+            // Regla de negocio: LT se resetea si el equipo tiene anual vigente en UTT/VPM.
+            const bestDueMsByEquipo = new Map();
+            try {
+                latestAnualPorEquipoTipo.forEach(({ reg, dueMs }) => {
+                    const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                    if (!eqK) return;
+                    const ms = (typeof dueMs === 'number' && isFinite(dueMs)) ? dueMs : 0;
+                    if (!ms) return;
+                    const prev = bestDueMsByEquipo.get(eqK) || 0;
+                    if (ms > prev) bestDueMsByEquipo.set(eqK, ms);
+                });
+            } catch {}
+
+            const canonTipo = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
             latestAnualPorEquipoTipo.forEach(({ reg, fr, cat }) => {
                 if (!reg || !cat) return;
@@ -3826,6 +3962,19 @@
                     if (!isNaN(d.getTime())) prox = d;
                 }
                 if (!prox) return;
+
+                // Override para LT: usar el mejor vencimiento anual del equipo si es mayor.
+                try {
+                    if (cat === 'lt') {
+                        const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                        const best = eqK ? (bestDueMsByEquipo.get(eqK) || 0) : 0;
+                        if (best && best > prox.getTime()) {
+                            const dBest = new Date(best);
+                            dBest.setHours(0,0,0,0);
+                            prox = dBest;
+                        }
+                    }
+                } catch {}
                 const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
                 if (isNaN(dias)) return;
                 if (dias <= 0) { cont[cat].d0 += 1; return; }
@@ -4033,9 +4182,9 @@
 
             // Chips: contar PRUEBAS (no equipos)
             let cntChipGT60 = 0; // > 60
-            let cntChip60 = 0;   // 60–31
-            let cntChip30 = 0;   // 30–16
-            let cntChip15 = 0;   // 15–1
+            let cntChip60 = 0;   // 60-31
+            let cntChip30 = 0;   // 30-16
+            let cntChip15 = 0;   // 15-1
             let cntChip0 = 0;    // 0 (vencidas)
 
             // Alinear chips con backend/Rangos: usar solo la última ANUAL por equipo + tipo de prueba
@@ -4145,7 +4294,7 @@
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK}</td>
-                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial ? normSerialKey(serial) : '—'}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial ? normSerialKey(serial) : '-'}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
@@ -4318,7 +4467,7 @@
                     }
                 } catch {}
 
-                // Aplicar filtro por rango si está activo (solo vigentes), rangos: 60–31, 30–16, 15–1
+                // Aplicar filtro por rango si está activo (solo vigentes), rangos: 60-31, 30-16, 15-1
                 // Importante: SOLO filtra ANUAL; si el filtroPeriodo fuerza POST-TRABAJO o REPARACION, no aplica rangos
                 if (filtroRango && esAnualReg && (!filtroPeriodo || filtroPeriodo === 'ANUAL')) {
                     if (filtroRango === '0') {
@@ -4334,7 +4483,7 @@
                 }
 
                 // Contadores alineados al dashboard (después de calcular diasNum):
-                // - "Por realizar" = pruebas ANUALES vigentes cuyo dProx está entre 0 y 60 días (suma de 60–30, 30–15, 15–0)
+                // - "Por realizar" = pruebas ANUALES vigentes cuyo dProx está entre 0 y 60 días (suma de 60-30, 30-15, 15-0)
                 // - "Vencidas" = pruebas ANUALES con próxima ya pasada (estado VENCIDA)
                 if (scopedForIndicators && esAnualReg && estado === 'VIGENTE' && diasNum !== null && diasNum >= 0 && diasNum <= 60) {
                     cntPend += 1;
@@ -4428,7 +4577,7 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${diasParaProxima}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serialCelda || '—'}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serialCelda || '-'}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
@@ -4512,11 +4661,42 @@
                 cntChip30 = 0;
                 cntChip15 = 0;
                 cntChip0 = 0;
-                latestIndic.forEach(v => {
+
+                // Override de negocio: LT se resetea si el equipo tiene anual vigente en UTT/VPM.
+                const bestDueMsByEq = new Map();
+                try {
+                    latestIndic.forEach((v, k) => {
+                        if (!v || !k) return;
+                        const eqK = String(k).split('__')[0] || '';
+                        if (!eqK) return;
+                        const dueMs = (v && typeof v.dueMs === 'number' && isFinite(v.dueMs)) ? v.dueMs : 0;
+                        if (!dueMs) return;
+                        const prev = bestDueMsByEq.get(eqK) || 0;
+                        if (dueMs > prev) bestDueMsByEq.set(eqK, dueMs);
+                    });
+                } catch {}
+
+                latestIndic.forEach((v, k) => {
                     if (!v) return;
-                    if (v.estado === 'VENCIDA') { cntChip0 += 1; return; }
-                    if (v.estado !== 'VIGENTE') return;
-                    const d = v.dias;
+                    let estado = v.estado;
+                    let d = v.dias;
+                    try {
+                        const parts = String(k || '').split('__');
+                        const eqK = parts[0] || '';
+                        const tipoCanon = (parts[1] || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        if (tipoCanon === 'LT' && eqK) {
+                            const best = bestDueMsByEq.get(eqK) || 0;
+                            if (best && (!v.dueMs || best > v.dueMs)) {
+                                const hoy0 = hoySinHora();
+                                const dias2 = Math.round((best - hoy0.getTime()) / (1000 * 60 * 60 * 24));
+                                d = dias2;
+                                estado = (dias2 <= 0) ? 'VENCIDA' : 'VIGENTE';
+                            }
+                        }
+                    } catch {}
+
+                    if (estado === 'VENCIDA') { cntChip0 += 1; return; }
+                    if (estado !== 'VIGENTE') return;
                     if (d === null || typeof d !== 'number' || isNaN(d)) return;
                     if (d > 60) cntChipGT60 += 1;
                     else if (d >= 31 && d <= 60) cntChip60 += 1;

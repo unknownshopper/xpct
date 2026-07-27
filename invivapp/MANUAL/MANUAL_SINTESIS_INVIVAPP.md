@@ -1,6 +1,6 @@
 # INVIVAPP (Inventario Vivo)
 
-## Síntesis ejecutiva para registro de obra (INDAUTOR) — Programa de cómputo
+## Síntesis ejecutiva para registro de obra (INDAUTOR) - Programa de cómputo
 
 - **Nombre de la obra**: INVIVAPP (Inventario Vivo)
 - **Autor / Titular**: AUTOR GARCÍA ZZZZZZ
@@ -59,7 +59,7 @@ El objetivo es reducir riesgo operativo y documental, elevando el control de cum
 
 ## 3. Descripción tecnológica (lenguaje ejecutivo)
 
-INVIVAPP se implementa como un **sistema cliente–servidor**:
+INVIVAPP se implementa como un **sistema cliente-servidor**:
 
 - **Aplicación de usuario (cliente)**: aplicación web ejecutada en navegador (interfaz de usuario y lógica de presentación).
 - **Servicios de soporte (servidor)**: componentes de backend para automatizaciones (por ejemplo, notificaciones por correo y tareas administrativas).

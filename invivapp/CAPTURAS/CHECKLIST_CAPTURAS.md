@@ -1,4 +1,4 @@
-# INVIVAPP — Checklist de capturas (expediente)
+# INVIVAPP - Checklist de capturas (expediente)
 
 ## Capturas recomendadas
 

@@ -76,15 +76,15 @@
 
             <section id="rangos-cards" class="dashboard-cards" style="margin-bottom: 1rem;">
                 <div id="card-60" class="dash-card" style="cursor:pointer;">
-                    <div class="dash-card-label">60–31 días</div>
+                    <div class="dash-card-label">60-31 días</div>
                     <div class="dash-card-value" id="rango-60">0</div>
                 </div>
                 <div id="card-30" class="dash-card" style="cursor:pointer;">
-                    <div class="dash-card-label">30–16 días</div>
+                    <div class="dash-card-label">30-16 días</div>
                     <div class="dash-card-value" id="rango-30">0</div>
                 </div>
                 <div id="card-15" class="dash-card" style="cursor:pointer;">
-                    <div class="dash-card-label">15–1 días</div>
+                    <div class="dash-card-label">15-1 días</div>
                     <div class="dash-card-value" id="rango-15">0</div>
                 </div>
                 <div id="card-0" class="dash-card" style="cursor:pointer;">
@@ -311,6 +311,35 @@
         return String(v || '').trim().toUpperCase();
     }
 
+    function normEquipoKey(v) {
+        let t = String(v || '');
+        t = t.replace(/\u00A0/g, ' ');
+        t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+        t = t.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, '-');
+        t = t.toUpperCase().trim();
+        // Llave canónica: solo alfanumérico (evita diferencias por guiones/formatos externos)
+        t = t.replace(/[^A-Z0-9]/g, '');
+        return t;
+    }
+
+    function normPruebaKey(v) {
+        let t = String(v || '');
+        t = t.replace(/\u00A0/g, ' ');
+        t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, ' ');
+        t = t.toUpperCase().trim();
+        if (!t) return 'ANUAL';
+        const compact = t.replace(/\s+/g, '');
+        if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+        if (compact.includes('UTT')) return 'UTT';
+        if (compact.includes('LT')) return 'LT';
+        return t;
+    }
+
+    function canonTipoPrueba(v) {
+        const t = normPruebaKey(v);
+        return t.replace(/[^A-Z0-9]/g, '');
+    }
+
     async function cargarEstadoPorEquipoDesdeInventario() {
         const mapa = {};
         try {
@@ -322,48 +351,20 @@
                 if (parsed && typeof parsed === 'object') overrides = parsed;
             } catch {}
 
-            const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' });
-            if (!resp.ok) return mapa;
-            const texto = await resp.text();
-            const lineas = String(texto || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
-            if (!lineas.length) return mapa;
-
-            const parseLine = (line) => {
-                const out = [];
-                let cur = '';
-                let inside = false;
-                for (let i = 0; i < line.length; i++) {
-                    const ch = line[i];
-                    const next = line[i + 1];
-                    if (ch === '"') {
-                        if (inside && next === '"') { cur += '"'; i++; }
-                        else inside = !inside;
-                    } else if (ch === ',' && !inside) {
-                        out.push(cur);
-                        cur = '';
-                    } else {
-                        cur += ch;
-                    }
-                }
-                out.push(cur);
-                return out;
-            };
-
-            const headers = parseLine(lineas[0]).map(h => String(h || '').trim());
-            const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
-            const idxEdo = headers.indexOf('EDO');
-            if (idxEquipo < 0 || idxEdo < 0) return mapa;
-
-            for (const l of lineas.slice(1)) {
-                const cols = parseLine(l);
-                const eq = (idxEquipo >= 0 && idxEquipo < cols.length) ? normKey(cols[idxEquipo]) : '';
-                if (!eq) continue;
-                let edo = (idxEdo >= 0 && idxEdo < cols.length) ? String(cols[idxEdo] || '').trim().toUpperCase() : '';
+            const db = getFirestore();
+            const snap = await getDocs(collection(db, 'equipos'));
+            snap.forEach(doc => {
+                const data = doc.data() || {};
+                const eqDisp = normKey(doc.id || data.equipoDisplay || data.equipoKey || '');
+                if (!eqDisp) return;
+                const eqKey = normEquipoKey(eqDisp);
+                let edo = String(data.edo || '').trim().toUpperCase();
                 if (!edo) edo = 'ON';
-                const ov = overrides && overrides[eq] ? String(overrides[eq] || '').trim().toUpperCase() : '';
+                const ov = overrides && overrides[eqDisp] ? String(overrides[eqDisp] || '').trim().toUpperCase() : '';
                 const edoEf = ov || edo;
-                if (!mapa[eq]) mapa[eq] = edoEf;
-            }
+                if (!mapa[eqDisp]) mapa[eqDisp] = edoEf;
+                if (eqKey && !mapa[eqKey]) mapa[eqKey] = edoEf;
+            });
         } catch {}
         return mapa;
     }
@@ -408,9 +409,9 @@
     }
 
     function tituloPorRango(r) {
-        if (r === '60') return '60–31 días';
-        if (r === '30') return '30–16 días';
-        if (r === '15') return '15–1 días';
+        if (r === '60') return '60-31 días';
+        if (r === '30') return '30-16 días';
+        if (r === '15') return '15-1 días';
         if (r === '0') return '💀 0 días (vencidas)';
         if (r === 'fail') return 'Fallidos';
         return 'Listado';
@@ -513,17 +514,24 @@
         const db = getFirestore();
         const snap = await getDocs(collection(db, 'pruebas'));
 
+        let dbgTotalDocs = 0;
+        let dbgAnualDocs = 0;
+
         // Agrupar por equipo + tipo de prueba tomando el registro más reciente (fecha realización)
         const latest = new Map();
         const fallidos = [];
         snap.forEach(doc => {
+            dbgTotalDocs += 1;
             const r = { ...(doc.data() || {}), _id: doc.id };
             const periodo = String(r.periodo || '').trim().toUpperCase();
             const esAnual = (periodo === 'ANUAL' || !periodo);
             if (!esAnual) return;
 
-            const equipo = String(r.equipo || '').trim();
-            if (!equipo) {
+            dbgAnualDocs += 1;
+
+            const equipoDisp = String(r.equipo || '').trim();
+            const equipoKey = normEquipoKey(equipoDisp);
+            if (!equipoDisp || !equipoKey) {
                 fallidos.push({
                     equipo: String(r._id || '').trim(),
                     serial: String(r.numeroSerie || r.serial || '').trim(),
@@ -537,33 +545,67 @@
 
             // Excluir equipos OFF / no operativos del tablero de rangos (no cuentan ni se listan)
             try {
-                const eqKey = normKey(equipo);
-                const edo = edoPorEquipo && eqKey ? edoPorEquipo[eqKey] : '';
+                // edoPorEquipo viene del inventario CSV con el texto tal cual; intentar ambas llaves
+                const edo = (edoPorEquipo && (edoPorEquipo[equipoDisp] || edoPorEquipo[equipoKey]))
+                    ? (edoPorEquipo[equipoDisp] || edoPorEquipo[equipoKey])
+                    : '';
                 if (edo && !equipoOperativo(edo)) return;
             } catch {}
 
-            const pruebaTipo = normKey(r.pruebaTipo || r.prueba || 'ANUAL');
-            const key = `${normKey(equipo)}__${pruebaTipo}`;
+            const pruebaTipo = normPruebaKey(r.pruebaTipo || r.prueba || 'ANUAL');
+            const key = `${equipoKey}__${pruebaTipo}`;
 
             const fr = parseFechaRealizacion(r.fechaRealizacion || r.fechaPrueba || '');
+            let prox = parseProxima(r.proxima || '');
+            // Para deduplicación correcta: si no hay 'proxima', derivarla de fecha realización + 12 meses.
+            // Así un registro vigente sin proxima explícita no pierde contra uno viejo con proxima vencida.
+            if (!prox && fr) {
+                try {
+                    const d = new Date(fr);
+                    d.setFullYear(d.getFullYear() + 1);
+                    d.setHours(0,0,0,0);
+                    if (!isNaN(d.getTime())) prox = d;
+                } catch {}
+            }
+            const creado = parseFechaRealizacion(r.creadoEn || r.createdAt || r.importedAt || r.fechaRegistro || '');
+
             const prev = latest.get(key);
             if (!prev) {
-                latest.set(key, { ...r, _fr: fr });
+                latest.set(key, { ...r, _fr: fr, _prox: prox, _creado: creado, _equipoDisp: equipoDisp, _equipoKey: equipoKey });
                 return;
             }
+
+            const prevProx = prev._prox;
+            if (prox && (!prevProx || prox.getTime() > prevProx.getTime())) {
+                latest.set(key, { ...r, _fr: fr, _prox: prox, _creado: creado, _equipoDisp: equipoDisp, _equipoKey: equipoKey });
+                return;
+            }
+            if (prox && prevProx && prox.getTime() < prevProx.getTime()) return;
+
             const prevFr = prev._fr;
             if (fr && (!prevFr || fr.getTime() > prevFr.getTime())) {
-                latest.set(key, { ...r, _fr: fr });
+                latest.set(key, { ...r, _fr: fr, _prox: prox, _creado: creado, _equipoDisp: equipoDisp, _equipoKey: equipoKey });
+                return;
+            }
+            if (fr && prevFr && fr.getTime() < prevFr.getTime()) return;
+
+            const prevCreado = prev._creado;
+            if (creado && (!prevCreado || creado.getTime() > prevCreado.getTime())) {
+                latest.set(key, { ...r, _fr: fr, _prox: prox, _creado: creado, _equipoDisp: equipoDisp, _equipoKey: equipoKey });
             }
         });
 
         const hoy = hoySinHora();
         let c60 = 0, c30 = 0, c15 = 0, c0 = 0, cFail = 0;
 
+        let dbgC0LT = 0;
+
         const items = [];
 
         latest.forEach(r => {
-            let prox = parseProxima(r.proxima || '');
+            const equipoDisp = String(r && r._equipoDisp ? r._equipoDisp : (r && r.equipo ? r.equipo : '')).trim();
+            const equipoKey = String(r && r._equipoKey ? r._equipoKey : '').trim();
+            let prox = r._prox || parseProxima(r.proxima || '');
             if (!prox) {
                 const fr = parseFechaRealizacion(r.fechaRealizacion || r.fechaPrueba || '');
                 if (fr) {
@@ -573,13 +615,14 @@
                     if (!isNaN(d.getTime())) prox = d;
                 }
             }
+
             if (!prox) {
                 const rawProx = String(r.proxima || '').trim();
                 const motivo = rawProx ? 'PROXIMA_INVALIDA' : 'SIN_PROXIMA';
                 fallidos.push({
-                    equipo: String(r.equipo || '').trim(),
+                    equipo: equipoDisp,
                     serial: String(r.numeroSerie || r.serial || '').trim(),
-                    prueba: String(r.pruebaTipo || r.prueba || '').trim(),
+                    prueba: normPruebaKey(String(r.pruebaTipo || r.prueba || '').trim()),
                     proxima: null,
                     dias: '',
                     failReason: motivo
@@ -589,14 +632,21 @@
             const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
             if (isNaN(dias)) return;
             items.push({
-                equipo: String(r.equipo || '').trim(),
+                equipo: equipoDisp,
                 serial: String(r.numeroSerie || r.serial || '').trim(),
-                prueba: String(r.pruebaTipo || r.prueba || '').trim(),
+                prueba: normPruebaKey(String(r.pruebaTipo || r.prueba || '').trim()),
                 proxima: prox,
                 dias
             });
 
-            if (dias <= 0) { c0 += 1; return; }
+            if (dias <= 0) {
+                c0 += 1;
+                try {
+                    const tipoCanon = canonTipoPrueba(r && (r.pruebaTipo || r.prueba) ? (r.pruebaTipo || r.prueba) : '');
+                    if (tipoCanon === 'LT') dbgC0LT += 1;
+                } catch {}
+                return;
+            }
             if (dias >= 31 && dias <= 60) c60 += 1;
             else if (dias >= 16 && dias <= 30) c30 += 1;
             else if (dias >= 1 && dias <= 15) c15 += 1;
@@ -610,6 +660,15 @@
         if (lbl15) lbl15.textContent = String(c15);
         if (lbl0)  lbl0.textContent  = String(c0);
         if (lblFail) lblFail.textContent = String(cFail);
+
+        try {
+            console.debug('[pruebasrangos] docs total:', dbgTotalDocs);
+            console.debug('[pruebasrangos] docs anual (periodo ANUAL o vacio):', dbgAnualDocs);
+            console.debug('[pruebasrangos] latest size (equipo+tipo):', latest.size);
+            console.debug('[pruebasrangos] vencidas total (dias<=0):', c0);
+            console.debug('[pruebasrangos] vencidas LT (dias<=0):', dbgC0LT);
+            console.debug('[pruebasrangos] fallidos:', cFail);
+        } catch {}
 
         actualizarTarjetasActivas();
         renderListado();

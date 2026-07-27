@@ -138,12 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="checkbox" data-eq="${r.equipo}" data-serial="${r.serial}" data-producto="${r.producto}" data-desc="${r.descripcion}">
         </td>
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${r.equipo}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${r.serial || '—'}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${r.producto || '—'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${r.serial || '-'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${r.producto || '-'}</td>
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9;">${r.descripcion || ''}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${r.ultimaPruebaHidro || '—'}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${r.vencimientoAnual || '—'}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${r.linkVerPrueba || '—'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${r.ultimaPruebaHidro || '-'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${r.vencimientoAnual || '-'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${r.linkVerPrueba || '-'}</td>
       `;
 
       const c = tr.querySelector('input[type="checkbox"]');
@@ -170,22 +170,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadInventory() {
     try {
-      const res = await fetch('docs/INVENTARIOTOTAL04-202602.csv');
-      if (!res.ok) throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
-      const text = await res.text();
-      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-      if (!lines.length) return;
-      const headers = (window.parseCSVLine ? window.parseCSVLine(lines[0]) : lines[0].split(','));
-
-      const idxEquipo = headers.findIndex(h => normKey(h).includes('EQUIPO'));
-      const idxSerial = headers.findIndex(h => normKey(h).includes('SERIAL'));
-      const idxProd = headers.findIndex(h => normKey(h).includes('PRODUCTO'));
-      const idxDesc = headers.findIndex(h => normKey(h).includes('DESCRIP'));
-
       const out = [];
-      lines.slice(1).forEach(line => {
-        const cols = window.parseCSVLine ? window.parseCSVLine(line) : line.split(',');
-        const equipo = norm(cols[idxEquipo] || '');
+
+      const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const db = getFirestore();
+      const snap = await getDocs(collection(db, 'equipos'));
+      snap.forEach(d => {
+        const data = d.data() || {};
+        const equipo = norm(d.id || data.equipoKey || data.equipoDisplay || '');
         if (!equipo) return;
         const key = normKey(equipo);
         const info = vencPorEquipo[key] || null;
@@ -196,9 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
           : '';
         out.push({
           equipo,
-          serial: norm(cols[idxSerial] || ''),
-          producto: norm(cols[idxProd] || ''),
-          descripcion: norm(cols[idxDesc] || ''),
+          serial: norm(data.serial || ''),
+          producto: norm(data.producto || ''),
+          descripcion: norm(data.descripcion || ''),
           ultimaPruebaHidro: ult,
           vencimientoAnual: venc,
           linkVerPrueba: link,

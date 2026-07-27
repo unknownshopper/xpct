@@ -1,4 +1,4 @@
-# INVIVAPP — Guía para preparar extractos de código (INDAUTOR)
+# INVIVAPP - Guía para preparar extractos de código (INDAUTOR)
 
 ## Objetivo
 
@@ -9,9 +9,9 @@ Preparar extractos representativos del código fuente (inicio/fin y secciones cl
 - Excluir credenciales, llaves y secretos (ver `../CHECKLIST_EXCLUSIONES.md`).
 - Es válido anexar extractos en **TXT** o **PDF**.
 - Para cada archivo recomendado:
-  - Inicio (primeras 30–60 líneas)
-  - Parte representativa (30–120 líneas donde esté la lógica principal)
-  - Fin (últimas 30–60 líneas)
+  - Inicio (primeras 30-60 líneas)
+  - Parte representativa (30-120 líneas donde esté la lógica principal)
+  - Fin (últimas 30-60 líneas)
 
 ## Archivos sugeridos (alta representatividad)
 

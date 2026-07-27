@@ -73,8 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <td style="border:1px solid #111827; padding:3px 4px; text-align:center; width:36px;">${esc(cant)}</td>
           <td style="border:1px solid #111827; padding:3px 4px;">${esc(desc)}</td>
           <td style="border:1px solid #111827; padding:3px 4px; text-align:center; white-space:nowrap; font-weight:700;">${esc(ident)}</td>
-          <td style="border:1px solid #111827; padding:3px 4px; text-align:center; white-space:nowrap;">${esc(ultAnual) || '—'}</td>
-          <td style="border:1px solid #111827; padding:3px 4px; text-align:center; white-space:nowrap;">${esc(vencAnual) || '—'}</td>
+          <td style="border:1px solid #111827; padding:3px 4px; text-align:center; white-space:nowrap;">${esc(ultAnual) || '-'}</td>
+          <td style="border:1px solid #111827; padding:3px 4px; text-align:center; white-space:nowrap;">${esc(vencAnual) || '-'}</td>
           <td style="border:1px solid #111827; padding:3px 4px; text-align:center; width:64px;">&nbsp;</td>
         </tr>
       `;

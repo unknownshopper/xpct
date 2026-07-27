@@ -403,6 +403,7 @@
     const mapaDescripcionPorEquipo = {};
     const mapaSerialPorEquipo = {};
     const infoPorEquipo = {}; // { descripcionUI, descripcion }
+    const estadoOperacionPorEquipo = {}; // { [eq]: { aptoOperacion, motivoBloqueo } }
     let equiposSeleccionados = [];
     let equiposCatalogo = [];
     let equipoFocus = false;
@@ -454,6 +455,16 @@
         .replace(/[^A-Z0-9]/g, '');
     }
 
+    function normEquipoKey(raw) {
+      let t = __upNoAcc(raw);
+      t = t.replace(/\u00A0/g, ' ');
+      t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+      t = t.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, '-');
+      t = t.toUpperCase().trim();
+      t = t.replace(/[^A-Z0-9]/g, '');
+      return t;
+    }
+
     function renderEquipoSuggestions() {
       if (!equipoSugs) return;
       if (!equipoFocus) {
@@ -492,7 +503,21 @@
         const serial = (mapaSerialPorEquipo[eq] || '').toString();
 
         const row = document.createElement('div');
+        const st = estadoOperacionPorEquipo[eq] || null;
+        const bloqueado = !!(st && st.aptoOperacion === false);
+        const motivoRaw = st ? String(st.motivoBloqueo || '').trim() : '';
+        const warningOnly = !!(st && st.warningOnly);
+        const motivo = (bloqueado || warningOnly) ? motivoRaw : '';
         row.style.cssText = 'padding:8px 10px; font-size:0.85rem; color:#111827; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; gap:10px;';
+        if (bloqueado) {
+          row.style.background = '#fff1f2';
+          row.style.color = '#991b1b';
+          if (motivo) row.title = `NO APTO: ${motivo}`;
+        } else if (warningOnly) {
+          row.style.background = '#fffbeb';
+          row.style.color = '#92400e';
+          if (motivo) row.title = `ADVERTENCIA: ${motivo}`;
+        }
         const left = document.createElement('div');
         left.style.cssText = 'white-space:nowrap;';
         left.innerHTML = serial
@@ -506,11 +531,33 @@
 
         row.addEventListener('mousedown', (e) => e.preventDefault());
         row.addEventListener('mouseenter', () => { row.style.background = '#f8fafc'; });
-        row.addEventListener('mouseleave', () => { row.style.background = '#fff'; });
-        row.addEventListener('click', () => {
-          // Selección desde catálogo = agregar inmediatamente
-          procesarTextoEquipos(eq);
-          if (inpEquipo) inpEquipo.value = '';
+        row.addEventListener('mouseleave', () => {
+          if (bloqueado) row.style.background = '#fff1f2';
+          else if (warningOnly) row.style.background = '#fffbeb';
+          else row.style.background = '#fff';
+        });
+        row.addEventListener('click', async () => {
+          await obtenerEstadoOperacionEquipo(eq, { forceRefresh: true });
+          const st2 = estadoOperacionPorEquipo[eq] || null;
+          if (st2) {
+            const m = String(st2.motivoBloqueo || '').trim();
+            if (st2.aptoOperacion === false) {
+              if (m === 'PRUEBA_ANUAL_VENCIDA') {
+                const ok = confirm(`El equipo ${eq} tiene la PRUEBA ANUAL vencida. ¿Deseas agregarlo de todos modos?`);
+                if (!ok) return;
+              } else {
+                alert(`No se puede agregar el equipo ${eq} porque NO está apto para operar${m ? ` (${m})` : ''}.`);
+                return;
+              }
+            } else if (st2.warningOnly) {
+              if (m === 'INSPECCION_MALO') {
+                const ok = confirm(`El equipo ${eq} tiene una INSPECCIÓN en estado MALO. ¿Deseas agregarlo de todos modos?`);
+                if (!ok) return;
+              }
+            }
+          }
+          const ok = await procesarTextoEquiposAsync(eq);
+          if (ok && inpEquipo) inpEquipo.value = '';
           renderEquipoSuggestions();
           if (inpEquipo) inpEquipo.focus();
         });
@@ -520,6 +567,17 @@
 
       equipoSugs.innerHTML = '';
       equipoSugs.appendChild(wrap);
+
+      try {
+        items.slice(0, 12).forEach(eq => {
+          if (estadoOperacionPorEquipo[eq] != null) return;
+          obtenerEstadoOperacionEquipo(eq).then(() => {
+            try {
+              if (equipoFocus) renderEquipoSuggestions();
+            } catch {}
+          });
+        });
+      } catch {}
     }
 
     function sleep(ms) {
@@ -533,6 +591,293 @@
         await sleep(50);
       }
       return !!window.db;
+    }
+
+    async function obtenerEstadoOperacionEquipo(eq, { forceRefresh = false } = {}) {
+      const equipo = String(eq || '').trim();
+      if (!equipo) return { aptoOperacion: true, motivoBloqueo: '' };
+      const cached = estadoOperacionPorEquipo[equipo] || null;
+      const ttlMs = 3000;
+      const cachedAt = cached && typeof cached.checkedAt === 'number' ? cached.checkedAt : 0;
+      if (!forceRefresh && cached && (Date.now() - cachedAt) < ttlMs) return cached;
+
+      await waitForFirebase();
+      if (!window.db) {
+        estadoOperacionPorEquipo[equipo] = { aptoOperacion: true, motivoBloqueo: '', checkedAt: Date.now() };
+        return estadoOperacionPorEquipo[equipo];
+      }
+
+      try {
+        const { getFirestore, doc, getDoc, collection, query, where, getDocs, limit } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const db = getFirestore();
+
+        let resumenApto = null;
+        let resumenMotivo = '';
+        let anualVigente = null;
+        const eqKey = normEquipoKey(equipo);
+        try {
+          let snapRes = null;
+          try {
+            snapRes = await getDoc(doc(db, 'resumenes_equipos', equipo));
+          } catch {}
+          if (!snapRes || !snapRes.exists || !snapRes.exists()) {
+            try {
+              if (eqKey) snapRes = await getDoc(doc(db, 'resumenes_equipos', eqKey));
+            } catch {}
+          }
+          if (snapRes && snapRes.exists && snapRes.exists()) {
+            const r = snapRes.data() || {};
+            resumenApto = (r.aptoOperacion !== false);
+            resumenMotivo = String(r.motivoBloqueo || '').trim();
+            try {
+              const pv = r && r.pruebas ? r.pruebas : null;
+              if (pv && pv.ltVigenteEfectivo != null) anualVigente = !!pv.ltVigenteEfectivo;
+            } catch {}
+            if (resumenApto === false) {
+              if (resumenMotivo && resumenMotivo !== 'PRUEBA_ANUAL_VENCIDA') {
+                estadoOperacionPorEquipo[equipo] = { aptoOperacion: false, motivoBloqueo: resumenMotivo, checkedAt: Date.now() };
+                return estadoOperacionPorEquipo[equipo];
+              }
+            }
+          }
+        } catch {}
+
+        if (anualVigente !== true) {
+          try {
+            const parseDDMMAA = (s) => {
+              try {
+                const t = String(s || '').trim();
+                if (!t || !t.includes('/')) return null;
+                const partes = t.split('/');
+                if (partes.length !== 3) return null;
+                const dd = parseInt(partes[0], 10);
+                const mm = parseInt(partes[1], 10);
+                const aaStr = String(partes[2] || '').trim();
+                const aa = parseInt(aaStr, 10);
+                if (!dd || !mm || Number.isNaN(aa)) return null;
+                const year = aaStr.length <= 2 ? (2000 + aa) : aa;
+                const d = new Date(year, mm - 1, dd);
+                if (Number.isNaN(d.getTime())) return null;
+                d.setHours(0,0,0,0);
+                return d;
+              } catch {
+                return null;
+              }
+            };
+
+            const canonPruebaTipo = (v) => {
+              const t = String(v || '').toUpperCase().trim();
+              if (!t) return '';
+              const compact = t.replace(/\s+/g, '');
+              if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+              if (compact.includes('UTT')) return 'UTT';
+              if (compact.includes('LT')) return 'LT';
+              if (compact === 'ANUAL') return 'ANUAL';
+              return t;
+            };
+
+            const hoy = new Date();
+            hoy.setHours(0,0,0,0);
+
+            const eqUp = String(equipo || '').trim();
+            const eqLow = eqUp.toLowerCase();
+            const eqSp = eqUp.replace(/-/g, ' ');
+            const eqSpLow = eqSp.toLowerCase();
+            const eqNoPct = eqUp.replace(/^PCT-?/i, '');
+            const candidates = Array.from(new Set([eqUp, eqLow, eqSp, eqSpLow, eqNoPct, eqNoPct.toLowerCase()])).filter(Boolean).slice(0, 10);
+
+            const colPr = collection(db, 'pruebas');
+            const qPr = candidates.length > 1
+              ? query(colPr, where('equipo', 'in', candidates), limit(50))
+              : query(colPr, where('equipo', '==', eqUp), limit(50));
+            const snapPr = await getDocs(qPr);
+
+            let bestDueMs = 0;
+            snapPr.forEach(ds => {
+              const data = ds.data() || {};
+              const per = String(data.periodo || '').trim().toUpperCase();
+              if (per && per !== 'ANUAL') return;
+
+              const tipo = canonPruebaTipo(data.pruebaTipo || data.prueba || '');
+              if (!(tipo === 'LT' || tipo === 'UTT' || tipo === 'VT/PT/MT' || tipo === 'ANUAL')) return;
+
+              let prox = null;
+              const p = data.proxima;
+              if (p && typeof p.toDate === 'function') prox = p.toDate();
+              else if (p instanceof Date) prox = p;
+              else if (typeof p === 'number' && isFinite(p)) prox = new Date(p);
+              else if (typeof p === 'string' && p.trim()) {
+                prox = parseDDMMAA(p.trim());
+                if (!prox) {
+                  const px = Date.parse(p.trim());
+                  if (!Number.isNaN(px)) prox = new Date(px);
+                }
+              }
+              if (prox && !isNaN(prox.getTime())) {
+                prox.setHours(0,0,0,0);
+              } else {
+                prox = null;
+              }
+
+              if (!prox) {
+                let fr = null;
+                const f = (data.fechaRealizacion || data.fechaPrueba || data.fecha || data.creadoEn || data.createdAt || null);
+                if (f && typeof f.toDate === 'function') fr = f.toDate();
+                else if (f instanceof Date) fr = f;
+                else if (typeof f === 'number' && isFinite(f)) fr = new Date(f);
+                else if (typeof f === 'string' && f.trim()) {
+                  fr = parseDDMMAA(f.trim());
+                  if (!fr) {
+                    const fx = Date.parse(f.trim());
+                    if (!Number.isNaN(fx)) fr = new Date(fx);
+                  }
+                }
+                if (fr && !isNaN(fr.getTime())) {
+                  fr.setHours(0,0,0,0);
+                  const d = new Date(fr);
+                  d.setFullYear(d.getFullYear() + 1);
+                  d.setHours(0,0,0,0);
+                  if (!isNaN(d.getTime())) prox = d;
+                }
+              }
+
+              const dueMs = (prox && !isNaN(prox.getTime())) ? prox.getTime() : 0;
+              if (dueMs && dueMs > bestDueMs) bestDueMs = dueMs;
+            });
+
+            if (bestDueMs) anualVigente = (bestDueMs > hoy.getTime());
+            else anualVigente = false;
+          } catch {}
+        }
+
+        let edo = 'ON';
+        try {
+          const snapEdo = await getDoc(doc(db, 'inventarioEstados', equipo));
+          if (snapEdo.exists()) {
+            const d = snapEdo.data() || {};
+            edo = String(d.edo || '').trim().toUpperCase() || 'ON';
+          }
+        } catch {}
+
+        let insp = null;
+        try {
+          const colInsp = collection(db, 'inspecciones');
+          const eqUp = String(equipo || '').trim();
+          const eqLow = eqUp.toLowerCase();
+          const eqSp = eqUp.replace(/-/g, ' ');
+          const eqSpLow = eqSp.toLowerCase();
+          const eqNoPct = eqUp.replace(/^PCT-?/i, '');
+          const candidates = Array.from(new Set([eqUp, eqLow, eqSp, eqSpLow, eqNoPct, eqNoPct.toLowerCase()])).filter(Boolean).slice(0, 10);
+          const q = candidates.length > 1
+            ? query(colInsp, where('equipo', 'in', candidates), limit(20))
+            : query(colInsp, where('equipo', '==', eqUp), limit(20));
+          const snap = await getDocs(q);
+          if (snap && !snap.empty) {
+            let best = null;
+            let bestMs = 0;
+            snap.forEach(ds => {
+              const data = ds.data() || {};
+              let ms = 0;
+              const c = data.creadoEn;
+              if (c && typeof c.toMillis === 'function') ms = c.toMillis();
+              else if (c && typeof c.seconds === 'number') ms = c.seconds * 1000;
+              else {
+                const f = (data.fecha || '').toString();
+                const p = Date.parse(f);
+                if (!Number.isNaN(p)) ms = p;
+              }
+              if (!best || ms > bestMs) {
+                best = data;
+                bestMs = ms;
+              }
+            });
+            insp = best;
+          }
+        } catch {}
+
+        const calcEstadoGeneral = (i) => {
+          try {
+            const eg = (i && i.estadoGeneral != null) ? String(i.estadoGeneral).trim().toUpperCase() : '';
+            if (eg) return eg;
+            const params = (i && Array.isArray(i.parametros)) ? i.parametros : [];
+            const anyBad = params.some(p => String((p && (p.estado || p.resultado)) || '').trim().toUpperCase() === 'MALO');
+            return anyBad ? 'MALO' : 'BUENO';
+          } catch {
+            return 'BUENO';
+          }
+        };
+
+        const inspEstado = insp ? calcEstadoGeneral(insp) : 'BUENO';
+
+        let aptoOperacion = true;
+        let motivoBloqueo = '';
+        let warningOnly = false;
+        if (anualVigente === false) {
+          aptoOperacion = false;
+          motivoBloqueo = 'PRUEBA_ANUAL_VENCIDA';
+        } else if (edo === 'WIP') {
+          aptoOperacion = false;
+          motivoBloqueo = 'WIP';
+          if (anualVigente === true) {
+            aptoOperacion = true;
+            motivoBloqueo = '';
+          }
+        } else if (edo && edo !== 'ON') {
+          aptoOperacion = false;
+          motivoBloqueo = 'EDO';
+        } else if (insp && inspEstado === 'MALO') {
+          warningOnly = true;
+          motivoBloqueo = 'INSPECCION_MALO';
+        }
+
+        if (aptoOperacion && resumenApto === true && resumenMotivo) {
+          motivoBloqueo = resumenMotivo;
+        }
+
+        estadoOperacionPorEquipo[equipo] = { aptoOperacion, motivoBloqueo, warningOnly, checkedAt: Date.now() };
+        return estadoOperacionPorEquipo[equipo];
+      } catch {
+        estadoOperacionPorEquipo[equipo] = { aptoOperacion: true, motivoBloqueo: '', checkedAt: Date.now() };
+        return estadoOperacionPorEquipo[equipo];
+      }
+    }
+
+    async function procesarTextoEquiposAsync(texto) {
+      const valorRaw = (texto || '').toString();
+      const partes = valorRaw
+        .split(/[\s,;\n\r\t]+/)
+        .map(v => v.trim())
+        .filter(v => v.length > 0);
+      if (!partes.length) return false;
+
+      let agregado = false;
+      for (const fragmento of partes) {
+        if (!fragmento) continue;
+        const eq = normalizeEquipo(fragmento.split(/\s+/)[0]);
+        if (!eq) continue;
+        if (equiposSeleccionados.includes(eq)) continue;
+
+        const st = await obtenerEstadoOperacionEquipo(eq);
+        if (st && st.aptoOperacion === false) {
+          const m = (st.motivoBloqueo || '').toString().trim();
+          alert(`No se puede agregar el equipo ${eq} porque NO está apto para operar${m ? ` (${m})` : ''}.`);
+          continue;
+        }
+
+        equiposSeleccionados.push(eq);
+
+        if (!infoPorEquipo[eq]) infoPorEquipo[eq] = {};
+        const autoDesc = mapaDescripcionPorEquipo[eq] || '';
+        if (autoDesc && !infoPorEquipo[eq].descripcionUI) {
+          infoPorEquipo[eq].descripcionUI = autoDesc;
+          infoPorEquipo[eq].descripcion = autoDesc;
+        }
+
+        agregado = true;
+      }
+
+      if (agregado) renderEquiposSeleccionados();
+      return agregado;
     }
 
     async function initAuthAndRole() {
@@ -1980,7 +2325,7 @@
               }
             }
             const ingresoTxt = (ingresoVal == null)
-              ? '—'
+              ? '-'
               : (ingresoVal ? ingresoVal.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }) : '$0');
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -2104,7 +2449,7 @@
           const reg = (Array.isArray(listaActividad) ? listaActividad : []).find(x => String(x.id || '') === id);
           const actual = norm(reg && reg.areaCliente ? reg.areaCliente : '');
           inp.value = actual;
-          inp.placeholder = '—';
+          inp.placeholder = '-';
           inp.autocomplete = 'off';
           inp.style.cssText = 'width:100%; font-size:0.78rem; padding:2px 6px; border:1px solid #e5e7eb; border-radius:8px; background:#fff;';
           inp.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -2742,11 +3087,10 @@
           renderEquipoSuggestions();
         });
         inpEquipo.addEventListener('blur', () => {
-          setTimeout(() => {
-            // Al salir del campo: intentar agregar lo que se haya capturado
+          setTimeout(async () => {
             const raw = (inpEquipo.value || '').trim();
             if (raw) {
-              const ok = procesarTextoEquipos(raw);
+              const ok = await procesarTextoEquiposAsync(raw);
               if (ok) inpEquipo.value = '';
             }
             equipoFocus = false;
@@ -2759,13 +3103,17 @@
             const valorActual = (inpEquipo.value || '').trim();
             if (!valorActual) return;
             e.preventDefault();
-            const ok = procesarTextoEquipos(inpEquipo.value);
-            if (ok) inpEquipo.value = '';
+            (async () => {
+              const ok = await procesarTextoEquiposAsync(inpEquipo.value);
+              if (ok) inpEquipo.value = '';
+            })();
           }
         });
         inpEquipo.addEventListener('change', () => {
-          const ok = procesarTextoEquipos(inpEquipo.value);
-          if (ok) inpEquipo.value = '';
+          (async () => {
+            const ok = await procesarTextoEquiposAsync(inpEquipo.value);
+            if (ok) inpEquipo.value = '';
+          })();
         });
       }
 

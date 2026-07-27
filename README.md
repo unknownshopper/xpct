@@ -21,7 +21,7 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Autocompletado de datos desde `invre2.csv` / `invre.csv`.
   - Generación automática de número de reporte por equipo.
   - Guardado local y en Firestore (`pruebas`).
-  - Listado prioriza próximas a vencer, soporta filtros por rango (chips 60–30, 30–15, 15–0) y detalle expandible bajo la fila.
+  - Listado prioriza próximas a vencer, soporta filtros por rango (chips 60-30, 30-15, 15-0) y detalle expandible bajo la fila.
 
 - **Actividad (`actividad.html`, `actividadlist.html`, `actividadmin.html`)**:
   - `actividad.html`: registro de nuevas actividades por equipo/cliente.
@@ -81,7 +81,7 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
   - Listado de pruebas (`pruebaslist.html`):
     - Ordena priorizando ANUALES próximas a vencer, luego vencidas, luego sin próxima. Dentro de cada grupo, por fecha de realización desc.
     - Para registros POST-TRABAJO/REPARACION: muestran su propia “Fecha de realización”, pero “Próxima”, “Días para próxima” y “Estado” se toman de la ANUAL de referencia del mismo equipo. Si no existe ANUAL para el equipo, se muestran sin próxima/“Sin fecha”.
-    - Los chips de rango (>60, 60–31, 30–16, 15–1, 0) aplican únicamente a ANUALES. Se añadió una leyenda explicativa bajo los chips.
+    - Los chips de rango (>60, 60-31, 30-16, 15-1, 0) aplican únicamente a ANUALES. Se añadió una leyenda explicativa bajo los chips.
     - Los chips de período (Anual / Post-trabajo / Reparación) permiten filtrar el listado por tipo de período.
     - El detalle de una prueba se expande inline debajo de la fila; controles dentro de la fila no disparan el toggle.
 
@@ -95,12 +95,12 @@ Sistema interno para gestionar inventario de equipos, actividades de servicio, p
 
 - En `pruebaslist.html`:
   - Usa el buscador para filtrar por equipo/producto/técnico/reporte.
-  - Chips de rango (>60, 60–31, 30–16, 15–1, 0) limitan la vista a ANUALES próximas dentro de ese rango. Leyenda bajo los chips lo aclara.
+  - Chips de rango (>60, 60-31, 30-16, 15-1, 0) limitan la vista a ANUALES próximas dentro de ese rango. Leyenda bajo los chips lo aclara.
   - Chips de período (Anual / Post-trabajo / Reparación) permiten filtrar el listado por tipo de período.
   - Clic en una fila para ver el detalle inline y clic de nuevo para colapsar.
   - El resumen por equipo muestra la última ANUAL y su vigencia.
 
-## Importación masiva de Pruebas (CSV) — solo admin
+## Importación masiva de Pruebas (CSV) - solo admin
 
 - Ubicación: en `pruebaslist.html`, barra de acciones (derecha), botón: `Ingresar formato.csv`.
 - Permisos: visible y usable únicamente para usuarios con rol `admin`.
@@ -131,7 +131,7 @@ Pendiente/Nota: Se reforzará la validación para que la confirmación de import
 
 ---
 
-## Plan para mañana (Feb 2026) — corregir conteos de VPM/UTT vs CSV maestro
+## Plan para mañana (Feb 2026) - corregir conteos de VPM/UTT vs CSV maestro
 
 ### Contexto
 
@@ -372,11 +372,11 @@ console.log('Depuracion completa.');
 - Los chips muestran conteo por equipo (no por filas) dentro del rango.
 - Se eliminó el panel inferior de detalle en `pruebaslist.html` para evitar desplazamientos; ahora el detalle es inline.
 
-## Alertas por correo (IONOS SMTP) – Backend Node
+## Alertas por correo (IONOS SMTP) - Backend Node
 
 Se añadió un pequeño servidor Node (Express) en `server/` para enviar un correo diario con el resumen de pruebas ANUAL por vencer. Usa IONOS SMTP como transporte y Firestore como fuente de datos.
 
-### Variables de entorno (crear `server/.env` – no se sube a Git)
+### Variables de entorno (crear `server/.env` - no se sube a Git)
 
 Ejemplo de contenido mínimo:
 
@@ -430,7 +430,7 @@ Definición de roles y su alcance en la aplicación. Inspector y Capturista comp
 
 - **supervisor** (asignado a `sgi@pc-t.com.mx`)
   - Puede crear nuevas Pruebas e Inspecciones.
-  - En listados (pruebaslist, inspectlist): puede editar campos permitidos (p. ej. Prueba/Calib., No. reporte/cert. —requerido—, Resultado, Periodo), ver detalle y exportar CSV.
+  - En listados (pruebaslist, inspectlist): puede editar campos permitidos (p. ej. Prueba/Calib., No. reporte/cert. -requerido-, Resultado, Periodo), ver detalle y exportar CSV.
   - No puede eliminar registros (no ve botón “Eliminar seleccionadas” ni checkboxes de selección).
 
 - **capturista**
@@ -482,9 +482,9 @@ Notas:
 
 - `POST /api/send-alerts?test=true`
   - Calcula desde Firestore las últimas ANUAL por equipo, clasifica por días restantes y envía un correo con 3 secciones:
-    - 60–30 días (una sola vez por equipo)
-    - 30–15 días (una sola vez por equipo)
-    - 15–0 días (envío diario)
+    - 60-30 días (una sola vez por equipo)
+    - 30-15 días (una sola vez por equipo)
+    - 15-0 días (envío diario)
   - En modo `test=true`, si no hay elementos, envía un "Correo de prueba OK".
 
 ### Despliegue y DNS (resumen)

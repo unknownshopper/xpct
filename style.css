@@ -1143,15 +1143,15 @@ select.form-input {
     background: #f0fdf4; /* green-50 */
     color: #14532d;
 }
-#tabla-informativa tbody td:nth-child(3) { /* 31–60 */
+#tabla-informativa tbody td:nth-child(3) { /* 31-60 */
     background: #eff6ff; /* blue-100 */
     color: #1d4ed8;
 }
-#tabla-informativa tbody td:nth-child(4) { /* 15–30 */
+#tabla-informativa tbody td:nth-child(4) { /* 15-30 */
     background: #fef3c7; /* amber-100 */
     color: #92400e;
 }
-#tabla-informativa tbody td:nth-child(5) { /* 0–15 */
+#tabla-informativa tbody td:nth-child(5) { /* 0-15 */
     background: #fee2e2; /* red-100 */
     color: #991b1b;
 }

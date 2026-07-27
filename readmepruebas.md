@@ -62,7 +62,7 @@ Un documento por evento de prueba.
 Campos sugeridos (MVP):
 
 - Identificación:
-  - `equipo` (string) — ej. `PCT-...`
+  - `equipo` (string) - ej. `PCT-...`
   - `serial` (string)
   - `cliente` (string, opcional)
   - `actividadId` (string, opcional)
@@ -74,9 +74,9 @@ Campos sugeridos (MVP):
   - `ubicacion` (string, opcional)
   - `observaciones` (string)
 - Evidencias (Storage):
-  - `pngPath` (string) — ruta en Storage
-  - `csvPath` (string) — ruta en Storage
-  - `zipPath` (string, opcional) — ruta en Storage
+  - `pngPath` (string) - ruta en Storage
+  - `csvPath` (string) - ruta en Storage
+  - `zipPath` (string, opcional) - ruta en Storage
   - `pngUrl` / `csvUrl` / `zipUrl` (opcionales; normalmente se obtienen con `getDownloadURL` en runtime)
 - Resumen calculado desde CSV (para evitar re-parsear siempre):
   - `resumen` (map)
@@ -115,8 +115,8 @@ Paths:
 
 ### Nuevas páginas (propuesta)
 
-- `presion.html` — alta de prueba de presión
-- `presionlist.html` — listado/visor
+- `presion.html` - alta de prueba de presión
+- `presionlist.html` - listado/visor
 
 ### Navegación
 
@@ -189,7 +189,7 @@ Sugerencia alineada al sistema actual:
   - `tecnico`
   - `csv` (mínimo 1 evidencia: CSV o PNG; recomendado ambos)
 - Validación de tamaño:
-  - limitar CSV y ZIP (ej. 10–30 MB) para evitar problemas en móvil/tablet.
+  - limitar CSV y ZIP (ej. 10-30 MB) para evitar problemas en móvil/tablet.
 
 ---
 

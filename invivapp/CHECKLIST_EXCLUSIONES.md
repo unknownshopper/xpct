@@ -1,4 +1,4 @@
-# INVIVAPP — Checklist de exclusiones (para ZIP INDAUTOR)
+# INVIVAPP - Checklist de exclusiones (para ZIP INDAUTOR)
 
 ## Objetivo
 

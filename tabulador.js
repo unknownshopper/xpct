@@ -585,7 +585,7 @@
 
       const lineaCliente = `${datos.cliente || ''} / ${datos.area || ''} / ${datos.ubicacion || ''} / ${datos.equipo || ''}`;
       const lineaServicio = `OS: ${datos.os || ''}  |  Servicio: ${datos.inicioServicio || ''} ${finMostrar ? '→ ' + finMostrar : ''}`;
-      modalHeader.textContent = `${lineaCliente}  —  ${lineaServicio}`;
+      modalHeader.textContent = `${lineaCliente}  -  ${lineaServicio}`;
 
       // Prefill: si hay períodos, NO usar terminacionServicio; sugerir continuidad
       if (inputTarifa) inputTarifa.value = datos.precioDiario || '';

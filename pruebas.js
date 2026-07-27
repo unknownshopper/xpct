@@ -1,6 +1,16 @@
 // Lógica específica para pruebas.html (autocompletado desde inventario y guardado en Firestore)
 
-// Autocompletar información de inventario en pruebas.html desde invre2.csv
+function canonPruebaTipo(v) {
+    const t = String(v || '').toUpperCase().trim();
+    if (!t) return '';
+    const compact = t.replace(/\s+/g, '');
+    if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+    if (compact.includes('UTT')) return 'UTT';
+    if (compact.includes('LT')) return 'LT';
+    return t;
+}
+
+// Autocompletar información de inventario en pruebas.html desde el inventario actual (CSV temporal)
 document.addEventListener('DOMContentLoaded', () => {
     const inputEquipo = document.getElementById('inv-equipo');
     const datalistEquipos = document.getElementById('lista-equipos-pruebas');
@@ -9,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const datalistSeriales = document.getElementById('lista-seriales-pruebas');
     const serialDropdown = document.getElementById('inv-serial-dropdown');
     if (!inputEquipo || !datalistEquipos) return; // No estamos en pruebas.html
+
+    try { window.__pruebasUsaInventarioFirestore = true; } catch {}
 
     const isAndroid = (() => {
         try { return /android/i.test(navigator.userAgent || ''); } catch { return false; }
@@ -70,55 +82,60 @@ document.addEventListener('DOMContentLoaded', () => {
         el.style.display = '';
     }
 
-    const INVENTARIO_SOURCES = [
-        'docs/fuente.csv',
-        'docs/INVENTARIOTOTAL04-202602.csv',
-        'docs/invre2.csv'
-    ];
-
     async function fetchInventarioTexto() {
-        let lastErr = null;
-        for (const url of INVENTARIO_SOURCES) {
-            try {
-                const r = await fetch(url, { cache: 'no-store' });
-                if (!r.ok) throw new Error(`No se pudo cargar ${url}`);
-                const t = await r.text();
-                if (t && t.trim()) {
-                    // Si el archivo solo tiene cabecera (sin filas), considerarlo vacío y probar el siguiente.
-                    const lines = t.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                    if (lines.length >= 2) return t;
-                }
-            } catch (e) {
-                lastErr = e;
+        // Inventario desde Firestore (sin CSV en runtime): se genera un CSV sintético
+        // para reutilizar la lógica existente de parse/índices/datalists.
+        const { getFirestore, collection, getDocs } = await import(
+            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+        );
+        const db = getFirestore();
+
+        const csvEscape = (v) => {
+            const s = String(v || '');
+            if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
+                return '"' + s.replace(/"/g, '""') + '"';
             }
-        }
-        if (lastErr) throw lastErr;
-        throw new Error('No se pudo cargar inventario');
+            return s;
+        };
+
+        const headers = [
+            '#',
+            'EDO',
+            'PRODUCTO',
+            'SERIAL',
+            'EQUIPO / ACTIVO',
+            'DESCRIPCION',
+            'REPORTE P/P',
+            'PROPIEDAD',
+            'TIPO EQUIPO',
+            'ACERO',
+        ];
+
+        const lines = [headers.join(',')];
+        const snap = await getDocs(collection(db, 'equipos'));
+        let i = 0;
+        snap.forEach(docSnap => {
+            const data = docSnap.data() || {};
+            const row = [
+                String(++i),
+                csvEscape(String(data.edo || '').trim()),
+                csvEscape(String(data.producto || '').trim()),
+                csvEscape(String(data.serial || '').trim()),
+                csvEscape(String(docSnap.id || data.equipoKey || data.equipoDisplay || '').trim()),
+                csvEscape(String(data.descripcion || '').trim()),
+                csvEscape(String(data.reportePP || '').trim()),
+                csvEscape(String(data.propiedad || '').trim()),
+                csvEscape(String(data.tipoEquipo || '').trim()),
+                csvEscape(String(data.acero || '').trim()),
+            ];
+            lines.push(row.join(','));
+        });
+
+        if (lines.length < 2) throw new Error('Inventario vacío');
+        return lines.join('\n');
     }
 
-    const PRUEBAS_SOURCES = [
-        'docs/fuente.csv',
-        'docs/invre2.csv'
-    ];
-
-    async function fetchCatalogoPruebasTexto() {
-        let lastErr = null;
-        for (const url of PRUEBAS_SOURCES) {
-            try {
-                const r = await fetch(url, { cache: 'no-store' });
-                if (!r.ok) throw new Error(`No se pudo cargar ${url}`);
-                const t = await r.text();
-                if (t && t.trim()) {
-                    const lines = t.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                    if (lines.length >= 2) return t;
-                }
-            } catch (e) {
-                lastErr = e;
-            }
-        }
-        if (lastErr) throw lastErr;
-        throw new Error('No se pudo cargar catálogo de pruebas');
-    }
+    // Nota: el catálogo de tipos de prueba no debe depender de un CSV.
 
     try {
         const q = new URLSearchParams(window.location.search || '');
@@ -180,6 +197,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const pruebasPorEquipo = {}; // { [eq]: Set<string> }
     const areasPorEquipoPrueba = {}; // { [`${eq}::${tipo}`]: Set<string> }
 
+    const tiposValidos = ['LT', 'VT / PT / MT', 'VT/PT/MT', 'UTT'];
+
     let equiposActivos = []; // [{ equipoId, descripcion, equipoKey, descKey }]
     let serialesActivos = []; // [{ serial, equipoId, descripcion, serialKey, equipoKey, descKey }]
 
@@ -191,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             headersInv = parseCSVLine(lineas[0]);
             filasInv = lineas.slice(1).map(l => parseCSVLine(l));
 
-            // Mapear columnas de forma flexible según la cabecera actual de invre2.csv
+            // Mapear columnas de forma flexible según la cabecera del inventario actual
             // Esperado por el cliente: #, EDO, PRODUCTO, SERIAL, EQUIPO / ACTIVO, DESCRIPCION, REPORTE P/P,
             // TIPO EQUIPO, ACERO y luego columnas de PRUEBA / CALIBRACION, TIPO_INSPECCION, AREA
             idxInvEquipo = headersInv.indexOf('EQUIPO / ACTIVO');
@@ -214,10 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
             idxInvPrueba = headersInv.indexOf('PRUEBA / CALIBRACION');
             idxInvArea = headersInv.indexOf('ÁREA A INSPECIONAR');
 
-            // Si no hay cabeceras claras (caso actual: columnas finales sin nombre),
+            // Si no hay cabeceras claras,
             // detectar posiciones de forma robusta explorando los valores.
             if (idxInvPrueba < 0 || idxInvArea < 0) {
-                const tiposValidos = ['LT', 'VT / PT / MT', 'UTT'];
                 let idxPruebaDetectado = -1;
                 let idxAreaDetectado = -1;
 
@@ -249,6 +267,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     idxInvArea = idxAreaDetectado;
                 }
             }
+
+            // canonPruebaTipo definido en el scope principal
 
             // Leer overrides de estado desde localStorage (los mismos que en invre.html e inspeccion.html).
             // Se asume que ya fueron sincronizados desde Firestore en alguna vista de inventario/actividad.
@@ -485,59 +505,60 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(err => console.error(err));
 
-    fetchCatalogoPruebasTexto()
-        .then(texto => {
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (!lineas.length) return;
+    // Catálogo (tipos/áreas) derivado del inventario ya cargado.
+    // Esto evita depender de CSVs adicionales tipo "invre2" y mantiene un único inventario temporal.
+    try {
+        (async () => {
+            try {
+                const texto = await fetchInventarioTexto();
+                const lineas = (texto || '').split(/\r?\n/).filter(l => l.trim() !== '');
+                if (!lineas.length) return;
+                const headers = parseCSVLine(lineas[0]);
+                const filas = lineas.slice(1).map(l => parseCSVLine(l));
 
-            const headers = parseCSVLine(lineas[0]);
-            const filas = lineas.slice(1).map(l => parseCSVLine(l));
+                const idxEq = headers.indexOf('EQUIPO / ACTIVO');
+                if (idxEq < 0) return;
 
-            const idxEq = headers.indexOf('EQUIPO / ACTIVO');
-            let idxPr = headers.indexOf('PRUEBA / CALIBRACION');
-            let idxAr = headers.indexOf('ÁREA A INSPECIONAR');
-
-            if (idxEq < 0) return;
-
-            if (idxPr < 0 || idxAr < 0) {
-                const tiposValidos = ['LT', 'VT / PT / MT', 'UTT'];
-                let idxPrDet = -1;
-                let idxArDet = -1;
-                filas.forEach(cols => {
-                    for (let j = 0; j < cols.length; j++) {
-                        const val = (cols[j] || '').toString().trim().toUpperCase();
-                        if (tiposValidos.includes(val)) {
-                            if (idxPrDet === -1) idxPrDet = j;
-                            for (let k = cols.length - 1; k >= 0; k--) {
-                                const areaVal = (cols[k] || '').toString().trim();
-                                if (areaVal) { idxArDet = k; break; }
+                let idxPr = headers.indexOf('PRUEBA / CALIBRACION');
+                let idxAr = headers.indexOf('ÁREA A INSPECIONAR');
+                if (idxPr < 0 || idxAr < 0) {
+                    let idxPrDet = -1;
+                    let idxArDet = -1;
+                    filas.forEach(cols => {
+                        for (let j = 0; j < cols.length; j++) {
+                            const val = (cols[j] || '').toString().trim().toUpperCase();
+                            if (tiposValidos.includes(val)) {
+                                if (idxPrDet === -1) idxPrDet = j;
+                                for (let k = cols.length - 1; k >= 0; k--) {
+                                    const areaVal = (cols[k] || '').toString().trim();
+                                    if (areaVal) { idxArDet = k; break; }
+                                }
+                                break;
                             }
-                            break;
                         }
+                    });
+                    if (idxPr < 0 && idxPrDet >= 0) idxPr = idxPrDet;
+                    if (idxAr < 0 && idxArDet >= 0) idxAr = idxArDet;
+                }
+                if (idxPr < 0) return;
+
+                filas.forEach(cols => {
+                    const eq = (cols[idxEq] || '').toString().trim();
+                    if (!eq) return;
+                    const tipo = canonPruebaTipo((idxPr >= 0 ? (cols[idxPr] || '') : '').toString().trim());
+                    const area = (idxAr >= 0 ? (cols[idxAr] || '') : '').toString().trim();
+                    if (!tipo) return;
+                    if (!pruebasPorEquipo[eq]) pruebasPorEquipo[eq] = new Set();
+                    pruebasPorEquipo[eq].add(tipo);
+                    if (area) {
+                        const k = `${eq}::${tipo}`;
+                        if (!areasPorEquipoPrueba[k]) areasPorEquipoPrueba[k] = new Set();
+                        areasPorEquipoPrueba[k].add(area);
                     }
                 });
-                if (idxPr < 0 && idxPrDet >= 0) idxPr = idxPrDet;
-                if (idxAr < 0 && idxArDet >= 0) idxAr = idxArDet;
-            }
-
-            if (idxPr < 0) return;
-
-            filas.forEach(cols => {
-                const eq = (cols[idxEq] || '').toString().trim();
-                if (!eq) return;
-                const tipo = (idxPr >= 0 ? (cols[idxPr] || '') : '').toString().trim().toUpperCase();
-                const area = (idxAr >= 0 ? (cols[idxAr] || '') : '').toString().trim();
-                if (!tipo) return;
-                if (!pruebasPorEquipo[eq]) pruebasPorEquipo[eq] = new Set();
-                pruebasPorEquipo[eq].add(tipo);
-                if (area) {
-                    const k = `${eq}::${tipo}`;
-                    if (!areasPorEquipoPrueba[k]) areasPorEquipoPrueba[k] = new Set();
-                    areasPorEquipoPrueba[k].add(area);
-                }
-            });
-        })
-        .catch(err => console.warn('[pruebas] No se pudo cargar catálogo de pruebas', err));
+            } catch {}
+        })();
+    } catch {}
 
     // Mapa de info (serial, propiedad, material) por EQUIPO desde invre.csv
     const certPorSerial = {};
@@ -702,34 +723,52 @@ document.addEventListener('DOMContentLoaded', () => {
     // Los certificados de certif.csv se usarán solo para listados/históricos.
 
     function actualizarAreaSegunEquipoYPrueba() {
-        if (!headersInv.length || !filasInv.length) return;
-
         const equipoSel = inputEquipo.value.trim();
         const selPrueba = document.getElementById('inv-prueba');
         const areaInput = document.getElementById('inv-area');
         const selDetalle = document.getElementById('inv-prueba-detalle');
         if (!equipoSel || !selPrueba || !areaInput) return;
 
+        const tipoNow = canonPruebaTipo((selPrueba.value || '').toString().trim());
+        const fallbackArea = () => {
+            try {
+                const current = (areaInput.value || '').toString().trim();
+                if (current) return;
+                if (tipoNow === 'VT/PT/MT') {
+                    const det = (selDetalle && selDetalle.value) ? String(selDetalle.value).trim() : '';
+                    areaInput.value = det || 'ROSCA MARIPOSA';
+                    return;
+                }
+                if (tipoNow === 'UTT' || tipoNow === 'LT') {
+                    areaInput.value = 'CUERPO';
+                    return;
+                }
+            } catch {}
+        };
+
         if (idxInvEquipo < 0 || idxInvPrueba < 0 || idxInvArea < 0) {
-            const tipo = (selPrueba.value || '').toString().trim().toUpperCase();
-            const k = `${equipoSel}::${tipo}`;
+            const k = `${equipoSel}::${tipoNow}`;
             const setAreas = areasPorEquipoPrueba[k];
             if (setAreas && setAreas.size) {
                 const first = Array.from(setAreas.values())[0] || '';
                 if (first) areaInput.value = first;
             }
+            fallbackArea();
             return;
         }
 
-        const filasCoincidentes = filasInv.filter(cols =>
-            cols[idxInvEquipo] === equipoSel && cols[idxInvPrueba] === selPrueba.value
-        );
+        const selCanon = canonPruebaTipo((selPrueba.value || '').toString().trim());
+        const filasCoincidentes = filasInv.filter(cols => {
+            const eqOk = cols[idxInvEquipo] === equipoSel;
+            const tipoFila = canonPruebaTipo((cols[idxInvPrueba] || '').toString().trim());
+            return eqOk && tipoFila === selCanon;
+        });
         if (!filasCoincidentes.length) return;
 
         let filaArea = filasCoincidentes[0];
 
-        // Si es VT / PT / MT y hay un detalle seleccionado, intentar afinar el área
-        if (selPrueba.value === 'VT / PT / MT' && selDetalle && selDetalle.value && filasCoincidentes.length > 1) {
+        // Si es VT/PT/MT y hay un detalle seleccionado, intentar afinar el área
+        if (canonPruebaTipo(selPrueba.value) === 'VT/PT/MT' && selDetalle && selDetalle.value && filasCoincidentes.length > 1) {
             const detalleUpper = selDetalle.value.toUpperCase();
 
             // Ahora el valor del detalle ES el texto de área. Buscar la fila cuya área coincida.
@@ -740,13 +779,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         areaInput.value = filaArea[idxInvArea] || '';
+        fallbackArea();
+    }
+
+    function asegurarOpcionesPruebaBasicas(selPrueba) {
+        if (!selPrueba) return;
+        try {
+            const current = (selPrueba.value || '').toString().trim();
+            selPrueba.innerHTML = '';
+            const optVacio = document.createElement('option');
+            optVacio.value = '';
+            optVacio.textContent = 'Selecciona...';
+            selPrueba.appendChild(optVacio);
+            ['VT/PT/MT', 'UTT', 'LT'].forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                selPrueba.appendChild(opt);
+            });
+            if (current) selPrueba.value = canonPruebaTipo(current);
+        } catch {}
     }
 
     function autocompletarDesdeInventario() {
         const valor = inputEquipo.value.trim();
-        if (!valor || !headersInv.length || !filasInv.length) return;
+        const selPrueba = document.getElementById('inv-prueba');
+        if (!valor) {
+            asegurarOpcionesPruebaBasicas(selPrueba);
+            return;
+        }
+        if (!headersInv.length || !filasInv.length) {
+            // Inventario no disponible: permitir capturar pruebas manualmente.
+            asegurarOpcionesPruebaBasicas(selPrueba);
+            return;
+        }
         const fila = filasInv.find(cols => idxInvEquipo >= 0 && cols[idxInvEquipo] === valor);
-        if (!fila) return;
+        if (!fila) {
+            // Si no hay match exacto (p.ej. inventario con formato distinto), no bloquear la captura.
+            asegurarOpcionesPruebaBasicas(selPrueba);
+            return;
+        }
 
         const get = (nombreCol) => {
             let idx = headersInv.indexOf(nombreCol);
@@ -785,14 +857,13 @@ document.addEventListener('DOMContentLoaded', () => {
             inputMat.value = info.material;
         }
 
-        const selPrueba = document.getElementById('inv-prueba');
+        // selPrueba ya se obtuvo arriba
         const pruebaRaw = get('PRUEBA / CALIBRACION');
-        const tiposValidos = ['LT', 'VT / PT / MT', 'UTT'];
-        const prueba = (pruebaRaw || '').toString().trim().toUpperCase();
+        const prueba = canonPruebaTipo((pruebaRaw || '').toString().trim());
 
         if (selPrueba) {
             // Reconstruir las opciones de tipo de prueba en función de lo que realmente
-            // existe en invre2.csv para este equipo.
+            // existe en el inventario para este equipo.
             selPrueba.innerHTML = '';
 
             const optVacio = document.createElement('option');
@@ -818,10 +889,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            if (!pruebasDisponibles.size) {
+                ['VT/PT/MT', 'UTT', 'LT'].forEach(p => pruebasDisponibles.add(p));
+            }
+
             pruebasDisponibles.forEach(p => {
+                const canon = canonPruebaTipo(p);
                 const opt = document.createElement('option');
-                opt.value = p;
-                opt.textContent = p;
+                opt.value = canon;
+                opt.textContent = canon;
                 selPrueba.appendChild(opt);
             });
 
@@ -831,7 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Ajustar opciones de detalle (inv-prueba-detalle) según áreas definidas
-        // para VT / PT / MT en este equipo.
+        // para VT/PT/MT en este equipo.
         const selDetalle = document.getElementById('inv-prueba-detalle');
         const campoDetalle = document.getElementById('campo-prueba-detalle');
         if (selDetalle) {
@@ -845,16 +921,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const areasUnicas = new Set();
             if (idxInvPrueba >= 0 && idxInvArea >= 0) {
-                const filasVT = filasInv.filter(cols =>
-                    idxInvEquipo >= 0 && cols[idxInvEquipo] === valor &&
-                    idxInvPrueba >= 0 && (cols[idxInvPrueba] || '').toString().trim().toUpperCase() === 'VT / PT / MT'
-                );
+                const filasVT = filasInv.filter(cols => {
+                    const eqOk = idxInvEquipo >= 0 && cols[idxInvEquipo] === valor;
+                    const tipo = canonPruebaTipo((cols[idxInvPrueba] || '').toString().trim());
+                    return eqOk && tipo === 'VT/PT/MT';
+                });
                 filasVT.forEach(cols => {
                     const a = (cols[idxInvArea] || '').toString().trim();
                     if (a) areasUnicas.add(a);
                 });
             } else {
-                const setAreas = areasPorEquipoPrueba[`${valor}::VT / PT / MT`];
+                const setAreas = areasPorEquipoPrueba[`${valor}::VT/PT/MT`];
                 if (setAreas && setAreas.size) {
                     Array.from(setAreas.values()).forEach(a => {
                         const aa = (a || '').toString().trim();
@@ -916,7 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tieneOpcionesDetalle =
             selDetalle && Array.from(selDetalle.options || []).some(o => o.value && o.value !== '');
 
-        if (val === 'VT / PT / MT' && tieneOpcionesDetalle) {
+        if (canonPruebaTipo(val) === 'VT/PT/MT' && tieneOpcionesDetalle) {
             campoDetalle.style.display = 'block';
             if (selDetalle) selDetalle.required = true;
         } else {
@@ -1136,6 +1213,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const datos = {
                 ...registro,
+                creadoEnMs: Date.now(),
                 creadoEn: serverTimestamp()
             };
 
@@ -1272,7 +1350,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const selResultadoEl = document.getElementById('prueba-resultado');
         const selPeriodoEl = document.getElementById('inv-periodo');
 
-        const pruebaTipo = (selPruebaEl?.value || '').trim();
+        const pruebaTipo = canonPruebaTipo((selPruebaEl?.value || '').trim());
+        if (!pruebaTipo) {
+            alert('Selecciona el tipo de prueba / calibración (VT/PT/MT, UTT o LT).');
+            return;
+        }
         const pruebaDetalle = (selDetalleEl?.value || '').trim();
         const emisor = (emisorEl?.value || '').trim();
         let tecnico = (tecnicoEl?.value || '').trim();
@@ -1351,7 +1433,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const selDet = document.getElementById('inv-prueba-detalle');
             const opciones = selDet ? Array.from(selDet.options || []) : [];
             const hayOpciones = opciones.some(o => o.value && o.value !== '');
-            if (tipoUpper === 'VT / PT / MT' && hayOpciones) {
+            if (canonPruebaTipo(tipoUpper) === 'VT/PT/MT' && hayOpciones) {
                 if (!pruebaDetalle) {
                     alert('Selecciona el detalle de la prueba.');
                     if (selDet) selDet.focus();

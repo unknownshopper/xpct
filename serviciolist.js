@@ -133,11 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="checkbox" data-eq="${norm(r.equipo)}" data-serial="${norm(r.serial)}" data-producto="" data-desc="" />
         </td>
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; font-weight:700;">${norm(r.equipo)}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${norm(r.serial) || '—'}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.cliente) || '—'}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.ubicacion) || '—'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${norm(r.serial) || '-'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.cliente) || '-'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(r.ubicacion) || '-'}</td>
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9;">${paramsTxt}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${fmtDate(r.fecha) || '—'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${fmtDate(r.fecha) || '-'}</td>
       `;
       const c = tr.querySelector('input[type="checkbox"]');
       if (c) {
@@ -234,8 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
           <tr>
             <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${eq}</td>
-            <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${se || '—'}</td>
-            <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${pr || '—'}</td>
+            <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${se || '-'}</td>
+            <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${pr || '-'}</td>
             <td style="padding:6px 6px; border-top:1px solid #f1f5f9;">${de}</td>
             ${editable ? `<td style="padding:6px 6px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap;">\
               <button type="button" data-ord-id="${norm(o.id || '')}" data-item-idx="${idx}" style="padding:0.25rem 0.5rem; border-radius:0.45rem; border:1px solid #fecaca; background:#fff; color:#991b1b; cursor:pointer; font-weight:800;">Quitar</button>\
@@ -394,10 +394,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(o.estatus || '')}</td>
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(o.prioridad || '')}</td>
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9;">${norm(o.referencia || o.motivo || '')}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(o.areaProveedor || '') || '—'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap;">${norm(o.areaProveedor || '') || '-'}</td>
         <td style="padding:6px 6px; border-top:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${Number(o.itemsCount || (Array.isArray(o.items) ? o.items.length : 0) || 0)}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${norm(o.creadoPor || '') || '—'}</td>
-        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${fmtDate(o.creadoEn) || '—'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${norm(o.creadoPor || '') || '-'}</td>
+        <td style="padding:6px 6px; border-top:1px solid #f1f5f9; white-space:nowrap; color:#6b7280;">${fmtDate(o.creadoEn) || '-'}</td>
       `;
       tr.addEventListener('click', () => renderDetalle(o));
       tbody.appendChild(tr);

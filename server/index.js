@@ -23,7 +23,13 @@ function normEquipoKey(v) {
 }
 
 function normPruebaKey(v) {
-  return (v || '').toString().toUpperCase().trim();
+  const t = (v || '').toString().toUpperCase().trim();
+  if (!t) return 'ANUAL';
+  const compact = t.replace(/\s+/g, '');
+  if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+  if (compact.includes('UTT')) return 'UTT';
+  if (compact.includes('LT')) return 'LT';
+  return t;
 }
 
 function parseFecha(str) {
@@ -200,9 +206,9 @@ function clasificarDias(proxima) {
   const dias = Math.round(diff / (1000 * 60 * 60 * 24));
   // Alinear rangos con UI (pruebaslist):
   // - Vencidas: 0 o menos
-  // - 1–15
-  // - 16–30
-  // - 31–60
+  // - 1-15
+  // - 16-30
+  // - 31-60
   if (dias <= 0) return { dias, bucket: 'vencidas' };
   if (dias >= 31 && dias <= 60) return { dias, bucket: '60_30' };
   if (dias >= 16 && dias <= 30) return { dias, bucket: '30_15' };
@@ -211,7 +217,7 @@ function clasificarDias(proxima) {
 }
 
 function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
-  const fmt = d => (d ? DateTime.fromJSDate(d).setZone(TZ).toFormat('dd/LL/yyyy') : '—');
+  const fmt = d => (d ? DateTime.fromJSDate(d).setZone(TZ).toFormat('dd/LL/yyyy') : '-');
   const estadoFromDias = dias => (dias < 0 ? 'Vencida' : 'Vigente');
   const section = (titulo, items, opts = {}) => {
     if (!items.length) return '';
@@ -222,12 +228,12 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
       .map(x => `
         <tr>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.equipo}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.serial || '—'}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.prueba || '—'}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.serial || '-'}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.prueba || '-'}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${fmt(x.proxima)}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${(x.dias ?? '—')}</td>
-          ${includeEstado ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${typeof x.dias === 'number' ? estadoFromDias(x.dias) : '—'}</td>` : ''}
-          ${includeMotivo ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${x.failReason || '—'}</td>` : ''}
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${(x.dias ?? '-')}</td>
+          ${includeEstado ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${typeof x.dias === 'number' ? estadoFromDias(x.dias) : '-'}</td>` : ''}
+          ${includeMotivo ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${x.failReason || '-'}</td>` : ''}
         </tr>
       `).join('');
     return `
@@ -261,9 +267,9 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
     <div style="font-family:Arial, Helvetica, sans-serif; color:#111827;">
       ${headerHtml}
       <p style="margin:4px 0 12px; font-size:13px; color:#4b5563;">Solo se consideran pruebas ANUALES.</p>
-      ${section('60–31 días', lista60)}
-      ${section('30–16 días', lista30)}
-      ${section('15–1 días (envío diario)', lista15)}
+      ${section('60-31 días', lista60)}
+      ${section('30-16 días', lista30)}
+      ${section('15-1 días (envío diario)', lista15)}
       ${section('💀 0 días (vencidas)', lista0)}
       ${section('Fallidos', listaFail, { includeMotivo: true })}
     </div>
@@ -401,7 +407,7 @@ async function calcularYEnviar({ testMode = false, force = false }) {
   if (!lista60.length && !lista30.length && !lista15.length && !lista0.length && !listaFail.length) {
     if (testMode) {
       const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
-      const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
+      const subject = `Alertas pruebas por vencer - ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
       await enviarCorreo({ html, subject });
       const { toList } = getMailRecipients();
       return { sent: true, empty: true, to: toList };
@@ -412,7 +418,7 @@ async function calcularYEnviar({ testMode = false, force = false }) {
 
   
   const html = buildHtml({ lista60, lista30, lista15, lista0, listaFail });
-  const subject = `Alertas pruebas por vencer – ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
+  const subject = `Alertas pruebas por vencer - ${DateTime.now().setZone(TZ).toFormat('dd/LL/yyyy')}`;
   await enviarCorreo({ html, subject });
   const { toList } = getMailRecipients();
   return {

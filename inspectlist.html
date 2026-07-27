@@ -110,6 +110,10 @@
                     <div class="dash-card-label">Inspecciones realizadas (histórico)</div>
                     <div class="dash-card-value" id="insp-card-realizadas">0</div>
                 </div>
+                <div class="dash-card" id="insp-card-wrap-sin-insp" style="display:none; cursor:pointer;">
+                    <div class="dash-card-label">Equipos sin inspección</div>
+                    <div class="dash-card-value" id="insp-card-sin-insp">0</div>
+                </div>
                 <div class="dash-card" id="insp-card-wrap-no-atendidas" style="display:none;">
                     <div class="dash-card-label">No atendidas (daño / MALO)</div>
                     <div class="dash-card-value" id="insp-card-no-atendidas">0</div>
@@ -143,6 +147,27 @@
                 <p id="mensaje-sin-sync-local" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay inspecciones pendientes de sincronizar en este dispositivo.
                 </p>
+                </div>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-sin-insp" style="margin-top:0.75rem; display:none;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
+                    <h3 style="margin:0; font-size:1rem;">Equipos sin inspección</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-sin-insp-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                </div>
+                <div id="insp-sin-insp-body">
+                <table id="tabla-equipos-sin-insp" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                            <th style="text-align:left; padding:0.4rem;">Serial</th>
+                            <th style="text-align:left; padding:0.4rem;">EDO</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-equipos-sin-insp"></tbody>
+                </table>
+                <p id="mensaje-sin-sin-insp" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">No hay equipos sin inspección.</p>
                 </div>
             </div>
 
@@ -396,20 +421,136 @@
         const btnEmailNoAtendidas = document.getElementById('btn-insp-email-no-atendidas');
         const cardPendientes = document.getElementById('insp-card-pendientes');
         const cardRealizadas = document.getElementById('insp-card-realizadas');
+        const cardSinInsp = document.getElementById('insp-card-sin-insp');
         const cardNoAtendidas = document.getElementById('insp-card-no-atendidas');
         const filtroIndicador = document.getElementById('insp-filtro-indicador');
         const btnResetFiltro = document.getElementById('insp-btn-reset-filtro');
         const cardWrapPend = document.getElementById('insp-card-wrap-pendientes');
         const cardWrapReal = document.getElementById('insp-card-wrap-realizadas');
+        const cardWrapSinInsp = document.getElementById('insp-card-wrap-sin-insp');
         const cardWrapNoAtendidas = document.getElementById('insp-card-wrap-no-atendidas');
         const thEvaluacion = document.getElementById('insp-th-evaluacion');
         const thFechaReal = document.getElementById('insp-th-fecha-real');
         const thFechaRealHuerfana = document.getElementById('insp-th-fecha-real-huerfana');
 
+        const secSinInsp = document.getElementById('insp-seccion-sin-insp');
+        const tbodySinInsp = document.getElementById('tbody-equipos-sin-insp');
+        const msgSinInsp = document.getElementById('mensaje-sin-sin-insp');
+
         let filtroEstado = null; // null | 'PENDIENTE' | 'REALIZADA'
         let sortKey = 'fecha_real'; // null | 'fecha_real'
         let sortDir = -1; // -1 desc | 1 asc
         let autoResetHecho = false;
+
+        let mostrarEquiposSinInspeccion = false;
+
+        async function contarEquiposSinInspeccion() {
+            try {
+                const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = window.db ? window.db : m.getFirestore();
+                const q = m.query(m.collection(db, 'resumenes_equipos'), m.where('inspeccion', '==', null));
+                const snap = await m.getCountFromServer(q);
+                const n = (snap && snap.data && typeof snap.data().count === 'number') ? snap.data().count : 0;
+                return n;
+            } catch {
+                return 0;
+            }
+        }
+
+        async function cargarEquiposSinInspeccion() {
+            try {
+                const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const db = window.db ? window.db : m.getFirestore();
+                const q = m.query(m.collection(db, 'resumenes_equipos'), m.where('inspeccion', '==', null), m.limit(800));
+                const snap = await m.getDocs(q);
+                const out = [];
+                snap.forEach(d => {
+                    const data = d.data() || {};
+                    const equipoKey = String(data.equipoKey || d.id || '').trim();
+                    if (!equipoKey) return;
+                    out.push({ equipoKey, edo: String(data.edo || '').trim(), aptoOperacion: data.aptoOperacion, motivoBloqueo: String(data.motivoBloqueo || '').trim() });
+                });
+                out.sort((a, b) => (a.equipoKey < b.equipoKey ? -1 : (a.equipoKey > b.equipoKey ? 1 : 0)));
+                return out;
+            } catch {
+                return [];
+            }
+        }
+
+        function renderEquiposSinInspeccion(lista) {
+            try {
+                if (!secSinInsp || !tbodySinInsp) return;
+                tbodySinInsp.innerHTML = '';
+                if (msgSinInsp) msgSinInsp.style.display = 'none';
+
+                if (!Array.isArray(lista) || !lista.length) {
+                    if (msgSinInsp) msgSinInsp.style.display = '';
+                    secSinInsp.style.display = '';
+                    return;
+                }
+
+                lista.forEach(it => {
+                    const eq = String(it && it.equipoKey ? it.equipoKey : '').trim();
+                    if (!eq) return;
+                    const invKey = normKeyCompact(eq);
+                    const sr = (serialPorEquipo && invKey) ? String(serialPorEquipo.get(invKey) || '') : '';
+                    const edo = (it && it.edo) ? String(it.edo) : '';
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${eq}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${sr}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${edo}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                            <button type="button" class="insp-btn-ir-inspeccion" data-equipo="${eq.replace(/"/g, '&quot;')}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Inspeccionar</button>
+                        </td>
+                    `;
+                    tbodySinInsp.appendChild(tr);
+                });
+
+                Array.from(tbodySinInsp.querySelectorAll('button.insp-btn-ir-inspeccion')).forEach(btn => {
+                    btn.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        const eq = btn.getAttribute('data-equipo') || '';
+                        if (!eq) return;
+                        window.location.href = `inspeccion.html?equipo=${encodeURIComponent(eq)}`;
+                    });
+                });
+
+                secSinInsp.style.display = '';
+            } catch {}
+        }
+
+        async function activarModoEquiposSinInspeccion() {
+            mostrarEquiposSinInspeccion = true;
+            try {
+                if (inputBuscar) inputBuscar.value = '';
+                if (inputBuscarRealizadas) inputBuscarRealizadas.value = '';
+            } catch {}
+            try {
+                await asegurarSerialesInventario();
+            } catch {}
+            const lista = await cargarEquiposSinInspeccion();
+            renderEquiposSinInspeccion(lista);
+            try {
+                if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                if (secRealizadas) secRealizadas.style.display = 'none';
+                if (secHuerfanas) secHuerfanas.style.display = 'none';
+                if (tbody) tbody.innerHTML = '';
+                if (tbodyRealizadas) tbodyRealizadas.innerHTML = '';
+                if (tbodyHuerfanas) tbodyHuerfanas.innerHTML = '';
+                if (msg) msg.style.display = 'none';
+                if (msgRealizadas) msgRealizadas.style.display = 'none';
+                if (msgHuerfanas) msgHuerfanas.style.display = 'none';
+            } catch {}
+        }
+
+        if (cardWrapSinInsp && !cardWrapSinInsp.dataset.boundClick) {
+            cardWrapSinInsp.dataset.boundClick = '1';
+            cardWrapSinInsp.addEventListener('click', () => {
+                activarModoEquiposSinInspeccion();
+            });
+        }
 
         try {
             if (btnResetFiltro && !btnResetFiltro.dataset.boundReset) {
@@ -496,6 +637,8 @@
             }
         }
 
+        const evidenciaStorageMissingCache = new Set();
+
         async function resolverThumbsMalo() {
             const imgs = Array.from(document.querySelectorAll('img.insp-thumb-malo'));
             const pendientes = imgs.filter(img => {
@@ -530,6 +673,7 @@
 
                     let url = '';
                     for (const p of candidatos) {
+                        if (p && evidenciaStorageMissingCache.has(p)) continue;
                         try {
                             url = await getDownloadURL(stRef(storage, p));
                             if (url) break;
@@ -540,6 +684,11 @@
                         img.src = url;
                         img.style.display = '';
                     } else {
+                        try {
+                            candidatos.forEach(p => {
+                                if (p) evidenciaStorageMissingCache.add(p);
+                            });
+                        } catch {}
                         // Evitar reintentos infinitos (y spam de 404) cuando la evidencia ya no existe.
                         img.setAttribute('data-src', '__MISSING__');
                         img.style.display = 'none';
@@ -1023,10 +1172,28 @@
             if (inventarioSerialesPromise) return inventarioSerialesPromise;
             inventarioSerialesPromise = (async () => {
                 try {
-                    const db = getFirestore();
+                    let db = window.db || null;
+                    let collectionFn = (typeof collection === 'function') ? collection : null;
+                    let getDocsFn = (typeof getDocs === 'function') ? getDocs : null;
+
+                    if (!db || !collectionFn || !getDocsFn) {
+                        const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        if (!db) {
+                            try {
+                                db = (window.db) ? window.db : m.getFirestore();
+                            } catch {
+                                db = window.db || null;
+                            }
+                        }
+                        if (!collectionFn) collectionFn = m.collection;
+                        if (!getDocsFn) getDocsFn = m.getDocs;
+                    }
+
+                    if (!db || !collectionFn || !getDocsFn) throw new Error('firestore_not_initialized');
+
                     const [snapEquipos, snapEdo] = await Promise.all([
-                        getDocs(collection(db, 'equipos')),
-                        getDocs(collection(db, 'inventarioEstados')),
+                        getDocsFn(collectionFn(db, 'equipos')),
+                        getDocsFn(collectionFn(db, 'inventarioEstados')),
                     ]);
 
                     const mapaEdo = new Map();
@@ -1111,12 +1278,19 @@
             if (chkTodosRealizadas) chkTodosRealizadas.checked = false;
             if (cardPendientes) cardPendientes.textContent = '0';
             if (cardRealizadas) cardRealizadas.textContent = '0';
+            if (cardSinInsp) cardSinInsp.textContent = '0';
             if (cardNoAtendidas) cardNoAtendidas.textContent = '0';
 
             if (secNoAtendidas) secNoAtendidas.style.display = 'none';
             if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
             if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
             if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = 'none';
+
+            if (secSinInsp) secSinInsp.style.display = 'none';
+            if (tbodySinInsp) tbodySinInsp.innerHTML = '';
+            if (msgSinInsp) msgSinInsp.style.display = 'none';
+            if (cardWrapSinInsp) cardWrapSinInsp.style.display = 'none';
+            mostrarEquiposSinInspeccion = false;
 
             actualizarIndicadoresSort();
 
@@ -1564,6 +1738,13 @@
                 }
             } catch {}
 
+            // Contador: equipos sin inspección (usa resumenes_equipos)
+            try {
+                const nSin = await contarEquiposSinInspeccion();
+                if (cardSinInsp) cardSinInsp.textContent = String(nSin || 0);
+                if (cardWrapSinInsp) cardWrapSinInsp.style.display = (nSin && nSin > 0) ? '' : '';
+            } catch {}
+
             if (!actividades.length && !inspecciones.length) {
                 msg.style.display = 'block';
                 return;
@@ -1598,6 +1779,31 @@
                 return normEq(s).replace(/[^a-z0-9]+/g, '');
             }
 
+            function normEqCodeLoose(s) {
+                try {
+                    const k = normEqCompact(s || '');
+                    const m = k.match(/^pct([a-z]{2,4})(\d{1,6})$/);
+                    if (!m) return k;
+                    const pref = String(m[1] || '');
+                    const nRaw = String(m[2] || '');
+                    const n = parseInt(nRaw, 10);
+                    if (!Number.isFinite(n)) return k;
+                    return `pct${pref}${n}`;
+                } catch {
+                    return normEqCompact(s || '');
+                }
+            }
+
+            function eqEquipoMatchLoose(a, b) {
+                try {
+                    const ka = normEqCodeLoose(a);
+                    const kb = normEqCodeLoose(b);
+                    return !!ka && !!kb && ka === kb;
+                } catch {
+                    return false;
+                }
+            }
+
             function esFiltroEquipoExacto(f) {
                 try {
                     const k = normEqCompact(f || '');
@@ -1608,7 +1814,7 @@
                 }
             }
 
-            function renderNoResultadosConStatus() {
+            async function renderNoResultadosConStatus() {
                 try {
                     if (!msg || !inputBuscar) return;
                     const filtroNow = (inputBuscar.value || '').toString().trim();
@@ -1644,6 +1850,58 @@
 
                     let html = '';
                     if (!matchesActs.length && !matchesInsp.length) {
+                        // Caso: el usuario busca un código exacto (ej PCT-XO-050) y no hay registros.
+                        // Consultar resumenes_equipos para dar un veredicto inmediato.
+                        try {
+                            if (esFiltroEquipoExacto(filtroNow)) {
+                                const fk = normEqCodeLoose(filtroNow);
+                                const eqCanon = (inventarioListo && fk && equipoPorKey && equipoPorKey.has(fk))
+                                    ? String(equipoPorKey.get(fk) || '').trim()
+                                    : String(filtroNow).trim();
+
+                                const resumen = await getResumenEquipo(eqCanon);
+                                if (resumen && resumen.equipoKey) {
+                                    const tieneInsp = !!(resumen.inspeccion && resumen.inspeccion.docId);
+                                    if (!tieneInsp) {
+                                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi || window.isCops);
+                                        const tr = document.createElement('tr');
+                                        tr.className = 'insp-fila-pendiente insp-fila-inventario';
+                                        const btnInspeccionar = puedeInspeccionar
+                                            ? `<button type="button" class="insp-btn-ir-inspeccion" data-equipo="${String(eqCanon).replace(/"/g, '&quot;')}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Inspeccionar</button>`
+                                            : '-';
+                                        tr.innerHTML = `
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
+                                                <input type="checkbox" disabled>
+                                            </td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;"></td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${eqCanon}</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serialPorEquipo.get(normKeyCompact(eqCanon)) || ''}</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">Sin historial de inspección</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">-</td>
+                                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${btnInspeccionar}</td>
+                                        `;
+                                        if (tbody) tbody.appendChild(tr);
+                                        const btn = tr.querySelector('button.insp-btn-ir-inspeccion');
+                                        if (btn) {
+                                            btn.addEventListener('click', (ev) => {
+                                                ev.stopPropagation();
+                                                const eq = btn.getAttribute('data-equipo') || eqCanon;
+                                                window.location.href = `inspeccion.html?equipo=${encodeURIComponent(eq)}`;
+                                            });
+                                        }
+                                        msg.style.display = 'none';
+                                        return;
+                                    }
+                                }
+                            }
+                        } catch {}
+
                         const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi || window.isCops);
                         const edoInspeccionable = (edo) => {
                             const e = (edo || '').toString().trim().toUpperCase();
@@ -1844,14 +2102,12 @@
 
                         // Filtro estricto por equipo cuando el usuario escribe un código completo (ej. PCT-XO-017)
                         if (filtro && esFiltroEquipoExacto(filtro)) {
-                            const fk = normEqCompact(filtro);
+                            const fk = normEqCodeLoose(filtro);
                             subset = subset.filter(item => {
                                 try {
                                     const actEq = item && item.act && item.act.equipo ? String(item.act.equipo) : '';
                                     const inspEq = item && item.insp && item.insp.equipo ? String(item.insp.equipo) : '';
-                                    const k1 = normEqCompact(actEq);
-                                    const k2 = normEqCompact(inspEq);
-                                    return !!fk && (k1 === fk || k2 === fk);
+                                    return !!fk && (eqEquipoMatchLoose(actEq, fk) || eqEquipoMatchLoose(inspEq, fk));
                                 } catch {
                                     return false;
                                 }
@@ -1997,10 +2253,8 @@
                     const fUse = esRealizadas ? (filtroRealizadas || filtro) : filtro;
                     if (fUse) {
                         if (esFiltroEquipoExacto(filtro)) {
-                            const fk = normEqCompact(filtro);
-                            const k1 = normEqCompact(equipoRender);
-                            const k2 = normEqCompact(equipo);
-                            if (!fk || (k1 !== fk && k2 !== fk)) return;
+                            const fk = normEqCodeLoose(filtro);
+                            if (!fk || (!eqEquipoMatchLoose(equipoRender, fk) && !eqEquipoMatchLoose(equipo, fk))) return;
                         } else if (!textoBuscar.includes(fUse)) {
                             return;
                         }

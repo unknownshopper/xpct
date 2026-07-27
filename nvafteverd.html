@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Plan: Fuente de la verdad en Firestore (sin CSV)</title>
+  <style>
+    :root { color-scheme: light; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; line-height: 1.35; color:#111827; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    h2 { font-size: 16px; margin: 18px 0 8px; }
+    h3 { font-size: 14px; margin: 12px 0 6px; }
+    .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+    .box { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; margin: 10px 0; background: #fafafa; }
+    ul { margin: 6px 0 6px 18px; }
+    li { margin: 4px 0; }
+    code { background: #f3f4f6; padding: 1px 4px; border-radius: 6px; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #e5e7eb; background: #fff; margin-right: 6px; }
+    .risk { color: #7c2d12; }
+    .ok { color: #065f46; }
+    .actions { display:flex; justify-content:flex-end; gap:8px; margin: 10px 0 14px; }
+    .btn { appearance:none; border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 10px; font-weight:800; cursor:pointer; }
+    .btn:active { transform: translateY(1px); }
+
+    .doc-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 10px; }
+    .doc-brand { display:flex; align-items:center; gap:10px; min-width: 240px; }
+    .doc-logo { height: 44px; width:auto; display:block; }
+    .doc-titlewrap { display:flex; flex-direction:column; gap:2px; }
+    .doc-org { font-size: 12px; color:#475569; font-weight:700; letter-spacing:0.02em; }
+    .doc-title { font-size: 18px; font-weight: 900; margin:0; }
+    .doc-sub { font-size: 12px; color:#475569; margin:0; }
+    .doc-meta-right { text-align:right; font-size:12px; color:#475569; }
+    .doc-divider { height: 1px; background: #e5e7eb; margin: 10px 0 14px; }
+
+    @media print {
+      body { margin: 12mm; }
+      .actions { display:none !important; }
+      .doc-header { break-inside: avoid; page-break-inside: avoid; }
+      .doc-divider { break-inside: avoid; page-break-inside: avoid; }
+      .box, table, pre { break-inside: avoid; page-break-inside: avoid; }
+      h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
+      h2 { break-before: page; page-break-before: always; }
+      h2:first-of-type { break-before: auto; page-break-before: auto; }
+      thead { display: table-header-group; }
+      tfoot { display: table-footer-group; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-header">
+    <div class="doc-brand">
+      <img class="doc-logo" src="img/logo.png" alt="PCT" />
+      <div class="doc-titlewrap">
+        <div class="doc-org">PCT</div>
+        <h1 class="doc-title">Plan de trabajo: fuente de verdad en Firestore (sin CSV)</h1>
+        <p class="doc-sub">Migración de inventario, normalización de equipoKey y resúmenes materializados</p>
+      </div>
+    </div>
+    <div class="doc-meta-right">
+      <div><strong>Documento:</strong> nvafteverd.html</div>
+      <div><strong>Generado:</strong> <span id="doc-gen-date">-</span></div>
+    </div>
+  </div>
+  <div class="doc-divider"></div>
+
+  <div class="actions">
+    <button id="btn-pdf" class="btn" type="button">Descargar PDF</button>
+  </div>
+  <div class="meta">
+    <span class="tag">Objetivo</span> Inventario + estado operativo + conteos de dashboard desde Firestore (con resúmenes materializados), minimizando lecturas y cálculos en cliente.
+    <br />
+    <span class="tag">EquipoKey</span> Formato canónico: <code>PCT-45-010</code> (guion ASCII <code>-</code>), con <em>padding por familia</em>.
+  </div>
+
+  <div class="box">
+    <strong>Principios del cambio</strong>
+    <ul>
+      <li>Firestore será la única fuente de verdad para inventario y estado de equipos.</li>
+      <li>El CSV queda como mecanismo de importación/admin (opcional), nunca como dependencia runtime.</li>
+      <li>Se evitan lecturas masivas en cliente usando <em>resúmenes materializados</em> (global y por equipo).</li>
+      <li>Normalización estricta en escritura y en llaves de join/deduplicación.</li>
+    </ul>
+  </div>
+
+  <h2>Fase 0 - Alineación de reglas (corta, pero obligatoria)</h2>
+  <div class="box">
+    <ul>
+      <li>✅ <strong>EquipoKey canónico</strong>: siempre con <code>-</code> ASCII (U+002D), sin guiones Unicode (U+2014/U+2013/U+2011/U+2212), sin espacios invisibles, en mayúsculas.</li>
+      <li><strong>Serial</strong>: identificador estable (puede ser numérico). Operativamente se usan 2 identificadores: <code>equipoKey</code> y <code>serial</code>.</li>
+      <li>✅ <strong>Pruebas</strong>: resultado explícito <code>ACEPTADA/RECHAZADA</code> + vigencia <code>VIGENTE/VENCIDA</code>.</li>
+      <li>✅ <strong>Inspecciones</strong>: si cualquier parámetro está <code>MALO</code>, la inspección se considera <code>RECHAZADA</code> para operación.</li>
+      <li>✅ <strong>Lugar (inspección)</strong>: debe reflejar el lugar real donde se realizó la inspección (GPS/testimonio). Implementado: al guardar, se prioriza <code>ubicacionGps</code> para persistir <code>ubicacion</code>; en listados, se muestra <code>ubicacionGps</code> sobre la ubicación de la actividad.</li>
+      <li>✅ <strong>Disponibilidad</strong> (xactividad): validación de operación/disponibilidad consultando <code>resumenes_equipos</code> y respeto estricto de <code>WIP</code> como no seleccionable.</li>
+    </ul>
+  </div>
+
+  <h2>Fase 1 - Normalización (arranca por guiones cortos/largos)</h2>
+  <div class="box">
+    <h3>1.1 Normalizar el guion (sin romper textos/UI)</h3>
+    <ul>
+      <li>✅ <strong>No</strong> hacer reemplazo masivo para datos sin control; normalizar en entradas/salidas.</li>
+      <li>✅ Implementar normalización controlada en puntos de entrada/salida de datos (captura/edición/import).</li>
+      <li>✅ Regla: cualquier variante de guion Unicode (p. ej. U+2014/U+2013/U+2011/U+2212) se convierte a <code>-</code> solo para campos de identidad: <code>equipo</code>/<code>equipoKey</code>.</li>
+    </ul>
+
+    <h3>1.2 Canonicalización de llave</h3>
+    <ul>
+      <li>✅ Garantizar que el sistema derive y use un <code>equipoKey</code> canónico para joins/dedup, respetando padding por familia.</li>
+      <li>Ejemplos de padding acordado:
+        <ul>
+          <li><code>PCT-45-010</code> y <code>PCT-90-278</code>: último segmento con 3 dígitos cuando aplique.</li>
+          <li><code>PCT-DSA-10</code>: último segmento con 2 dígitos (por contratos/pedidos).</li>
+          <li><code>PCT-PUP-0521</code>: último segmento con 4 dígitos.</li>
+        </ul>
+      </li>
+      <li>Registrar casos ambiguos (duplicados) para resolución por el cliente/admin.</li>
+    </ul>
+
+    <h3>1.3 Tipos de prueba canónicos</h3>
+    <ul>
+      <li>✅ Canon de tipo de prueba implementado y unificado (UI/import/backend): <code>VT/PT/MT</code>, <code>UTT</code>, <code>LT</code> (default: <code>ANUAL</code> si viene vacío).</li>
+      <li>✅ El dropdown de pruebas muestra <code>VT/PT/MT</code> sin espacios (compatibilidad: si el inventario trae <code>VT / PT / MT</code> se canonicaliza).</li>
+    </ul>
+  </div>
+
+  <h2>Fase 2 - Modelo en Firestore (inventario como fuente de verdad)</h2>
+  <div class="box">
+    <ul>
+      <li>✅ <strong>Base existente</strong>: la colección <code>inventarioEstados</code> ya es 1 documento por <code>equipoKey</code> y se toma como autoridad del estado (<code>edo</code>).</li>
+      <li>✅ Crear colección de inventario/equipos con 1 documento por <code>equipoKey</code> canónico: <code>equipos</code> (metadatos; el estado operativo se referencia/deriva desde <code>inventarioEstados</code> y resúmenes).</li>
+      <li>✅ Campos base en uso: <code>equipoKey</code>/<code>equipoDisplay</code> (docId), <code>serial</code>, metadatos (producto, descripción, etc.). El estado (<code>edo</code>) permanece con autoridad en <code>inventarioEstados</code>.</li>
+      <li>🕑 Admin es el único editor: esto facilita validaciones y control de calidad.</li>
+    </ul>
+  </div>
+
+  <details>
+    <summary><h2 style="display:inline;">Formatos canónicos por familia</h2></summary>
+    <div class="box">
+      <p>
+        ✅ A partir del inventario actual, se catalogaron familias en el formato <code>PCT-&lt;FAMILIA&gt;-&lt;NUMEROLOGÍA&gt;</code>.
+        En todos los casos se usa guion corto ASCII <code>-</code>.
+      </p>
+      <table style="border-collapse:collapse; width:100%;">
+        <thead>
+          <tr>
+            <th style="border:1px solid #e5e7eb; padding:8px 10px; background:#f9fafb; text-align:left;">Familia</th>
+            <th style="border:1px solid #e5e7eb; padding:8px 10px; background:#f9fafb; text-align:left;">Formato canónico</th>
+            <th style="border:1px solid #e5e7eb; padding:8px 10px; background:#f9fafb; text-align:left;">Padding</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">45</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-45-010</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">3 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">90</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-90-278</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">3 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">BC</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-BC-01</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">2 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">BP</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-BP-01</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">2 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">CA</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-CA-01</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">2 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">CAP</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-CAP-001</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">3 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">CC</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-CC-01</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">2 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">CE</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-CE-20</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">2 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">DSA</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-DSA-10</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">2 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">PLG</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-PLG-001</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">3 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">PUP</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-PUP-0123</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">4 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">SSA</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-SSA-01</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">2 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">TEE</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-TEE-037</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">3 dígitos</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">XO</td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;"><code>PCT-XO-020</code></td>
+            <td style="border:1px solid #e5e7eb; padding:8px 10px;">3 dígitos</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px; font-size:12px; color:#444;">
+        Fuente: documento <code>formatfams.html</code> (derivado de la columna "EQUIPO / ACTIVO" del inventario CSV actual).
+      </p>
+    </div>
+  </details>
+
+  <h2>Fase 3 - Resúmenes materializados (clave para bajar tráfico/costo)</h2>
+  <div class="box">
+    <h3>3.1 Resumen global (dashboards)</h3>
+    <ul>
+      <li>✅ Documento materializado en Firestore: <code>resumenes/global</code>.</li>
+      <li>✅ Incluye: conteos ON/WIP/OFF (desde <code>inventarioEstados</code>), buckets de ANUALES (vencidas, 60-31, 30-16, 15-1) y totales de documentos por período (ANUAL/POST-TRABAJO/REPARACION).</li>
+      <li>✅ Se construye por proceso programado y se puede forzar manualmente (endpoint protegido).</li>
+    </ul>
+
+    <h3>3.2 Resumen por equipo ("vida" del equipo)</h3>
+    <ul>
+      <li>✅ Documento por <code>equipoKey</code> que incluye:
+        <ul>
+          <li>✅ Estado inventario actual (<code>edo</code>)</li>
+          <li>✅ Última prueba anual por tipo (vigencia/bucket/fechas)</li>
+          <li>✅ Última inspección relevante (estado general)</li>
+          <li>✅ Disponibilidad para operación (<code>aptoOperacion</code> + <code>motivoBloqueo</code>)</li>
+          <li>🕑 Marca de “en actividad/en inspección/en prueba” si aplica (si se requiere como bloqueo duro en UI/servidor)</li>
+        </ul>
+      </li>
+      <li><strong>Regla mixta (pruebas)</strong>: si el equipo tiene ANUAL vigente en UTT o VT/PT/MT, también debe considerarse vigente LT (override al calcular disponibilidad y rangos).</li>
+      <li>✅ Materializado: <code>resumenes_equipos/{equipoKey}</code> (rebuild masivo + job diario).</li>
+    </ul>
+  </div>
+
+  <h2>Fase 4 - Backfill y conciliación de datos existentes</h2>
+  <div class="box">
+    <ul>
+      <li>🕑 Poblar <code>equipoKey</code> canónico en documentos existentes (pruebas, inspecciones, actividades) sin reescribir la identidad original si no es necesario.</li>
+      <li>✅ Resúmenes por equipo desde el histórico actual: <code>resumenes_equipos</code> ya se puede reconstruir (rebuild masivo + job diario).</li>
+      <li>🕑 Conciliar duplicados de nombres/equipos cuando el cliente confirme correcciones (merge/alias si es necesario). <strong>Pendiente del cliente</strong>: definir el nombre canónico final en casos duplicados (especialmente ON vs WIP).</li>
+    </ul>
+    <div class="risk"><strong>Riesgo</strong>: duplicados por Unicode/espacios/padding. Mitigación: normalización y reporte de colisiones antes de consolidar.</div>
+    <div class="box">
+      <strong>Duplicados esperados ON vs WIP (pendientes de empresa)</strong>
+      <ul>
+        <li>Si hay discrepancias del mismo equipo entre <code>ON</code> y <code>WIP</code>, el canónico operativo es el de <code>ON</code>.</li>
+        <li>Los registros en <code>WIP</code> se mantienen como <em>alias/pendiente</em> hasta que la empresa confirme el nombre final.</li>
+        <li>La resolución/merge puede apoyarse en el <code>serial</code> como identificador estable.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Fase 5 - Migración de módulos (sin CSV en runtime)</h2>
+  <div class="box">
+    <ul>
+      <li>✅ <strong>index</strong>: tarjeta de Pruebas lee de <code>resumenes/global</code> (sin escaneo de <code>pruebas</code>). 🕑 Inventario/equipos Firestore pendiente.</li>
+      <li>✅ <strong>pruebaslist</strong>: chips/rangos desde resumen global; la captura de <strong>prueba anual</strong> impacta de inmediato en el resumen (y se refleja/descuenta en chips según vigencia).</li>
+      <li>✅ <strong>inspectlist</strong>: usa <code>resumenes_equipos</code> para mostrar estado/bloqueo y vigencia mixta sin joins a <code>pruebas</code>.</li>
+      <li>✅ <strong>inspectlist</strong>: nueva sección <strong>No atendidas</strong> (última inspección con <code>MALO</code>/<code>NO LEGIBLE</code>) con columnas: <em>Días sin atención</em> + <em>Usuario</em> + acción rápida <em>Reinspección</em> (deep-link: <code>inspeccion.html?equipo=...&amp;tipo=REINSPECCION</code>).</li>
+      <li>✅ <strong>inspectlist</strong>: correo <em>on-demand</em> de <strong>No atendidas</strong> (botón visible a <code>sgi</code>/<code>admin</code>/<code>director</code>) vía Cloud Function <code>sendNoAtendidasEmail</code> (SMTP via <code>nodemailer</code>).</li>
+      <li>✅ <strong>xactividad</strong>: al crear actividad, valida disponibilidad consultando <code>resumenes_equipos</code> (sin joins masivos). Regla confirmada: equipos en <code>WIP</code> no pueden ser seleccionados.</li>
+      <li>✅ <strong>admax</strong>: catálogo de equipos resalta bloqueados en rojo y evita selección cuando <code>aptoOperacion=false</code>, usando <code>resumenes_equipos</code> y fallback a <code>inventarioEstados</code> + últimas <code>inspecciones</code> (sin depender de rebuild).</li>
+      <li>✅ <strong>inspectlist</strong>: buscador dedicado para <em>Inspecciones realizadas</em> (histórico) y normalización consistente del filtro.</li>
+      <li>✅ <strong>UI de pruebas (en campo)</strong>: captura funcional con dropdown de tipo de prueba (VT/PT/MT, UTT, LT), autollenado de área y guardado estable (incluye <strong>ANUAL</strong> vía campo <em>Periodo</em>).</li>
+      <li>✅ <strong>Firestore</strong>: importados <code>equipos</code> (1620 docs) y <code>formatos_inspeccion</code> (19 formatos) desde CSVs; reconstrucción ejecutada: <code>rebuildResumenGlobal</code> y <code>rebuildResumenesEquipos</code> (1493 escritos).</li>
+      <li>✅ <strong>inspeccion</strong>: inventario + formatos desde Firestore (colecciones <code>equipos</code> y <code>formatos_inspeccion</code>) sin <code>docs/INVENTARIOTOTAL04-202602.csv</code> ni <code>docs/forxmat.csv</code> en runtime.</li>
+      <li>✅ <strong>inspeccion</strong>: overrides por activo en Firestore (colección <code>equipos_overrides</code>) para <em>Anillo retenedor</em> e <em>Insertos</em> (sin CSV en runtime). Script: <code>server/tools/importEquiposOverridesFromCsv.mjs</code>.</li>
+      <li>✅ <strong>inspeccion</strong>: catálogo de daños en Firestore (colección <code>catalogo_danos</code>) (sin CSV en runtime). Script: <code>server/tools/importCatalogoDanosFromCsv.mjs</code>.</li>
+      <li>✅ <strong>pruebas</strong>: <code>pruebas.js</code> usa inventario desde Firestore (<code>equipos</code>) sin CSV en runtime (certificados históricos aún desde <code>docs/certif.csv</code>).</li>
+      <li>✅ <strong>inspectlist</strong>: serial/autocomplete desde Firestore (colecciones <code>equipos</code> + <code>inventarioEstados</code>) sin <code>docs/INVENTARIOTOTAL04-202602.csv</code> en runtime.</li>
+      <li>✅ <strong>legacy</strong>: las páginas auxiliares que aún usan CSV quedan como vestigio/histórico pero <strong>sin rutas de navegación</strong> (ocultas desde <code>nav.js</code>).</li>
+      <li>🕑 <strong>Seguridad</strong>: rotar secrets que se hayan expuesto en terminal/historial (<code>EQUIPOS_IMPORT_KEY</code>, <code>FORMATOS_IMPORT_KEY</code>, y cualquier key de rebuild).</li>
+      <li>🕑 <strong>Functions</strong>: atender avisos de deploy: Node.js 20 deprecado (plan de upgrade) y <code>firebase-functions</code> desactualizado (upgrade controlado por breaking changes).</li>
+    </ul>
+    <div class="ok"><strong>Objetivo</strong>: que ningún módulo necesite cargar CSV para operar.</div>
+  </div>
+
+  <h2>Fase 6 - Retiro y control</h2>
+  <div class="box">
+    <ul>
+      <li>✅ Desactivar rutas/flows que dependen de CSV en cliente (páginas legacy ocultas del navbar; quedan como vestigio sin navegación).</li>
+      <li>🕑 Dejar CSV solo como herramienta admin (si se conserva).</li>
+      <li>🕑 Agregar monitoreo básico: lecturas Firestore por pantalla, tiempos de carga, consistencia de conteos.</li>
+    </ul>
+  </div>
+
+  <h2>Estimación (Ruta correcta)</h2>
+  <div class="box">
+    <ul>
+      <li>Diseño y reglas: 0.5-2 días</li>
+      <li>Normalización + modelo Firestore inventario: 2-5 días</li>
+      <li>Resúmenes materializados: 4-10 días</li>
+      <li>Backfill + conciliación: 2-7 días (depende de duplicados reales)</li>
+      <li>Migración de módulos: 4-10 días</li>
+    </ul>
+    <strong>Total</strong>: 2-3 semanas típicas, ajustable según ritmo y limpieza de duplicados.
+  </div>
+
+  <h2>Estado actual (lo realizado)</h2>
+  <div class="box">
+    <ul>
+      <li>✅ Se definieron formatos canónicos por familia (ver sección "Formatos canónicos por familia" y archivo <code>formatfams.html</code>).</li>
+      <li>✅ Se inició auditoría de normalización/collisiones (inventarioEstados como autoridad del <code>edo</code>).</li>
+      <li>✅ Se aplicó corrección opción 3 (crítico + estético) en archivos productivos para convertir guiones Unicode visibles a <code>-</code> ASCII en UI/strings y rangos (p. ej. 60-31, 30-16, 15-1) y placeholders.</li>
+    </ul>
+    <p style="margin:0.5rem 0 0; font-size:12px; color:#444;">
+      Si aún ves resultados al buscar "guion largo", normalmente provienen de:
+      (1) documentación/archivos auxiliares no productivos (p. ej. algunos <code>.md</code>), o
+      (2) textos que aún no se han estandarizado. La prioridad está resuelta para identidad de equipos (<code>equipoKey</code>) y UI principal.
+    </p>
+  </div>
+
+  <h2>Preguntas y respuestas (definiciones operativas)</h2>
+  <div class="box">
+    <details>
+      <summary><h3 style="display:inline;">¿Qué es un equipo?</h3></summary>
+      <p>
+        Un <strong>equipo</strong> es un activo físico único (una pieza/ensamble) que existe en inventario, participa en actividades y puede estar sujeto a inspecciones y pruebas.
+      </p>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Qué identifica inequívocamente a un equipo?</h3></summary>
+      <p>
+        Operativamente se usan 2 identificadores:
+      </p>
+      <ul>
+        <li><strong>equipoKey</strong>: el nombre/código del activo (formato canónico <code>PCT-45-010</code> con guion ASCII y padding por familia).</li>
+        <li><strong>serial</strong>: identificador estable (puede ser numérico) para trazabilidad y conciliación (por ejemplo, ON vs WIP).</li>
+      </ul>
+      <p>
+        La llave primaria para la aplicación debe ser <code>equipoKey</code>, pero el <code>serial</code> se usa para validar unicidad y resolver discrepancias.
+      </p>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Qué significa ON, WIP y OFF?</h3></summary>
+      <ul>
+        <li><strong>ON</strong>: equipo operativo y elegible para operación (sujeto a validaciones de disponibilidad, pruebas e inspecciones).</li>
+        <li><strong>WIP</strong>: equipo en proceso/corrección/pendiente. Regla confirmada: <strong>no puede seleccionarse</strong> para xactividad.</li>
+        <li><strong>OFF</strong>: equipo fuera de operación; no debe ser seleccionable.</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Cuándo un equipo está disponible?</h3></summary>
+      <p>
+        Un equipo está <strong>disponible</strong> cuando está en <code>ON</code> y no tiene bloqueos operativos activos.
+      </p>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Cuándo puede asignarse?</h3></summary>
+      <p>
+        Puede asignarse cuando está disponible y no existe ya una asignación activa del mismo equipo en una actividad abierta.
+      </p>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Qué condiciones debe cumplir para salir?</h3></summary>
+      <ul>
+        <li><strong>Inventario</strong>: estar en <code>ON</code> (no <code>WIP</code>, no <code>OFF</code>).</li>
+        <li><strong>Pruebas</strong>: pruebas relevantes <code>ACEPTADAS</code> y <code>VIGENTES</code> (según política).</li>
+        <li><strong>Inspecciones</strong>: inspección relevante sin parámetros <code>MALO</code>; si existe al menos un <code>MALO</code>, se considera <code>RECHAZADA</code> para operación.</li>
+        <li><strong>Asignación</strong>: no estar ya asignado a otra actividad abierta.</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Qué es una actividad?</h3></summary>
+      <p>
+        Una <strong>actividad</strong> es un proceso/operación de trabajo (logística/operación) que puede requerir la asignación de uno o más equipos y tiene un ciclo de vida (abierta/en proceso/cerrada).
+      </p>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Qué es una inspección?</h3></summary>
+      <p>
+        Una <strong>inspección</strong> es una evaluación de condición del equipo (con parámetros bueno/malo), evidencia y resultado. Sirve para decidir si el equipo es apto para operar.
+      </p>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">Qué diferencia hay entre recepción, pre y post trabajo?</h3></summary>
+      <ul>
+        <li><strong>Recepción</strong>: validación al recibir el equipo (entrada) antes de integrarlo a operación/inventario disponible.</li>
+        <li><strong>Pre-trabajo</strong>: verificación previa a una operación/actividad (antes de usar el equipo).</li>
+        <li><strong>Post-trabajo</strong>: verificación posterior a una operación/actividad (al regresar o terminar su uso).</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Qué significa que un equipo esté asignado?</h3></summary>
+      <p>
+        Significa que el equipo está vinculado a una actividad abierta/en curso. Mientras esté asignado, no debe poder asignarse a otra actividad simultáneamente.
+      </p>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">¿Cómo se evita que dos procesos asignen simultáneamente el mismo equipo?</h3></summary>
+      <p>
+        La prevención debe ser <strong>atómica en servidor</strong> (no solo en UI):
+      </p>
+      <ul>
+        <li>Usar una operación transaccional/condicional en Firestore (transaction) para crear la asignación solo si el estado actual indica que el equipo no está asignado.</li>
+        <li>Centralizar la fuente de verdad de asignación en un documento de resumen por equipo (por ejemplo, <code>equipos_resumen/{equipoKey}</code>) con campos como <code>actividadAbiertaId</code> o <code>enActividad</code>.</li>
+        <li>Definir reglas de seguridad (Firestore Rules) para impedir escrituras que violen la exclusividad, si aplica.</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary><h3 style="display:inline;">Flujo operativo del ciclo del equipo</h3></summary>
+      <pre style="white-space:pre; overflow:auto; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:12px;">
+ESTADO EN INVENTARIO
+    │
+    │ Estado persistente del activo (ON/WIP/OFF)
+    ▼
+RECEPCIÓN
+    │
+    │ Inspección de entrada (equipo nuevo o regreso de corrección)
+    ▼
+¿HAY ALGÚN MALO?
+    │
+    ├── NO ──→ PRUEBAS
+    │           │
+    │           │ Validación técnica
+    │           ▼
+    │        PRE-TRABAJO
+    │           │
+    │           │ Estado antes de salir
+    │           ▼
+    │        OPERACIÓN
+    │           │
+    │           ▼
+    │        POST-TRABAJO
+    │           │
+    │           │ Estado después de regresar
+    │           ▼
+    │     ¿NECESITA CORRECCIÓN?
+    │           │
+    │           ├── NO ──→ Disponible
+    │           │
+    │           └── SÍ ──→ Tercero / reparación
+    │                        │
+    │                        ▼
+    │                     RECEPCIÓN
+    │
+    └── SÍ ──→ ¿DAÑO REQUIERE TERCERO?
+                │
+                ├── NO ──→ WIP (pendiente interno)
+                │
+                └── SÍ ──→ Tercero / reparación
+                             │
+                             ▼
+                          RECEPCIÓN
+    </pre>
+    </details>
+  </div>
+
+  <h2>gsutil: impacto y plan de mitigación</h2>
+  <div class="box">
+    <p>
+      El aviso de Google Cloud aplica solo a flujos que usan <code>gsutil</code> para administrar el bucket de Storage (Firebase Storage / GCS).
+      La aplicación web y Firestore no dependen de <code>gsutil</code>.
+    </p>
+    <ul>
+      <li><strong>Dónde puede afectar</strong>:
+        <ul>
+          <li>Scripts locales o de mantenimiento que hagan <code>gsutil cp/rm/rsync/ls</code> contra el bucket.</li>
+          <li>Pipelines de CI/CD o imágenes Docker/Snap que asumen que <code>gsutil</code> viene “incluido” con <code>gcloud</code>.</li>
+          <li>Backups o limpiezas masivas de evidencias (Storage) hechas por CLI.</li>
+        </ul>
+      </li>
+      <li><strong>Cómo lo solucionaremos</strong>:
+        <ul>
+          <li>Migrar comandos a <code>gcloud storage</code> (recomendación oficial; evita la dependencia del bundle).</li>
+          <li>Si se requiere <code>gsutil</code> en entornos nuevos, instalarlo explícitamente (standalone) y documentar autenticación.</li>
+          <li>Preferir automatizaciones en servicios controlados (p. ej. Cloud Run/Functions) si se necesita mantenimiento recurrente del bucket.</li>
+        </ul>
+      </li>
+      <li><strong>Acción operativa</strong>:
+        <ul>
+          <li>Auditar repo/CI y procedimientos internos para confirmar si existe uso de <code>gsutil</code> (si existe, planificar migración antes de marzo 2027).</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+<script>
+  (function () {
+    try {
+      try {
+        const el = document.getElementById('doc-gen-date');
+        if (el) {
+          const d = new Date();
+          el.textContent = d.toLocaleString('es-MX');
+        }
+      } catch {}
+      const btn = document.getElementById('btn-pdf');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        try { window.print(); } catch {}
+      });
+    } catch {}
+  })();
+</script>
+</body>
+</html>

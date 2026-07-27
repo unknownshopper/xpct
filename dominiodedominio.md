@@ -91,10 +91,10 @@ Si deseas que `pc-t.com.mx` también funcione, hay 2 enfoques:
 - **En DNS**: apuntar `pc-t.com.mx` a Firebase según las instrucciones que te dé Firebase al agregarlo.
 
 ### 4.3 TTL y propagación
-- Usa TTL estándar (ej. 300–3600s).
+- Usa TTL estándar (ej. 300-3600s).
 - Propagación típica:
-  - 5–30 min (rápido)
-  - hasta 24–48 h (casos lentos)
+  - 5-30 min (rápido)
+  - hasta 24-48 h (casos lentos)
 
 ---
 

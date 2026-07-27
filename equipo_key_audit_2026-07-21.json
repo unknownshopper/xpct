@@ -1,0 +1,40 @@
+{
+  "summary": {
+    "generatedAt": "2026-07-21T19:23:14.483Z",
+    "totals": {
+      "inventarioEstados": 111
+    },
+    "collections": [
+      "inventarioEstados"
+    ],
+    "collisionsCount": 0,
+    "issuesCount": 2,
+    "notes": {
+      "canonicalRules": [
+        "Sanitización universal: guiones unicode→\"-\", quitar invisibles, trim, mayúsculas, colapsar guiones.",
+        "Canonicalización (padding) parcial: PCT-DSA-### (3), PCT-PUP-#### (4), PCT-<num>-### (3).",
+        "Familias no modeladas: se reportan pero no se fuerzan; se requiere ampliar reglas conforme catálogo empresarial."
+      ]
+    }
+  },
+  "collisions": [],
+  "issues": [
+    {
+      "type": "INV_DOCID_NOT_CANON",
+      "equipoRaw": "PCT-DSA-10",
+      "equipoSanitized": "PCT-DSA-10",
+      "equipoCanonical": "PCT-DSA-010",
+      "edo": "ON",
+      "source": "inventarioEstados",
+      "docId": "PCT-DSA-10"
+    },
+    {
+      "type": "SANITIZED_NEEDS_CANON",
+      "equipoRaw": "PCT-DSA-10",
+      "equipoSanitized": "PCT-DSA-10",
+      "equipoCanonical": "PCT-DSA-010",
+      "source": "inventarioEstados",
+      "docId": "PCT-DSA-10"
+    }
+  ]
+}

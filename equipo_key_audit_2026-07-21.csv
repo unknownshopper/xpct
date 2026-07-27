@@ -1,0 +1,3 @@
+type,equipoRaw,equipoSanitized,equipoCanonical,source,docId,edo
+INV_DOCID_NOT_CANON,PCT-DSA-10,PCT-DSA-10,PCT-DSA-010,inventarioEstados,PCT-DSA-10,ON
+SANITIZED_NEEDS_CANON,PCT-DSA-10,PCT-DSA-10,PCT-DSA-010,inventarioEstados,PCT-DSA-10,

@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const equipo = (it.equipo || '').toString().trim();
                         const proxima = (it.proxima || '').toString().trim();
                         const dias = Number.isFinite(Number(it.dias)) ? Number(it.dias) : '';
-                        const tt = `${equipo || '(sin equipo)'} | Próxima: ${proxima || '—'} | Días: ${dias}`;
+                        const tt = `${equipo || '(sin equipo)'} | Próxima: ${proxima || '-'} | Días: ${dias}`;
                         html += `<span title="${escAttr(tt)}" style="width:8px; height:8px; border-radius:999px; background:${color}; display:inline-block;"></span>`;
                     }
                     return html;
@@ -186,13 +186,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <div style="margin-top:0.6rem;">
                         <div style="margin-top:0.75rem; display:grid; grid-template-columns: 92px 1fr; gap:0.5rem 0.75rem; align-items:flex-start;">
-                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">60–31: ${a60}</div>
+                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">60-31: ${a60}</div>
                             <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(items60, '#2563eb')}</div>
 
-                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">30–16: ${a30}</div>
+                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">30-16: ${a30}</div>
                             <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(items30, '#f59e0b')}</div>
 
-                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">15–1: ${a15}</div>
+                            <div style="font-size:0.85rem; color:#111827; font-weight:800; white-space:nowrap;">15-1: ${a15}</div>
                             <div style="display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start;">${makeDotsFromItems(items15, '#ef4444')}</div>
 
                             <div style="font-size:0.85rem; color:#111827; font-weight:900; white-space:nowrap;">☠️ 0: ${z}</div>
@@ -206,15 +206,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="width:10px; height:10px; border-radius:3px; background:#2563eb; display:inline-block;"></span>
-                                <span>60–31: <strong>${a60}</strong></span>
+                                <span>60-31: <strong>${a60}</strong></span>
                             </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="width:10px; height:10px; border-radius:3px; background:#f59e0b; display:inline-block;"></span>
-                                <span>30–16: <strong>${a30}</strong></span>
+                                <span>30-16: <strong>${a30}</strong></span>
                             </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="width:10px; height:10px; border-radius:3px; background:#ef4444; display:inline-block;"></span>
-                                <span>15–1: <strong>${a15}</strong></span>
+                                <span>15-1: <strong>${a15}</strong></span>
                             </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="width:10px; height:10px; border-radius:3px; background:#111827; display:inline-block;"></span>
@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
             } catch {
-                try { elTimelinePruebas.textContent = '—'; } catch {}
+                try { elTimelinePruebas.textContent = '-'; } catch {}
             }
         }
 
@@ -369,7 +369,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function normPruebaKey(v) {
-            return (v || '').toString().toUpperCase().trim();
+            const t = (v || '').toString().toUpperCase().trim();
+            if (!t) return 'ANUAL';
+            const compact = t.replace(/\s+/g, '');
+            if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
+            if (compact.includes('UTT')) return 'UTT';
+            if (compact.includes('LT')) return 'LT';
+            return t;
         }
 
         function computeResumenPruebasFromDocs(docs, edoPorEquipo = null) {
@@ -512,15 +518,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge black">${totalVencidas}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟦 <span>60–31 días</span></span>
+                            <span class="row-left">🟦 <span>60-31 días</span></span>
                             <span class="badge blue">${porVencer60}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟨 <span>30–16 días</span></span>
+                            <span class="row-left">🟨 <span>30-16 días</span></span>
                             <span class="badge amber">${porVencer30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟥 <span>15–1 días</span></span>
+                            <span class="row-left">🟥 <span>15-1 días</span></span>
                             <span class="badge red">${porVencer15}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
@@ -545,6 +551,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                try {
+                    const { getFirestore, doc, getDoc } = await import(
+                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                    );
+                    const db0 = getFirestore();
+                    const ref = doc(db0, 'resumenes', 'global');
+                    const snap0 = await getDoc(ref);
+                    const data0 = snap0 && snap0.exists ? (snap0.data() || {}) : null;
+                    if (data0 && data0.pruebasAnuales && data0.pruebasTotals) {
+                        const pa = data0.pruebasAnuales || {};
+                        const pt = data0.pruebasTotals || {};
+
+                        const porVencer60 = (pa.bucket60_30 != null) ? pa.bucket60_30 : '-';
+                        const porVencer30 = (pa.bucket30_15 != null) ? pa.bucket30_15 : '-';
+                        const porVencer15 = (pa.bucket15_0 != null) ? pa.bucket15_0 : '-';
+                        const totalAnual = (pt.anualDocs != null) ? pt.anualDocs : '-';
+                        const totalPostTrabajo = (pt.postTrabajoDocs != null) ? pt.postTrabajoDocs : '-';
+                        const totalReparacion = (pt.reparacionDocs != null) ? pt.reparacionDocs : '-';
+                        const totalVencidas = (pa.vencidas != null) ? pa.vencidas : '-';
+                        const total = (pt.totalDocs != null) ? pt.totalDocs : '-';
+
+                        try {
+                            renderResumenPruebas({
+                                total,
+                                porVencer60,
+                                porVencer30,
+                                porVencer15,
+                                totalAnual,
+                                totalPostTrabajo,
+                                totalReparacion,
+                                totalVencidas,
+                            });
+                            spanPruebas.textContent = String(total);
+                            return;
+                        } catch {}
+                    }
+                } catch {}
+
                 const edoPorEquipo = await cargarEstadoPorEquipoDesdeInventario();
                 const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -554,17 +598,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const colRef = collection(db, 'pruebas');
 
                 // Buckets/tipos (y total) desde el mismo snapshot; evita discrepancias por cache stale.
-                let total = '—';
+                let total = '-';
                 const hoy = new Date();
                 hoy.setHours(0, 0, 0, 0);
 
-                let porVencer60 = '—';
-                let porVencer30 = '—';
-                let porVencer15 = '—';
-                let totalAnual = '—';
-                let totalPostTrabajo = '—';
-                let totalReparacion = '—';
-                let totalVencidas = '—';
+                let porVencer60 = '-';
+                let porVencer30 = '-';
+                let porVencer15 = '-';
+                let totalAnual = '-';
+                let totalPostTrabajo = '-';
+                let totalReparacion = '-';
+                let totalVencidas = '-';
 
                 try {
                     const snap = await getSnapCacheThenNetwork(colRef, { forceNetwork });
@@ -672,7 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch {
                     try {
-                        if (elTimelinePruebas) elTimelinePruebas.textContent = '—';
+                        if (elTimelinePruebas) elTimelinePruebas.textContent = '-';
                     } catch {}
                 }
 
@@ -687,15 +731,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge black">${totalVencidas}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟦 <span>60–31 días</span></span>
+                            <span class="row-left">🟦 <span>60-31 días</span></span>
                             <span class="badge blue">${porVencer60}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟨 <span>30–16 días</span></span>
+                            <span class="row-left">🟨 <span>30-16 días</span></span>
                             <span class="badge amber">${porVencer30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟥 <span>15–1 días</span></span>
+                            <span class="row-left">🟥 <span>15-1 días</span></span>
                             <span class="badge red">${porVencer15}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
@@ -725,33 +769,71 @@ document.addEventListener('DOMContentLoaded', () => {
                     const u = await esperarAuthLista();
                     if (!u) return;
 
-                    const { getFirestore, collection, onSnapshot } = await import(
+                    const { getFirestore, doc, onSnapshot } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                     );
                     const db = getFirestore();
-                    const colRef = collection(db, 'pruebas');
+                    const ref = doc(db, 'resumenes', 'global');
 
-                    const scheduleRender = (docs) => {
+                    const scheduleRender = (data0) => {
                         try { if (tDebounce) clearTimeout(tDebounce); } catch {}
                         tDebounce = setTimeout(() => {
                             try {
-                                const out = computeResumenPruebasFromDocs(docs);
-                                renderResumenPruebasComputed(out);
+                                if (!data0 || !data0.pruebasAnuales || !data0.pruebasTotals) return;
+                                const pa = data0.pruebasAnuales || {};
+                                const pt = data0.pruebasTotals || {};
+
+                                const porVencer60 = (pa.bucket60_30 != null) ? pa.bucket60_30 : '-';
+                                const porVencer30 = (pa.bucket30_15 != null) ? pa.bucket30_15 : '-';
+                                const porVencer15 = (pa.bucket15_0 != null) ? pa.bucket15_0 : '-';
+                                const totalAnual = (pt.anualDocs != null) ? pt.anualDocs : '-';
+                                const totalPostTrabajo = (pt.postTrabajoDocs != null) ? pt.postTrabajoDocs : '-';
+                                const totalReparacion = (pt.reparacionDocs != null) ? pt.reparacionDocs : '-';
+                                const totalVencidas = (pa.vencidas != null) ? pa.vencidas : '-';
+                                const total = (pt.totalDocs != null) ? pt.totalDocs : '-';
+
+                                renderResumenPruebas({
+                                    total,
+                                    porVencer60,
+                                    porVencer30,
+                                    porVencer15,
+                                    totalAnual,
+                                    totalPostTrabajo,
+                                    totalReparacion,
+                                    totalVencidas,
+                                });
+                                spanPruebas.textContent = String(total);
+
+                                try {
+                                    localStorage.setItem('pct_dash_pruebas_total', String(total));
+                                    localStorage.setItem('pct_dash_pruebas_anual', String(totalAnual));
+                                    localStorage.setItem('pct_dash_pruebas_pt', String(totalPostTrabajo));
+                                    localStorage.setItem('pct_dash_pruebas_rep', String(totalReparacion));
+                                    localStorage.setItem('pct_dash_pruebas_60', String(porVencer60));
+                                    localStorage.setItem('pct_dash_pruebas_30', String(porVencer30));
+                                    localStorage.setItem('pct_dash_pruebas_15', String(porVencer15));
+                                    localStorage.setItem('pct_dash_pruebas_0', String(totalVencidas));
+                                    localStorage.setItem('pct_dash_pruebas_cached_at', String(Date.now()));
+                                } catch {}
                             } catch {}
                         }, 80);
                     };
 
-                    unsubPruebas = onSnapshot(colRef, { includeMetadataChanges: true }, (snap) => {
+                    unsubPruebas = onSnapshot(ref, { includeMetadataChanges: true }, (snap) => {
                         try {
                             if (!snap) return;
                             const fromCache = !!(snap.metadata && snap.metadata.fromCache);
                             const hasWrites = !!(snap.metadata && snap.metadata.hasPendingWrites);
-                            if (fromCache && snap.size === 0 && !hasWrites) {
+                            if (fromCache && !snap.exists() && !hasWrites) {
                                 try { spanPruebas.textContent = 'Actualizando...'; } catch {}
                                 return;
                             }
-                            const docs = snap.docs.map(d => (d && d.data ? d.data() : {}));
-                            scheduleRender(docs);
+                            const data0 = snap.exists() ? (snap.data() || null) : null;
+                            if (!data0 || !data0.pruebasAnuales || !data0.pruebasTotals) {
+                                try { cargarResumenPruebas({ forceNetwork: true }); } catch {}
+                                return;
+                            }
+                            scheduleRender(data0);
                         } catch {}
                     }, () => {
                         try {
@@ -789,15 +871,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge black">${d0}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟦 <span>60–31 días</span></span>
+                            <span class="row-left">🟦 <span>60-31 días</span></span>
                             <span class="badge blue">${d60}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟨 <span>30–16 días</span></span>
+                            <span class="row-left">🟨 <span>30-16 días</span></span>
                             <span class="badge amber">${d30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟥 <span>15–1 días</span></span>
+                            <span class="row-left">🟥 <span>15-1 días</span></span>
                             <span class="badge red">${d15}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
@@ -1088,61 +1170,44 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {}
 
             try {
-                const r = await fetch('docs/INVENTARIOTOTAL04-202602.csv');
-                const t = r.ok ? await r.text() : '';
-                if (!t) return;
-
-                const lineas = t.split(/\r?\n/).filter(l => l.trim() !== '');
-                if (!lineas.length) return;
-
-                const headersLocal = parseCSVLine(lineas[0]);
-                // La columna de estado se llama "EDO"
-                const idxEstado = headersLocal.indexOf('EDO');
-                const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
-                const idxSerial = headersLocal.indexOf('SERIAL');
-                const idxProducto = headersLocal.indexOf('PRODUCTO');
-                const idxTipoEquipo = headersLocal.indexOf('TIPO EQUIPO');
-                const idxDiam1 = headersLocal.indexOf('DIAMETRO 1');
-                const idxTipo1 = headersLocal.indexOf('TIPO 1');
+                const { getFirestore, collection, getDocsFromCache, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const colEq = collection(db, 'equipos');
+                let snapEq;
+                try {
+                    snapEq = await getDocsFromCache(colEq);
+                    if (snapEq && typeof snapEq.size === 'number' && snapEq.size === 0) {
+                        try { snapEq = await getDocs(colEq); } catch {}
+                    }
+                } catch {
+                    try { snapEq = await getDocs(colEq); } catch {}
+                }
+                if (!snapEq) return;
 
                 const rowsAll = [];
-
-
                 let onCount = 0;
                 let offCount = 0;
                 let wipCount = 0;
                 let wipConPruebas = 0;
                 let fueraServicioCount = 0;
 
-                lineas.slice(1).forEach(linea => {
-                    const cols = parseCSVLine(linea);
-                    if (!cols.length || idxEstado < 0) return;
+                snapEq.forEach(d => {
+                    const data = d.data() || {};
+                    const equipo = (d.id || data.equipoKey || data.equipoDisplay || '').toString().trim().toUpperCase();
+                    const serial = (data.serial || '').toString().trim().toUpperCase();
+                    const producto = (data.producto || '').toString().trim().toUpperCase();
+                    const tipoEquipo = (data.tipoEquipo || '').toString().trim().toUpperCase();
+                    let edoBase = (data.edo || '').toString().trim().toUpperCase();
+                    if (!edoBase) edoBase = 'ON';
 
-                    const valor = (cols[idxEstado] || '').trim().toUpperCase();
-                    if (!valor) return;
-
-                    const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '').trim().toUpperCase() : '';
-                    const serial = idxSerial >= 0 ? (cols[idxSerial] || '').trim().toUpperCase() : '';
-                    const producto = idxProducto >= 0 ? (cols[idxProducto] || '').trim().toUpperCase() : '';
-                    const tipoEquipo = idxTipoEquipo >= 0 ? (cols[idxTipoEquipo] || '').trim().toUpperCase() : '';
-                    const diam1 = idxDiam1 >= 0 ? (cols[idxDiam1] || '').trim().toUpperCase() : '';
-                    const tipo1 = idxTipo1 >= 0 ? (cols[idxTipo1] || '').trim().toUpperCase() : '';
-
-                    // Spec: identificar 4206 / 6206 en base a DIAMETRO 1 + TIPO 1
-                    // Regla: 4 + 206 => 4206, 6 + 206 => 6206
-                    let spec = '';
-                    try {
-                        const d = diam1.replace(/\s+/g, '');
-                        const t1 = tipo1.replace(/\s+/g, '');
-                        if (t1 === '206') {
-                            if (d === '4' || d === '4.0' || d === '4  ' || d === '4 ') spec = '4206';
-                            else if (d === '6' || d === '6.0' || d === '6  ' || d === '6 ') spec = '6206';
-                            else if (d.startsWith('4')) spec = '4206';
-                            else if (d.startsWith('6')) spec = '6206';
-                        }
-                    } catch {}
-
-                    const keyProd = [producto, spec, tipoEquipo].filter(Boolean).join(' · ');
+                    // Regla adicional: si un equipo está en WIP pero ya tiene al menos 1 prueba, se reclasifica como ON.
+                    const tienePrueba = (equipo && equiposConPruebas.has(equipo)) || (serial && serialesConPruebas.has(serial));
+                    const valor = (edoBase === 'WIP' && tienePrueba) ? 'ON' : edoBase;
+                    if (edoBase === 'WIP' && tienePrueba) {
+                        wipConPruebas += 1;
+                    }
 
                     if (equipo || serial) {
                         rowsAll.push({
@@ -1150,12 +1215,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             serial,
                             edo: valor,
                             fueraServicio: (valor === 'ON' && equipo && equiposFueraServicio.has(equipo)),
-                            spec,
+                            spec: '',
                             producto,
                             tipoEquipo,
                         });
                     }
-
 
                     if (valor === 'ON') {
                         onCount += 1;
@@ -1165,16 +1229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (valor === 'OFF') {
                         offCount += 1;
                     } else if (valor === 'WIP') {
-                        const tienePrueba = (equipo && equiposConPruebas.has(equipo)) || (serial && serialesConPruebas.has(serial));
-                        if (tienePrueba) {
-                            onCount += 1;
-                            wipConPruebas += 1;
-                            if (equipo && equiposFueraServicio.has(equipo)) {
-                                fueraServicioCount += 1;
-                            }
-                        } else {
-                            wipCount += 1;
-                        }
+                        wipCount += 1;
                     }
                 });
 
@@ -1470,8 +1525,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const db = getFirestore();
                 const colRef = collection(db, 'actividades');
                 // Totales sin agregación (evita 429 RunAggregationQuery)
-                let total = '—';
-                let concluidas = '—';
+                let total = '-';
+                let concluidas = '-';
                 const cdKeyTot = 'pct_dash_actividades_count_cooldown_until';
                 const cacheKeyTot = 'pct_actividades_total_cached';
                 try {
@@ -1518,7 +1573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } catch {}
                 }
-                let pendientes = (typeof total==='number' && typeof concluidas==='number') ? (total - concluidas) : '—';
+                let pendientes = (typeof total==='number' && typeof concluidas==='number') ? (total - concluidas) : '-';
 
                 // Top 2 pendientes desde caché únicamente
                 const pendientesItems = [];

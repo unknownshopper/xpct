@@ -1,4 +1,4 @@
-INVIVAPP (Inventario Vivo) — Árbol de archivos (referencia)
+INVIVAPP (Inventario Vivo) - Árbol de archivos (referencia)
 
 Proyecto origen: /xpct
 Fecha de generación: 2026-02-16

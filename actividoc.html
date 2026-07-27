@@ -479,7 +479,7 @@
             const periodos = await cargarPeriodosActividad(id);
             const ultimo = periodos && periodos.length ? periodos[periodos.length - 1] : null;
             const finMostrar = (ultimo && ultimo.finPeriodo) ? ultimo.finPeriodo : (reg.terminacionServicio || '');
-            tabHeader.textContent = `${reg.cliente || ''} / ${reg.area || ''} / ${reg.ubicacion || ''} / ${equipoTxt}  —  OS: ${reg.os || ''}  |  Servicio: ${reg.inicioServicio || ''} ${finMostrar ? '→ ' + finMostrar : ''}`;
+            tabHeader.textContent = `${reg.cliente || ''} / ${reg.area || ''} / ${reg.ubicacion || ''} / ${equipoTxt}  -  OS: ${reg.os || ''}  |  Servicio: ${reg.inicioServicio || ''} ${finMostrar ? '→ ' + finMostrar : ''}`;
 
             if (tabTarifa) tabTarifa.value = (reg.precio != null && reg.precio !== '') ? String(reg.precio) : '';
             if (tabDias) tabDias.value = '';
