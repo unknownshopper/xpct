@@ -81,6 +81,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const esperarAuthLista = async (msTotal = 6500) => {
+        try {
+            const t0 = Date.now();
+            while (!window.auth && (Date.now() - t0) < msTotal) {
+                await new Promise(r => setTimeout(r, 60));
+            }
+            const auth = window.auth;
+            if (!auth) return null;
+            if (auth.currentUser) return auth.currentUser;
+            const { onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+            const msRest = Math.max(250, msTotal - (Date.now() - t0));
+            return await new Promise((resolve) => {
+                let listo = false;
+                const to = setTimeout(() => {
+                    if (listo) return;
+                    listo = true;
+                    resolve(auth.currentUser || null);
+                }, msRest);
+                onAuthStateChanged(auth, (u) => {
+                    if (listo) return;
+                    if (u) {
+                        try { clearTimeout(to); } catch {}
+                        listo = true;
+                        resolve(u);
+                    }
+                });
+            });
+        } catch {
+            return null;
+        }
+    };
+
     function fixMojibakeCommon(s) {
         // Corrige casos típicos de UTF-8 mal interpretado como Latin-1.
         // Esto evita resultados como "MAGAÃ‘A" en PDFs/listados.
@@ -568,9 +600,13 @@ document.addEventListener('DOMContentLoaded', () => {
             let out = String(s || '')
                 .toUpperCase()
                 .replace(/\u00A0/g, ' ')
+                // Normalizar guiones Unicode a '-' ASCII (identidad)
+                .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
                 .replace(/[\u200B-\u200D\uFEFF]+/g, '')
                 .replace(/\s+/g, ' ')
                 .replace(/\s*\/\s*/g, '/')
+                // Colapsar espacios alrededor de guiones para comparación estable
+                .replace(/\s*-\s*/g, '-')
                 .trim();
 
             // Normalizar variantes de TEE:
@@ -588,6 +624,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return out;
         } catch {
             return String(s || '').trim().toUpperCase();
+        }
+    }
+
+    function normFormatoKeyLoose(s) {
+        try {
+            return normFormatoKey(s).replace(/[^A-Z0-9]+/g, '');
+        } catch {
+            return String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, '');
         }
     }
 
@@ -1048,6 +1092,29 @@ document.addEventListener('DOMContentLoaded', () => {
             ]);
             if (idx >= 0) return idx;
             return findHeaderIndexContains(hs, ['serial', 'serie']);
+        } catch {}
+        return -1;
+    }
+
+    function getIdxReporte(headersArr) {
+        try {
+            const hs = Array.isArray(headersArr) ? headersArr : [];
+            if (!hs.length) return -1;
+            const exact = hs.indexOf('REPORTE P/P');
+            if (exact >= 0) return exact;
+            const idx = findHeaderIndex(hs, [
+                'REPORTE',
+                'REPORTE P-P',
+                'REPORTE P / P',
+                'REPORTE P/ P',
+                'REPORTE P/P',
+                'FORMATO',
+                'FORMATO KEY',
+                'FORMATO INSPECCION'
+            ]);
+            if (idx >= 0) return idx;
+            // Último recurso: cualquier header que contenga "reporte" o "formato"
+            return findHeaderIndexContains(hs, ['reporte', 'formato']);
         } catch {}
         return -1;
     }
@@ -2592,6 +2659,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar formatos de inspección desde Firestore (sin CSV en runtime)
     (async () => {
         try {
+            try {
+                const u = await esperarAuthLista();
+                if (!u) throw new Error('auth_missing');
+                // Forzar refresh de token para asegurar custom claims (role)
+                try { if (u && typeof u.getIdToken === 'function') await u.getIdToken(true); } catch {}
+            } catch {}
             const { getFirestore, collection, getDocs } = await import(
                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
             );
@@ -2603,16 +2676,34 @@ document.addEventListener('DOMContentLoaded', () => {
             const snapFormatos = await getDocs(collection(db, 'formatos_inspeccion'));
             snapFormatos.forEach(docSnap => {
                 const data = docSnap.data() || {};
-                const formatoKey = (data && data.formatoKey) ? String(data.formatoKey).trim() : '';
+                const keyFromField = (data && data.formatoKey) ? String(data.formatoKey).trim() : '';
+                const keyFromId = (docSnap && docSnap.id) ? String(docSnap.id).trim() : '';
+                const formatoKey = keyFromField || keyFromId;
                 const parametros = Array.isArray(data && data.parametros) ? data.parametros : [];
                 if (!formatoKey) return;
 
-                formatosPorCodigo[formatoKey] = parametros.slice();
+                // Registrar por llave exacta
+                if (!formatosPorCodigo[formatoKey]) {
+                    formatosPorCodigo[formatoKey] = parametros.slice();
+                }
 
+                // Registrar también por llave normalizada (más tolerante a espacios/guiones)
                 const kNorm = normFormatoKey(formatoKey);
-                if (kNorm && kNorm !== formatoKey && !formatosPorCodigo[kNorm]) {
+                if (kNorm && !formatosPorCodigo[kNorm]) {
                     formatosPorCodigo[kNorm] = formatosPorCodigo[formatoKey];
                 }
+
+                // Si venía tanto id como campo y son distintos, registrar ambos
+                try {
+                    if (keyFromField && keyFromId && keyFromField !== keyFromId) {
+                        if (!formatosPorCodigo[keyFromField]) formatosPorCodigo[keyFromField] = parametros.slice();
+                        if (!formatosPorCodigo[keyFromId]) formatosPorCodigo[keyFromId] = parametros.slice();
+                        const n1 = normFormatoKey(keyFromField);
+                        const n2 = normFormatoKey(keyFromId);
+                        if (n1 && !formatosPorCodigo[n1]) formatosPorCodigo[n1] = formatosPorCodigo[keyFromField];
+                        if (n2 && !formatosPorCodigo[n2]) formatosPorCodigo[n2] = formatosPorCodigo[keyFromId];
+                    }
+                } catch {}
             });
 
             formatosCargados = true;
@@ -2637,6 +2728,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar catálogo de daños desde Firestore (sin depender de CSV en runtime)
     (async () => {
         try {
+            try {
+                const u = await esperarAuthLista();
+                if (!u) throw new Error('auth_missing');
+                try { if (u && typeof u.getIdToken === 'function') await u.getIdToken(true); } catch {}
+            } catch {}
             const { getFirestore, collection, getDocs } = await import(
                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
             );
@@ -2672,6 +2768,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar overrides por equipo desde Firestore (sin depender de CSV en runtime)
     (async () => {
         try {
+            try {
+                const u = await esperarAuthLista();
+                if (!u) throw new Error('auth_missing');
+                try { if (u && typeof u.getIdToken === 'function') await u.getIdToken(true); } catch {}
+            } catch {}
             const { getFirestore, collection, getDocs } = await import(
                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
             );
@@ -2721,7 +2822,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
-        const idxReporte = headers.indexOf('REPORTE P/P');
+        const idxReporte = getIdxReporte(headers);
         const idxSerial = getIdxSerial(headers);
         const norm = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
         const target = norm(valor);
@@ -2786,11 +2887,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const reporte = get(idxReporte);
         const reporteNorm = normFormatoKey(reporte);
+        const reporteLoose = normFormatoKeyLoose(reporte);
         let formatoLista = (reporte && formatosPorCodigo[reporte])
             ? formatosPorCodigo[reporte]
             : (reporteNorm && formatosPorCodigo[reporteNorm])
                 ? formatosPorCodigo[reporteNorm]
                 : null;
+
+        // Fallback ultra-tolerante: comparar removiendo todo excepto A-Z0-9
+        if (!formatoLista && reporteLoose) {
+            try {
+                const keys = Object.keys(formatosPorCodigo || {});
+                const hit = keys.find(k => normFormatoKeyLoose(k) === reporteLoose);
+                if (hit) formatoLista = formatosPorCodigo[hit];
+            } catch {}
+        }
 
         // TEEs: algunos reportes vienen como "TEE 2 (HXMXH O MXHXH)" y el catálogo de formatos
         // puede existir solo para una de las variantes (p.ej. "TEE M X H X H").
@@ -2820,6 +2931,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const parametrosBrutos = Array.isArray(formatoLista)
             ? formatoLista.filter(p => p && p.length > 0)
             : [];
+
+        if (!parametrosBrutos.length && reporte) {
+            try {
+                const pid = (window.PCT_FIREBASE_CONFIG && window.PCT_FIREBASE_CONFIG.projectId)
+                    ? String(window.PCT_FIREBASE_CONFIG.projectId)
+                    : (window.firebaseConfig && window.firebaseConfig.projectId)
+                        ? String(window.firebaseConfig.projectId)
+                        : (window.firebaseApp && window.firebaseApp.options && window.firebaseApp.options.projectId)
+                            ? String(window.firebaseApp.options.projectId)
+                            : '';
+                console.warn('[inspeccion] Formato no encontrado', {
+                    projectId: pid,
+                    reporte,
+                    reporteNorm,
+                    reporteLoose,
+                    formatosKeysSample: Object.keys(formatosPorCodigo || {}).slice(0, 30)
+                });
+            } catch {}
+        }
 
         // Parámetros que ya están autocompletados en la ficha del equipo y no deben inspeccionarse
         const nombresAuto = ['activo', 'serial', 'descripción', 'descripcion', 'diámetro', 'diametro', 'conexión', 'conexion', 'longitud'];
@@ -3317,14 +3447,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const puedeSubirEvidencia2 = !!(window.isAdmin || window.isSupervisor || window.isSgi);
 
         const esNuevaInspeccion = !inspeccionIsEditingExisting;
-        const parametrosRenderFinal = (esNuevaInspeccion && parametrosRender.length)
-            ? ['Estado General'].concat(parametrosRender)
+        const sinFormato = !parametrosRender.length;
+        const parametrosRenderFinal = esNuevaInspeccion
+            ? (sinFormato ? ['Estado General'] : ['Estado General'].concat(parametrosRender))
             : parametrosRender;
 
         let parametrosHtml = parametrosRenderFinal.length
             ? `
                 <div class="parametros-inspeccion">
-                    <h3>Parámetros de inspección (${reporte})</h3>
+                    <h3>Parámetros de inspección (${reporte || 'SIN FORMATO'})</h3>
+                    ${sinFormato ? `<div style="margin:6px 0 10px; padding:8px 10px; border:1px solid #fde68a; background:#fffbeb; border-radius:10px; color:#92400e; font-weight:700;">No se encontró el formato de inspección para este equipo. Se habilitó "Estado General".</div>` : ''}
                     <div class="parametros-tabla">
                         <div class="parametros-header">
                             <div class="col-nombre">Parámetro</div>

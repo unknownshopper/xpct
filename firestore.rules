@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return isSignedIn() && request.auth.token.role != null
+        ? request.auth.token.role
+        : null;
+    }
+
+    function isRoleAny(roles) {
+      return isSignedIn() && role() in roles;
+    }
+
+    function canReadCatalogs() {
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'cops']);
+    }
+
+    function canCreateInspecciones() {
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector']);
+    }
+
+    // Catálogos y formatos (solo lectura para usuarios autenticados)
+    match /formatos_inspeccion/{docId} {
+      allow read: if canReadCatalogs();
+      allow write: if false;
+    }
+
+    match /catalogo_danos/{docId} {
+      allow read: if canReadCatalogs();
+      allow write: if false;
+    }
+
+    match /equipos_overrides/{docId} {
+      allow read: if canReadCatalogs();
+      allow write: if false;
+    }
+
+    match /equipos/{docId} {
+      allow read: if canReadCatalogs();
+      allow write: if false;
+    }
+
+    match /inventarioEstados/{docId} {
+      allow read: if canReadCatalogs();
+      allow write: if false;
+    }
+
+    match /inspecciones/{docId} {
+      allow create: if canCreateInspecciones();
+      // Mantener el resto cerrado por ahora (ajustar cuando definamos política de edición)
+      allow read, update, delete: if false;
+    }
+
+    // Por seguridad, no cambiamos otras colecciones aquí.
+  }
+}
