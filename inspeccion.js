@@ -2637,7 +2637,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar catálogo de daños desde Firestore (sin depender de CSV en runtime)
     (async () => {
         try {
-            const db = getFirestore();
+            const { getFirestore, collection, getDocs } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = window.db || getFirestore();
             const snap = await getDocs(collection(db, 'catalogo_danos'));
 
             const normalize = (s) => (s || '')
@@ -2669,7 +2672,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Cargar overrides por equipo desde Firestore (sin depender de CSV en runtime)
     (async () => {
         try {
-            const db = getFirestore();
+            const { getFirestore, collection, getDocs } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = window.db || getFirestore();
             const snap = await getDocs(collection(db, 'equipos_overrides'));
             const normKey = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
             const mapAnillo = new Map();
@@ -2926,9 +2932,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Para TEEs, preferir las letras H/M desde CONEXIÓN 1/2/3 (como vienen en el CSV).
             // Fallback: intentar inferir desde TIPO 1 si viniera como 'HMH' (caso antiguo).
-            const c1 = connLetters(get(idxCon1));
-            const c2 = connLetters(get(idxCon2));
+            let c1 = connLetters(get(idxCon1));
+            let c2 = connLetters(get(idxCon2));
             const c3 = connLetters(get(idxCon3));
+
+            // XO: algunos catálogos no traen CONEXIÓN 2 pero el reporte sí indica el patrón (p.ej. "XO API X H").
+            // Inferir letras faltantes para poder renderizar rosca hembra/macho.
+            try {
+                const esXO = /\bXO\b/.test(textoEquipo);
+                if (esXO && (!c1 || !c2)) {
+                    const repStr = String(reporte || '').toUpperCase();
+                    const descStr = String(get(idxDescripcion) || '').toUpperCase();
+                    const base = `${repStr} ${descStr} ${textoEquipo}`;
+                    // Nota de negocio: 'X' es solo separador (unión), NO es género.
+                    // Extraer letras H/M alrededor de 'XO API ...' ignorando separadores como X, '-', '/', espacios.
+                    // Ejemplos:
+                    // - "XO API M X H" / "XO API MXH" / "XO API M-H"
+                    // - "XO API X H" (solo una letra explícita; inferir la otra como opuesta)
+                    const pickLetters = (s) => {
+                        // Prioridad 1: patrón explícito cerca de XO: "XO H X M" / "XO API H X M"
+                        // (evita confundir con otras H/M del resto de la descripción)
+                        const m1 = s.match(/\bXO\b\s*(?:API\b\s*)?([HM])\s*[X]\s*([HM])\b/);
+                        if (m1 && m1[1] && m1[2]) return [m1[1], m1[2]];
+                        // Prioridad 2: variante compacta "XO HXM" / "XO API HXM"
+                        const m2 = s.match(/\bXO\b\s*(?:API\b\s*)?([HM])\s*[X]\s*([HM])\b/);
+                        if (m2 && m2[1] && m2[2]) return [m2[1], m2[2]];
+                        // Fallback: tomar las primeras dos letras H/M después de XO (menos confiable)
+                        const afterXO = (s.split(/\bXO\b/)[1] || '').trim();
+                        return (afterXO.match(/[HM]/g) || []).slice(0, 2);
+                    };
+
+                    const letters = pickLetters(base);
+                    const opp = (x) => (x === 'H' ? 'M' : (x === 'M' ? 'H' : ''));
+
+                    if (letters.length >= 2) {
+                        const a = connLetters(letters[0]);
+                        const b = connLetters(letters[1]);
+                        if (!c1 && a) c1 = a;
+                        if (!c2 && b) c2 = b;
+                    } else if (letters.length === 1) {
+                        const only = connLetters(letters[0]);
+                        if (only) {
+                            // Si ya tengo un lado y coincide con 'only', el otro debe ser el opuesto.
+                            if (c1 && !c2) {
+                                c2 = (c1 === only) ? opp(only) : only;
+                            } else if (c2 && !c1) {
+                                c1 = (c2 === only) ? opp(only) : only;
+                            } else if (!c1 && !c2) {
+                                // Si no tengo nada, asumir el patrón más común: (opuesto) x (only)
+                                c1 = opp(only);
+                                c2 = only;
+                            }
+                        }
+                    }
+                }
+            } catch {}
             const tipoTeeRaw = (get(idxTipo1) || '').toString().toUpperCase().trim();
             const fromTipo = /^[A-Z]{3}$/.test(tipoTeeRaw) ? tipoTeeRaw.split('') : [];
             const teeLados = (c1 && c2 && c3)
@@ -2988,13 +3046,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const mariposaOut = [];
                     try {
                         if (ladoA === 'H') roscaOut.push('Rosca A (H)');
-                        if (ladoA === 'M') pinonOut.push('Piñón A (M)');
+                        if (ladoA === 'M') {
+                            if (tienePinon) pinonOut.push('Piñón A (M)');
+                            else roscaOut.push('Rosca A (M)');
+                        }
                         if (ladoB === 'H') roscaOut.push('Rosca B (H)');
-                        if (ladoB === 'M') pinonOut.push('Piñón B (M)');
+                        if (ladoB === 'M') {
+                            if (tienePinon) pinonOut.push('Piñón B (M)');
+                            else roscaOut.push('Rosca B (M)');
+                        }
 
                         // Regla: al haber Piñón normalmente hay Mariposa (misma cara M)
-                        if (ladoA === 'M') mariposaOut.push('Mariposa A (M)');
-                        if (ladoB === 'M') mariposaOut.push('Mariposa B (M)');
+                        if (tienePinon) {
+                            if (ladoA === 'M') mariposaOut.push('Mariposa A (M)');
+                            if (ladoB === 'M') mariposaOut.push('Mariposa B (M)');
+                        }
                     } catch {}
 
                     // Si el formato traía rosca/piñón, reemplazar por el bloque completo.
@@ -3283,7 +3349,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="col-evidencia" data-param-idx="${idx}">
                                     <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
                                     <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
-                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                     <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
                                     <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
@@ -3291,7 +3357,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
                                         <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
                                         <button type="button" class="btn btn-subir-foto2" data-idx="${idx}">Subir foto 2</button>
-                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
+                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                                     </div>
                                     <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                     <button type="button" class="btn btn-eliminar-foto2" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 2</button>
@@ -3320,7 +3386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="col-evidencia" data-param-idx="${idx}" style="display:none;">
                                     <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
                                     <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
-                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                     <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
                                     <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
@@ -3328,7 +3394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
                                         <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
                                         <button type="button" class="btn btn-subir-foto2" data-idx="${idx}">Subir foto 2</button>
-                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
+                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                                     </div>
                                     <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                     <button type="button" class="btn btn-eliminar-foto2" data-idx="${idx}" style="display:none; margin-top:4px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">Eliminar foto 2</button>
@@ -3365,7 +3431,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="col-evidencia" data-param-idx="${idx}" style="display:none;">
                                     <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
                                     <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
-                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
+                                    <input type="file" name="param-${idx}-foto" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                                     <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                     <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
 
@@ -3374,7 +3440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <div style="margin-top:8px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">
                                         <button type="button" class="btn btn-tomar-foto2" data-idx="${idx}">Tomar foto 2</button>
                                         <button type="button" class="btn btn-subir-foto2" data-idx="${idx}">Subir foto 2</button>
-                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="display:none;">
+                                        <input type="file" name="param-${idx}-foto2" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                                     </div>
                                     <img alt="preview" id="preview-foto2-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                     <button type="button" class="btn btn-eliminar-foto2" data-idx="${idx}" style="display:none; margin-top:4px; ${puedeSubirEvidencia2 ? '' : 'display:none;'}">Eliminar foto 2</button>
@@ -3424,7 +3490,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="col-evidencia" data-param-idx="0">
                                 <button type="button" class="btn btn-tomar-foto" data-idx="0">Tomar foto</button>
                                 <button type="button" class="btn btn-subir-foto" data-idx="0">Subir foto</button>
-                                <input type="file" name="param-0-foto" accept="image/*" style="display:none;">
+                                <input type="file" name="param-0-foto" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                                 <img alt="preview" id="preview-foto-0" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                                 <button type="button" class="btn btn-eliminar-foto" data-idx="0" style="display:none; margin-top:4px;">Eliminar foto 1</button>
                                 <button type="button" class="btn btn-modificar-foto" data-idx="0" style="display:none; margin-top:4px;">Modificar foto 1</button>
@@ -3540,7 +3606,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <button type="button" class="btn" id="insp-obs-tomar-foto">Tomar foto 1</button>
                             <button type="button" class="btn" id="insp-obs-subir-foto">Subir foto 1</button>
-                            <input type="file" id="insp-obs-foto" accept="image/*" style="display:none;">
+                            <input type="file" id="insp-obs-foto" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                         </div>
                         <img alt="preview" id="insp-obs-preview" style="display:none; max-height:80px; border-radius:10px; margin-top:6px; border:1px solid #e5e7eb;" />
                     </div>
@@ -3548,7 +3614,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <button type="button" class="btn" id="insp-obs-tomar-foto2">Tomar foto 2</button>
                             <button type="button" class="btn" id="insp-obs-subir-foto2">Subir foto 2</button>
-                            <input type="file" id="insp-obs-foto2" accept="image/*" style="display:none;">
+                            <input type="file" id="insp-obs-foto2" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                         </div>
                         <img alt="preview" id="insp-obs-preview2" style="display:none; max-height:80px; border-radius:10px; margin-top:6px; border:1px solid #e5e7eb;" />
                     </div>
@@ -3566,7 +3632,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const inputObsFoto = document.getElementById('insp-obs-foto');
             const imgObsPrev = document.getElementById('insp-obs-preview');
             const puedeEliminarObs = !!(window.isAdmin || window.isSgi);
-            const puedeSubirArchivoObs = !!(window.isAdmin || window.isSgi);
+            const puedeSubirArchivoObs = !isViewMode || !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops);
 
             const btnTomarObs2 = document.getElementById('insp-obs-tomar-foto2');
             const btnSubirObs2 = document.getElementById('insp-obs-subir-foto2');
@@ -3761,7 +3827,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         colEvid.innerHTML = `
                             <button type="button" class="btn btn-tomar-foto" data-idx="${idx}">Tomar foto</button>
                             <button type="button" class="btn btn-subir-foto" data-idx="${idx}">Subir foto</button>
-                            <input type="file" name="param-${idx}-foto" accept="image/*" style="display:none;">
+                            <input type="file" name="param-${idx}-foto" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
                             <img alt="preview" id="preview-foto-${idx}" style="display:none; max-height:64px; border-radius:6px; margin-top:4px; border:1px solid #e5e7eb;" />
                             <button type="button" class="btn btn-eliminar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Eliminar foto 1</button>
                             <button type="button" class="btn btn-modificar-foto" data-idx="${idx}" style="display:none; margin-top:4px;">Modificar foto 1</button>
@@ -3800,7 +3866,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             const puedeSubirArchivoNow = () => {
                 try {
-                    return !!(window.isAdmin || window.isSupervisor || window.isSgi);
+                    if (!isViewMode) return true;
+                    return !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops);
                 } catch {
                     return false;
                 }
@@ -3829,7 +3896,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const getTipoInspeccionNow = () => {
                 try {
                     const sel = document.getElementById('inspeccion-tipo');
-                    return sel ? String(sel.value || '').trim().toUpperCase() : '';
+                    const raw = sel ? String(sel.value || '') : '';
+                    const up = raw.trim().toUpperCase();
+                    // Normalizar: quitar separadores para comparar PRETRABAJO/PRE-TRABAJO/PRE TRABAJO
+                    const compact = up.replace(/[^A-Z0-9]+/g, '');
+                    return compact || up;
                 } catch {
                     return '';
                 }
@@ -3839,7 +3910,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (!colEvid) return;
                     const tipo = getTipoInspeccionNow();
-                    const allowByTipo = (tipo === 'PRE-TRABAJO' || tipo === 'RECEPCION');
+                    const allowByTipo = (tipo === 'PRETRABAJO' || tipo === 'RECEPCION');
                     const estadoSel = filaHtml.querySelector(`input[name="param-${idx}-estado"]:checked`);
                     const estadoVal = estadoSel ? String(estadoSel.value || '').trim().toUpperCase() : '';
                     const show = !!(esEstadoGeneral || estadoVal === 'MALO' || allowByTipo);
@@ -5480,18 +5551,34 @@ document.addEventListener('DOMContentLoaded', () => {
                             const inputArchivo = filaO.querySelector(`input[name="param-${i}-foto"]`);
                             const fileSel = inputArchivo && inputArchivo.files && inputArchivo.files[0] ? inputArchivo.files[0] : null;
                             const fuente = blobCam || fileSel;
-                            if (fuente) {
-                                const url = URL.createObjectURL(fuente);
+                            const fuentes = [];
+                            try {
+                                if (fuente) fuentes.push(URL.createObjectURL(fuente));
+                            } catch {}
+                            try {
+                                const prev1 = filaO.querySelector(`#preview-foto-${i}`);
+                                const s1 = prev1 ? String(prev1.getAttribute('src') || '') : '';
+                                if (s1) fuentes.push(s1);
+                            } catch {}
+                            try {
+                                const prev2 = filaO.querySelector(`#preview-foto2-${i}`);
+                                const s2 = prev2 ? String(prev2.getAttribute('src') || '') : '';
+                                if (s2) fuentes.push(s2);
+                            } catch {}
+
+                            const uniq = Array.from(new Set(fuentes.filter(Boolean)));
+                            if (uniq.length) {
                                 const evidenciaDiv = document.createElement('div');
                                 evidenciaDiv.className = 'col-evidencia-print';
-                                evidenciaDiv.style.cssText = 'grid-column: 1 / -1; margin-top: 6px;';
-                                const img = document.createElement('img');
-                                img.src = url;
-                                img.alt = 'Evidencia';
-                                img.style.cssText = 'max-height:120px; border-radius:8px; border:1px solid #e5e7eb;';
-                                evidenciaDiv.appendChild(img);
+                                evidenciaDiv.style.cssText = 'grid-column: 1 / -1; margin-top: 6px; display:flex; gap:10px; flex-wrap:wrap;';
+                                uniq.slice(0, 2).forEach(src => {
+                                    const img = document.createElement('img');
+                                    img.src = src;
+                                    img.alt = 'Evidencia';
+                                    img.style.cssText = 'max-height:120px; border-radius:8px; border:1px solid #e5e7eb;';
+                                    evidenciaDiv.appendChild(img);
+                                });
                                 filaC.appendChild(evidenciaDiv);
-                                // Nota: no revocamos inmediatamente para no invalidar antes de html2canvas; el GC lo limpiará luego.
                             }
                         }
                     });

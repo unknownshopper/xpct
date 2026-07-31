@@ -110,11 +110,11 @@
                     <div class="dash-card-label">Inspecciones realizadas (histórico)</div>
                     <div class="dash-card-value" id="insp-card-realizadas">0</div>
                 </div>
-                <div class="dash-card" id="insp-card-wrap-sin-insp" style="display:none; cursor:pointer;">
+                <div class="dash-card" id="insp-card-wrap-sin-insp" style="cursor:pointer;">
                     <div class="dash-card-label">Equipos sin inspección</div>
                     <div class="dash-card-value" id="insp-card-sin-insp">0</div>
                 </div>
-                <div class="dash-card" id="insp-card-wrap-no-atendidas" style="display:none;">
+                <div class="dash-card" id="insp-card-wrap-no-atendidas">
                     <div class="dash-card-label">No atendidas (daño / MALO)</div>
                     <div class="dash-card-value" id="insp-card-no-atendidas">0</div>
                 </div>
@@ -201,7 +201,7 @@
                 </div>
             </div>
 
-            <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
+            <section class="actividad-toolbar" style="margin-bottom: 0.75rem; display:none; flex-wrap:wrap; gap:0.75rem; align-items:flex-end; justify-content:space-between;">
                 <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:flex-end;">
                     <input type="search" id="insp-buscar" placeholder="Buscar por cliente, área, equipo, lugar..." style="min-width: 260px;" autocomplete="off" list="insp-catalogo-equipos">
                     <datalist id="insp-catalogo-equipos"></datalist>
@@ -219,7 +219,7 @@
                 <span id="insp-pdf-ayuda" style="font-size:0.8rem; color:#6b7280;">Selecciona una o varias inspecciones realizadas.</span>
             </section>
 
-            <div class="tabla-inspecciones-wrapper" id="insp-seccion-pendientes">
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-pendientes" style="display:none;">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
                     <h3 style="margin:0; font-size:1rem;">Inspecciones próximas</h3>
                     <button type="button" class="insp-sec-toggle" data-target="insp-pendientes-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
@@ -446,6 +446,217 @@
 
         let pendientesRenderizadasUltimaCarga = 0;
 
+        let datosCargados = false;
+
+        let vistaActiva = null; // 'pendientes' | 'realizadas' | 'sin_insp' | 'no_atendidas' | null
+
+        let isLoadingDatos = false;
+
+        // Estado inicial: al entrar solo mostrar tarjetas + sync-local.
+        try {
+            vistaActiva = null;
+            filtroEstado = null;
+            ocultarTodasLasSecciones();
+            // Asegurar que la sección de pendientes (inspecciones próximas) no aparezca sin click.
+            if (secPendientes) secPendientes.style.display = 'none';
+        } catch {}
+
+        let firestoreModPromise = null;
+        async function getFirestoreMod() {
+            if (firestoreModPromise) return firestoreModPromise;
+            firestoreModPromise = import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            return firestoreModPromise;
+        }
+
+        async function waitForDbReady(timeoutMs = 8000) {
+            const t0 = Date.now();
+            while (Date.now() - t0 < timeoutMs) {
+                try {
+                    if (window.db) return true;
+                } catch {}
+                await new Promise(r => setTimeout(r, 60));
+            }
+            // Fallback: si firebase-init no alcanzó a poblar window.db por timing/cache,
+            // inicializar Firestore aquí para no bloquear cargas por tarjetas.
+            try {
+                if (!window.db) {
+                    const m = await getFirestoreMod();
+                    if (m && typeof m.getFirestore === 'function') {
+                        window.db = m.getFirestore();
+                        return true;
+                    }
+                }
+            } catch {}
+            return !!window.db;
+        }
+
+        async function asegurarDatosCargados() {
+            if (datosCargados) return;
+            if (isLoadingDatos) return;
+            isLoadingDatos = true;
+            try {
+                await waitForDbReady();
+            } catch {}
+            try {
+                filtroCardsSnapshot = null;
+            } catch {}
+            try {
+                await cargarDatos();
+            } finally {
+                isLoadingDatos = false;
+            }
+        }
+
+        async function asegurarRenderVista() {
+            if (isLoadingDatos) return;
+            try {
+                if (!datosCargados) {
+                    await asegurarDatosCargados();
+                    return;
+                }
+            } catch {}
+            // Datos ya cargados: re-render para reflejar la vista seleccionada (ej. No atendidas)
+            try { await cargarDatos(); } catch {}
+        }
+
+        function ocultarTodasLasSecciones() {
+            try {
+                // sync-local permanece visible siempre
+                if (secPendientes) secPendientes.style.display = 'none';
+                if (secRealizadas) secRealizadas.style.display = 'none';
+                if (secHuerfanas) secHuerfanas.style.display = 'none';
+                if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                if (secSinInsp) secSinInsp.style.display = 'none';
+            } catch {}
+            try {
+                if (secAccionesPdf) secAccionesPdf.style.display = 'none';
+            } catch {}
+        }
+
+        function setVista(nextVista) {
+            vistaActiva = nextVista || null;
+            ocultarTodasLasSecciones();
+
+            // salir de modo sin inspección si aplica
+            try {
+                if (vistaActiva !== 'sin_insp') {
+                    mostrarEquiposSinInspeccion = false;
+                    if (secSinInsp) secSinInsp.style.display = 'none';
+                }
+            } catch {}
+
+            if (vistaActiva === 'pendientes') {
+                filtroEstado = 'PENDIENTE';
+                try { if (secPendientes) secPendientes.style.display = ''; } catch {}
+            } else if (vistaActiva === 'realizadas') {
+                filtroEstado = 'REALIZADA';
+                try {
+                    if (secRealizadas) secRealizadas.style.display = '';
+                    if (secHuerfanas) secHuerfanas.style.display = '';
+                    if (secAccionesPdf) secAccionesPdf.style.display = 'flex';
+                } catch {}
+            } else if (vistaActiva === 'no_atendidas') {
+                filtroEstado = null;
+                try { if (secNoAtendidas) secNoAtendidas.style.display = ''; } catch {}
+            } else if (vistaActiva === 'sin_insp') {
+                filtroEstado = null;
+                try { activarModoEquiposSinInspeccion(); } catch {}
+            } else {
+                filtroEstado = null;
+                // Al entrar (sin tarjeta seleccionada), no mostrar listas.
+                try {
+                    if (secPendientes) secPendientes.style.display = 'none';
+                    if (secRealizadas) secRealizadas.style.display = 'none';
+                    if (secHuerfanas) secHuerfanas.style.display = 'none';
+                    if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                    if (secSinInsp) secSinInsp.style.display = 'none';
+                    if (secAccionesPdf) secAccionesPdf.style.display = 'none';
+                } catch {}
+            }
+
+            try { actualizarFiltroCards(); } catch {}
+        }
+
+        function bindTarjetasLazyLoad() {
+            try {
+                if (cardWrapPend && !cardWrapPend.dataset.filterBound) {
+                    cardWrapPend.dataset.filterBound = '1';
+                    cardWrapPend.addEventListener('click', async () => {
+                        setVista(vistaActiva === 'pendientes' ? null : 'pendientes');
+                        try {
+                            await asegurarDatosCargados();
+                        } catch {}
+                    });
+                }
+            } catch {}
+
+            try {
+                if (cardWrapReal && !cardWrapReal.dataset.filterBound) {
+                    cardWrapReal.dataset.filterBound = '1';
+                    cardWrapReal.addEventListener('click', async () => {
+                        setVista(vistaActiva === 'realizadas' ? null : 'realizadas');
+                        try {
+                            await asegurarDatosCargados();
+                        } catch {}
+                    });
+                }
+            } catch {}
+
+            try {
+                if (cardWrapNoAtendidas && !cardWrapNoAtendidas.dataset.filterBound) {
+                    cardWrapNoAtendidas.dataset.filterBound = '1';
+                    cardWrapNoAtendidas.addEventListener('click', async () => {
+                        setVista(vistaActiva === 'no_atendidas' ? null : 'no_atendidas');
+                        try {
+                            await asegurarRenderVista();
+                        } catch {}
+                    });
+                }
+            } catch {}
+        }
+
+        async function contarInspeccionesTotal() {
+            try {
+                const m = await getFirestoreMod();
+                const db = window.db ? window.db : m.getFirestore();
+                const q = m.query(m.collection(db, 'inspecciones'));
+                if (typeof m.getCountFromServer === 'function') {
+                    const snap = await m.getCountFromServer(q);
+                    const n = (snap && snap.data && typeof snap.data().count === 'number') ? snap.data().count : 0;
+                    return n;
+                }
+                const snap2 = await m.getDocs(q);
+                return (snap2 && typeof snap2.size === 'number') ? snap2.size : 0;
+            } catch {
+                return null;
+            }
+        }
+
+        async function cargarContadoresIniciales() {
+            try {
+                await waitForDbReady();
+            } catch {}
+            try {
+                ocultarTodasLasSecciones();
+            } catch {}
+
+            try {
+                if (cardPendientes) cardPendientes.textContent = '—';
+                if (cardNoAtendidas) cardNoAtendidas.textContent = '—';
+                if (cardRealizadas) cardRealizadas.textContent = '—';
+                if (cardSinInsp) cardSinInsp.textContent = '—';
+            } catch {}
+
+            try {
+                const [nInsp, nSin] = await Promise.all([
+                    contarInspeccionesTotal(),
+                    contarEquiposSinInspeccion(),
+                ]);
+                if (cardRealizadas) cardRealizadas.textContent = (nInsp == null) ? '—' : String(nInsp || 0);
+                if (cardSinInsp) cardSinInsp.textContent = (nSin == null) ? '—' : String(nSin || 0);
+            } catch {}
+        }
+
         const secPendientes = document.getElementById('insp-seccion-pendientes');
         let filtroCardsSnapshot = null;
 
@@ -463,6 +674,12 @@
                 // Si estaba activo el modo "equipos sin inspección", salir de ese modo al tocar tarjetas.
                 if (secSinInsp) secSinInsp.style.display = 'none';
                 mostrarEquiposSinInspeccion = false;
+
+                // Al navegar entre tarjetas, ocultar siempre bloques no relacionados para evitar estados "atascados"
+                try {
+                    if (secSyncLocal) secSyncLocal.style.display = 'none';
+                    if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                } catch {}
 
                 if (filtroEstado === 'PENDIENTE') {
                     if (secPendientes) secPendientes.style.display = '';
@@ -489,7 +706,7 @@
         async function contarEquiposSinInspeccion() {
             let m = null;
             try {
-                m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                m = await getFirestoreMod();
             } catch (e) {
                 try {
                     if (!window.__pctLogSinInspImportErr) {
@@ -566,7 +783,7 @@
 
         async function cargarEquiposSinInspeccion() {
             try {
-                const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                const m = await getFirestoreMod();
                 const db = window.db ? window.db : m.getFirestore();
                 const q = m.query(m.collection(db, 'resumenes_equipos'), m.where('inspeccion', '==', null), m.limit(800));
                 const snap = await m.getDocs(q);
@@ -1309,7 +1526,7 @@
                     let getDocsFn = (typeof getDocs === 'function') ? getDocs : null;
 
                     if (!db || !collectionFn || !getDocsFn) {
-                        const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                        const m = await getFirestoreMod();
                         if (!db) {
                             try {
                                 db = (window.db) ? window.db : m.getFirestore();
@@ -1394,8 +1611,14 @@
         let cargarDatosRunId = 0;
 
         async function cargarDatos() {
+            const alreadyLoading = isLoadingDatos;
+            isLoadingDatos = true;
             const runId = ++cargarDatosRunId;
             const stale = () => runId !== cargarDatosRunId;
+
+            try {
+
+            try { filtroCardsSnapshot = null; } catch {}
             tbody.innerHTML = '';
             msg.style.display = 'none';
             if (tbodyRealizadas) tbodyRealizadas.innerHTML = '';
@@ -1408,20 +1631,23 @@
             if (chkTodos) chkTodos.checked = false;
             if (chkTodosHuerfanas) chkTodosHuerfanas.checked = false;
             if (chkTodosRealizadas) chkTodosRealizadas.checked = false;
-            if (cardPendientes) cardPendientes.textContent = '0';
-            if (cardRealizadas) cardRealizadas.textContent = '0';
-            if (cardSinInsp) cardSinInsp.textContent = '0';
-            if (cardNoAtendidas) cardNoAtendidas.textContent = '0';
+            // En modo lazy-load no resetear contadores a 0 (evita parpadeo / "recarga")
+            if (!cardRealizadas || !cardSinInsp) {
+                if (cardPendientes) cardPendientes.textContent = '0';
+                if (cardRealizadas) cardRealizadas.textContent = '0';
+                if (cardSinInsp) cardSinInsp.textContent = '0';
+                if (cardNoAtendidas) cardNoAtendidas.textContent = '0';
+            }
 
             if (secNoAtendidas) secNoAtendidas.style.display = 'none';
             if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
             if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
-            if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = 'none';
+            // Mantener siempre visibles las tarjetas; solo ocultar contenido
 
             if (secSinInsp) secSinInsp.style.display = 'none';
             if (tbodySinInsp) tbodySinInsp.innerHTML = '';
             if (msgSinInsp) msgSinInsp.style.display = 'none';
-            if (cardWrapSinInsp) cardWrapSinInsp.style.display = 'none';
+            // Mantener siempre visibles las tarjetas; solo ocultar contenido
             mostrarEquiposSinInspeccion = false;
 
             actualizarIndicadoresSort();
@@ -1438,7 +1664,8 @@
 
             // Para mostrar serial en pendientes, necesitamos el mapa de inventario
             try {
-                await asegurarSerialesInventario();
+                // No bloquear el render inicial esperando inventario; se carga en background.
+                asegurarSerialesInventario();
             } catch {}
             if (stale()) return;
 
@@ -1488,11 +1715,9 @@
             // 1) Leer inspecciones desde Firestore
             let inspecciones = [];
             try {
-                const { getFirestore, collection, getDocs, getDocsFromServer } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
+                const { getFirestore, collection, getDocs, getDocsFromServer } = await getFirestoreMod();
 
-                const db = getFirestore();
+                const db = window.db ? window.db : getFirestore();
                 const colInsp = collection(db, 'inspecciones');
                 let snapInsp = null;
                 try {
@@ -1537,6 +1762,9 @@
                     inspecciones = Array.from(byId.values());
                 }
             } catch {}
+
+            // Exponer cache global (debug/UI resiliente ante closures/bfcache)
+            try { window.__inspeccionesCache = Array.isArray(inspecciones) ? inspecciones : []; } catch {}
 
             // Mapa por actividadId para cruce rápido
             const inspeccionPorActividad = new Map();
@@ -1634,11 +1862,9 @@
             // Solo caemos al modo "solo inspecciones" cuando Firestore rechaza con permission-denied.
             let actividades = [];
             try {
-                const { getFirestore, collection, getDocs, getDocsFromServer } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
+                const { getFirestore, collection, getDocs, getDocsFromServer } = await getFirestoreMod();
 
-                const db = getFirestore();
+                const db = window.db ? window.db : getFirestore();
                 const colRef = collection(db, 'actividades');
                 let snap = null;
                 try {
@@ -1853,6 +2079,9 @@
                 } catch {}
                 inspeccionesHuerfanas = [];
             }
+
+            // Exponer cache global (debug/UI resiliente ante closures/bfcache)
+            try { window.__actividadesCache = Array.isArray(actividades) ? actividades : []; } catch {}
 
             // Contadores de tarjetas
             try {
@@ -2601,62 +2830,84 @@
                             });
                         });
                     } catch {}
-                    resolverThumbsMalo();
+                    // Solo resolver thumbs cuando el bloque incluye inspecciones (realizadas/no atendidas).
+                    try {
+                        if (esRealizadas && (vistaActiva === null || vistaActiva === 'realizadas' || vistaActiva === 'no_atendidas')) {
+                            resolverThumbsMalo();
+                        }
+                    } catch {}
                 }, 0);
             }
 
-            // Primero bloque de pendientes
-            await renderBloque(false, tbody);
-            try {
-                if (cardPendientes && actividadesPermitidas) {
-                    cardPendientes.textContent = String(pendientesRenderizadasUltimaCarga || 0);
-                }
-            } catch {}
+            // Renderizar según vistaActiva (lazy-load)
+            const quierePendientes = (vistaActiva === 'pendientes');
+            const quiereRealizadas = (vistaActiva === 'realizadas');
+            const quiereNoAtendidas = (vistaActiva === 'no_atendidas');
+            const quiereTodo = (vistaActiva == null);
 
-            if (tbodyRealizadas) {
+            // Pendientes
+            // Nota: al entrar a "Realizadas" no es necesario renderizar pendientes (más pesado y causa sensación de bloqueo).
+            if (quiereTodo || quierePendientes) {
+                await renderBloque(false, tbody);
+                try {
+                    if (cardPendientes && actividadesPermitidas) {
+                        cardPendientes.textContent = String(pendientesRenderizadasUltimaCarga || 0);
+                    }
+                } catch {}
+            }
+
+            if (quierePendientes && !quiereTodo) {
+                // Solo pendientes: evitar render de realizadas y no atendidas (más pesado)
+                datosCargados = true;
+                try { if (vistaActiva) setVista(vistaActiva); } catch {}
+                return;
+            }
+
+            // Realizadas
+            if ((quiereTodo || quiereRealizadas) && tbodyRealizadas) {
                 await renderBloque(true, tbodyRealizadas);
             }
 
-            // Render de "No atendidas": equipos cuyo último registro de inspección es NO operativo.
-            try {
-                if (secNoAtendidas && tbodyNoAtendidas) {
-                    const byEq = new Map();
-                    (inspecciones || []).forEach(insp => {
-                        try {
-                            if (!insp) return;
-                            const eq = (insp.equipo || '').toString().trim();
-                            if (!eq) return;
-                            const k = normEqCompact(eq);
-                            if (!k) return;
-                            const ms = toMs(insp.fecha || insp.creadoEn) ?? 0;
-                            const prev = byEq.get(k);
-                            const prevMs = prev ? (toMs(prev.fecha || prev.creadoEn) ?? 0) : 0;
-                            if (!prev || ms >= prevMs) {
-                                byEq.set(k, insp);
-                            }
-                        } catch {}
-                    });
+            // No atendidas
+            if (quiereTodo || quiereNoAtendidas) {
+                try {
+                    if (secNoAtendidas && tbodyNoAtendidas) {
+                        // Opción A (operativa): equipos cuya ÚLTIMA inspección tiene algún parámetro en MALO/NO LEGIBLE.
+                        const ultimaPorEq = new Map();
+                        (inspecciones || []).forEach(insp => {
+                            try {
+                                if (!insp) return;
+                                const eq = (insp.equipo || '').toString().trim();
+                                if (!eq) return;
+                                const k = normEqCompact(eq);
+                                if (!k) return;
+                                const ms = toMs(insp.fecha || insp.creadoEn) ?? 0;
+                                const prev = ultimaPorEq.get(k);
+                                const prevMs = prev ? (toMs(prev.fecha || prev.creadoEn) ?? 0) : 0;
+                                if (!prev || ms >= prevMs) ultimaPorEq.set(k, insp);
+                            } catch {}
+                        });
 
-                    const noAt = Array.from(byEq.values()).filter(insp => {
-                        try {
-                            const params = Array.isArray(insp?.parametros) ? insp.parametros : [];
-                            if (!params.length) return false;
-                            const hayFallo = params.some(p => {
-                                const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
-                                return est === 'MALO' || est === 'NO LEGIBLE';
-                            });
-                            return hayFallo;
-                        } catch {
-                            return false;
-                        }
-                    }).sort((a, b) => {
-                        const msA = toMs(a?.fecha || a?.creadoEn) ?? 0;
-                        const msB = toMs(b?.fecha || b?.creadoEn) ?? 0;
-                        return (msB - msA);
-                    });
+                        const noAt = Array.from(ultimaPorEq.values()).filter(insp => {
+                            try {
+                                const params = Array.isArray(insp?.parametros) ? insp.parametros : [];
+                                if (!params.length) return false;
+                                return params.some(p => {
+                                    const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
+                                    return est === 'MALO' || est === 'NO LEGIBLE';
+                                });
+                            } catch {
+                                return false;
+                            }
+                        }).sort((a, b) => {
+                            const msA = toMs(a?.fecha || a?.creadoEn) ?? 0;
+                            const msB = toMs(b?.fecha || b?.creadoEn) ?? 0;
+                            return (msB - msA);
+                        });
 
                     if (cardNoAtendidas) cardNoAtendidas.textContent = String(noAt.length);
-                    if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = noAt.length ? '' : 'none';
+                    // Mantener siempre visible la tarjeta (UX: el usuario debe ver 4 tarjetas siempre)
+                    if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = '';
 
                     if (!noAt.length) {
                         secNoAtendidas.style.display = '';
@@ -2730,16 +2981,21 @@
                                     });
                                 });
                             } catch {}
-                            resolverThumbsMalo();
+                            try {
+                                if (vistaActiva === null || vistaActiva === 'no_atendidas') {
+                                    resolverThumbsMalo();
+                                }
+                            } catch {}
                         }, 0);
                     }
                 }
-            } catch (e) {
-                try {
-                    if (secNoAtendidas) secNoAtendidas.style.display = 'none';
-                    if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = 'none';
-                } catch {}
-                console.warn('No se pudo renderizar No atendidas', e);
+                } catch (e) {
+                    try {
+                        if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                        if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = 'none';
+                    } catch {}
+                    console.warn('No se pudo renderizar No atendidas', e);
+                }
             }
 
             // Botón de correo "No atendidas": visible solo para SGI/admin/director
@@ -2766,208 +3022,26 @@
             if (tbodyHuerfanasDestino) {
                 // Ya se integran en el bloque de "Inspecciones realizadas" para mantener orden cronológico.
                 // Evitar duplicar y/o desordenar el listado.
-                if (true) {
-                    try {
-                        if (tbodyHuerfanasDestino && tbodyHuerfanasDestino !== tbodyRealizadas) {
-                            tbodyHuerfanasDestino.innerHTML = '';
-                        }
-                    } catch {}
-                    // No renderizar huérfanas por separado
-                    // (sección permanece oculta)
-                } else {
-                const huerfanasOrden = inspeccionesHuerfanas.slice();
-                if (sortKey === 'fecha_real') {
-                    huerfanasOrden.sort((a, b) => {
-                        const msA = toMs(a ? (a.fecha || a.creadoEn) : null);
-                        const msB = toMs(b ? (b.fecha || b.creadoEn) : null);
-                        if (msA == null && msB == null) return 0;
-                        if (msA == null) return 1;
-                        if (msB == null) return -1;
-                        return (msA - msB) * sortDir;
-                    });
-                }
-
-                let visiblesH = 0;
-                huerfanasOrden.forEach(insp => {
-                    const clienteRaw = insp?.cliente || '';
-                    const cliente = canonCliente(clienteRaw);
-                    const area = insp?.areaCliente || '';
-                    const lugar = insp?.ubicacion || '';
-                    const equipo = insp?.equipo || '';
-                    const equipoUp = (String(equipo || '').trim().toUpperCase());
-                    const invKeyEq = normKeyCompact(equipo);
-                    const inventarioListo = !!(equipoPorKey && typeof equipoPorKey.size === 'number' && equipoPorKey.size > 0);
-                    const keysInventario = (() => {
-                        const keys = [];
-                        if (invKeyEq) keys.push(invKeyEq);
-                        try {
-                            const m = (equipoUp || '').match(/^(?:PCT\s*[- ]?\s*)?([A-Z]{2,5})\s*[- ]?\s*(\d{1,4})\s*$/);
-                            if (m) {
-                                const pref = String(m[1] || '').trim().toUpperCase();
-                                const numRaw = String(m[2] || '').trim();
-                                const n = String(parseInt(numRaw, 10));
-                                if (n && n !== 'NaN') {
-                                    keys.push(`${pref}${n}`);
-                                    keys.push(`${pref}${n.padStart(2, '0')}`);
-                                    keys.push(`${pref}${n.padStart(3, '0')}`);
-                                    const k2 = `PCT${pref}${n.padStart(2, '0')}`;
-                                    const k3 = `PCT${pref}${n.padStart(3, '0')}`;
-                                    keys.push(k2, k3);
-                                }
-                            }
-                        } catch {}
-                        return Array.from(new Set(keys));
-                    })();
-                    const invKeyCanon = (inventarioListo ? (keysInventario.find(k => equipoPorKey.has(k)) || '') : '') || invKeyEq;
-                    const equipoCanon = (inventarioListo && invKeyCanon && equipoPorKey.has(invKeyCanon)) ? String(equipoPorKey.get(invKeyCanon) || '').trim() : '';
-                    const equipoRender = equipoCanon || equipo;
-                    const serial = insp?.serial || (invKeyCanon ? (serialPorEquipo.get(invKeyCanon) || '') : '') || '';
-                    const usuario = insp?.usuarioInspeccion || '';
-                    const tipoInsp = insp?.tipoInspeccion || '';
-                    const observaciones = insp?.observaciones || '';
-                    const asignado = (insp?.inspectorAsignado || '').toString().trim();
-
-                    const thumbMalo = buildThumbMalo(insp);
-
-                    const fechaRealizadaTexto = formatearFechaRegistro(insp.fecha || insp.creadoEn);
-                    const fechaBuscar = (fechaRealizadaTexto || '').toString();
-
-                    const textoBuscar = `${cliente} ${area} ${equipoRender} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp} ${fechaBuscar}`.toLowerCase();
-                    if (filtro && !textoBuscar.includes(filtro)) return;
-
-                    let evaluacion = '';
-                    let estadoTexto = 'Realizada';
-                    if (Array.isArray(insp.parametros) && insp.parametros.length) {
-                        let evaluacionCalc = 'Operativo';
-                        const hayFallo = insp.parametros.some(p => {
-                            const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
-                            return est === 'MALO' || est === 'NO LEGIBLE';
-                        });
-                        if (hayFallo) evaluacionCalc = 'No operativo';
-                        evaluacion = evaluacionCalc;
+                try {
+                    if (tbodyHuerfanasDestino && tbodyHuerfanasDestino !== tbodyRealizadas) {
+                        tbodyHuerfanasDestino.innerHTML = '';
                     }
-
-                    const accionesHtml = `
-                        <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
-                        ${(window.isAdmin || window.isDirector || window.isSgi || window.isCops) ? `<button type="button" class="insp-btn-editar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
-                        ${(window.isAdmin || window.isSgi) ? `<button type="button" class="insp-btn-eliminar" data-actividad-id="" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
-                    `;
-
-                    let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
-                    if (window.isAdmin || window.isSupervisor) {
-                        const asgNorm = normInspectorEmail(asignado);
-                        const opt = (val, label) => {
-                            const vNorm = normInspectorEmail(val);
-                            return `<option value="${val}" ${asgNorm && vNorm && asgNorm === vNorm ? 'selected' : ''}>${label}</option>`;
-                        };
-                        asignadoHtml = `
-                            <select class="insp-select-asignado-huerfana" data-insp-id="${insp?.id || ''}" style="font-size:0.8rem; padding:0.15rem 0.35rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">
-                                <option value="">(Sin asignar)</option>
-                                ${opt('inspector01@pct.com', 'inspector01@pct.com')}
-                                ${opt('inspector02@pct.com', 'inspector02@pct.com')}
-                                ${opt('capturista@pc-t.com.mx', 'capturista@pc-t.com.mx')}
-                                ${opt('auxger@pc-t.com.mx', 'auxger@pc-t.com.mx')}
-                            </select>
-                        `;
-                    } else if (!asignado && window.isInspector) {
-                        asignadoHtml = `
-                            <button type="button" class="insp-btn-claim-huerfana" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#e0f2fe; color:#0369a1;">Tomar</button>
-                        `;
-                    }
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">
-                            <input type="checkbox" class="insp-select-fila-huerfana" data-insp-id="${insp?.id || ''}">
-                        </td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoRender}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInsp}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${asignadoHtml}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${usuario}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${observaciones}${thumbMalo}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${accionesHtml}</td>
-                    `;
-
-                    try {
-                        const btnVer = tr.querySelector('button.insp-btn-ver');
-                        if (btnVer) {
-                            btnVer.addEventListener('click', (ev) => {
-                                ev.stopPropagation();
-                                const inspId = String(insp && insp.id ? insp.id : '').trim();
-                                if (!inspId) return;
-                                window.location.href = `inspeccion.html?view=1&inspId=${encodeURIComponent(inspId)}`;
-                            });
-                        }
-                        const btnEditar = tr.querySelector('button.insp-btn-editar');
-                        if (btnEditar) {
-                            btnEditar.addEventListener('click', (ev) => {
-                                ev.stopPropagation();
-                                const inspId = String(insp && insp.id ? insp.id : '').trim();
-                                if (!inspId) return;
-                                if (window.isAdmin || window.isDirector || window.isSgi || window.isCops) {
-                                    window.location.href = `inspeccion.html?inspId=${encodeURIComponent(inspId)}`;
-                                }
-                            });
-                        }
-                    } catch {}
-                    tr.style.cursor = 'pointer';
-
-                    let clickTimerH = null;
-                    tr.addEventListener('click', (ev) => {
-                        if (ev.target.closest('button, select, a, input')) return;
-                        try { if (clickTimerH) clearTimeout(clickTimerH); } catch {}
-                        clickTimerH = setTimeout(() => {
-                            const inspId = String(insp && insp.id ? insp.id : '').trim();
-                            if (!inspId) return;
-                            window.location.href = `inspeccion.html?view=1&inspId=${encodeURIComponent(inspId)}`;
-                        }, 220);
-                    });
-
-                    tr.addEventListener('dblclick', (ev) => {
-                        if (ev.target.closest('button, select, a, input')) return;
-                        try { if (clickTimerH) clearTimeout(clickTimerH); } catch {}
-                        const inspId = String(insp && insp.id ? insp.id : '').trim();
-                        if (!inspId) return;
-                        if (window.isAdmin || window.isDirector || window.isSgi || window.isCops) {
-                            window.location.href = `inspeccion.html?inspId=${encodeURIComponent(inspId)}`;
-                        }
-                    });
-                    tbodyHuerfanasDestino.appendChild(tr);
-                    visiblesH += 1;
-                });
-
-                setTimeout(() => {
-                    try {
-                        tbodyHuerfanasDestino.querySelectorAll('img.insp-thumb-malo').forEach(img => {
-                            if (img.dataset.boundClick === '1') return;
-                            img.dataset.boundClick = '1';
-                            img.addEventListener('click', (ev) => {
-                                try { ev.stopPropagation(); } catch {}
-                                const u = String(img.getAttribute('data-src') || img.getAttribute('src') || '').trim();
-                                if (u) window.open(u, '_blank');
-                            });
-                        });
-                    } catch {}
-                    resolverThumbsMalo();
-                }, 0);
-
-                if (msgHuerfanas) {
-                    msgHuerfanas.style.display = 'none';
-                }
-                }
+                } catch {}
+                // No renderizar huérfanas por separado
+                // (sección permanece oculta)
             }
 
             const hayRealizadas = (Array.isArray(inspecciones) ? inspecciones.length : 0) > 0;
+            // Respetar la vista seleccionada: no mostrar Realizadas cuando el usuario está en No atendidas / Sin inspección.
             if (secRealizadas) {
-                const mostrarRealizadas = hayRealizadas;
+                const permitir = (vistaActiva == null || vistaActiva === 'realizadas');
+                const mostrarRealizadas = permitir && hayRealizadas;
                 secRealizadas.style.display = mostrarRealizadas ? 'block' : 'none';
             }
             try {
                 if (msgRealizadas) {
-                    const mostrar = !hayRealizadas;
+                    const permitir = (vistaActiva == null || vistaActiva === 'realizadas');
+                    const mostrar = permitir && !hayRealizadas;
                     msgRealizadas.style.display = mostrar ? 'block' : 'none';
                 }
             } catch {}
@@ -3005,21 +3079,6 @@
                     }
                 }
             } catch {}
-
-            if (cardWrapPend && !cardWrapPend.dataset.filterBound) {
-                cardWrapPend.dataset.filterBound = '1';
-                cardWrapPend.addEventListener('click', () => {
-                    filtroEstado = (filtroEstado === 'PENDIENTE') ? null : 'PENDIENTE';
-                    aplicarFiltroCardsSinRecargar();
-                });
-            }
-            if (cardWrapReal && !cardWrapReal.dataset.filterBound) {
-                cardWrapReal.dataset.filterBound = '1';
-                cardWrapReal.addEventListener('click', () => {
-                    filtroEstado = (filtroEstado === 'REALIZADA') ? null : 'REALIZADA';
-                    aplicarFiltroCardsSinRecargar();
-                });
-            }
 
             if (!visibles) {
                 msg.style.display = 'block';
@@ -3194,9 +3253,11 @@
             });
 
             // 7) Editar inspecciones realizadas (reabrir formato)
-            tbody.querySelectorAll('.insp-btn-editar').forEach(btn => {
+            document.querySelectorAll('.insp-btn-editar').forEach(btn => {
+                if (btn.dataset.boundEditar === '1') return;
+                btn.dataset.boundEditar = '1';
                 btn.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
+                    try { ev.stopPropagation(); } catch {}
                     const actividadId = btn.getAttribute('data-actividad-id') || '';
                     const inspId = btn.getAttribute('data-insp-id') || '';
                     if (inspId) {
@@ -3882,16 +3943,35 @@
             tbody.querySelectorAll('.insp-group-ubic').forEach(tr => {
                 tr.addEventListener('click', () => colapsarDesde(tr, 'ubic'));
             });
+
+            datosCargados = true;
+
+            // Si existe una vista solicitada, aplicarla después de cargar
+            try {
+                if (vistaActiva) setVista(vistaActiva);
+            } catch {}
+
+            } finally {
+                try {
+                    if (!alreadyLoading && runId === cargarDatosRunId) {
+                        isLoadingDatos = false;
+                    }
+                } catch {
+                    isLoadingDatos = false;
+                }
+            }
         }
 
         if (inputBuscar) {
             inputBuscar.addEventListener('input', () => {
+                if (!datosCargados) return;
                 cargarDatos();
             });
         }
 
         if (inputBuscarRealizadas) {
             inputBuscarRealizadas.addEventListener('input', () => {
+                if (!datosCargados) return;
                 cargarDatos();
             });
         }
@@ -3900,13 +3980,24 @@
         // Forzar recarga de datos al mostrar la página o volver a enfocarla.
         try {
             window.addEventListener('pageshow', () => {
-                try { cargarDatos(); } catch {}
+                try {
+                    if (isLoadingDatos) return;
+                    if (vistaActiva) return;
+                    if (datosCargados) cargarDatos();
+                    else cargarContadoresIniciales();
+                } catch {}
             });
         } catch {}
 
         try {
             document.addEventListener('visibilitychange', () => {
-                try { if (!document.hidden) cargarDatos(); } catch {}
+                try {
+                    if (document.hidden) return;
+                    if (isLoadingDatos) return;
+                    if (vistaActiva) return;
+                    if (datosCargados) cargarDatos();
+                    else cargarContadoresIniciales();
+                } catch {}
             });
         } catch {}
 
@@ -3914,7 +4005,20 @@
         try {
         } catch {}
 
-        cargarDatos();
+        bindTarjetasLazyLoad();
+        cargarContadoresIniciales();
+
+        // Carga en segundo plano para actualizar contadores de Pendientes/No atendidas sin requerir click.
+        // Mantiene listas ocultas porque `vistaActiva` sigue en null.
+        try {
+            setTimeout(() => {
+                try {
+                    if (isLoadingDatos) return;
+                    if (datosCargados) return;
+                    asegurarDatosCargados();
+                } catch {}
+            }, 60);
+        } catch {}
     });
     </script>
 </body>

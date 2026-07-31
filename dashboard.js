@@ -1265,6 +1265,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         spanInspecciones.textContent = '--';
                         return;
                     }
+
+                    const toMs = (v) => {
+                        try {
+                            if (!v) return null;
+                            if (typeof v === 'number' && isFinite(v)) return v;
+                            if (v instanceof Date) {
+                                const t = v.getTime();
+                                return isNaN(t) ? null : t;
+                            }
+                            if (typeof v === 'object' && typeof v.toDate === 'function') {
+                                const d = v.toDate();
+                                const t = d && typeof d.getTime === 'function' ? d.getTime() : NaN;
+                                return isNaN(t) ? null : t;
+                            }
+                            const d = new Date(v);
+                            const t = d.getTime();
+                            return isNaN(t) ? null : t;
+                        } catch {
+                            return null;
+                        }
+                    };
+
                     // 1) Leer actividades desde Firestore para conocer el universo de actividades
                     const { getFirestore, collection } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -1370,6 +1392,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const realizadas = actividadesConInspeccion.size;
 
+                // No atendidas (Opción A): equipos cuya ÚLTIMA inspección tiene algún parámetro en MALO/NO LEGIBLE.
+                const ultimaPorEquipo = new Map();
+                try {
+                    (listaInspecciones || []).forEach(reg => {
+                        try {
+                            if (!reg) return;
+                            const eq = (reg.equipo || '').toString().trim();
+                            if (!eq) return;
+                            const ms = (typeof reg.fechaMs === 'number') ? reg.fechaMs : null;
+                            const regMs = (ms != null) ? ms : (toMs(reg.fecha || reg.creadoEn) ?? 0);
+                            const prev = ultimaPorEquipo.get(eq);
+                            const prevMs = prev ? (toMs(prev.fecha || prev.creadoEn) ?? 0) : 0;
+                            if (!prev || regMs >= prevMs) ultimaPorEquipo.set(eq, reg);
+                        } catch {}
+                    });
+                } catch {}
+
+                let noAtendidas = 0;
+                try {
+                    ultimaPorEquipo.forEach(reg => {
+                        try {
+                            const params = Array.isArray(reg.parametros) ? reg.parametros : [];
+                            if (!params.length) return;
+                            const tieneFallo = params.some(p => {
+                                const est = (p && p.estado) ? String(p.estado).trim().toUpperCase() : '';
+                                return est === 'MALO' || est === 'NO LEGIBLE';
+                            });
+                            if (tieneFallo) noAtendidas += 1;
+                        } catch {}
+                    });
+                } catch {}
+
                 // 4) Pendientes = actividades sin inspección asociada
                 let pendientes = 0;
                 actividadIds.forEach(id => {
@@ -1385,6 +1439,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="dash-stat-row">
                                 <span class="row-left">✅ <span>Realizadas</span></span>
                                 <span class="badge blue">${realizadas}</span>
+                            </div>
+                            <div class="dash-stat-row">
+                                <span class="row-left">⚠️ <span>No atendidas</span></span>
+                                <span class="badge red">${noAtendidas}</span>
                             </div>
                         </div>
                     `;
@@ -1408,6 +1466,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!lastActs || !lastInsp) return;
                         const snapActs = lastActs;
                         const snapInsp = lastInsp;
+
+                        const toMs = (v) => {
+                            try {
+                                if (!v) return null;
+                                if (typeof v === 'number' && isFinite(v)) return v;
+                                if (v instanceof Date) {
+                                    const t = v.getTime();
+                                    return isNaN(t) ? null : t;
+                                }
+                                if (typeof v === 'object' && typeof v.toDate === 'function') {
+                                    const d = v.toDate();
+                                    const t = d && typeof d.getTime === 'function' ? d.getTime() : NaN;
+                                    return isNaN(t) ? null : t;
+                                }
+                                const d = new Date(v);
+                                const t = d.getTime();
+                                return isNaN(t) ? null : t;
+                            } catch {
+                                return null;
+                            }
+                        };
 
                         const actividadIds = new Set();
                         const actIdsPorEquipo = new Map();
@@ -1450,6 +1529,34 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (!actividadesConInspeccion.has(id)) pendientes += 1;
                         });
 
+                        // No atendidas (Opción A): equipos cuya ÚLTIMA inspección tiene algún parámetro en MALO/NO LEGIBLE.
+                        let noAtendidas = 0;
+                        try {
+                            const ultimaPorEquipo = new Map();
+                            (listaInspecciones || []).forEach(reg => {
+                                try {
+                                    if (!reg) return;
+                                    const eq = (reg.equipo || '').toString().trim();
+                                    if (!eq) return;
+                                    const ms = toMs(reg.fecha || reg.creadoEn) ?? 0;
+                                    const prev = ultimaPorEquipo.get(eq);
+                                    const prevMs = prev ? (toMs(prev.fecha || prev.creadoEn) ?? 0) : 0;
+                                    if (!prev || ms >= prevMs) ultimaPorEquipo.set(eq, reg);
+                                } catch {}
+                            });
+                            ultimaPorEquipo.forEach(reg => {
+                                try {
+                                    const params = Array.isArray(reg.parametros) ? reg.parametros : [];
+                                    if (!params.length) return;
+                                    const tieneFallo = params.some(p => {
+                                        const est = (p && p.estado) ? String(p.estado).trim().toUpperCase() : '';
+                                        return est === 'MALO' || est === 'NO LEGIBLE';
+                                    });
+                                    if (tieneFallo) noAtendidas += 1;
+                                } catch {}
+                            });
+                        } catch {}
+
                         spanInspecciones.innerHTML = `
                             <div class="dash-stats" aria-label="Resumen de inspecciones">
                                 <div class="dash-stat-row">
@@ -1459,6 +1566,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="dash-stat-row">
                                     <span class="row-left">✅ <span>Realizadas</span></span>
                                     <span class="badge blue">${realizadas}</span>
+                                </div>
+                                <div class="dash-stat-row">
+                                    <span class="row-left">⚠️ <span>No atendidas</span></span>
+                                    <span class="badge red">${noAtendidas}</span>
                                 </div>
                             </div>
                         `;
