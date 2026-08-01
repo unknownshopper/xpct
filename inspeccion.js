@@ -1290,7 +1290,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     await setDoc(doc(db, 'inspecciones', localId), payload, { merge: true });
                     patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
-                } catch {}
+                } catch (e) {
+                    try { lastFirestoreError = e; } catch {}
+                    console.warn('[inspeccion] Falló sync de inspección pendiente', { localId, error: e });
+                }
             }
         } catch {}
     }

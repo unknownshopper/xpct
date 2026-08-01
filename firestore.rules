@@ -17,11 +17,16 @@ service cloud.firestore {
     }
 
     function canReadCatalogs() {
-      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'cops']);
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops']);
+    }
+
+    function canReadOperativo() {
+      // Lectura de datos operativos (para dashboard/inspectlist): inspecciones + resúmenes.
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops']);
     }
 
     function canCreateInspecciones() {
-      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector']);
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'auxndt', 'aux_ndt']);
     }
 
     // Catálogos y formatos (solo lectura para usuarios autenticados)
@@ -52,8 +57,30 @@ service cloud.firestore {
 
     match /inspecciones/{docId} {
       allow create: if canCreateInspecciones();
-      // Mantener el resto cerrado por ahora (ajustar cuando definamos política de edición)
-      allow read, update, delete: if false;
+      allow read: if canReadOperativo();
+      // Permitir update para completar sincronización (evidencias/patches) desde campo.
+      allow update: if canCreateInspecciones();
+      allow delete: if false;
+    }
+
+    match /resumenes_equipos/{docId} {
+      allow read: if canReadOperativo();
+      allow write: if false;
+    }
+
+    match /resumenes/{docId} {
+      allow read: if canReadOperativo();
+      allow write: if false;
+    }
+
+    match /actividades/{docId} {
+      allow read: if canReadOperativo();
+      allow write: if false;
+    }
+
+    match /pruebas/{docId} {
+      allow read: if canReadOperativo();
+      allow write: if false;
     }
 
     // Por seguridad, no cambiamos otras colecciones aquí.
