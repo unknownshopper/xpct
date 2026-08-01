@@ -29,6 +29,10 @@ service cloud.firestore {
       return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'auxndt', 'aux_ndt']);
     }
 
+    function canDeleteInspecciones() {
+      return isRoleAny(['admin', 'sgi']);
+    }
+
     // Catálogos y formatos (solo lectura para usuarios autenticados)
     match /formatos_inspeccion/{docId} {
       allow read: if canReadCatalogs();
@@ -60,7 +64,7 @@ service cloud.firestore {
       allow read: if canReadOperativo();
       // Permitir update para completar sincronización (evidencias/patches) desde campo.
       allow update: if canCreateInspecciones();
-      allow delete: if false;
+      allow delete: if canDeleteInspecciones();
     }
 
     match /resumenes_equipos/{docId} {
