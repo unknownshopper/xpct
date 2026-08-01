@@ -1188,6 +1188,20 @@
                     }
                     return;
                 }
+
+                // Forzar refresh de token para asegurar custom claims (role) antes de escribir en Firestore.
+                try {
+                    if (typeof u.getIdToken === 'function') {
+                        await u.getIdToken(true);
+                    }
+                } catch (e) {
+                    try {
+                        if (msgSyncLocalStatus) {
+                            msgSyncLocalStatus.textContent = 'No se pudo refrescar la sesión. Cierra sesión, vuelve a iniciar y reintenta.';
+                            msgSyncLocalStatus.style.display = '';
+                        }
+                    } catch {}
+                }
             } catch {}
 
             const listaLocal = leerListaInspeccionesLocalRaw();
