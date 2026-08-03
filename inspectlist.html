@@ -175,6 +175,7 @@
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
                     <h3 style="margin:0; font-size:1rem;">No atendidas (equipos con daño)</h3>
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                        <button type="button" id="btn-insp-pdf-no-atendidas" style="font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Descargar PDF</button>
                         <button type="button" id="btn-insp-email-no-atendidas" style="display:none; font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Enviar correo</button>
                         <button type="button" class="insp-sec-toggle" data-target="insp-no-atendidas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
                     </div>
@@ -419,6 +420,7 @@
         const btnPdfIndividual = document.getElementById('btn-insp-pdf-individual');
         const btnPdfLote = document.getElementById('btn-insp-pdf-lote');
         const btnEmailNoAtendidas = document.getElementById('btn-insp-email-no-atendidas');
+        const btnPdfNoAtendidas = document.getElementById('btn-insp-pdf-no-atendidas');
         const cardPendientes = document.getElementById('insp-card-pendientes');
         const cardRealizadas = document.getElementById('insp-card-realizadas');
         const cardSinInsp = document.getElementById('insp-card-sin-insp');
@@ -488,6 +490,225 @@
                 }
             } catch {}
             return !!window.db;
+        }
+
+        const escapeHtml = (s) => String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        async function ensureHtml2Canvas() {
+            if (window.html2canvas) return;
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        async function ensureJsPDF() {
+            if (window.jspdf && window.jspdf.jsPDF) return;
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        async function descargarPdfNoAtendidas() {
+            if (!tbodyNoAtendidas) return;
+            const filas = Array.from(tbodyNoAtendidas.querySelectorAll('tr'));
+            if (!filas.length) {
+                alert('No hay registros en No atendidas para exportar.');
+                return;
+            }
+
+            const prevTxt = btnPdfNoAtendidas ? btnPdfNoAtendidas.textContent : '';
+            try {
+                if (btnPdfNoAtendidas) {
+                    btnPdfNoAtendidas.disabled = true;
+                    btnPdfNoAtendidas.textContent = 'Generando…';
+                }
+            } catch {}
+
+            let wrapper = null;
+            try {
+                wrapper = document.createElement('div');
+                wrapper.style.position = 'fixed';
+                wrapper.style.left = '-9999px';
+                wrapper.style.top = '-9999px';
+                wrapper.style.width = '1020px';
+                wrapper.style.background = '#ffffff';
+                wrapper.style.color = '#111827';
+                wrapper.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+                wrapper.style.padding = '12px 14px 18px';
+
+                const ahora = new Date();
+                const fecha = ahora.toISOString().slice(0, 10);
+                const hora = ahora.toTimeString().slice(0, 8);
+                const usuario = String(window.currentUserEmail || '').trim().toLowerCase();
+
+                const tabla = document.getElementById('tabla-inspecciones-no-atendidas');
+                const tablaClone = tabla ? tabla.cloneNode(true) : null;
+                if (tablaClone) {
+                    tablaClone.style.width = '100%';
+                    tablaClone.style.borderCollapse = 'collapse';
+                    tablaClone.style.fontSize = '12px';
+                    tablaClone.querySelectorAll('th, td').forEach(td => {
+                        td.style.padding = '6px 6px';
+                        td.style.borderBottom = '1px solid #e5e7eb';
+                        td.style.verticalAlign = 'top';
+                    });
+                    tablaClone.querySelectorAll('thead tr').forEach(tr => {
+                        tr.style.background = '#f3f4f6';
+                    });
+                    tablaClone.querySelectorAll('button').forEach(b => b.remove());
+                    tablaClone.querySelectorAll('a').forEach(a => {
+                        const t = document.createElement('span');
+                        t.textContent = a.textContent || '';
+                        a.replaceWith(t);
+                    });
+                    tablaClone.querySelectorAll('img').forEach(img => img.remove());
+                }
+
+                wrapper.innerHTML = `
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:8px; border-bottom:2px solid #e5e7eb;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <img src="img/logopct.png" alt="PCT" style="height:34px; width:auto;" />
+                            <div>
+                                <div style="font-size:16px; font-weight:800; line-height:1.2;">Reporte | No atendidas (equipos con daño)</div>
+                                <div style="font-size:12px; color:#6b7280; line-height:1.2;">Listado de equipos con última inspección no operativa (MALO / NO LEGIBLE)</div>
+                            </div>
+                        </div>
+                        <div style="text-align:right; font-size:12px; color:#374151;">
+                            <div><strong>Fecha:</strong> ${escapeHtml(fecha)} ${escapeHtml(hora)}</div>
+                            <div><strong>Usuario:</strong> ${escapeHtml(usuario || '—')}</div>
+                            <div><strong>Total:</strong> ${filas.length}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:10px;"></div>
+                `;
+
+                if (tablaClone) wrapper.appendChild(tablaClone);
+
+                document.body.appendChild(wrapper);
+
+                await ensureHtml2Canvas();
+                await ensureJsPDF();
+
+                const embedRemoteImages = async (root) => {
+                    try {
+                        const imgs = Array.from(root.querySelectorAll('img'));
+                        const toDataUrl = async (url) => {
+                            try {
+                                const r = await fetch(url, { mode: 'cors' });
+                                const b = await r.blob();
+                                return await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onload = () => resolve(String(reader.result || ''));
+                                    reader.onerror = () => resolve('');
+                                    reader.readAsDataURL(b);
+                                });
+                            } catch {
+                                return '';
+                            }
+                        };
+                        for (const img of imgs) {
+                            try {
+                                const src = String(img.getAttribute('src') || '').trim();
+                                if (!src) continue;
+                                if (src.startsWith('data:') || src.startsWith('blob:')) continue;
+                                const abs = new URL(src, window.location.href).toString();
+                                const data = await toDataUrl(abs);
+                                if (data && data.startsWith('data:')) img.setAttribute('src', data);
+                            } catch {}
+                        }
+                    } catch {}
+                };
+
+                await embedRemoteImages(wrapper);
+
+                const wrapperWidthCss = wrapper.offsetWidth || 1;
+
+                const canvas = await window.html2canvas(wrapper, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                });
+                const _scaleFactor = canvas.width / wrapperWidthCss;
+
+                try { wrapper.remove(); } catch {}
+
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+                const pageWidthMm = pdf.internal.pageSize.getWidth();
+                const pageHeightMm = pdf.internal.pageSize.getHeight();
+                const marginMm = 10;
+                const usableWidthMm = pageWidthMm - marginMm * 2;
+                const footerReserveMm = 10;
+                const usableHeightMm = pageHeightMm - marginMm * 2 - footerReserveMm;
+                const pxPerMm = canvas.width / usableWidthMm;
+                const pageHeightPx = Math.floor(usableHeightMm * pxPerMm);
+
+                let yPx = 0;
+                let pageIndex = 0;
+                const totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx));
+                while (yPx < canvas.height) {
+                    pageIndex += 1;
+                    const yTarget = yPx + pageHeightPx;
+                    let yEnd = Math.min(yTarget, canvas.height);
+                    const sliceHeightPx = Math.min(yEnd - yPx, canvas.height - yPx);
+
+                    const pageCanvas = document.createElement('canvas');
+                    pageCanvas.width = canvas.width;
+                    pageCanvas.height = sliceHeightPx;
+                    const pageCtx = pageCanvas.getContext('2d');
+                    pageCtx.fillStyle = '#ffffff';
+                    pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+                    pageCtx.drawImage(canvas, 0, yPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+                    const pageDataUrl = pageCanvas.toDataURL('image/jpeg', 0.92);
+                    const imgHeightMm = (sliceHeightPx / pxPerMm);
+
+                    if (yPx > 0) pdf.addPage();
+                    pdf.addImage(pageDataUrl, 'JPEG', marginMm, marginMm, usableWidthMm, imgHeightMm);
+
+                    try {
+                        const footerY = pageHeightMm - 6;
+                        pdf.setDrawColor(229, 231, 235);
+                        pdf.line(marginMm, footerY - 3, pageWidthMm - marginMm, footerY - 3);
+                        pdf.setFontSize(9);
+                        pdf.setTextColor(107, 114, 128);
+                        pdf.text('PCT | Reporte No atendidas', marginMm, footerY);
+                        const pageLabel = `Página ${pageIndex} de ${totalPages}`;
+                        const pageLabelW = pdf.getTextWidth(pageLabel);
+                        pdf.text(pageLabel, pageWidthMm - marginMm - pageLabelW, footerY);
+                    } catch {}
+
+                    yPx += sliceHeightPx;
+                }
+
+                const fileName = `no-atendidas-${fecha}.pdf`;
+                try { pdf.save(fileName); } catch {}
+            } catch (e) {
+                console.warn('No se pudo generar PDF No atendidas', e);
+                alert('No se pudo generar el PDF.');
+            } finally {
+                try { if (wrapper && wrapper.parentNode) wrapper.parentNode.removeChild(wrapper); } catch {}
+                try {
+                    if (btnPdfNoAtendidas) {
+                        btnPdfNoAtendidas.disabled = false;
+                        btnPdfNoAtendidas.textContent = prevTxt || 'Descargar PDF';
+                    }
+                } catch {}
+            }
         }
 
         async function asegurarDatosCargados() {
@@ -3863,6 +4084,23 @@
                     };
 
                     // Encolar para evitar exportaciones concurrentes (postMessage/iframes)
+                    colaExportPdf = colaExportPdf.then(tarea, tarea);
+                    await colaExportPdf;
+                });
+            }
+
+            if (btnPdfNoAtendidas && !btnPdfNoAtendidas.dataset.bound) {
+                btnPdfNoAtendidas.dataset.bound = '1';
+                btnPdfNoAtendidas.addEventListener('click', async () => {
+                    const tarea = async () => {
+                        try {
+                            await descargarPdfNoAtendidas();
+                        } catch (e) {
+                            console.warn('No se pudo generar el PDF (no atendidas)', e);
+                            alert('No se pudo generar el PDF. Intenta de nuevo.');
+                        }
+                    };
+
                     colaExportPdf = colaExportPdf.then(tarea, tarea);
                     await colaExportPdf;
                 });
