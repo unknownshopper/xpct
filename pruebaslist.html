@@ -2825,6 +2825,26 @@
             const d = new Date(yyyy, mm-1, dd); d.setHours(0,0,0,0);
             return isNaN(d.getTime()) ? null : d;
         }
+
+        function fmtFechaRealizacion(val) {
+            try {
+                const d = parseFechaRealizacion(val || '');
+                if (d && !isNaN(d.getTime())) return formatDDMMAAAA(d);
+                return String(val || '').trim();
+            } catch {
+                return String(val || '').trim();
+            }
+        }
+
+        function fmtProxima(val) {
+            try {
+                const d = parseProxima(val || '');
+                if (d && !isNaN(d.getTime())) return formatDDMMAAAA(d);
+                return String(val || '').trim();
+            } catch {
+                return String(val || '').trim();
+            }
+        }
         function formatDDMMAAAA(d) {
             const dd = String(d.getDate()).padStart(2,'0');
             const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -3403,8 +3423,8 @@
                 ['Resultado', reg.resultado || ''],
                 ['Periodo', reg.periodo || ''], 
                 ['Fecha de registro', obtenerFechaRegistroTexto(reg)],
-                ['Fecha realización', reg.fechaRealizacion || ''],
-                ['Próxima prueba', reg.proxima || ''],
+                ['Fecha realización', fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '')],
+                ['Próxima prueba', fmtProxima(reg.proxima || '')],
                 ['Días para próxima', diasParaProximaDetalle],
                 ['No. reporte / certificado', reg.noReporte || ''],
                 ['Técnico', reg.tecnico || ''],
@@ -3458,8 +3478,8 @@
                 ['Resultado', reg.resultado || ''],
                 ['Periodo', reg.periodo || ''],
                 ['Fecha de registro', obtenerFechaRegistroTexto(reg)],
-                ['Fecha realización', reg.fechaRealizacion || ''],
-                ['Próxima prueba', reg.proxima || ''],
+                ['Fecha realización', fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '')],
+                ['Próxima prueba', fmtProxima(reg.proxima || '')],
                 ['Días para próxima', diasParaProximaDetalle],
                 ['No. reporte / certificado', reg.noReporte || ''],
                 ['Técnico', reg.tecnico || ''],
@@ -3831,7 +3851,7 @@
                 const equiposConVpm = new Set();
                 const equiposConUtt = new Set();
                 (pruebas || []).forEach(r => {
-                    const eq = normEquipoKey((r && r.equipo) ? String(r.equipo) : '');
+                    const eq = normEquipoKey(r && r.equipo ? String(r.equipo) : '');
                     if (eq) equiposConAlgo.add(eq);
 
                     const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
@@ -3984,29 +4004,29 @@
 
             latestAnualPorEquipoTipo.forEach(({ reg, fr, cat }) => {
                 if (!reg || !cat) return;
-                let prox = parseProxima(reg.proxima || '');
+                let proxima = parseProxima(reg.proxima || '');
                 // Si no hay 'proxima' pero es ANUAL, intentar derivarla de fechaRealizacion + 12 meses
-                if (!prox && fr) {
+                if (!proxima && fr) {
                     const d = new Date(fr);
                     d.setFullYear(d.getFullYear() + 1);
                     d.setHours(0,0,0,0);
-                    if (!isNaN(d.getTime())) prox = d;
+                    if (!isNaN(d.getTime())) proxima = d;
                 }
-                if (!prox) return;
+                if (!proxima) return;
 
                 // Override para LT: usar el mejor vencimiento anual del equipo si es mayor.
                 try {
                     if (cat === 'lt') {
                         const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
                         const best = eqK ? (bestDueMsByEquipo.get(eqK) || 0) : 0;
-                        if (best && best > prox.getTime()) {
+                        if (best && (!proxima.getTime() || best > proxima.getTime())) {
                             const dBest = new Date(best);
                             dBest.setHours(0,0,0,0);
-                            prox = dBest;
+                            proxima = dBest;
                         }
                     }
                 } catch {}
-                const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                const dias = Math.round((proxima.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
                 if (isNaN(dias)) return;
                 if (dias <= 0) { cont[cat].d0 += 1; return; }
                 if (dias > 60) cont[cat].gt60 += 1;
@@ -4106,7 +4126,10 @@
                     return cat === filtroCobertura;
                 });
 
-                listaEquiposFiltrada.sort((a, b) => a.localeCompare(b)).forEach(eq => {
+                listaEquiposFiltrada.sort((a, b) => {
+                    const cmp = a.localeCompare(b);
+                    return (sortListado.key === 'equipo' && sortListado.dir === 'desc') ? -cmp : cmp;
+                }).forEach(eq => {
                     const reg = anualPorEquipo.get(eq) || null;
                     const estado = reg ? reg._clasif.estado : 'SIN_PRUEBA';
 
@@ -4124,8 +4147,8 @@
                     }
 
                     const fila = document.createElement('tr');
-                    const proximaStr = reg ? (reg.proxima || '') : '';
-                    const fechaReal = reg ? (reg.fechaRealizacion || '') : '';
+                    const proximaStr = reg ? fmtProxima(reg.proxima || '') : '';
+                    const fechaReal = reg ? fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '') : '';
                     const tecnico = reg ? (reg.tecnico || '') : '';
                     const noRep = reg ? (reg.noReporte || '') : '';
                     const desc = reg && reg.descripcion
@@ -4221,7 +4244,7 @@
             let cntChip15 = 0;   // 15-1
             let cntChip0 = 0;    // 0 (vencidas)
 
-            // Alinear chips con backend/Rangos: usar solo la última ANUAL por equipo + tipo de prueba
+            // Alinear chips con backend/Rangos: usar solo la última ANUAL por equipo+tipo
             const latestIndic = new Map();
 
             const esOperativoEqK = (eqK) => {
@@ -4258,7 +4281,7 @@
                         .map(eq => normEquipoKey(eq))
                         .filter(Boolean)
                         .filter(eqK => {
-                            const cov = (window._equiposCobertura && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
+                            const cov = (window._equiposCobertura && eqK && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
                             return cov && cov.cat === 'sin';
                         });
                 } catch { equiposSin = []; }
@@ -4455,8 +4478,8 @@
                     let diasChip = null;
                     if (proximaBase) {
                         const hoy = hoySinHora();
-                        const diffMs = proximaBase.getTime() - hoy.getTime();
-                        diasChip = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                        const dias2 = Math.round((proximaBase.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                        diasChip = dias2;
                     }
 
                     // Alinear con dashboard: escoger el "último" por fecha próxima (due date), no por fecha de realización.
@@ -4605,14 +4628,14 @@
 
                 fila.innerHTML = `
                     ${tdSelect}
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${reg.fechaRealizacion || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '')}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtProxima(proximaStr)}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${diasParaProxima}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serialCelda || '-'}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod || ''}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;">${diasParaProxima}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${String(reg.equipo || '').trim()}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${String(reg.serial || reg.numeroSerie || '').trim()}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${String(prod || '').trim()}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
