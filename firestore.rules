@@ -33,6 +33,16 @@ service cloud.firestore {
       return isRoleAny(['admin', 'sgi']);
     }
 
+    function canWritePruebas() {
+      // Permitir carga/importación de pruebas (PND/calibraciones) desde pruebaslist/pruebas.
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'auxger']);
+    }
+
+    function canDeletePruebas() {
+      // Evitar borrados masivos accidentales.
+      return isRoleAny(['admin', 'sgi']);
+    }
+
     // Catálogos y formatos (solo lectura para usuarios autenticados)
     match /formatos_inspeccion/{docId} {
       allow read: if canReadCatalogs();
@@ -84,7 +94,9 @@ service cloud.firestore {
 
     match /pruebas/{docId} {
       allow read: if canReadOperativo();
-      allow write: if false;
+      allow create: if canWritePruebas();
+      allow update: if canWritePruebas();
+      allow delete: if canDeletePruebas();
     }
 
     // Por seguridad, no cambiamos otras colecciones aquí.
