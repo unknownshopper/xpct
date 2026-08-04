@@ -2674,13 +2674,30 @@
         let existingKeys = new Set();
         let lastCsvText = '';
 
+        // Orden del listado (evitar TDZ: `render()` puede ejecutarse antes de declarar encabezados)
+        var sortListado = { key: '', dir: 'asc' }; // key: '' | 'equipo'
+
+        function coerceFechaKey(v) {
+            try {
+                if (!v) return '';
+                if (v instanceof Date) return formatDDMMAAAA(v);
+                if (typeof v === 'object' && typeof v.toDate === 'function') {
+                    const d = v.toDate();
+                    if (d instanceof Date) return formatDDMMAAAA(d);
+                }
+                return String(v).trim();
+            } catch {
+                return '';
+            }
+        }
+
         function composeKey(r) {
             const resolved = resolverEquipoYSerialCanon(r.equipo, (r.numeroSerie||r.serial||''));
             const equipo = (resolved.equipoCanon||'').trim().toUpperCase();
             const numeroSerie = (resolved.serialCanon||'').trim().toUpperCase();
             const periodo = (r.periodo||'').trim().toUpperCase();
             const prueba = (r.prueba||'').trim().toUpperCase();
-            const fechaRealizacion = (r.fechaRealizacion||'').trim();
+            const fechaRealizacion = coerceFechaKey(r.fechaRealizacion);
             const noReporte = (r.noReporte||'').trim().toUpperCase();
             const area = (r.area||r.areaPrueba||'').trim().toUpperCase();
             if (!equipo || !numeroSerie || !periodo || !prueba || !fechaRealizacion || !noReporte || !area) return '';
@@ -2703,7 +2720,7 @@
             const numeroSerie = (resolved.serialCanon||'').trim().toUpperCase();
             const periodo = (r.periodo||'').trim().toUpperCase();
             const prueba = (r.prueba||'').trim().toUpperCase();
-            const fechaRealizacion = (r.fechaRealizacion||'').trim();
+            const fechaRealizacion = coerceFechaKey(r.fechaRealizacion);
             let noReporte = (r.noReporte||'').trim().toUpperCase();
             const area = (r.area||r.areaPrueba||'').trim().toUpperCase();
             if (!equipo || !numeroSerie || !periodo || !prueba || !fechaRealizacion || !noReporte || !area) return '';
@@ -3700,7 +3717,6 @@
         }
 
         const thSortEquipo = document.getElementById('th-pruebas-sort-equipo');
-        let sortListado = { key: '', dir: 'asc' }; // key: '' | 'equipo'
 
         function applySortHeaderEquipo() {
             try {
