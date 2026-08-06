@@ -5008,6 +5008,13 @@
 
         function obtenerSeleccionadas() {
             const filas = tbodyListado._filasVisibles || [];
+            // Si el usuario marcó "seleccionar todos", exportar todas las filas visibles
+            // (evita discrepancias si hay re-render, filas sin checkbox, o estados no sincronizados).
+            try {
+                if (chkSelectTodos && chkSelectTodos.checked) {
+                    return Array.isArray(filas) ? filas.slice() : [];
+                }
+            } catch {}
             const checks = tbodyListado.querySelectorAll('.prueba-select:checked');
             const seleccionadas = [];
             checks.forEach(chk => {
@@ -5249,6 +5256,15 @@
                 alert('Selecciona al menos una prueba para exportar.');
                 return;
             }
+
+            // Advertir si el listado cargado está parcial (paginación / "cargar más")
+            try {
+                const parcial = (typeof _totalServer === 'number' && _totalServer > 0 && Array.isArray(pruebas) && pruebas.length < _totalServer);
+                if (parcial && chkSelectTodos && chkSelectTodos.checked) {
+                    const ok = window.confirm(`Atención: el listado cargado está incompleto (cargadas ${pruebas.length} de ${_totalServer}).\n\nEl CSV solo incluirá lo cargado/visible.\n\nSi necesitas todo, usa "Ver todas" y vuelve a exportar.\n\n¿Deseas continuar?`);
+                    if (!ok) return;
+                }
+            } catch {}
 
             const encabezados = [
                 'FechaRealizacion',
