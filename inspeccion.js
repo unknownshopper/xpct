@@ -2827,7 +2827,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
         const idxReporte = getIdxReporte(headers);
         const idxSerial = getIdxSerial(headers);
-        const norm = (s) => (s || '').toString().trim().toUpperCase().replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+        const norm = (s) => (s || '').toString()
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            // compactar a A-Z0-9: tolera guiones raros, espacios, puntos, etc.
+            .replace(/[^A-Z0-9]+/g, '');
         const target = norm(valor);
 
         let fila = equipos.find(cols => idxEquipo >= 0 && norm(cols[idxEquipo]) === target);
@@ -2837,8 +2842,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!a) return false;
                 if (a === target) return true;
                 // Permitir buscar por serial sin prefijo PCT-
-                const aNoPct = a.replace(/^PCT-/, '');
-                const tNoPct = target.replace(/^PCT-/, '');
+                const aNoPct = a.replace(/^PCT/, '');
+                const tNoPct = target.replace(/^PCT/, '');
                 if (aNoPct && aNoPct === tNoPct) return true;
                 // Si el usuario pega solo la parte final del serial
                 if (tNoPct && aNoPct.endsWith(tNoPct)) return true;
