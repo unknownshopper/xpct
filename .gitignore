@@ -5,7 +5,6 @@
 .env.xpct-tab
 .env
 server/.env
-config.local.js
 
 docs/_bak/
 
