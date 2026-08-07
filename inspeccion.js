@@ -4045,7 +4045,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (!colEvid) return;
                     const tipo = getTipoInspeccionNow();
-                    const allowByTipo = (tipo === 'PRETRABAJO' || tipo === 'RECEPCION');
+                    const allowByTipo = (tipo === 'PRETRABAJO' || tipo === 'RECEPCION' || tipo === 'POSTTRABAJO');
                     const estadoSel = filaHtml.querySelector(`input[name="param-${idx}-estado"]:checked`);
                     const estadoVal = estadoSel ? String(estadoSel.value || '').trim().toUpperCase() : '';
                     const show = !!(esEstadoGeneral || estadoVal === 'MALO' || allowByTipo);
@@ -4380,7 +4380,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return sel ? String(sel.value || '').trim().toUpperCase() : '';
                         } catch { return ''; }
                     })();
-                    const permitirEvidenciaBueno = (tipoActual === 'PRE-TRABAJO' || tipoActual === 'RECEPCION');
+                    const permitirEvidenciaBueno = (tipoActual === 'PRE-TRABAJO' || tipoActual === 'RECEPCION' || tipoActual === 'POST-TRABAJO' || tipoActual === 'POSTTRABAJO');
 
                     if (colDano) colDano.style.display = 'none';
                     if (selectDano) {
@@ -6224,7 +6224,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const danosSeleccionados = (tieneChipsDano && (estado || '').toUpperCase() === 'MALO') ? getSelDanos() : [];
                 const evidenciasPorDano = {};
 
-                const allowEvidOnBueno = (tipoInspeccion === 'PRE-TRABAJO' || tipoInspeccion === 'RECEPCION');
+                const allowEvidOnBueno = (tipoInspeccion === 'PRE-TRABAJO' || tipoInspeccion === 'RECEPCION' || tipoInspeccion === 'POST-TRABAJO' || tipoInspeccion === 'POSTTRABAJO');
                 if (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) {
                     if (tieneChipsDano) {
                         // PRE-TRABAJO (BUENO) sin chips seleccionados: permitir evidencia por parámetro (legacy)
