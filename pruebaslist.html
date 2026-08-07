@@ -4467,32 +4467,35 @@
                 const scopedForIndicators = isScopedIndicator(reg);
                 if (scopedForIndicators && esAnualReg && !esHistoricoReg) {
                     const eqK2 = eqK;
-                    if (!esOperativoEqK(eqK2)) return;
-                    const tipo = (typeof normalizaPrueba === 'function')
-                        ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
-                        : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
-                    const key = `${eqK2}__${tipo}`;
-                    const prev = latestIndic.get(key);
+                    // Importante: el estado operativo solo afecta los INDICADORES (chips/rangos),
+                    // no debe excluir filas del listado/export.
+                    if (esOperativoEqK(eqK2)) {
+                        const tipo = (typeof normalizaPrueba === 'function')
+                            ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
+                            : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
+                        const key = `${eqK2}__${tipo}`;
+                        const prev = latestIndic.get(key);
 
-                    // dias para chips: usar valor real (sin clamp) y estado
-                    let diasChip = null;
-                    if (proximaBase) {
-                        const hoy = hoySinHora();
-                        const dias2 = Math.round((proximaBase.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                        diasChip = dias2;
-                    }
+                        // dias para chips: usar valor real (sin clamp) y estado
+                        let diasChip = null;
+                        if (proximaBase) {
+                            const hoy = hoySinHora();
+                            const dias2 = Math.round((proximaBase.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                            diasChip = dias2;
+                        }
 
-                    // Alinear con dashboard: escoger el "último" por fecha próxima (due date), no por fecha de realización.
-                    const dueMs = proximaBase ? proximaBase.getTime() : 0;
-                    const prevDueMs = prev && typeof prev.dueMs === 'number' ? prev.dueMs : 0;
+                        // Alinear con dashboard: escoger el "último" por fecha próxima (due date), no por fecha de realización.
+                        const dueMs = proximaBase ? proximaBase.getTime() : 0;
+                        const prevDueMs = prev && typeof prev.dueMs === 'number' ? prev.dueMs : 0;
 
-                    if (!prev || (dueMs && dueMs >= prevDueMs)) {
-                        latestIndic.set(key, {
-                            fechaMs: reg._fechaRealDate ? reg._fechaRealDate.getTime() : null,
-                            dueMs,
-                            estado,
-                            dias: diasChip
-                        });
+                        if (!prev || (dueMs && dueMs >= prevDueMs)) {
+                            latestIndic.set(key, {
+                                fechaMs: reg._fechaRealDate ? reg._fechaRealDate.getTime() : null,
+                                dueMs,
+                                estado,
+                                dias: diasChip
+                            });
+                        }
                     }
                 }
 
