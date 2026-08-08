@@ -50,35 +50,71 @@
         </div>
     </header>
 
-    <main style="max-width: 1100px; margin: 0 auto; padding: 1rem;">
+    <main style="max-width: 1400px; margin: 0 auto; padding: 1rem;">
         <h1 style="margin: 0.5rem 0 1rem;">Visor de auditoría</h1>
 
         <section class="card-prueba" style="margin-bottom: 1rem;">
             <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
-                <div class="campo" style="flex:1; min-width:260px;">
-                    <label for="f-email">Filtrar por correo (exacto)</label>
+                <div class="campo" style="flex:1; min-width:240px;">
+                    <label for="f-email">Correo (contiene)</label>
                     <input id="f-email" type="text" placeholder="usuario@dominio" />
+                </div>
+                <div class="campo" style="flex:1; min-width:220px;">
+                    <label for="f-action">Acción (contiene)</label>
+                    <input id="f-action" type="text" placeholder="page_view | inspeccion_create | ..." />
+                </div>
+                <div class="campo" style="flex:1; min-width:220px;">
+                    <label for="f-page">Página (contiene)</label>
+                    <input id="f-page" type="text" placeholder="/inspectlist.html" />
+                </div>
+                <div class="campo" style="min-width:180px;">
+                    <label for="f-range">Rango</label>
+                    <select id="f-range" style="height:40px;">
+                        <option value="7">Últimos 7 días</option>
+                        <option value="30" selected>Últimos 30 días</option>
+                        <option value="90">Últimos 90 días</option>
+                        <option value="0">Todo (cargado)</option>
+                    </select>
                 </div>
                 <div class="campo">
                     <button id="btn-recargar" style="height:40px; padding: 0 14px;">Recargar</button>
                 </div>
             </div>
-            <p id="estado" style="margin:0.5rem 0 0; font-size:0.9rem; color:#374151;"></p>
+
+            <div id="resumen" style="display:grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap:0.65rem; margin-top:0.85rem; align-items:stretch;">
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; background:#ffffff;">
+                    <div style="font-size:12px; color:#6b7280;">Visibles</div>
+                    <div id="sum-visibles" style="font-weight:800; font-size:20px; color:#111827;">0</div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; background:#ffffff;">
+                    <div style="font-size:12px; color:#6b7280;">Cargados</div>
+                    <div id="sum-cargados" style="font-weight:800; font-size:20px; color:#111827;">0</div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; background:#ffffff;">
+                    <div style="font-size:12px; color:#6b7280;">Hoy</div>
+                    <div id="sum-hoy" style="font-weight:800; font-size:20px; color:#111827;">0</div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; background:#ffffff;">
+                    <div style="font-size:12px; color:#6b7280;">7 días</div>
+                    <div id="sum-7" style="font-weight:800; font-size:20px; color:#111827;">0</div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; background:#ffffff;">
+                    <div style="font-size:12px; color:#6b7280;">Usuarios únicos</div>
+                    <div id="sum-usuarios" style="font-weight:800; font-size:20px; color:#111827;">0</div>
+                </div>
+                <div style="border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; background:#ffffff;">
+                    <div style="font-size:12px; color:#6b7280;">Top acción</div>
+                    <div id="sum-top" style="font-weight:800; font-size:14px; color:#111827; line-height:1.2;">-</div>
+                </div>
+            </div>
+
+            <p id="estado" style="margin:0.75rem 0 0; font-size:0.9rem; color:#374151;"></p>
         </section>
 
         <section class="card-prueba">
-            <div style="overflow:auto;">
-                <table style="width:100%; border-collapse:collapse;">
-                    <thead>
-                        <tr>
-                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Fecha</th>
-                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Correo</th>
-                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Acción</th>
-                            <th align="left" style="padding:8px; border-bottom:1px solid #e5e7eb;">Página</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody"></tbody>
-                </table>
+            <div id="feed" style="display:flex; flex-direction:column; gap:12px;"></div>
+            <div style="display:flex; justify-content:center; margin-top:14px;">
+                <button id="btn-mas" style="height:40px; padding:0 16px; border-radius:10px; border:1px solid #d1d5db; background:#ffffff; cursor:pointer;">Cargar más</button>
             </div>
         </section>
     </main>
@@ -87,7 +123,7 @@
     <script type="module" src="firebase-init.js"></script>
     <script type="module">
     import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, query, orderBy, limit, startAfter, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const ADMIN_EMAIL = 'the@unknownshoppers.com';
     const auth = window.auth;
@@ -95,12 +131,26 @@
     const emailSpan = document.getElementById('nav-user-email');
     const btnLogout = document.getElementById('btn-logout');
     const btnRecargar = document.getElementById('btn-recargar');
+    const btnMas = document.getElementById('btn-mas');
     const inpEmail = document.getElementById('f-email');
-    const tbody = document.getElementById('tbody');
+    const inpAction = document.getElementById('f-action');
+    const inpPage = document.getElementById('f-page');
+    const selRange = document.getElementById('f-range');
+    const feed = document.getElementById('feed');
     const estado = document.getElementById('estado');
+
+    const sumVisibles = document.getElementById('sum-visibles');
+    const sumCargados = document.getElementById('sum-cargados');
+    const sumHoy = document.getElementById('sum-hoy');
+    const sum7 = document.getElementById('sum-7');
+    const sumUsuarios = document.getElementById('sum-usuarios');
+    const sumTop = document.getElementById('sum-top');
 
     let allItems = [];
     let filterTimer = null;
+    let lastDoc = null;
+    let exhausted = false;
+    const PAGE_SIZE = 250;
 
     function fmtDate(ms) {
         try {
@@ -116,41 +166,183 @@
         } catch { return ''; }
     }
 
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
+    function dayKeyLocal(ms) {
+        try {
+            const d = new Date(ms);
+            if (isNaN(d.getTime())) return '';
+            const dd = String(d.getDate()).padStart(2,'0');
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            const yyyy = d.getFullYear();
+            return `${yyyy}-${mm}-${dd}`;
+        } catch { return ''; }
+    }
+
+    function dayLabelFromKey(k) {
+        try {
+            const m = String(k || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!m) return String(k || '');
+            const yyyy = m[1];
+            const mm = m[2];
+            const dd = m[3];
+            return `${dd}/${mm}/${yyyy}`;
+        } catch { return String(k || ''); }
+    }
+
+    function badgeColor(action) {
+        const a = String(action || '').toLowerCase();
+        if (a.includes('error') || a.includes('denied')) return { bg: '#fee2e2', fg: '#991b1b', br: '#fecaca' };
+        if (a.startsWith('inspeccion')) return { bg: '#ede9fe', fg: '#5b21b6', br: '#ddd6fe' };
+        if (a.startsWith('actividad')) return { bg: '#dcfce7', fg: '#166534', br: '#bbf7d0' };
+        if (a.startsWith('prueba')) return { bg: '#fef9c3', fg: '#854d0e', br: '#fde68a' };
+        return { bg: '#dbeafe', fg: '#1d4ed8', br: '#bfdbfe' };
+    }
+
     function render(items) {
-        tbody.innerHTML = '';
+        if (!feed) return;
+        feed.innerHTML = '';
+        const groups = new Map();
         (items || []).forEach(it => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="padding:8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${fmtDate(it.atMs || 0)}</td>
-                <td style="padding:8px; border-bottom:1px solid #f1f5f9;">${(it.email || '')}</td>
-                <td style="padding:8px; border-bottom:1px solid #f1f5f9;">${(it.action || '')}</td>
-                <td style="padding:8px; border-bottom:1px solid #f1f5f9;">${(it.page || '')}</td>
+            const k = dayKeyLocal(it.atMs || 0) || 'SIN_FECHA';
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k).push(it);
+        });
+        const keys = Array.from(groups.keys()).sort((a, b) => String(b).localeCompare(String(a)));
+        keys.forEach(k => {
+            const box = document.createElement('div');
+            box.style.border = '1px solid #e5e7eb';
+            box.style.borderRadius = '14px';
+            box.style.background = '#ffffff';
+            box.style.overflow = 'hidden';
+
+            const head = document.createElement('div');
+            head.style.display = 'flex';
+            head.style.alignItems = 'center';
+            head.style.justifyContent = 'space-between';
+            head.style.gap = '10px';
+            head.style.padding = '10px 12px';
+            head.style.borderBottom = '1px solid #eef2f7';
+            head.innerHTML = `
+                <div style="font-weight:800; color:#111827;">${esc(dayLabelFromKey(k))}</div>
+                <div style="font-size:12px; color:#6b7280;">${esc(groups.get(k).length)} eventos</div>
             `;
-            tbody.appendChild(tr);
+            box.appendChild(head);
+
+            const body = document.createElement('div');
+            body.style.display = 'flex';
+            body.style.flexDirection = 'column';
+
+            (groups.get(k) || []).forEach(it => {
+                const badge = badgeColor(it.action);
+                const row = document.createElement('div');
+                row.style.display = 'grid';
+                row.style.gridTemplateColumns = '165px 1fr';
+                row.style.gap = '10px';
+                row.style.padding = '10px 12px';
+                row.style.borderBottom = '1px solid #f1f5f9';
+                const page = String(it.currentPage || it.page || '').trim();
+                row.innerHTML = `
+                    <div style="font-size:12px; color:#6b7280; white-space:nowrap;">${esc(fmtDate(it.atMs || 0))}</div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span style="display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; background:${badge.bg}; color:${badge.fg}; border:1px solid ${badge.br};">${esc(it.action || '')}</span>
+                            <span style="font-size:12px; color:#111827; font-weight:700;">${esc(it.email || '')}</span>
+                            ${page ? `<span style="font-size:12px; color:#6b7280;">${esc(page)}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+                body.appendChild(row);
+            });
+            box.appendChild(body);
+            feed.appendChild(box);
         });
     }
 
     function applyFilter() {
-        const q = (inpEmail.value || '').trim().toLowerCase();
-        const filtered = q
-            ? (allItems || []).filter(it => String(it.email || '').toLowerCase().includes(q))
-            : (allItems || []);
+        const qEmail = (inpEmail && inpEmail.value ? inpEmail.value : '').trim().toLowerCase();
+        const qAction = (inpAction && inpAction.value ? inpAction.value : '').trim().toLowerCase();
+        const qPage = (inpPage && inpPage.value ? inpPage.value : '').trim().toLowerCase();
+        const days = parseInt(String(selRange && selRange.value ? selRange.value : '30'), 10);
+        const now = Date.now();
+        const minMs = (!isNaN(days) && days > 0) ? (now - (days * 24 * 60 * 60 * 1000)) : 0;
+        const filtered = (allItems || []).filter(it => {
+            const email = String(it.email || '').toLowerCase();
+            const action = String(it.action || '').toLowerCase();
+            const page = String(it.currentPage || it.page || '').toLowerCase();
+            if (minMs && (it.atMs || 0) < minMs) return false;
+            if (qEmail && !email.includes(qEmail)) return false;
+            if (qAction && !action.includes(qAction)) return false;
+            if (qPage && !page.includes(qPage)) return false;
+            return true;
+        });
         render(filtered);
-        estado.textContent = `Registros: ${filtered.length}`;
+        const todayKey = dayKeyLocal(now);
+        const sevenMs = now - (7 * 24 * 60 * 60 * 1000);
+        const hoyN = filtered.filter(it => dayKeyLocal(it.atMs || 0) === todayKey).length;
+        const n7 = filtered.filter(it => (it.atMs || 0) >= sevenMs).length;
+        const uniq = new Set(filtered.map(it => String(it.email || '').toLowerCase()).filter(Boolean));
+        const freq = new Map();
+        filtered.forEach(it => {
+            const a = String(it.action || '').trim();
+            if (!a) return;
+            freq.set(a, (freq.get(a) || 0) + 1);
+        });
+        let topAction = '-';
+        let topN = 0;
+        Array.from(freq.entries()).forEach(([k, v]) => {
+            if (v > topN) { topN = v; topAction = k; }
+        });
+
+        try { if (sumVisibles) sumVisibles.textContent = String(filtered.length); } catch {}
+        try { if (sumCargados) sumCargados.textContent = String((allItems || []).length); } catch {}
+        try { if (sumHoy) sumHoy.textContent = String(hoyN); } catch {}
+        try { if (sum7) sum7.textContent = String(n7); } catch {}
+        try { if (sumUsuarios) sumUsuarios.textContent = String(uniq.size); } catch {}
+        try { if (sumTop) sumTop.textContent = topAction === '-' ? '-' : `${topAction} (${topN})`; } catch {}
+
+        const moreTxt = exhausted ? 'Fin de resultados' : 'Puedes cargar más si necesitas más histórico.';
+        estado.textContent = `Visibles: ${filtered.length} | Cargados: ${(allItems || []).length}. ${moreTxt}`;
+
+        try {
+            if (btnMas) {
+                btnMas.disabled = exhausted;
+                btnMas.style.opacity = exhausted ? '0.6' : '1';
+                btnMas.style.cursor = exhausted ? 'not-allowed' : 'pointer';
+            }
+        } catch {}
     }
 
-    async function cargar() {
-        estado.textContent = 'Cargando...';
+    async function cargar(opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const append = !!o.append;
+        if (!append) {
+            allItems = [];
+            lastDoc = null;
+            exhausted = false;
+            render([]);
+        }
+        estado.textContent = append ? 'Cargando más...' : 'Cargando...';
         try {
             const db = getFirestore();
-            const q = query(collection(db, 'audit_logs'), orderBy('at', 'desc'), limit(250));
+            const base = [collection(db, 'audit_logs'), orderBy('at', 'desc'), limit(PAGE_SIZE)];
+            const q = lastDoc ? query(...base, startAfter(lastDoc)) : query(...base);
             const snap = await getDocs(q);
             const items = snap.docs.map(d => {
                 const data = d.data() || {};
                 const atMs = data.at && typeof data.at.toMillis === 'function' ? data.at.toMillis() : 0;
                 return { id: d.id, ...data, atMs };
             });
-            allItems = items;
+            lastDoc = (snap.docs && snap.docs.length) ? snap.docs[snap.docs.length - 1] : lastDoc;
+            if (!items.length || items.length < PAGE_SIZE) exhausted = true;
+            allItems = append ? (allItems || []).concat(items) : items;
             applyFilter();
         } catch (e) {
             console.error(e);
@@ -173,14 +365,20 @@
         await cargar();
     });
 
-    if (btnRecargar) btnRecargar.addEventListener('click', cargar);
+    if (btnRecargar) btnRecargar.addEventListener('click', () => cargar());
+    if (btnMas) btnMas.addEventListener('click', () => cargar({ append: true }));
 
-    if (inpEmail) {
-        inpEmail.addEventListener('input', () => {
+    [inpEmail, inpAction, inpPage, selRange].forEach(el => {
+        if (!el) return;
+        el.addEventListener('input', () => {
             try { if (filterTimer) clearTimeout(filterTimer); } catch {}
             filterTimer = setTimeout(applyFilter, 200);
         });
-    }
+        el.addEventListener('change', () => {
+            try { if (filterTimer) clearTimeout(filterTimer); } catch {}
+            filterTimer = setTimeout(applyFilter, 50);
+        });
+    });
 
     if (btnLogout) {
         btnLogout.addEventListener('click', async () => {
