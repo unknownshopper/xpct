@@ -101,7 +101,12 @@ service cloud.firestore {
 
     match /audit_logs/{docId} {
       allow read: if isRoleAny(['admin']) || (isSignedIn() && request.auth.token.email == 'the@unknownshoppers.com');
-      allow write: if false;
+      allow create: if canReadOperativo()
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.action is string
+        && request.resource.data.page is string;
+      allow update, delete: if false;
     }
 
     // Por seguridad, no cambiamos otras colecciones aquí.
