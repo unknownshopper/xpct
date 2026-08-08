@@ -2961,11 +2961,60 @@
                         const cands = (candsEq && candsEq.length) ? candsEq : candsSn;
                         if (Array.isArray(cands) && cands.length === 1) sugerida = String(cands[0] || '').trim();
                     } catch {}
+                    try {
+                        if (!sugerida) {
+                            const nrK = (reg.noReporte || '').toString().trim().toUpperCase();
+                            const fechaK = coerceFechaKey(reg.fechaRealizacion || reg.fechaPrueba || '');
+                            const descK = (reg.descripcion || reg.desc || '').toString().trim();
+                            const periodoK = (reg.periodo || '').toString().trim().toUpperCase();
+                            const sameBase = arr.filter(x => {
+                                if (!x) return false;
+                                const eq2 = normEquipoKey((x.equipo || '').toString());
+                                const sn2 = normSerialKey((x.serial || x.numeroSerie || '').toString());
+                                if (!eq2 || !sn2) return false;
+                                if (eq2 !== eqK || sn2 !== snK) return false;
+                                const nr2 = (x.noReporte || '').toString().trim().toUpperCase();
+                                if (!nrK || !nr2 || nr2 !== nrK) return false;
+                                const t = normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString());
+                                return isValidPruebaTipo(t);
+                            });
+                            try {
+                                // Regla determinística: si en el mismo (equipo+serial+noReporte+fecha+periodo)
+                                // ya existen tipos válidos y falta exactamente 1 de {LT,UTT,VT/PT/MT}, usar el faltante.
+                                if (!sugerida && nrK && fechaK) {
+                                    const baseFecha = sameBase.filter(x => {
+                                        const f2 = coerceFechaKey(x.fechaRealizacion || x.fechaPrueba || '');
+                                        if (f2 !== fechaK) return false;
+                                        const p2 = (x.periodo || '').toString().trim().toUpperCase();
+                                        if (periodoK && p2 && p2 !== periodoK) return false;
+                                        return true;
+                                    });
+                                    const present = new Set(baseFecha.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())).filter(isValidPruebaTipo));
+                                    const universe = ['LT','UTT','VT/PT/MT'];
+                                    const missing = universe.filter(t => !present.has(t));
+                                    if (present.size >= 1 && missing.length === 1) sugerida = missing[0];
+                                }
+                            } catch {}
+                            const uniq = Array.from(new Set(sameBase.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())))).filter(Boolean);
+                            if (uniq.length === 1) sugerida = uniq[0];
+                            if (!sugerida && descK) {
+                                const sameDesc = sameBase.filter(x => (x.descripcion || x.desc || '').toString().trim() === descK);
+                                const uniqD = Array.from(new Set(sameDesc.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())))).filter(Boolean);
+                                if (uniqD.length === 1) sugerida = uniqD[0];
+                            }
+                            if (!sugerida && fechaK) {
+                                const sameFecha = sameBase.filter(x => coerceFechaKey(x.fechaRealizacion || x.fechaPrueba || '') === fechaK);
+                                const uniq2 = Array.from(new Set(sameFecha.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())))).filter(Boolean);
+                                if (uniq2.length === 1) sugerida = uniq2[0];
+                            }
+                        }
+                    } catch {}
                     const areaNow = (reg.area || '').toString().trim();
                     out.push({
                         id: (reg.id || '').toString(),
                         equipo: (reg.equipo || '').toString(),
                         serial: (reg.serial || reg.numeroSerie || '').toString(),
+                        descripcion: (reg.descripcion || reg.desc || '').toString(),
                         fechaRealizacion: (reg.fechaRealizacion || reg.fechaPrueba || '').toString(),
                         periodo: (reg.periodo || '').toString(),
                         prueba: raw,
@@ -3017,7 +3066,7 @@
         function exportInvalidPruebaCsv(list) {
             const rows = Array.isArray(list) ? list : [];
             if (!rows.length) { alert('No hay registros inválidos para exportar.'); return; }
-            const header = ['id','equipo','serial','fechaRealizacion','periodo','prueba','pruebaSugerida','area','noReporte','importBatchId','importedAt','creadoEn'];
+            const header = ['id','equipo','serial','descripcion','fechaRealizacion','periodo','prueba','pruebaSugerida','area','noReporte','importBatchId','importedAt','creadoEn'];
             const esc = (v) => {
                 const s = (v == null) ? '' : String(v);
                 return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
@@ -3186,18 +3235,179 @@
                 ? window._invalidPruebaRows
                 : ((typeof window.getInvalidPruebaRows === 'function') ? window.getInvalidPruebaRows() : []);
 
-            if (!rows.length) {
-                alert('No hay registros inválidos detectados. Primero ejecuta “Diagnosticar Prueba inválida”.');
-                return;
-            }
+            const missingAreaValid = (() => {
+                try {
+                    const arr = Array.isArray(pruebas) ? pruebas : [];
+                    return arr.filter(r => {
+                        if (!r || !r.id) return false;
+                        const areaNow = (r.area || '').toString().trim();
+                        if (areaNow) return false;
+                        const t = normalizaPrueba(((r.prueba || r.pruebaTipo || '')).toString().trim());
+                        return isValidPruebaTipo(t);
+                    }).map(r => ({
+                        id: String(r.id || ''),
+                        equipo: String(r.equipo || ''),
+                        serial: String(r.serial || r.numeroSerie || ''),
+                        noReporte: String(r.noReporte || ''),
+                        prueba: String(r.prueba || r.pruebaTipo || ''),
+                        pruebaSugerida: '',
+                        area: ''
+                    }));
+                } catch {
+                    return [];
+                }
+            })();
 
-            const candidatos = rows.filter(r => r && r.id && r.pruebaSugerida);
+            const candidatos = rows.concat(missingAreaValid).filter(r => r && r.id);
             if (!candidatos.length) {
-                alert('No hay registros con sugerencia automática (inventario ambiguo o sin datos). Exporta inválidas para corrección manual.');
+                alert('No hay registros para corregir (ni Prueba inválida ni Área inspección faltante).');
                 return;
             }
 
-            const ok = window.confirm(`Se intentará corregir ${candidatos.length} registros (de ${rows.length} inválidos) en Firestore.\n\nRegla: si el inventario sugiere un único tipo para el equipo/serial, se asigna como Prueba/Calib y se completa Área inspección si falta.\n\n¿Deseas continuar?`);
+            const inferFromHistory = (regLocal, fallbackRow) => {
+                try {
+                    const eqK = normEquipoKey((regLocal && regLocal.equipo ? regLocal.equipo : (fallbackRow && fallbackRow.equipo ? fallbackRow.equipo : '')));
+                    const snK = normSerialKey((regLocal && (regLocal.serial || regLocal.numeroSerie) ? (regLocal.serial || regLocal.numeroSerie) : (fallbackRow && fallbackRow.serial ? fallbackRow.serial : '')));
+                    const nrK = ((regLocal && regLocal.noReporte) ? regLocal.noReporte : (fallbackRow && fallbackRow.noReporte ? fallbackRow.noReporte : '')).toString().trim().toUpperCase();
+                    const fechaK = coerceFechaKey((regLocal && (regLocal.fechaRealizacion || regLocal.fechaPrueba)) ? (regLocal.fechaRealizacion || regLocal.fechaPrueba) : (fallbackRow && fallbackRow.fechaRealizacion ? fallbackRow.fechaRealizacion : ''));
+                    const descK = (regLocal && (regLocal.descripcion || regLocal.desc)) ? (regLocal.descripcion || regLocal.desc).toString().trim() : (fallbackRow && (fallbackRow.descripcion || fallbackRow.desc) ? (fallbackRow.descripcion || fallbackRow.desc).toString().trim() : '');
+                    const periodoK = (regLocal && regLocal.periodo) ? String(regLocal.periodo).trim().toUpperCase() : (fallbackRow && fallbackRow.periodo ? String(fallbackRow.periodo).trim().toUpperCase() : '');
+                    if (!eqK || !snK || !nrK) return '';
+                    const base = (Array.isArray(pruebas) ? pruebas : []).filter(x => {
+                        if (!x) return false;
+                        const eq2 = normEquipoKey((x.equipo || '').toString());
+                        const sn2 = normSerialKey((x.serial || x.numeroSerie || '').toString());
+                        if (!eq2 || !sn2) return false;
+                        if (eq2 !== eqK || sn2 !== snK) return false;
+                        const nr2 = (x.noReporte || '').toString().trim().toUpperCase();
+                        if (!nr2 || nr2 !== nrK) return false;
+                        const t = normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim());
+                        return isValidPruebaTipo(t);
+                    });
+                    try {
+                        if (fechaK) {
+                            const baseFecha = base.filter(x => {
+                                const f2 = coerceFechaKey(x.fechaRealizacion || x.fechaPrueba || '');
+                                if (f2 !== fechaK) return false;
+                                const p2 = (x.periodo || '').toString().trim().toUpperCase();
+                                if (periodoK && p2 && p2 !== periodoK) return false;
+                                return true;
+                            });
+                            const present = new Set(baseFecha.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())).filter(isValidPruebaTipo));
+                            const universe = ['LT','UTT','VT/PT/MT'];
+                            const missing = universe.filter(t => !present.has(t));
+                            if (present.size >= 1 && missing.length === 1) return missing[0];
+                        }
+                    } catch {}
+                    const uniq = Array.from(new Set(base.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())))).filter(Boolean);
+                    if (uniq.length === 1) return uniq[0];
+                    if (descK) {
+                        const sameDesc = base.filter(x => (x.descripcion || x.desc || '').toString().trim() === descK);
+                        const uniqD = Array.from(new Set(sameDesc.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())))).filter(Boolean);
+                        if (uniqD.length === 1) return uniqD[0];
+                    }
+                    if (fechaK) {
+                        const sameFecha = base.filter(x => coerceFechaKey(x.fechaRealizacion || x.fechaPrueba || '') === fechaK);
+                        const uniq2 = Array.from(new Set(sameFecha.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())))).filter(Boolean);
+                        if (uniq2.length === 1) return uniq2[0];
+                    }
+                    return '';
+                } catch {
+                    return '';
+                }
+            };
+
+            const inferAreaFromHistory = (eqK, snK, tipoCanon) => {
+                try {
+                    const eqKey = normEquipoKey(eqK || '');
+                    const snKey = normSerialKey(snK || '');
+                    if (!eqKey && !snKey) return '';
+                    const tipo = normalizaPrueba(tipoCanon || '');
+                    if (!isValidPruebaTipo(tipo)) return '';
+                    const areas = new Set();
+                    (Array.isArray(pruebas) ? pruebas : []).forEach(x => {
+                        try {
+                            if (!x) return;
+                            const eq2 = normEquipoKey((x.equipo || '').toString());
+                            const sn2 = normSerialKey((x.serial || x.numeroSerie || '').toString());
+                            if (eqKey && eq2 && eq2 !== eqKey) return;
+                            if (snKey && sn2 && sn2 !== snKey) return;
+                            if (!eqKey && !snKey) return;
+                            const t2 = normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim());
+                            if (t2 !== tipo) return;
+                            const a = (x.area || '').toString().trim();
+                            if (a) areas.add(a);
+                        } catch {}
+                    });
+                    if (areas.size === 1) return Array.from(areas)[0] || '';
+                    return '';
+                } catch {
+                    return '';
+                }
+            };
+
+            const choicesByNoReporte = {};
+            const promptChoiceForNoReporte = (noReporte, options) => {
+                try {
+                    const nr = String(noReporte || '').trim();
+                    if (!nr) return '';
+                    if (choicesByNoReporte[nr]) return choicesByNoReporte[nr];
+                    const opts = Array.isArray(options) ? options.filter(Boolean) : [];
+                    const uniq = Array.from(new Set(opts.map(x => normalizaPrueba(String(x).trim())))).filter(isValidPruebaTipo);
+                    if (uniq.length === 1) {
+                        choicesByNoReporte[nr] = uniq[0];
+                        return uniq[0];
+                    }
+                    if (!uniq.length) return '';
+                    const msg = `El reporte/cert “${nr}” tiene múltiples tipos posibles: ${uniq.join(' | ')}.\n\nEscribe uno EXACTAMENTE como aparece (ej: LT, UTT, VT/PT/MT) o deja vacío para omitir.`;
+                    const ans = (window.prompt(msg, uniq[0]) || '').toString().trim().toUpperCase();
+                    const canon = normalizaPrueba(ans);
+                    if (!isValidPruebaTipo(canon)) {
+                        choicesByNoReporte[nr] = '';
+                        return '';
+                    }
+                    choicesByNoReporte[nr] = canon;
+                    return canon;
+                } catch {
+                    return '';
+                }
+            };
+
+            const efectivos = candidatos.filter(r => {
+                try {
+                    if (!r || !r.id) return false;
+                    if (r.pruebaSugerida) return true;
+                    const regLocal = (Array.isArray(pruebas) ? pruebas : []).find(x => x && String(x.id || '') === String(r.id || '')) || null;
+                    const curr = normalizaPrueba(((regLocal && (regLocal.prueba || regLocal.pruebaTipo)) ? (regLocal.prueba || regLocal.pruebaTipo) : (r.prueba || '')).toString().trim());
+                    if (isValidPruebaTipo(curr)) return true;
+                    const sug = inferFromHistory(regLocal, r);
+                    return !!sug;
+                } catch {
+                    return false;
+                }
+            });
+
+            const noSug = candidatos.filter(r => {
+                try {
+                    if (!r || !r.id) return false;
+                    if (r.pruebaSugerida) return false;
+                    const regLocal = (Array.isArray(pruebas) ? pruebas : []).find(x => x && String(x.id || '') === String(r.id || '')) || null;
+                    const curr = normalizaPrueba(((regLocal && (regLocal.prueba || regLocal.pruebaTipo)) ? (regLocal.prueba || regLocal.pruebaTipo) : (r.prueba || '')).toString().trim());
+                    if (isValidPruebaTipo(curr)) return false;
+                    const sug = inferFromHistory(regLocal, r);
+                    return !sug;
+                } catch {
+                    return false;
+                }
+            });
+
+            if (!efectivos.length && !noSug.length) {
+                alert('No hay registros inválidos para procesar.');
+                return;
+            }
+
+            const totalProc = (efectivos.length + noSug.length);
+            const ok = window.confirm(`Se intentará corregir automáticamente ${efectivos.length} registros.\n\nAdemás, para los casos ambiguos (${noSug.length}), se te pedirá elegir el tipo UNA vez por cada No. reporte/cert para aplicar en lote.\n\nTotal a procesar: ${totalProc}.\n\n¿Deseas continuar?`);
             if (!ok) return;
 
             const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -3205,7 +3415,8 @@
             let batch = writeBatch(db);
             let c = 0;
 
-            for (const r of candidatos) {
+            const allToProcess = efectivos.concat(noSug);
+            for (const r of allToProcess) {
                 const id = String(r.id || '').trim();
                 if (!id) continue;
                 const ref = doc(db, 'pruebas', id);
@@ -3214,7 +3425,73 @@
                 const eqK = normEquipoKey((regLocal && regLocal.equipo ? regLocal.equipo : r.equipo) || '');
                 const snK = normSerialKey((regLocal && (regLocal.serial || regLocal.numeroSerie) ? (regLocal.serial || regLocal.numeroSerie) : r.serial) || '');
 
-                const tipoSug = String(r.pruebaSugerida || '').trim().toUpperCase();
+                const currTipo = normalizaPrueba(((regLocal && (regLocal.prueba || regLocal.pruebaTipo)) ? (regLocal.prueba || regLocal.pruebaTipo) : (r.prueba || '')).toString().trim());
+                let tipoSug = isValidPruebaTipo(currTipo)
+                    ? currTipo
+                    : String((r.pruebaSugerida || inferFromHistory(regLocal, r)) || '').trim().toUpperCase();
+
+                if (!tipoSug) {
+                    // Ambiguo: pedir decisión por No. reporte/cert
+                    const eqK2 = normEquipoKey((regLocal && regLocal.equipo ? regLocal.equipo : r.equipo) || '');
+                    const snK2 = normSerialKey((regLocal && (regLocal.serial || regLocal.numeroSerie) ? (regLocal.serial || regLocal.numeroSerie) : r.serial) || '');
+                    const nrK2 = ((regLocal && regLocal.noReporte) ? regLocal.noReporte : (r.noReporte || '')).toString().trim().toUpperCase();
+
+                    // Fallback 0: si el equipo/serial históricamente solo tiene 1 tipo válido, usarlo sin preguntar.
+                    try {
+                        if (!tipoSug && (eqK2 || snK2)) {
+                            const setTipos = new Set();
+                            (Array.isArray(pruebas) ? pruebas : []).forEach(x => {
+                                try {
+                                    if (!x) return;
+                                    const eq2 = normEquipoKey((x.equipo || '').toString());
+                                    const sn2 = normSerialKey((x.serial || x.numeroSerie || '').toString());
+                                    if (eqK2 && eq2 && eq2 !== eqK2) return;
+                                    if (snK2 && sn2 && sn2 !== snK2) return;
+                                    if (!eqK2 && !snK2) return;
+                                    const t = normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim());
+                                    if (!isValidPruebaTipo(t)) return;
+                                    setTipos.add(t);
+                                } catch {}
+                            });
+                            const uniq = Array.from(setTipos);
+                            if (uniq.length === 1) tipoSug = uniq[0];
+                        }
+                    } catch {}
+
+                    if (tipoSug) {
+                        // ya decidido, saltar prompt/historial por reporte
+                    } else {
+                    const base = (Array.isArray(pruebas) ? pruebas : []).filter(x => {
+                        if (!x) return false;
+                        const eq2 = normEquipoKey((x.equipo || '').toString());
+                        const sn2 = normSerialKey((x.serial || x.numeroSerie || '').toString());
+                        if (!eq2 || !sn2) return false;
+                        if (eq2 !== eqK2 || sn2 !== snK2) return false;
+                        const nr2 = (x.noReporte || '').toString().trim().toUpperCase();
+                        if (!nr2 || nr2 !== nrK2) return false;
+                        const t = normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim());
+                        return isValidPruebaTipo(t);
+                    });
+                    let opts = Array.from(new Set(base.map(x => normalizaPrueba(((x.prueba || x.pruebaTipo || '')).toString().trim())))).filter(Boolean);
+                    // Fallback: si no hay historial válido, usar inventario (invre2) como fuente de opciones.
+                    try {
+                        if (!opts.length) {
+                            const invEq = (eqK2 && tiposPorEquipoPruebaInv && tiposPorEquipoPruebaInv[eqK2]) ? Array.from(tiposPorEquipoPruebaInv[eqK2]) : [];
+                            const invSn = (snK2 && tiposPorSerialPruebaInv && tiposPorSerialPruebaInv[snK2]) ? Array.from(tiposPorSerialPruebaInv[snK2]) : [];
+                            opts = (invEq && invEq.length) ? invEq : invSn;
+                        }
+                    } catch {}
+                    // Si inventario da un único tipo, tomarlo sin prompt.
+                    try {
+                        const uniq = Array.from(new Set((opts || []).map(x => normalizaPrueba(String(x).trim())))).filter(isValidPruebaTipo);
+                        if (uniq.length === 1) tipoSug = uniq[0];
+                    } catch {}
+                    if (!tipoSug) {
+                        const chosen = promptChoiceForNoReporte(nrK2, opts);
+                        tipoSug = chosen;
+                    }
+                    }
+                }
                 if (!tipoSug) continue;
 
                 const tipoCanon = normalizaPrueba(tipoSug);
@@ -3229,7 +3506,19 @@
 
                 const areaActual = (regLocal && regLocal.area) ? String(regLocal.area).trim() : (r.area || '').toString().trim();
                 const payload = { prueba: tipoCanon, pruebaTipo: tipoCanon };
-                if (!areaActual && areaInv) payload.area = areaInv;
+                if (!areaActual) {
+                    const areaHist = inferAreaFromHistory(eqK, snK, tipoCanon);
+                    if (areaInv) payload.area = areaInv;
+                    else if (areaHist) payload.area = areaHist;
+                }
+
+                if (!payload.area && !areaActual) {
+                    // No pudimos inferir área; no hacer update vacío.
+                    // (Se permite actualizar el tipo si era inválido.)
+                    if (currTipo && isValidPruebaTipo(currTipo) && (!r.pruebaSugerida && !inferFromHistory(regLocal, r))) {
+                        continue;
+                    }
+                }
 
                 batch.update(ref, payload);
                 c++;
@@ -3240,7 +3529,14 @@
             }
             await batch.commit();
 
-            alert(`Corrección completada. Registros actualizados: ${c}.\n\nAhora da “Actualizar” para recargar y confirmar en pantalla.`);
+            try {
+                if (typeof cargarPruebasDesdeFirestore === 'function') {
+                    await cargarPruebasDesdeFirestore();
+                }
+                try { render(); } catch {}
+            } catch {}
+
+            alert(`Corrección completada. Registros actualizados: ${c}.`);
         }
 
         try { window.fixInvalidPruebaAndAreaAuto = fixInvalidPruebaAndAreaAuto; } catch {}
@@ -4295,6 +4591,23 @@
 
             const porRealizar = [];
             const historico = [...enriquecidas];
+            try {
+                historico.sort((a, b) => {
+                    const aMs = (a && a._fechaRealDate instanceof Date) ? a._fechaRealDate.getTime() : 0;
+                    const bMs = (b && b._fechaRealDate instanceof Date) ? b._fechaRealDate.getTime() : 0;
+                    if (bMs !== aMs) return bMs - aMs;
+                    const aProx = parseProxima((a && a.proxima) ? a.proxima : '') || null;
+                    const bProx = parseProxima((b && b.proxima) ? b.proxima : '') || null;
+                    const aP = aProx ? aProx.getTime() : 0;
+                    const bP = bProx ? bProx.getTime() : 0;
+                    if (bP !== aP) return bP - aP;
+                    const aId = (a && a.id) ? String(a.id) : '';
+                    const bId = (b && b.id) ? String(b.id) : '';
+                    if (aId < bId) return 1;
+                    if (aId > bId) return -1;
+                    return 0;
+                });
+            } catch {}
             const totalHistorico = historico.length;
 
             enriquecidas.forEach(reg => {
@@ -4676,6 +4989,23 @@
             }
 
             const listaOrdenada = [...historico].sort((a, b) => {
+                // Si el usuario está buscando (equipo/serial/reporte), mostrar más reciente primero.
+                if (filtro) {
+                    const aMs = (a && a._fechaRealDate instanceof Date) ? a._fechaRealDate.getTime() : 0;
+                    const bMs = (b && b._fechaRealDate instanceof Date) ? b._fechaRealDate.getTime() : 0;
+                    if (bMs !== aMs) return bMs - aMs;
+                    const aProx = parseProxima((a && a.proxima) ? a.proxima : '') || null;
+                    const bProx = parseProxima((b && b.proxima) ? b.proxima : '') || null;
+                    const aP = aProx ? aProx.getTime() : 0;
+                    const bP = bProx ? bProx.getTime() : 0;
+                    if (bP !== aP) return bP - aP;
+                    const aId = (a && a.id) ? String(a.id) : '';
+                    const bId = (b && b.id) ? String(b.id) : '';
+                    if (aId < bId) return 1;
+                    if (aId > bId) return -1;
+                    return 0;
+                }
+
                 const da = diasHastaProxima(a);
                 const db = diasHastaProxima(b);
                 const ea = (clasificarPrueba(a)?.estado) || 'SIN_FECHA';
