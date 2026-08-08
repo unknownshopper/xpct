@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flujo Operativo POST-trabajo | PCT</title>
+  <meta name="description" content="Diagrama operativo del flujo POST-trabajo: inspección visual, cuarentena, externo/recepción y disponibilidad." />
+
+  <link rel="icon" href="favicon.ico" />
+
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(255,255,255,0.06);
+      --panel2: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.12);
+      --text: rgba(255,255,255,0.92);
+      --muted: rgba(255,255,255,0.72);
+      --muted2: rgba(255,255,255,0.60);
+      --brand: #7dd3fc;
+      --good: #86efac;
+      --warn: #fde68a;
+      --bad: #fca5a5;
+      --chip: rgba(125,211,252,0.16);
+      --shadow: 0 18px 40px rgba(0,0,0,0.35);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background:
+        radial-gradient(1200px 600px at 15% 0%, rgba(125, 211, 252, 0.20), transparent 60%),
+        radial-gradient(900px 500px at 80% 10%, rgba(134, 239, 172, 0.16), transparent 60%),
+        radial-gradient(1100px 700px at 50% 100%, rgba(167, 139, 250, 0.15), transparent 55%),
+        linear-gradient(180deg, #060814 0%, #0b1020 40%, #090d1a 100%);
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .wrap {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 34px 18px 60px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(125,211,252,0.92), rgba(167,139,250,0.85));
+      box-shadow: 0 10px 26px rgba(0,0,0,0.25);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .logo::after {
+      content: "";
+      position: absolute;
+      inset: -40% -40% auto auto;
+      width: 90px;
+      height: 90px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.60), transparent 60%);
+      transform: rotate(18deg);
+      opacity: 0.55;
+    }
+
+    .brand h1 {
+      font-size: 15px;
+      letter-spacing: 0.2px;
+      margin: 0;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .brand p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted2);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.08); }
+    .btn:active { transform: translateY(0px); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 980px) {
+      .grid { grid-template-columns: 1.55fr 1fr; align-items: start; }
+    }
+
+    .hero {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .hero h2 {
+      margin: 2px 0 6px;
+      font-size: 22px;
+      letter-spacing: 0.2px;
+    }
+
+    .hero .subtitle {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      border: 1px solid rgba(255,255,255,0.14);
+      background: var(--chip);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.85);
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--brand);
+      box-shadow: 0 0 0 3px rgba(125,211,252,0.12);
+    }
+
+    .dot.good { background: var(--good); box-shadow: 0 0 0 3px rgba(134,239,172,0.12); }
+    .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px rgba(253,230,138,0.14); }
+    .dot.bad { background: var(--bad); box-shadow: 0 0 0 3px rgba(252,165,165,0.14); }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.88);
+      letter-spacing: 0.2px;
+    }
+
+    .card .muted { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .kv-row {
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.05);
+      border-radius: 14px;
+      padding: 10px 12px;
+    }
+
+    .kv-row .k {
+      font-size: 12px;
+      color: rgba(255,255,255,0.70);
+      letter-spacing: 0.2px;
+      margin-bottom: 4px;
+    }
+
+    .kv-row .v {
+      font-size: 13px;
+      color: rgba(255,255,255,0.92);
+      line-height: 1.45;
+    }
+
+    .footer {
+      margin-top: 18px;
+      color: rgba(255,255,255,0.55);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* Mermaid container */
+    .diagram {
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      background: rgba(10, 16, 34, 0.70);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .diagram-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .diagram-title {
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      color: rgba(255,255,255,0.88);
+    }
+
+    .diagram-note {
+      font-size: 12px;
+      color: rgba(255,255,255,0.62);
+    }
+
+    .diagram-body {
+      padding: 12px 10px 16px;
+      overflow-x: auto;
+    }
+
+    /* Make mermaid SVG responsive */
+    .diagram-body svg {
+      height: auto;
+      max-width: 100%;
+    }
+
+    .diagram-body .mermaid {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .diagram-compare {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    @media (min-width: 980px) {
+      .diagram-compare { grid-template-columns: 1fr 1fr; }
+    }
+
+    .diagram-box {
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .diagram-box-head {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .diagram-box-title {
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.86);
+    }
+
+    .diagram-box-sub {
+      font-size: 12px;
+      color: rgba(255,255,255,0.62);
+    }
+
+    .diagram-box-body {
+      padding: 10px 8px 12px;
+      overflow-x: auto;
+    }
+
+    .diagram-box-body .mermaid {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    @media print {
+      body { background: #fff; color: #111827; }
+      .btn, .diagram-note { display: none !important; }
+      .hero, .card, .diagram { background: #fff; border-color: #e5e7eb; box-shadow: none; }
+      .chip { background: #f3f4f6; border-color: #e5e7eb; color: #111827; }
+      .footer { color: #4b5563; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Flujo Operativo · POST-trabajo</h1>
+          <p>Inspección visual | Cuarentena | Externo/Recepción | Disponibilidad</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" type="button" id="btn-print" title="Imprimir / Guardar como PDF">
+          <span aria-hidden="true">⎙</span>
+          <span>Imprimir / PDF</span>
+        </button>
+        <a class="btn" href="index.html" title="Volver al inicio">
+          <span aria-hidden="true">↩</span>
+          <span>Inicio</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="hero">
+          <h2>Diagrama ejecutivo</h2>
+          <p class="subtitle">
+            Este diagrama describe el flujo de salida de un equipo después de un <b>POST-trabajo</b>.
+            La decisión se basa en una <b>inspección visual</b> compuesta por tres chequeos (PND, PH, Visual).
+            Ante un resultado <b>NO</b>, el equipo entra a <b>cuarentena</b> para decisión directiva.
+          </p>
+
+          <div class="chips" aria-label="Leyenda">
+            <span class="chip"><span class="dot good" aria-hidden="true"></span>Resultado SI (apto)</span>
+            <span class="chip"><span class="dot bad" aria-hidden="true"></span>Resultado NO (no apto)</span>
+            <span class="chip"><span class="dot warn" aria-hidden="true"></span>Cuarentena (decisión directiva)</span>
+            <span class="chip"><span class="dot" aria-hidden="true"></span>Proceso / etapa</span>
+          </div>
+        </div>
+
+        <div class="diagram" style="margin-top: 16px;">
+          <div class="diagram-head">
+            <div>
+              <div class="diagram-title">Comparativo del flujo</div>
+              <div class="diagram-note">Actual (AS-IS) vs Propuesto (TO-BE). Tip: puedes hacer zoom y luego imprimir a PDF.</div>
+            </div>
+            <div class="diagram-note" id="render-status">Renderizando diagrama…</div>
+          </div>
+          <div class="diagram-body">
+            <div class="diagram-compare">
+              <div class="diagram-box">
+                <div class="diagram-box-head">
+                  <div class="diagram-box-title">Flujo actual (AS-IS)</div>
+                  <div class="diagram-box-sub">Recepción OK -> Disponible</div>
+                </div>
+                <div class="diagram-box-body">
+                  <pre class="mermaid">
+flowchart TB
+  %% Nodes
+  A0["ACTIVIDAD\nEquipo en uso"]
+  I0{{"INSPECCIÓN POST\n(PND + PH + Visual)"}}
+  NA0["NO ATENDIDAS\nDaño / MALO"]
+  RI0{{"REINSPECCIÓN"}}
+  E0["EXTERNO\nReparación"]
+  R0{{"RECEPCIÓN"}}
+  D0["DISPONIBLE\n(+ Realizadas)"]
+  AS0["ASIGNACIÓN\nA ACTIVIDAD"]
+  PRE0{{"PRE-TRABAJO"}}
+
+  %% Links
+  A0 --> I0
+  I0 -- "SI" --> D0
+  I0 -- "NO" --> NA0
+  NA0 --> RI0
+  RI0 -- "OK" --> D0
+  RI0 -- "NO OK" --> NA0
+  NA0 --> E0
+  E0 --> R0
+  R0 -- "NO OK" --> E0
+  R0 -- "OK" --> D0
+
+  %% Ciclo de uso (solo cuando se asigna)
+  D0 -. "Cuando se asigna" .-> AS0
+  AS0 --> PRE0 --> A0
+
+  %% Styles
+  classDef good fill:#062a14,stroke:#22c55e,color:#eafff1,stroke-width:1.5px;
+  classDef bad fill:#2a0b10,stroke:#ef4444,color:#ffecef,stroke-width:1.5px;
+  classDef neutral fill:#0b1a35,stroke:#60a5fa,color:#eaf2ff,stroke-width:1.4px;
+  classDef decision fill:#1a1235,stroke:#a78bfa,color:#f2ecff,stroke-width:1.6px;
+
+  class D0 good;
+  class NA0 bad;
+  class A0,E0,AS0 neutral;
+  class I0,R0,RI0,PRE0 decision;
+                  </pre>
+                </div>
+              </div>
+
+              <div class="diagram-box">
+                <div class="diagram-box-head">
+                  <div class="diagram-box-title">Flujo propuesto (TO-BE)</div>
+                  <div class="diagram-box-sub">Cuarentena + mantto + pre</div>
+                </div>
+                <div class="diagram-box-body">
+                  <pre class="mermaid">
+flowchart TB
+  %% Nodes
+  A["ACTIVIDAD\nEquipo en uso"]
+  I{{"INSPECCIÓN POST\n(PND + PH + Visual)"}}
+  C["CUARENTENA\nDecisión Directores"]
+  B["BAJA"]
+  E["EXTERNO\nReparación"]
+  R{{"RECEPCIÓN\n(activación)"}}
+  M["MANTENIMIENTO\nINTERNO"]
+  D["DISPONIBLE"]
+  AS["ASIGNACIÓN\nA ACTIVIDAD"]
+  PRE{{"PRE-TRABAJO"}}
+
+  %% Links
+  A --> I
+
+  I -- "SI" --> M
+  I -- "NO" --> C
+
+  C -- "BAJA" --> B
+  C -- "EXTERNO" --> E
+
+  E --> R
+  R -- "NO OK" --> E
+  R -- "OK" --> M
+
+  M --> D
+
+  %% Ciclo de uso (solo cuando se asigna)
+  D -. "Cuando se asigna" .-> AS
+  AS --> PRE --> A
+
+  %% Styles
+  classDef good fill:#062a14,stroke:#22c55e,color:#eafff1,stroke-width:1.5px;
+  classDef bad fill:#2a0b10,stroke:#ef4444,color:#ffecef,stroke-width:1.5px;
+  classDef warn fill:#2a2206,stroke:#f59e0b,color:#fff7df,stroke-width:1.5px;
+  classDef neutral fill:#0b1a35,stroke:#60a5fa,color:#eaf2ff,stroke-width:1.4px;
+  classDef decision fill:#1a1235,stroke:#a78bfa,color:#f2ecff,stroke-width:1.6px;
+
+  class M,D good;
+  class B bad;
+  class C warn;
+  class A,E,AS neutral;
+  class I,R,PRE decision;
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3>Reglas clave</h3>
+          <div class="muted">
+            Las reglas están expresadas en términos operativos (fáciles de auditar) y se pueden convertir
+            a lógica de sistema y permisos por rol.
+          </div>
+          <div class="kv">
+            <div class="kv-row">
+              <div class="k">Criterio de SI</div>
+              <div class="v">PND OK + PH OK + Visual OK.</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Criterio de NO</div>
+              <div class="v">Cualquier falla en PND, PH o Visual dirige a Cuarentena.</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Cuarentena</div>
+              <div class="v">Periodo de decisión directiva: Baja o envío a Externo.</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Recepción (post Externo)</div>
+              <div class="v">Si NO OK regresa a Externo. Si OK, pasa a Mantenimiento interno y queda Disponible. El PRE-trabajo ocurre al asignar a una Actividad.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px;">
+          <h3>Alcance</h3>
+          <div class="kv">
+            <div class="kv-row">
+              <div class="k">Aplicación</div>
+              <div class="v">Operación y control del ciclo de disponibilidad de equipos después de un POST-trabajo.</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Roles involucrados</div>
+              <div class="v">Operación (inspección), Directores (decisión en cuarentena), Taller/Proveedor (externo), Recepción (activación).</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Resultado esperado</div>
+              <div class="v">Trazabilidad simple y consistente: disponibilidad basada en evidencia (inspección + recepción/prueba).</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Documento: <b>Flujo Operativo POST-trabajo</b></div>
+      <div id="gen-ts"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+    const btnPrint = document.getElementById('btn-print');
+    const genTs = document.getElementById('gen-ts');
+    const status = document.getElementById('render-status');
+
+    try {
+      genTs.textContent = `Generado: ${new Date().toLocaleString('es-MX')}`;
+    } catch {
+      genTs.textContent = '';
+    }
+
+    btnPrint?.addEventListener('click', () => {
+      try { window.print(); } catch {}
+    });
+
+    try {
+      mermaid.initialize({
+        startOnLoad: true,
+        securityLevel: 'loose',
+        theme: 'dark',
+        flowchart: {
+          curve: 'basis',
+          padding: 18,
+          nodeSpacing: 46,
+          rankSpacing: 56,
+        },
+        themeVariables: {
+          fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
+          fontSize: '18px',
+          primaryColor: '#0b1a35',
+          primaryTextColor: '#eaf2ff',
+          primaryBorderColor: '#60a5fa',
+          lineColor: 'rgba(255,255,255,0.55)',
+          nodeBorder: 'rgba(255,255,255,0.22)',
+          clusterBkg: 'rgba(255,255,255,0.05)',
+          clusterBorder: 'rgba(255,255,255,0.16)',
+        }
+      });
+
+      // Force render now to update status
+      await mermaid.run({ querySelector: '.mermaid' });
+      if (status) status.textContent = 'Listo';
+    } catch (e) {
+      if (status) status.textContent = 'No se pudo renderizar';
+      console.warn('Mermaid render error', e);
+    }
+  </script>
+</body>
+</html>

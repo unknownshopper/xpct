@@ -217,6 +217,7 @@
             <section id="insp-acciones-pdf" style="margin-bottom: 0.75rem; display:none; gap:0.5rem; flex-wrap:wrap; align-items:center;">
                 <button type="button" id="btn-insp-pdf-individual" style="padding:0.4rem 0.75rem; border-radius:0.5rem; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; font-size:0.85rem;">Descargar PDF (individual)</button>
                 <button type="button" id="btn-insp-pdf-lote" style="padding:0.4rem 0.75rem; border-radius:0.5rem; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; font-size:0.85rem;">Descargar PDFs (lote)</button>
+                <button type="button" id="btn-insp-pdf-lista" style="padding:0.4rem 0.75rem; border-radius:0.5rem; border:1px solid #e5e7eb; background:#ffffff; color:#111827; font-size:0.85rem;">Imprimir lista (PDF)</button>
                 <span id="insp-pdf-ayuda" style="font-size:0.8rem; color:#6b7280;">Selecciona una o varias inspecciones realizadas.</span>
             </section>
 
@@ -299,6 +300,7 @@
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
                     <h3 style="margin:0; font-size:1rem;">Inspecciones realizadas</h3>
                     <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <span id="insp-msg-fecha-realizadas" style="display:none; font-size:0.8rem; padding:0.15rem 0.55rem; border-radius:999px; border:1px solid #e5e7eb; background:#f9fafb; color:#374151;"></span>
                         <input type="search" id="insp-buscar-realizadas" placeholder="Buscar en realizadas..." style="min-width: 220px;" autocomplete="off">
                         <button type="button" class="insp-sec-toggle" data-target="insp-realizadas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
                     </div>
@@ -419,6 +421,7 @@
         const secAccionesPdf = document.getElementById('insp-acciones-pdf');
         const btnPdfIndividual = document.getElementById('btn-insp-pdf-individual');
         const btnPdfLote = document.getElementById('btn-insp-pdf-lote');
+        const btnPdfLista = document.getElementById('btn-insp-pdf-lista');
         const btnEmailNoAtendidas = document.getElementById('btn-insp-email-no-atendidas');
         const btnPdfNoAtendidas = document.getElementById('btn-insp-pdf-no-atendidas');
         const cardPendientes = document.getElementById('insp-card-pendientes');
@@ -426,6 +429,7 @@
         const cardSinInsp = document.getElementById('insp-card-sin-insp');
         const cardNoAtendidas = document.getElementById('insp-card-no-atendidas');
         const filtroIndicador = document.getElementById('insp-filtro-indicador');
+        const msgFechaRealizadas = document.getElementById('insp-msg-fecha-realizadas');
         const btnResetFiltro = document.getElementById('insp-btn-reset-filtro');
         const cardWrapPend = document.getElementById('insp-card-wrap-pendientes');
         const cardWrapReal = document.getElementById('insp-card-wrap-realizadas');
@@ -1128,6 +1132,28 @@
                 btnResetFiltro.addEventListener('click', () => {
                     filtroEstado = null;
                     cargarDatos();
+                });
+            }
+
+            if (btnPdfLista && !btnPdfLista.dataset.bound) {
+                btnPdfLista.dataset.bound = '1';
+                btnPdfLista.addEventListener('click', async () => {
+                    if (btnPdfLista.disabled) return;
+                    setBtnBusy(btnPdfLista, true, 'Generando…');
+
+                    const tarea = async () => {
+                        try {
+                            await descargarPdfListaVisible();
+                        } catch (e) {
+                            console.warn('No se pudo generar el PDF (lista)', e);
+                            alert('No se pudo generar el PDF de lista. Intenta de nuevo.');
+                        } finally {
+                            setBtnBusy(btnPdfLista, false);
+                        }
+                    };
+
+                    colaExportPdf = colaExportPdf.then(tarea, tarea);
+                    await colaExportPdf;
                 });
             }
         } catch {}
@@ -1894,8 +1920,34 @@
                 .replace(/[\u0300-\u036f]/g, '')
                 .replace(/\s+/g, ' ')
                 .trim();
-            let filtro = normFiltro(inputBuscar?.value || '');
-            let filtroRealizadas = normFiltro(inputBuscarRealizadas?.value || '');
+            const rawFiltro = (inputBuscar?.value || '').toString().trim();
+            const rawFiltroRealizadas = (inputBuscarRealizadas?.value || '').toString().trim();
+            let filtro = normFiltro(rawFiltro);
+            let filtroRealizadas = normFiltro(rawFiltroRealizadas);
+
+            // Lista de inspecciones visibles en "Realizadas" (ya filtradas) para exportar PDF resumen.
+            const realizadasVisibles = [];
+
+            const parseFiltroFechaDiaMs = (raw) => {
+                try {
+                    const s = String(raw || '').trim();
+                    if (!s) return null;
+                    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+                    if (!m) return null;
+                    const dd = parseInt(m[1], 10);
+                    const mm = parseInt(m[2], 10);
+                    let yyyy = parseInt(m[3], 10);
+                    if (!dd || !mm || !yyyy) return null;
+                    if (yyyy < 100) yyyy += 2000;
+                    const d = new Date(yyyy, mm - 1, dd);
+                    return isNaN(d.getTime()) ? null : d.getTime();
+                } catch {
+                    return null;
+                }
+            };
+
+            const filtroDiaMs = parseFiltroFechaDiaMs(rawFiltro);
+            const filtroRealizadasDiaMs = parseFiltroFechaDiaMs(rawFiltroRealizadas);
 
             // Para mostrar serial en pendientes, necesitamos el mapa de inventario
             try {
@@ -2865,7 +2917,13 @@
 
                     const textoBuscar = normFiltro(`${cliente} ${area} ${equipoRender} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp} ${fechaBuscar}`);
                     const fUse = esRealizadas ? (filtroRealizadas || filtro) : filtro;
-                    if (fUse) {
+                    const fDiaUseMs = esRealizadas ? (filtroRealizadasDiaMs != null ? filtroRealizadasDiaMs : filtroDiaMs) : filtroDiaMs;
+                    // Si el filtro es una fecha dd/mm/aa, hacer match estricto por día.
+                    // Esto evita falsos positivos (ej: 7/08/26 matchea 17/08/26) y permite contar exactamente el día.
+                    if (fDiaUseMs != null) {
+                        const msInsp = toMs(insp ? (insp.fecha || insp.creadoEn) : null);
+                        if (msInsp == null || !esMismoDiaLocal(msInsp, fDiaUseMs)) return;
+                    } else if (fUse) {
                         if (esFiltroEquipoExacto(filtro)) {
                             const fk = normEqCodeLoose(filtro);
                             if (!fk || (!eqEquipoMatchLoose(equipoRender, fk) && !eqEquipoMatchLoose(equipo, fk))) return;
@@ -3047,6 +3105,21 @@
 
                     tbodyLocal.appendChild(tr);
                     visibles += 1;
+
+                    // Capturar renglón visible para PDF resumen (solo Realizadas)
+                    try {
+                        if (esRealizadas) {
+                            realizadasVisibles.push({
+                                fecha: fechaRealizadaTexto,
+                                equipo: equipoRender,
+                                serial,
+                                tipo: tipoInsp,
+                                usuario: (insp?.usuarioInspeccionEmail || insp?.usuarioInspeccion || usuario || '').toString().trim(),
+                                evaluacion: evaluacion || '',
+                                lugar: (lugar || '').toString().trim(),
+                            });
+                        }
+                    } catch {}
 
                     if (!esRealizadas) {
                         pendientesRenderizadasUltimaCarga += 1;
@@ -3299,11 +3372,17 @@
 
             try {
                 if (filtroIndicador && btnResetFiltro) {
-                    const txt = (filtroEstado === 'PENDIENTE')
+                    const rawFecha = (rawFiltroRealizadas || rawFiltro || '').toString().trim();
+                    const hayFiltroFecha = (filtroRealizadasDiaMs != null) || (filtroDiaMs != null);
+                    let txt = (filtroEstado === 'PENDIENTE')
                         ? 'Filtro: Pendientes'
                         : (filtroEstado === 'REALIZADA')
                             ? 'Filtro: Realizadas'
                             : '';
+                    if (hayFiltroFecha && rawFecha) {
+                        const fechaMsg = `Se encontraron ${visibles} inspeccion${visibles === 1 ? '' : 'es'} en la fecha ${rawFecha}`;
+                        txt = txt ? `${txt} · ${fechaMsg}` : fechaMsg;
+                    }
                     if (txt) {
                         filtroIndicador.textContent = txt;
                         filtroIndicador.style.display = '';
@@ -3311,6 +3390,19 @@
                     } else {
                         filtroIndicador.style.display = 'none';
                         btnResetFiltro.style.display = 'none';
+                    }
+                }
+            } catch {}
+
+            try {
+                if (msgFechaRealizadas) {
+                    const rawFecha = (rawFiltroRealizadas || '').toString().trim();
+                    const hayFiltroFecha = (filtroRealizadasDiaMs != null);
+                    if (hayFiltroFecha && rawFecha) {
+                        msgFechaRealizadas.textContent = `Se encontraron ${visibles} inspeccion${visibles === 1 ? '' : 'es'} en la fecha ${rawFecha}`;
+                        msgFechaRealizadas.style.display = '';
+                    } else {
+                        msgFechaRealizadas.style.display = 'none';
                     }
                 }
             } catch {}
@@ -3347,6 +3439,13 @@
                 const mostrarAcciones = (filtroEstado === 'REALIZADA');
                 secAccionesPdf.style.display = mostrarAcciones ? 'flex' : 'none';
             }
+
+            // Exponer (solo dentro de esta ejecución de render) para el botón PDF resumen
+            try {
+                window.__insp_realizadas_visibles_pdf = realizadasVisibles;
+                window.__insp_realizadas_raw_fecha = (rawFiltroRealizadas || rawFiltro || '').toString().trim();
+                window.__insp_realizadas_is_fecha = !!(filtroRealizadasDiaMs != null || filtroDiaMs != null);
+            } catch {}
 
             // 4) Permitir abrir la inspección desde una fila pendiente
             tbody.querySelectorAll('tr.insp-fila-pendiente').forEach(tr => {
@@ -3929,6 +4028,89 @@
                     s.onerror = reject;
                     document.head.appendChild(s);
                 });
+            }
+
+            async function descargarPdfListaVisible() {
+                const items = Array.isArray(window.__insp_realizadas_visibles_pdf) ? window.__insp_realizadas_visibles_pdf : [];
+                const rawFecha = (window.__insp_realizadas_raw_fecha || '').toString().trim();
+                const isFecha = !!window.__insp_realizadas_is_fecha;
+                if (!items.length) {
+                    alert('No hay inspecciones visibles para imprimir. Aplica un filtro (por fecha) o verifica que existan inspecciones realizadas.');
+                    return;
+                }
+                if (!isFecha || !rawFecha) {
+                    if (!confirm(`Vas a imprimir una lista de ${items.length} inspecciones (sin fecha exacta detectada). ¿Continuar?`)) return;
+                }
+
+                await ensurePdfLib();
+                const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+                const pdf = await PDFDocument.create();
+                const font = await pdf.embedFont(StandardFonts.Helvetica);
+                const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+                const pageW = 612; // letter
+                const pageH = 792;
+                const margin = 36;
+                const lineH = 12;
+                const headerH = 56;
+
+                const col = {
+                    fecha: margin,
+                    equipo: 140,
+                    serial: 250,
+                    tipo: 330,
+                    usuario: 410,
+                };
+
+                const title = rawFecha ? `Inspecciones del día ${rawFecha}` : 'Inspecciones (lista)';
+                const subtitle = `Se encontraron ${items.length} inspeccion${items.length === 1 ? '' : 'es'}`;
+
+                let page = pdf.addPage([pageW, pageH]);
+                let y = pageH - margin;
+
+                const drawHeader = () => {
+                    y = pageH - margin;
+                    page.drawText(title, { x: margin, y: y - 14, size: 14, font: fontBold, color: rgb(0.07, 0.11, 0.16) });
+                    page.drawText(subtitle, { x: margin, y: y - 30, size: 10, font, color: rgb(0.35, 0.4, 0.45) });
+                    const now = new Date();
+                    const ts = now.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+                    page.drawText(ts, { x: pageW - margin - 180, y: y - 30, size: 9, font, color: rgb(0.35, 0.4, 0.45) });
+
+                    const yHead = y - headerH;
+                    page.drawText('Fecha', { x: col.fecha, y: yHead, size: 9, font: fontBold });
+                    page.drawText('Equipo', { x: col.equipo, y: yHead, size: 9, font: fontBold });
+                    page.drawText('Serial', { x: col.serial, y: yHead, size: 9, font: fontBold });
+                    page.drawText('Tipo', { x: col.tipo, y: yHead, size: 9, font: fontBold });
+                    page.drawText('Usuario', { x: col.usuario, y: yHead, size: 9, font: fontBold });
+                    y = yHead - 10;
+                };
+
+                const safe = (v, max = 28) => {
+                    const s = (v == null ? '' : String(v)).replace(/\s+/g, ' ').trim();
+                    if (!s) return '';
+                    return s.length > max ? (s.slice(0, max - 1) + '…') : s;
+                };
+
+                drawHeader();
+                for (const it of items) {
+                    if (y < margin + 24) {
+                        page = pdf.addPage([pageW, pageH]);
+                        y = pageH - margin;
+                        drawHeader();
+                    }
+                    page.drawText(safe(it.fecha, 18), { x: col.fecha, y, size: 8, font });
+                    page.drawText(safe(it.equipo, 16), { x: col.equipo, y, size: 8, font });
+                    page.drawText(safe(it.serial, 12), { x: col.serial, y, size: 8, font });
+                    page.drawText(safe(it.tipo, 14), { x: col.tipo, y, size: 8, font });
+                    page.drawText(safe(it.usuario, 22), { x: col.usuario, y, size: 8, font });
+                    y -= lineH;
+                }
+
+                const bytes = await pdf.save();
+                const fileName = rawFecha
+                    ? `inspecciones_${rawFecha.replace(/\//g, '-')}.pdf`
+                    : `inspecciones_${new Date().toISOString().slice(0, 10)}.pdf`;
+                descargarArrayBufferComoArchivo(bytes.buffer ? bytes.buffer : bytes, fileName);
             }
 
             async function generarPdfsDesdeSeleccion(items) {

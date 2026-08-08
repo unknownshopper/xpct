@@ -99,6 +99,11 @@ service cloud.firestore {
       allow delete: if canDeletePruebas();
     }
 
+    match /audit_logs/{docId} {
+      allow read: if isRoleAny(['admin']) || (isSignedIn() && request.auth.token.email == 'the@unknownshoppers.com');
+      allow write: if false;
+    }
+
     // Por seguridad, no cambiamos otras colecciones aquí.
   }
 }
