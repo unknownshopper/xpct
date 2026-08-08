@@ -325,6 +325,12 @@
                     <button id="btn-pruebas-refresh" title="Actualizar desde servidor">Actualizar</button>
                     <button id="btn-pruebas-more" title="Cargar más resultados">Cargar más</button>
                     <button id="btn-pruebas-ver-todas" title="Cargar todas las pruebas (bajo demanda)">Ver todas</button>
+                    <button id="btn-pruebas-diagnose-invalid" title="Detecta registros donde Prueba / Calib no es LT, UTT o VT/PT/MT">Diagnosticar Prueba inválida</button>
+                    <button id="btn-pruebas-export-invalid" title="Exporta a CSV los registros inválidos detectados">Exportar inválidas (CSV)</button>
+                    <button id="btn-pruebas-fix-invalid" title="Corrige Prueba/Calib inválida y completa Área inspección cuando se puede inferir del inventario">Corregir Prueba/Área (auto)</button>
+                    <button id="btn-pruebas-diagnose-future" title="Detecta registros con fechaRealizacion o proxima en años futuros">Diagnosticar fechas futuras</button>
+                    <button id="btn-pruebas-export-future" title="Exporta a CSV los registros con fechas futuras detectadas">Exportar futuras (CSV)</button>
+                    <button id="btn-pruebas-fix-future" title="Corrige automáticamente fechas futuras (fechaRealizacion en 2027+ -> 2026 y recalcula próxima si aplica)">Corregir fechas futuras (auto)</button>
                     <select id="pl-bulk-periodo" title="Cambiar período (masivo) a las filas seleccionadas" style="height:32px; font-size:0.9rem; padding:0 0.4rem; border-radius:8px; border:1px solid #d1d5db; background:#fff;">
                         <option value="">Período…</option>
                         <option value="ANUAL">Anual</option>
@@ -480,7 +486,7 @@
     import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const auth = window.auth;
-    const APP_VERSION = '2026-08-06-1';
+    const APP_VERSION = '2026-08-08-1';
 
     (async () => {
         try {
@@ -538,6 +544,129 @@
                 }
             });
         }
+
+        try {
+            if (!Array.isArray(window._invalidPruebaRows)) window._invalidPruebaRows = [];
+            if (!Array.isArray(window._futureDateRows)) window._futureDateRows = [];
+        } catch {}
+
+        const btnDiagnoseInvalid = document.getElementById('btn-pruebas-diagnose-invalid');
+        if (btnDiagnoseInvalid) {
+            btnDiagnoseInvalid.addEventListener('click', () => {
+                try {
+                    try {
+                        if (typeof window.getInvalidPruebaRows !== 'function' && typeof getInvalidPruebaRows === 'function') window.getInvalidPruebaRows = getInvalidPruebaRows;
+                        if (typeof window.renderInvalidPruebaDiagnosis !== 'function' && typeof renderInvalidPruebaDiagnosis === 'function') window.renderInvalidPruebaDiagnosis = renderInvalidPruebaDiagnosis;
+                    } catch {}
+                    const fn = window.getInvalidPruebaRows;
+                    const renderFn = window.renderInvalidPruebaDiagnosis;
+                    window._invalidPruebaRows = (typeof fn === 'function') ? fn() : [];
+                    if (typeof renderFn === 'function') renderFn(window._invalidPruebaRows);
+                } catch (e) {
+                    console.error('Diagnóstico de prueba inválida falló', e);
+                    alert('No fue posible diagnosticar pruebas inválidas. Revisa la consola.');
+                }
+            });
+        }
+
+        const btnExportInvalid = document.getElementById('btn-pruebas-export-invalid');
+        if (btnExportInvalid) {
+            btnExportInvalid.addEventListener('click', () => {
+                try {
+                    try {
+                        if (typeof window.getInvalidPruebaRows !== 'function' && typeof getInvalidPruebaRows === 'function') window.getInvalidPruebaRows = getInvalidPruebaRows;
+                        if (typeof window.exportInvalidPruebaCsv !== 'function' && typeof exportInvalidPruebaCsv === 'function') window.exportInvalidPruebaCsv = exportInvalidPruebaCsv;
+                    } catch {}
+                    const fn = window.getInvalidPruebaRows;
+                    const exportFn = window.exportInvalidPruebaCsv;
+                    const list = (Array.isArray(window._invalidPruebaRows) && window._invalidPruebaRows.length)
+                        ? window._invalidPruebaRows
+                        : ((typeof fn === 'function') ? fn() : []);
+                    window._invalidPruebaRows = list;
+                    if (typeof exportFn === 'function') exportFn(list);
+                } catch (e) {
+                    console.error('Export inválidas falló', e);
+                    alert('No fue posible exportar inválidas. Revisa la consola.');
+                }
+            });
+        }
+
+        const btnFixInvalid = document.getElementById('btn-pruebas-fix-invalid');
+        if (btnFixInvalid) {
+            btnFixInvalid.addEventListener('click', async () => {
+                try {
+                    try {
+                        if (typeof window.getInvalidPruebaRows !== 'function' && typeof getInvalidPruebaRows === 'function') window.getInvalidPruebaRows = getInvalidPruebaRows;
+                        if (typeof window.fixInvalidPruebaAndAreaAuto !== 'function' && typeof fixInvalidPruebaAndAreaAuto === 'function') window.fixInvalidPruebaAndAreaAuto = fixInvalidPruebaAndAreaAuto;
+                    } catch {}
+                    const fn = window.fixInvalidPruebaAndAreaAuto;
+                    if (typeof fn !== 'function') throw new Error('fixInvalidPruebaAndAreaAuto is not available');
+                    await fn();
+                } catch (e) {
+                    console.error('Fix prueba/área inválida falló', e);
+                    alert('No fue posible corregir Prueba/Área. Revisa la consola.');
+                }
+            });
+        }
+
+        const btnDiagnoseFuture = document.getElementById('btn-pruebas-diagnose-future');
+        if (btnDiagnoseFuture) {
+            btnDiagnoseFuture.addEventListener('click', () => {
+                try {
+                    try {
+                        if (typeof window.getFutureDateRows !== 'function' && typeof getFutureDateRows === 'function') window.getFutureDateRows = getFutureDateRows;
+                        if (typeof window.renderFutureDateDiagnosis !== 'function' && typeof renderFutureDateDiagnosis === 'function') window.renderFutureDateDiagnosis = renderFutureDateDiagnosis;
+                    } catch {}
+                    const fn = window.getFutureDateRows;
+                    const renderFn = window.renderFutureDateDiagnosis;
+                    window._futureDateRows = (typeof fn === 'function') ? fn() : [];
+                    if (typeof renderFn === 'function') renderFn(window._futureDateRows);
+                } catch (e) {
+                    console.error('Diagnóstico fechas futuras falló', e);
+                    alert('No fue posible diagnosticar fechas futuras. Revisa la consola.');
+                }
+            });
+        }
+
+        const btnExportFuture = document.getElementById('btn-pruebas-export-future');
+        if (btnExportFuture) {
+            btnExportFuture.addEventListener('click', () => {
+                try {
+                    try {
+                        if (typeof window.getFutureDateRows !== 'function' && typeof getFutureDateRows === 'function') window.getFutureDateRows = getFutureDateRows;
+                        if (typeof window.exportFutureDateCsv !== 'function' && typeof exportFutureDateCsv === 'function') window.exportFutureDateCsv = exportFutureDateCsv;
+                    } catch {}
+                    const fn = window.getFutureDateRows;
+                    const exportFn = window.exportFutureDateCsv;
+                    const list = (Array.isArray(window._futureDateRows) && window._futureDateRows.length)
+                        ? window._futureDateRows
+                        : ((typeof fn === 'function') ? fn() : []);
+                    window._futureDateRows = list;
+                    if (typeof exportFn === 'function') exportFn(list);
+                } catch (e) {
+                    console.error('Export fechas futuras falló', e);
+                    alert('No fue posible exportar fechas futuras. Revisa la consola.');
+                }
+            });
+        }
+
+        const btnFixFuture = document.getElementById('btn-pruebas-fix-future');
+        if (btnFixFuture) {
+            btnFixFuture.addEventListener('click', async () => {
+                try {
+                    try {
+                        if (typeof window.getFutureDateRows !== 'function' && typeof getFutureDateRows === 'function') window.getFutureDateRows = getFutureDateRows;
+                    } catch {}
+                    const fn = window.fixFutureDatesAuto;
+                    if (typeof fn !== 'function') throw new Error('fixFutureDatesAuto is not available');
+                    await fn();
+                } catch (e) {
+                    console.error('Fix fechas futuras falló', e);
+                    alert('No fue posible corregir fechas futuras. Revisa la consola.');
+                }
+            });
+        }
+
 
         async function aplicarPeriodoMasivo() {
             const selBulkPeriodoEl = document.getElementById('pl-bulk-periodo');
@@ -1630,6 +1759,8 @@
         // Áreas por equipo/serial y tipo de prueba (derivadas de invre2.csv)
         let areaPorEquipoPruebaInv = {};
         let areaPorSerialPruebaInv = {};
+        let tiposPorEquipoPruebaInv = {};
+        let tiposPorSerialPruebaInv = {};
 
         function resolverEquipoYSerialCanon(equipoRaw, serialRaw) {
             const eq0 = normEquipoKey(String(equipoRaw || ''));
@@ -2616,9 +2747,19 @@
                                     if (tipo2 && area2) {
                                         const keyEq = `${eq2}::${tipo2}`;
                                         if (!areaPorEquipoPruebaInv[keyEq]) areaPorEquipoPruebaInv[keyEq] = area2;
+                                        try {
+                                            if (eq2) {
+                                                if (!tiposPorEquipoPruebaInv[eq2]) tiposPorEquipoPruebaInv[eq2] = new Set();
+                                                tiposPorEquipoPruebaInv[eq2].add(tipo2);
+                                            }
+                                        } catch {}
                                         if (serial2) {
                                             const keySn = `${serial2}::${tipo2}`;
                                             if (!areaPorSerialPruebaInv[keySn]) areaPorSerialPruebaInv[keySn] = area2;
+                                            try {
+                                                if (!tiposPorSerialPruebaInv[serial2]) tiposPorSerialPruebaInv[serial2] = new Set();
+                                                tiposPorSerialPruebaInv[serial2].add(tipo2);
+                                            } catch {}
                                         }
                                     }
                                 }
@@ -2794,6 +2935,348 @@
                 return String(p || '').toUpperCase().trim();
             }
         }
+        function isValidPruebaTipo(p) {
+            const v = normalizaPrueba(p);
+            return v === 'LT' || v === 'UTT' || v === 'VT/PT/MT';
+        }
+
+        let _invalidPruebaRows = [];
+        let _futureDateRows = [];
+
+        function getInvalidPruebaRows() {
+            const arr = Array.isArray(pruebas) ? pruebas : [];
+            const out = [];
+            arr.forEach(reg => {
+                if (!reg) return;
+                const raw = (reg.prueba || reg.pruebaTipo || '').toString().trim();
+                const canon = normalizaPrueba(raw);
+                if (!raw) return;
+                if (!isValidPruebaTipo(canon)) {
+                    const eqK = normEquipoKey((reg.equipo || '').toString());
+                    const snK = normSerialKey((reg.serial || reg.numeroSerie || '').toString());
+                    let sugerida = '';
+                    try {
+                        const candsEq = (eqK && tiposPorEquipoPruebaInv && tiposPorEquipoPruebaInv[eqK]) ? Array.from(tiposPorEquipoPruebaInv[eqK]) : [];
+                        const candsSn = (snK && tiposPorSerialPruebaInv && tiposPorSerialPruebaInv[snK]) ? Array.from(tiposPorSerialPruebaInv[snK]) : [];
+                        const cands = (candsEq && candsEq.length) ? candsEq : candsSn;
+                        if (Array.isArray(cands) && cands.length === 1) sugerida = String(cands[0] || '').trim();
+                    } catch {}
+                    const areaNow = (reg.area || '').toString().trim();
+                    out.push({
+                        id: (reg.id || '').toString(),
+                        equipo: (reg.equipo || '').toString(),
+                        serial: (reg.serial || reg.numeroSerie || '').toString(),
+                        fechaRealizacion: (reg.fechaRealizacion || reg.fechaPrueba || '').toString(),
+                        periodo: (reg.periodo || '').toString(),
+                        prueba: raw,
+                        pruebaCanon: canon,
+                        pruebaSugerida: sugerida,
+                        area: areaNow,
+                        noReporte: (reg.noReporte || '').toString(),
+                        importBatchId: (reg.importBatchId || '').toString(),
+                        importedAt: (reg.importedAt && typeof reg.importedAt.toDate === 'function') ? formatoFechaHora(reg.importedAt.toDate()) : (reg.importedAt || '').toString(),
+                        creadoEn: (reg.creadoEn && typeof reg.creadoEn.toDate === 'function') ? formatoFechaHora(reg.creadoEn.toDate()) : (reg.creadoEn || '').toString(),
+                    });
+                }
+            });
+            return out;
+        }
+
+        function renderInvalidPruebaDiagnosis(list) {
+            const preview = document.getElementById('import-preview');
+            const cont = document.getElementById('import-errors');
+            const total = Array.isArray(list) ? list.length : 0;
+            if (!cont) {
+                alert(total ? `Pruebas inválidas encontradas: ${total}` : 'No se encontraron pruebas inválidas.');
+                return;
+            }
+            try { if (preview) preview.style.display = ''; } catch {}
+            if (!total) {
+                cont.innerHTML = 'No se encontraron registros con Prueba / Calib inválida.';
+                return;
+            }
+            const sample = list.slice(0, 50).map(r => {
+                const id = (r.id || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const eq = (r.equipo || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const pr = (r.prueba || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const fr = (r.fechaRealizacion || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const nr = (r.noReporte || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const ar = (r.area || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const sug = (r.pruebaSugerida || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const b = (r.importBatchId || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const ia = (r.importedAt || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const ce = (r.creadoEn || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const prov = (b || ia || ce) ? `<br><small>batch: ${b || '-'} | importedAt: ${ia || '-'} | creadoEn: ${ce || '-'}</small>` : '';
+                const extra = `<br><small>área: ${ar || '-'} | sugerida: <strong>${sug || '-'}</strong></small>`;
+                return `<li><code>${eq}</code> — <strong>${pr}</strong> <small>(${fr})</small><br><small>id: ${id} | noReporte: ${nr}</small>${extra}${prov}</li>`;
+            }).join('');
+            const extra = total > 50 ? `<div>... y ${total - 50} más</div>` : '';
+            cont.innerHTML = `<div>Registros con Prueba / Calib inválida: <strong>${total}</strong></div><div style="margin-top:0.25rem; font-size:0.9rem;">Solo se permite: <strong>LT</strong>, <strong>UTT</strong> o <strong>VT/PT/MT</strong>.</div><ul style="margin-top:0.35rem;">${sample}</ul>${extra}`;
+        }
+
+        function exportInvalidPruebaCsv(list) {
+            const rows = Array.isArray(list) ? list : [];
+            if (!rows.length) { alert('No hay registros inválidos para exportar.'); return; }
+            const header = ['id','equipo','serial','fechaRealizacion','periodo','prueba','pruebaSugerida','area','noReporte','importBatchId','importedAt','creadoEn'];
+            const esc = (v) => {
+                const s = (v == null) ? '' : String(v);
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+            };
+            const lines = [header.join(',')].concat(rows.map(r => header.map(h => esc(r[h] || '')).join(',')));
+            const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const stamp = new Date();
+            const y = stamp.getFullYear();
+            const m = String(stamp.getMonth()+1).padStart(2,'0');
+            const d = String(stamp.getDate()).padStart(2,'0');
+            a.download = `pruebas_invalidas_${y}-${m}-${d}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { try { URL.revokeObjectURL(url); } catch {} try { a.remove(); } catch {} }, 0);
+        }
+
+        function getFutureDateRows() {
+            const arr = Array.isArray(pruebas) ? pruebas : [];
+            const out = [];
+            const targetYear = 2026;
+            const maxProximaYear = 2027;
+            arr.forEach(reg => {
+                if (!reg) return;
+                const frVal = (reg.fechaRealizacion || reg.fechaPrueba || '');
+                const pxVal = (reg.proxima || '');
+
+                const fr = parseFechaRealizacion(frVal);
+                const px = parseProxima(pxVal);
+
+                const frRaw = fr ? formatDDMMAAAA(fr) : String(frVal || '').trim();
+                const pxRaw = px ? formatDDMMAAAA(px) : String(pxVal || '').trim();
+                const frY = fr ? fr.getFullYear() : null;
+                const pxY = px ? px.getFullYear() : null;
+                const frFuture = (frY != null && frY > targetYear);
+                const pxFuture = (pxY != null && pxY > maxProximaYear);
+                if (frFuture || pxFuture) {
+                    out.push({
+                        id: (reg.id || '').toString(),
+                        equipo: (reg.equipo || '').toString(),
+                        serial: (reg.serial || reg.numeroSerie || '').toString(),
+                        prueba: (reg.prueba || reg.pruebaTipo || '').toString(),
+                        periodo: (reg.periodo || '').toString(),
+                        fechaRealizacion: frRaw,
+                        proxima: pxRaw,
+                        yearFecha: frY != null ? String(frY) : '',
+                        yearProxima: pxY != null ? String(pxY) : '',
+                        noReporte: (reg.noReporte || '').toString(),
+                        importBatchId: (reg.importBatchId || '').toString(),
+                        importedAt: (reg.importedAt && typeof reg.importedAt.toDate === 'function') ? formatoFechaHora(reg.importedAt.toDate()) : (reg.importedAt || '').toString(),
+                        creadoEn: (reg.creadoEn && typeof reg.creadoEn.toDate === 'function') ? formatoFechaHora(reg.creadoEn.toDate()) : (reg.creadoEn || '').toString(),
+                    });
+                }
+            });
+            return out;
+        }
+
+        function renderFutureDateDiagnosis(list) {
+            const preview = document.getElementById('import-preview');
+            const cont = document.getElementById('import-errors');
+            const total = Array.isArray(list) ? list.length : 0;
+            if (!cont) {
+                alert(total ? `Fechas futuras encontradas: ${total}` : 'No se encontraron fechas futuras.');
+                return;
+            }
+            try { if (preview) preview.style.display = ''; } catch {}
+            if (!total) {
+                cont.innerHTML = 'No se encontraron registros con fechas futuras.';
+                return;
+            }
+            const targetYear = 2026;
+            const maxProximaYear = 2027;
+            const sample = list.slice(0, 50).map(r => {
+                const id = (r.id || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const eq = (r.equipo || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const pr = (r.prueba || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const fr = (r.fechaRealizacion || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const px = (r.proxima || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const nr = (r.noReporte || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const b = (r.importBatchId || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const ia = (r.importedAt || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const ce = (r.creadoEn || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const prov = (b || ia || ce) ? `<br><small>batch: ${b || '-'} | importedAt: ${ia || '-'} | creadoEn: ${ce || '-'}</small>` : '';
+                return `<li><code>${eq}</code> — <small>Prueba: ${pr || ''}</small><br><small>fechaReal: <strong>${fr}</strong> | próxima: <strong>${px}</strong> | noReporte: ${nr}</small><br><small>id: ${id}</small>${prov}</li>`;
+            }).join('');
+            const extra = total > 50 ? `<div>... y ${total - 50} más</div>` : '';
+            cont.innerHTML = `<div>Registros con fechas fuera de regla (fechaRealizacion > ${targetYear} o proxima > ${maxProximaYear}): <strong>${total}</strong></div><ul style="margin-top:0.35rem;">${sample}</ul>${extra}`;
+        }
+
+        function ajustarAnoEnFechaRaw(raw, targetYear) {
+            const d = parseFechaRealizacion(raw);
+            if (!d || isNaN(d.getTime())) return '';
+            const dd = d.getDate();
+            const mm = d.getMonth();
+            const fixed = new Date(targetYear, mm, dd);
+            fixed.setHours(0,0,0,0);
+            return formatDDMMAAAA(fixed);
+        }
+
+        function calcularProximaDesdeFechaRealStr(fechaRealStr) {
+            const fr = parseFechaRealizacion(fechaRealStr);
+            if (!fr || isNaN(fr.getTime())) return '';
+            const d = new Date(fr);
+            d.setFullYear(d.getFullYear() + 1);
+            d.setHours(0,0,0,0);
+            return isNaN(d.getTime()) ? '' : formatDDMMAAAA(d);
+        }
+
+        async function fixFutureDatesAuto() {
+            const rows = Array.isArray(window._futureDateRows) && window._futureDateRows.length
+                ? window._futureDateRows
+                : ((typeof window.getFutureDateRows === 'function') ? window.getFutureDateRows() : []);
+            if (!rows.length) {
+                alert('No hay registros detectados para corregir. Primero ejecuta “Diagnosticar fechas futuras”.');
+                return;
+            }
+            const ok = window.confirm(`Se corregirán ${rows.length} registros en Firestore.\n\nRegla: fechaRealizacion (2027+) -> 2026 (mismo día/mes).\nPara periodo ANUAL, se recalcula próxima = fechaRealizacion + 1 año.\n\n¿Deseas continuar?`);
+            if (!ok) return;
+
+            const { getFirestore, doc, writeBatch, deleteField } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = (window.db || getFirestore());
+
+            const targetYear = 2026;
+            let batch = writeBatch(db);
+            let c = 0;
+
+            for (const r of rows) {
+                const id = (r && r.id) ? String(r.id).trim() : '';
+                if (!id) continue;
+                const ref = doc(db, 'pruebas', id);
+
+                const regLocal = (Array.isArray(pruebas) ? pruebas : []).find(x => x && String(x.id || '') === id) || null;
+                const periodoNorm = ((regLocal && regLocal.periodo) ? String(regLocal.periodo) : (r.periodo || '')).toString().trim().toUpperCase();
+                const esAnual = (!periodoNorm || periodoNorm === 'ANUAL');
+
+                const frRaw = (regLocal && (regLocal.fechaRealizacion || regLocal.fechaPrueba)) ? (regLocal.fechaRealizacion || regLocal.fechaPrueba) : (r.fechaRealizacion || '');
+                const frFixed = ajustarAnoEnFechaRaw(frRaw, targetYear);
+                if (!frFixed) continue;
+
+                const payload = { fechaRealizacion: frFixed };
+                if (esAnual) {
+                    const pxFixed = calcularProximaDesdeFechaRealStr(frFixed);
+                    payload.proxima = pxFixed || '';
+                } else {
+                    payload.proxima = deleteField();
+                }
+
+                batch.update(ref, payload);
+                c++;
+                if (c % 400 === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                }
+            }
+            await batch.commit();
+
+            alert(`Corrección completada. Registros procesados: ${c}.\n\nAhora da “Actualizar” para recargar y confirmar en pantalla.`);
+        }
+
+        try { window.fixFutureDatesAuto = fixFutureDatesAuto; } catch {}
+
+        async function fixInvalidPruebaAndAreaAuto() {
+            const rows = Array.isArray(window._invalidPruebaRows) && window._invalidPruebaRows.length
+                ? window._invalidPruebaRows
+                : ((typeof window.getInvalidPruebaRows === 'function') ? window.getInvalidPruebaRows() : []);
+
+            if (!rows.length) {
+                alert('No hay registros inválidos detectados. Primero ejecuta “Diagnosticar Prueba inválida”.');
+                return;
+            }
+
+            const candidatos = rows.filter(r => r && r.id && r.pruebaSugerida);
+            if (!candidatos.length) {
+                alert('No hay registros con sugerencia automática (inventario ambiguo o sin datos). Exporta inválidas para corrección manual.');
+                return;
+            }
+
+            const ok = window.confirm(`Se intentará corregir ${candidatos.length} registros (de ${rows.length} inválidos) en Firestore.\n\nRegla: si el inventario sugiere un único tipo para el equipo/serial, se asigna como Prueba/Calib y se completa Área inspección si falta.\n\n¿Deseas continuar?`);
+            if (!ok) return;
+
+            const { getFirestore, doc, writeBatch } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = (window.db || getFirestore());
+            let batch = writeBatch(db);
+            let c = 0;
+
+            for (const r of candidatos) {
+                const id = String(r.id || '').trim();
+                if (!id) continue;
+                const ref = doc(db, 'pruebas', id);
+
+                const regLocal = (Array.isArray(pruebas) ? pruebas : []).find(x => x && String(x.id || '') === id) || null;
+                const eqK = normEquipoKey((regLocal && regLocal.equipo ? regLocal.equipo : r.equipo) || '');
+                const snK = normSerialKey((regLocal && (regLocal.serial || regLocal.numeroSerie) ? (regLocal.serial || regLocal.numeroSerie) : r.serial) || '');
+
+                const tipoSug = String(r.pruebaSugerida || '').trim().toUpperCase();
+                if (!tipoSug) continue;
+
+                const tipoCanon = normalizaPrueba(tipoSug);
+                if (!isValidPruebaTipo(tipoCanon)) continue;
+
+                const tipoKey = (tipoCanon === 'VT/PT/MT') ? 'VT / PT / MT' : tipoCanon;
+                const areaInv = (eqK && areaPorEquipoPruebaInv && areaPorEquipoPruebaInv[`${eqK}::${tipoKey}`])
+                    ? areaPorEquipoPruebaInv[`${eqK}::${tipoKey}`]
+                    : (snK && areaPorSerialPruebaInv && areaPorSerialPruebaInv[`${snK}::${tipoKey}`])
+                        ? areaPorSerialPruebaInv[`${snK}::${tipoKey}`]
+                        : '';
+
+                const areaActual = (regLocal && regLocal.area) ? String(regLocal.area).trim() : (r.area || '').toString().trim();
+                const payload = { prueba: tipoCanon, pruebaTipo: tipoCanon };
+                if (!areaActual && areaInv) payload.area = areaInv;
+
+                batch.update(ref, payload);
+                c++;
+                if (c % 400 === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                }
+            }
+            await batch.commit();
+
+            alert(`Corrección completada. Registros actualizados: ${c}.\n\nAhora da “Actualizar” para recargar y confirmar en pantalla.`);
+        }
+
+        try { window.fixInvalidPruebaAndAreaAuto = fixInvalidPruebaAndAreaAuto; } catch {}
+
+        function exportFutureDateCsv(list) {
+            const rows = Array.isArray(list) ? list : [];
+            if (!rows.length) { alert('No hay registros con fechas futuras para exportar.'); return; }
+            const header = ['id','equipo','serial','periodo','prueba','fechaRealizacion','proxima','yearFecha','yearProxima','noReporte','importBatchId','importedAt','creadoEn'];
+            const esc = (v) => {
+                const s = (v == null) ? '' : String(v);
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+            };
+            const lines = [header.join(',')].concat(rows.map(r => header.map(h => esc(r[h] || '')).join(',')));
+            const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const stamp = new Date();
+            const y = stamp.getFullYear();
+            const m = String(stamp.getMonth()+1).padStart(2,'0');
+            const d = String(stamp.getDate()).padStart(2,'0');
+            a.download = `pruebas_fechas_futuras_${y}-${m}-${d}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { try { URL.revokeObjectURL(url); } catch {} try { a.remove(); } catch {} }, 0);
+        }
+
+        // Exponer helpers para evitar problemas de alcance en handlers
+        try {
+            window.getInvalidPruebaRows = getInvalidPruebaRows;
+            window.renderInvalidPruebaDiagnosis = renderInvalidPruebaDiagnosis;
+            window.exportInvalidPruebaCsv = exportInvalidPruebaCsv;
+            window.getFutureDateRows = getFutureDateRows;
+            window.renderFutureDateDiagnosis = renderFutureDateDiagnosis;
+            window.exportFutureDateCsv = exportFutureDateCsv;
+        } catch {}
         function isValidResultado(r) {
             const v = String(r||'').toUpperCase();
             return v==='ACEPTADA' || v==='APROBADA' || v==='APROBADO' || v==='RECHAZADA' || v==='N/A';
@@ -2890,7 +3373,7 @@
                 if (!req(rec.equipo)) errors.push(`L${n}: equipo requerido`);
                 if (!req(rec.numeroSerie)) errors.push(`L${n}: numeroSerie requerido`);
                 if (!req(rec.periodo) || !isValidPeriodo(rec.periodo)) errors.push(`L${n}: periodo inválido (ANUAL|POST-TRABAJO|REPARACION)`);
-                if (!req(rec.prueba)) errors.push(`L${n}: prueba requerida`);
+                if (!req(rec.prueba) || !isValidPruebaTipo(rec.prueba)) errors.push(`L${n}: prueba inválida (LT|UTT|VT/PT/MT)`);
                 const f = parseFechaDDMMAAAA(rec.fechaRealizacion);
                 if (!req(rec.fechaRealizacion) || !f) errors.push(`L${n}: fechaRealizacion inválida (dd/mm/aa o dd/mm/aaaa)`);
                 if (!req(rec.noReporte)) errors.push(`L${n}: noReporte requerido`);
@@ -4600,9 +5083,12 @@
                        </select>`
                     : periodoTexto;
 
-                const textoPrueba = (reg.prueba || reg.pruebaTipo || '').toString();
+                const textoPruebaRaw = (reg.prueba || reg.pruebaTipo || '').toString();
+                const textoPruebaCanon = normalizaPrueba(textoPruebaRaw);
+                const pruebaOk = isValidPruebaTipo(textoPruebaCanon);
+                const textoPrueba = pruebaOk ? textoPruebaCanon : textoPruebaRaw;
                 const celdaPrueba = esEditable
-                    ? `<input type="text" class="pl-prueba" data-id="${reg.id || ''}" value="${textoPrueba.replace(/"/g, '&quot;')}">`
+                    ? `<input type="text" class="pl-prueba" data-id="${reg.id || ''}" value="${textoPrueba.replace(/"/g, '&quot;')}" style="${pruebaOk ? '' : 'background:#fee2e2;'}">`
                     : textoPrueba;
 
                 const textoNoRep = (reg.noReporte || '').toString();
@@ -5078,17 +5564,22 @@
         async function actualizarCampoPrueba(id, nuevoValor) {
             if (!id) return;
             try {
+                const canon = normalizaPrueba(nuevoValor);
+                if (!canon || !isValidPruebaTipo(canon)) {
+                    alert('Prueba / Calib inválida. Usa solo: LT, UTT o VT/PT/MT.');
+                    return;
+                }
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const db = (window.db || getFirestore());
                 const ref = doc(db, 'pruebas', id);
-                await updateDoc(ref, { prueba: nuevoValor, pruebaTipo: nuevoValor });
+                await updateDoc(ref, { prueba: canon, pruebaTipo: canon });
 
                 // Actualizar en memoria
                 pruebas = pruebas.map(reg => {
                     if (reg && reg.id === id) {
-                        return { ...reg, prueba: nuevoValor, pruebaTipo: nuevoValor };
+                        return { ...reg, prueba: canon, pruebaTipo: canon };
                     }
                     return reg;
                 });
