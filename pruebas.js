@@ -1207,9 +1207,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const { addDoc, collection, serverTimestamp } = await import(
+            const { setDoc, doc, serverTimestamp } = await import(
                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
             );
+
+            const normIdPart = (v, maxLen = 48) => {
+                try {
+                    const s = String(v || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    const out = s.replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                    return out.slice(0, maxLen) || 'NA';
+                } catch {
+                    return 'NA';
+                }
+            };
+
+            const toDayKey = (v) => {
+                try {
+                    if (!v) return '';
+                    if (v && typeof v === 'object' && typeof v.toDate === 'function') {
+                        const d = v.toDate();
+                        if (!isNaN(d.getTime())) return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+                    }
+                    // soporta 'dd/mm/aa' y 'yyyy-mm-dd'
+                    const s = String(v || '').trim();
+                    const m1 = s.match(/^(\d{2})\/(\d{2})\/(\d{2,4})$/);
+                    if (m1) {
+                        const dd = parseInt(m1[1], 10);
+                        const mm = parseInt(m1[2], 10);
+                        let yy = parseInt(m1[3], 10);
+                        if (yy < 100) yy = 2000 + yy;
+                        return `${yy}${String(mm).padStart(2, '0')}${String(dd).padStart(2, '0')}`;
+                    }
+                    const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    if (m2) return `${m2[1]}${m2[2]}${m2[3]}`;
+                    const d = new Date(s);
+                    if (!isNaN(d.getTime())) return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+                } catch {}
+                return '';
+            };
+
+            const equipo = (registro && (registro.equipo || registro.equipoId || registro.activo) ? String(registro.equipo || registro.equipoId || registro.activo) : '').trim();
+            const serial = (registro && (registro.serial || registro.numeroSerie) ? String(registro.serial || registro.numeroSerie) : '').trim();
+            const noReporte = (registro && (registro.noReporte || registro.noCert || registro.certificado) ? String(registro.noReporte || registro.noCert || registro.certificado) : '').trim();
+            const tipo = (registro && (registro.pruebaTipo || registro.prueba) ? String(registro.pruebaTipo || registro.prueba) : '').trim();
+            const dayKey = toDayKey(registro && (registro.fechaRealizacion || registro.fechaPrueba) ? (registro.fechaRealizacion || registro.fechaPrueba) : '') || toDayKey(Date.now());
+
+            const docId = `p1__${normIdPart(equipo)}__${normIdPart(serial)}__${normIdPart(tipo, 16)}__${dayKey}__${normIdPart(noReporte, 40)}`;
 
             const datos = {
                 ...registro,
@@ -1217,7 +1260,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 creadoEn: serverTimestamp()
             };
 
-            const ref = await addDoc(collection(window.db, 'pruebas'), datos);
+            const ref = doc(window.db, 'pruebas', docId);
+            await setDoc(ref, datos, { merge: true });
             try {
                 if (typeof window.pctAudit === 'function') {
                     const equipo = (registro && (registro.equipo || registro.equipoId || registro.activo) ? String(registro.equipo || registro.equipoId || registro.activo) : '').trim();
@@ -1226,7 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch {}
             console.log('Prueba guardada en Firestore');
-            return ref && ref.id ? String(ref.id) : null;
+            return docId;
         } catch (e) {
             console.error('Error al guardar prueba en Firestore', e);
             throw e;

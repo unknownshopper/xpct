@@ -2913,6 +2913,83 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {}
         }
 
+        // XO: elegir formato coherente con el patrón H/M visible en PRODUCTO/DESCRIPCION/REPORTE
+        // (p.ej. HXMXH, MXHXM, "XO H X M", etc.).
+        try {
+            const prodUpper = String(get(idxProducto) || '').toUpperCase().trim();
+            const descUpper = String(get(idxDescripcion) || '').toUpperCase().trim();
+            const repUpper = String(reporte || '').toUpperCase().trim();
+            const texto = `${prodUpper} ${descUpper} ${repUpper}`;
+            const esXO = /\bXO\b/.test(texto);
+            if (esXO) {
+                const lettersRaw = (texto.match(/[HM]/g) || []).join('');
+                const normalizeLetters = (s) => {
+                    const arr = String(s || '').split('').filter(c => c === 'H' || c === 'M');
+                    // XO solo tiene 2 conexiones relevantes (A/B). Si viene un patrón de 3 letras
+                    // (p.ej. HXMXH o MXHXM), el tercer caracter suele referir a un segmento interno;
+                    // para el formato/parametrización de XO nos quedamos con las primeras 2 letras.
+                    if (arr.length >= 2) return [arr[0], arr[1]];
+                    return [];
+                };
+
+                let pair = [];
+                // Prioridad 1: detectar explícitamente "XO ... H X M" cerca de XO
+                try {
+                    const m = texto.match(/\bXO\b[^HM]{0,30}([HM])\s*[X\-\/\s]*([HM])\b/);
+                    if (m && m[1] && m[2]) pair = [m[1], m[2]];
+                } catch {}
+                // Prioridad 2: paréntesis con patrón (HMXH/MXHXM)
+                if (!pair.length) {
+                    try {
+                        const m2 = texto.match(/\(([HMX\s\-\/]{3,12})\)/);
+                        if (m2 && m2[1]) pair = normalizeLetters(m2[1]);
+                    } catch {}
+                }
+                // Fallback: primeras 2 letras H/M del texto
+                if (!pair.length) pair = normalizeLetters(lettersRaw);
+
+                const tryKey = (key) => {
+                    try {
+                        const k = normFormatoKey(key);
+                        return (k && formatosPorCodigo[k]) ? formatosPorCodigo[k] : null;
+                    } catch {
+                        return null;
+                    }
+                };
+
+                if (pair.length === 2) {
+                    const a = pair[0];
+                    const b = pair[1];
+                    // Elegir por casos
+                    let kCanon = '';
+                    if (a === 'H' && b === 'H') kCanon = 'PCT-FR-320 - D - XO H X H';
+                    else if (a === 'M' && b === 'M') kCanon = 'PCT-FR-320 - E - XO M X M';
+                    else {
+                        // Mixto: el catálogo tiene XO H X M; si viene al revés intentar ambas
+                        kCanon = 'PCT-FR-320 - C - XO H X M';
+                    }
+
+                    const hit = tryKey(kCanon);
+                    if (hit) {
+                        formatoLista = hit;
+                    } else if (kCanon.includes('XO H X M')) {
+                        // Si no existe la clave canon, intentar buscar por loose match con el par inferido.
+                        try {
+                            const targetLoose = normFormatoKeyLoose(`XO ${a} X ${b}`);
+                            const targetLooseRev = normFormatoKeyLoose(`XO ${b} X ${a}`);
+                            const keys = Object.keys(formatosPorCodigo || {});
+                            const found = keys.find(k => {
+                                const kl = normFormatoKeyLoose(k);
+                                if (!kl.includes('XO')) return false;
+                                return kl.endsWith(targetLoose) || kl.includes(targetLoose) || kl.endsWith(targetLooseRev) || kl.includes(targetLooseRev);
+                            });
+                            if (found) formatoLista = formatosPorCodigo[found];
+                        } catch {}
+                    }
+                }
+            }
+        } catch {}
+
         // TEEs: mapping determinístico por PRODUCTO a los formatos importados a Firestore.
         // forxmat.csv define:
         // - M: TEE H X M X M (TEE 1)
@@ -3150,7 +3227,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Inferir letras faltantes para poder renderizar rosca hembra/macho.
             try {
                 const esXO = /\bXO\b/.test(textoEquipo);
-                if (esXO && (!c1 || !c2)) {
+                if (esXO) {
                     const repStr = String(reporte || '').toUpperCase();
                     const descStr = String(get(idxDescripcion) || '').toUpperCase();
                     const base = `${repStr} ${descStr} ${textoEquipo}`;
@@ -3178,8 +3255,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (letters.length >= 2) {
                         const a = connLetters(letters[0]);
                         const b = connLetters(letters[1]);
-                        if (!c1 && a) c1 = a;
-                        if (!c2 && b) c2 = b;
+                        // Si el patrón viene explícito en descripción/reporte, usarlo como fuente de verdad
+                        // aunque el inventario traiga CONEXIÓN 1 errónea.
+                        if (a) c1 = a;
+                        if (b) c2 = b;
                     } else if (letters.length === 1) {
                         const only = connLetters(letters[0]);
                         if (only) {
