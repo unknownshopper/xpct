@@ -2809,7 +2809,7 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
     
     // Cuando el usuario escribe y elige un equipo en el input/datalist
-    function actualizarDetalleDesdeInput() {
+    async function actualizarDetalleDesdeInput() {
         const valor = inputEquipo.value.trim();
         try {
             const vUp = (valor || '').toString().trim().toUpperCase();
@@ -2896,6 +2896,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const reporte = get(idxReporte);
         const reporteNorm = normFormatoKey(reporte);
         const reporteLoose = normFormatoKeyLoose(reporte);
+
+        // Lookup principal por REPORTE P/P
         let formatoLista = (reporte && formatosPorCodigo[reporte])
             ? formatosPorCodigo[reporte]
             : (reporteNorm && formatosPorCodigo[reporteNorm])
@@ -2908,6 +2910,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 const keys = Object.keys(formatosPorCodigo || {});
                 const hit = keys.find(k => normFormatoKeyLoose(k) === reporteLoose);
                 if (hit) formatoLista = formatosPorCodigo[hit];
+            } catch {}
+        }
+
+        // TEEs: mapping determinístico por PRODUCTO a los formatos importados a Firestore.
+        // forxmat.csv define:
+        // - M: TEE H X M X M (TEE 1)
+        // - N: TEE M X H X H (TEE 2)
+        // - O: TEE H X H X M (TEE 3)
+        if (!formatoLista) {
+            try {
+                const prodUpper = String(get(idxProducto) || '').toUpperCase().trim();
+                let keyCanon = '';
+                if (prodUpper.includes('TEE 1')) keyCanon = 'PCT-FR-320 - M - TEE H X M X M';
+                else if (prodUpper.includes('TEE 2')) keyCanon = 'PCT-FR-320 - N - TEE M X H X H';
+                else if (prodUpper.includes('TEE 3')) keyCanon = 'PCT-FR-320 - O - TEE H X H X M';
+                if (keyCanon) {
+                    const kCanon = normFormatoKey(keyCanon);
+                    if (kCanon && formatosPorCodigo[kCanon]) formatoLista = formatosPorCodigo[kCanon];
+                }
             } catch {}
         }
 
@@ -2936,6 +2957,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch {}
         }
+
+        // TEEs: si el REPORTE P/P viene en una variante abreviada (ej. HXMXH),
+        // usar PRODUCTO como fuente de verdad del patrón (ej. HMXMH) y reintentar.
+        if (!formatoLista) {
+            try {
+                const repStr = String(reporte || '').toUpperCase();
+                const prodStr = String(get(idxProducto) || '').toUpperCase();
+                const mProd = prodStr.match(/\bTEE\s*\d*\s*\(([^)]+)\)/);
+                if (mProd && mProd[1]) {
+                    const raw = String(mProd[1] || '').toUpperCase().replace(/[^A-Z]/g, '');
+                    const chars = raw.split('').filter(c => c === 'H' || c === 'M');
+                    if (chars.length) {
+                        const teePattern = `TEE ${chars.join(' X ')}`;
+                        const teeLoose = normFormatoKeyLoose(teePattern);
+                        // Reemplazar cualquier segmento que arranque con TEE ... por el patrón calculado
+                        const repAlt = repStr.replace(/\bTEE\b.*$/g, teePattern);
+                        const k1 = normFormatoKey(repAlt);
+                        if (k1 && formatosPorCodigo[k1]) {
+                            formatoLista = formatosPorCodigo[k1];
+                        } else {
+                            // Alternativa: si la cadena no termina en TEE, intentar reemplazo local del paréntesis
+                            const repAlt2 = repStr.replace(/\bTEE\s*\d+\s*\(([^)]+)\)/g, teePattern);
+                            const k2 = normFormatoKey(repAlt2);
+                            if (k2 && formatosPorCodigo[k2]) {
+                                formatoLista = formatosPorCodigo[k2];
+                            }
+                        }
+
+                        // Último recurso: algunos formatos guardados no incluyen el prefijo (PCT-FR-320 - N - ...)
+                        // Buscar por coincidencia parcial del patrón TEE.
+                        if (!formatoLista && teeLoose) {
+                            try {
+                                const teeLooseNoX = String(teeLoose || '').replace(/X+/g, '');
+                                const keys = Object.keys(formatosPorCodigo || {});
+                                const hit = keys.find(k => {
+                                    const kl = normFormatoKeyLoose(k);
+                                    if (kl === teeLoose || kl.endsWith(teeLoose) || kl.includes(teeLoose)) return true;
+                                    if (teeLooseNoX) {
+                                        const klNoX = String(kl || '').replace(/X+/g, '');
+                                        if (klNoX === teeLooseNoX || klNoX.endsWith(teeLooseNoX) || klNoX.includes(teeLooseNoX)) return true;
+                                    }
+                                    return false;
+                                });
+                                if (hit) formatoLista = formatosPorCodigo[hit];
+                            } catch {}
+                        }
+                    }
+                }
+            } catch {}
+        }
+
         const parametrosBrutos = Array.isArray(formatoLista)
             ? formatoLista.filter(p => p && p.length > 0)
             : [];
