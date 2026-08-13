@@ -43,6 +43,23 @@ service cloud.firestore {
       return isRoleAny(['admin', 'sgi']);
     }
 
+    function isEquipoOperativoParaInspeccion() {
+      // Regla: no permitir guardar inspecciones si el equipo está en WIP/OFF.
+      // Excepción: equipo de TERCERO.
+      return request.resource.data.equipo is string
+        && (
+          request.resource.data.equipo == 'TERCERO'
+          || (
+            // Si no hay registro de EDO para el equipo, permitir (legacy).
+            // Si existe, bloquear cuando no sea operativo (ej: WIP/OFF).
+            !exists(/databases/$(database)/documents/inventarioEstados/$(request.resource.data.equipo))
+            || (
+              get(/databases/$(database)/documents/inventarioEstados/$(request.resource.data.equipo)).data.edo in ['ON', 'ACTIVO']
+            )
+          )
+        );
+    }
+
     // Catálogos y formatos (solo lectura para usuarios autenticados)
     match /formatos_inspeccion/{docId} {
       allow read: if canReadCatalogs();
@@ -70,7 +87,7 @@ service cloud.firestore {
     }
 
     match /inspecciones/{docId} {
-      allow create: if canCreateInspecciones();
+      allow create: if canCreateInspecciones() && isEquipoOperativoParaInspeccion();
       allow read: if canReadOperativo();
       // Permitir update para completar sincronización (evidencias/patches) desde campo.
       allow update: if canCreateInspecciones();

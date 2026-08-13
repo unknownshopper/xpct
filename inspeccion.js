@@ -113,6 +113,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Asegurar flags de rol en window (para UI condicional como "Subir foto" en view mode).
+    // Algunas páginas despliegan inspeccion.js sin que nav.js haya seteado window.is*.
+    (async () => {
+        try {
+            const u = await esperarAuthLista(6500);
+            if (!u || !window.auth || !window.auth.currentUser) return;
+            if (typeof window.auth.currentUser.getIdTokenResult !== 'function') return;
+            const idTok = await window.auth.currentUser.getIdTokenResult();
+            const role = (idTok && idTok.claims && idTok.claims.role) ? String(idTok.claims.role) : '';
+            if (!role) return;
+
+            // Setear solo si no existen para no pisar otras inicializaciones.
+            if (window.pctRole == null) window.pctRole = role;
+            if (window.isAdmin == null) window.isAdmin = (role === 'admin');
+            if (window.isDirector == null) window.isDirector = (role === 'director');
+            if (window.isSupervisor == null) window.isSupervisor = (role === 'supervisor');
+            if (window.isInspector == null) window.isInspector = (role === 'inspector');
+            if (window.isCapturista == null) window.isCapturista = (role === 'capturista');
+            if (window.isAuxger == null) window.isAuxger = (role === 'auxger');
+            if (window.isSgi == null) window.isSgi = (role === 'sgi');
+            if (window.isCops == null) window.isCops = (role === 'cops');
+            if (window.isAuxndt == null) window.isAuxndt = (role === 'auxndt');
+            if (window.isAux_ndt == null) window.isAux_ndt = (role === 'aux_ndt');
+        } catch {}
+    })();
+
     function fixMojibakeCommon(s) {
         // Corrige casos típicos de UTF-8 mal interpretado como Latin-1.
         // Esto evita resultados como "MAGAÃ‘A" en PDFs/listados.
@@ -3308,6 +3334,21 @@ document.addEventListener('DOMContentLoaded', () => {
             // Para equipos A/B: intercalar Área de sellado y Espárragos/Tuercas como A luego B
             if (aplicaCaraAB) {
                 const esXO = /\bXXO\b|\bXO\b/.test(textoEquipo);
+                const xoHasApiAnsi = (() => {
+                    try {
+                        if (!esXO) return { hasApi: false, hasAnsi: false };
+                        const repStr = String(reporte || '').toUpperCase();
+                        const descStr = String(get(idxDescripcion) || '').toUpperCase();
+                        const prodStr2 = String(get(idxProducto) || '').toUpperCase();
+                        const t = `${repStr} ${descStr} ${prodStr2}`;
+                        return {
+                            hasApi: /\bAPI\b/.test(t),
+                            hasAnsi: /\bANSI\b/.test(t),
+                        };
+                    } catch {
+                        return { hasApi: false, hasAnsi: false };
+                    }
+                })();
                 const resto = [];
                 let tieneSellado = false;
                 let tieneEsp = false;
@@ -3341,36 +3382,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // XO: expandir rosca/piñón por lado (A/B) según CONEXIÓN 1/2 (H/M)
                 if (esXO) {
-                    const ladoA = String(c1 || 'A').toUpperCase();
-                    const ladoB = String(c2 || 'B').toUpperCase();
-                    const roscaOut = [];
-                    const pinonOut = [];
-                    const mariposaOut = [];
-                    try {
-                        if (ladoA === 'H') roscaOut.push('Rosca A (H)');
-                        if (ladoA === 'M') {
-                            if (tienePinon) pinonOut.push('Piñón A (M)');
-                            else roscaOut.push('Rosca A (M)');
-                        }
-                        if (ladoB === 'H') roscaOut.push('Rosca B (H)');
-                        if (ladoB === 'M') {
-                            if (tienePinon) pinonOut.push('Piñón B (M)');
-                            else roscaOut.push('Rosca B (M)');
-                        }
+                    if (xoHasApiAnsi.hasApi || xoHasApiAnsi.hasAnsi) {
+                        if (xoHasApiAnsi.hasApi) out.push('API');
+                        if (xoHasApiAnsi.hasAnsi) out.push('ANSI');
+                        out.push('Rosca');
+                        out.push('Piñón');
+                        out.push('Mariposa');
+                    } else {
+                        const ladoA = String(c1 || 'A').toUpperCase();
+                        const ladoB = String(c2 || 'B').toUpperCase();
+                        const roscaOut = [];
+                        const pinonOut = [];
+                        const mariposaOut = [];
+                        try {
+                            if (ladoA === 'H') roscaOut.push('Rosca A (H)');
+                            if (ladoA === 'M') {
+                                if (tienePinon) pinonOut.push('Piñón A (M)');
+                                else roscaOut.push('Rosca A (M)');
+                            }
+                            if (ladoB === 'H') roscaOut.push('Rosca B (H)');
+                            if (ladoB === 'M') {
+                                if (tienePinon) pinonOut.push('Piñón B (M)');
+                                else roscaOut.push('Rosca B (M)');
+                            }
 
-                        // Regla: al haber Piñón normalmente hay Mariposa (misma cara M)
-                        if (tienePinon) {
-                            if (ladoA === 'M') mariposaOut.push('Mariposa A (M)');
-                            if (ladoB === 'M') mariposaOut.push('Mariposa B (M)');
-                        }
-                    } catch {}
+                            // Regla: al haber Piñón normalmente hay Mariposa (misma cara M)
+                            if (tienePinon) {
+                                if (ladoA === 'M') mariposaOut.push('Mariposa A (M)');
+                                if (ladoB === 'M') mariposaOut.push('Mariposa B (M)');
+                            }
+                        } catch {}
 
-                    // Si el formato traía rosca/piñón, reemplazar por el bloque completo.
-                    // Si no lo traía pero el tipo lo requiere, también agregarlo.
-                    if ((tieneRosca || tienePinon) || roscaOut.length || pinonOut.length) {
-                        roscaOut.forEach(x => out.push(x));
-                        pinonOut.forEach(x => out.push(x));
-                        mariposaOut.forEach(x => out.push(x));
+                        // Si el formato traía rosca/piñón, reemplazar por el bloque completo.
+                        // Si no lo traía pero el tipo lo requiere, también agregarlo.
+                        if ((tieneRosca || tienePinon) || roscaOut.length || pinonOut.length) {
+                            roscaOut.forEach(x => out.push(x));
+                            pinonOut.forEach(x => out.push(x));
+                            mariposaOut.forEach(x => out.push(x));
+                        }
                     }
                 }
 
@@ -3936,7 +3985,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const inputObsFoto = document.getElementById('insp-obs-foto');
             const imgObsPrev = document.getElementById('insp-obs-preview');
             const puedeEliminarObs = !!(window.isAdmin || window.isSgi);
-            const puedeSubirArchivoObs = !isViewMode || !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops);
+            const puedeSubirArchivoObs = !isViewMode || !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isAuxndt || window.isAux_ndt || window.isSgi || window.isCops);
 
             const btnTomarObs2 = document.getElementById('insp-obs-tomar-foto2');
             const btnSubirObs2 = document.getElementById('insp-obs-subir-foto2');
@@ -4171,7 +4220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const puedeSubirArchivoNow = () => {
                 try {
                     if (!isViewMode) return true;
-                    return !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops);
+                    return !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isAuxndt || window.isAux_ndt || window.isSgi || window.isCops);
                 } catch {
                     return false;
                 }

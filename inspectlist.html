@@ -392,7 +392,7 @@
     }
     </script>
 
-    <script src="nav.js"></script>
+    <script src="nav.js?v=20260812_2"></script>
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1411,6 +1411,251 @@
             } catch {}
         }
 
+        const claveEvidQueue = 'pct_evid_queue_v1';
+        const evidDbName = 'pct_evid_db_v1';
+        const evidStore = 'uploads';
+
+        function safeJsonParse(s, fallback) {
+            try {
+                const v = JSON.parse(String(s || ''));
+                return (v == null) ? fallback : v;
+            } catch {
+                return fallback;
+            }
+        }
+
+        function openEvidDb() {
+            return new Promise((resolve, reject) => {
+                try {
+                    const req = indexedDB.open(evidDbName, 1);
+                    req.onupgradeneeded = () => {
+                        const db = req.result;
+                        if (!db.objectStoreNames.contains(evidStore)) {
+                            db.createObjectStore(evidStore);
+                        }
+                    };
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        async function idbGet(key) {
+            const db = await openEvidDb();
+            return new Promise((resolve, reject) => {
+                try {
+                    const tx = db.transaction(evidStore, 'readonly');
+                    const req = tx.objectStore(evidStore).get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                    tx.oncomplete = () => { try { db.close(); } catch {} };
+                } catch (e) {
+                    try { db.close(); } catch {}
+                    reject(e);
+                }
+            });
+        }
+
+        async function idbDel(key) {
+            const db = await openEvidDb();
+            return new Promise((resolve, reject) => {
+                try {
+                    const tx = db.transaction(evidStore, 'readwrite');
+                    tx.objectStore(evidStore).delete(key);
+                    tx.oncomplete = () => { try { db.close(); } catch {} resolve(); };
+                    tx.onerror = () => { try { db.close(); } catch {} reject(tx.error); };
+                } catch (e) {
+                    try { db.close(); } catch {}
+                    reject(e);
+                }
+            });
+        }
+
+        function loadEvidQueue() {
+            const parsed = safeJsonParse(localStorage.getItem(claveEvidQueue), []);
+            return Array.isArray(parsed) ? parsed : [];
+        }
+
+        function saveEvidQueue(arr) {
+            try { localStorage.setItem(claveEvidQueue, JSON.stringify(arr || [])); } catch {}
+        }
+
+        function hasPendingEvidForDoc(docId) {
+            try {
+                const id = String(docId || '').trim();
+                if (!id) return false;
+                const q = loadEvidQueue();
+                return (q || []).some(it => it && String(it.docId || '').trim() === id);
+            } catch {
+                return false;
+            }
+        }
+
+        let processingEvidQueue = false;
+        async function processEvidQueueInspectList(targetDocIds) {
+            try {
+                if (processingEvidQueue) return { ok: 0, fail: 0 };
+                if (!navigator.onLine) return { ok: 0, fail: 0 };
+                const u = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
+                if (!u) return { ok: 0, fail: 0 };
+
+                try {
+                    if (typeof u.getIdToken === 'function') await u.getIdToken(true);
+                } catch {}
+
+                const q0 = loadEvidQueue();
+                if (!q0.length) return { ok: 0, fail: 0 };
+                const idsSet = (targetDocIds && targetDocIds.size) ? targetDocIds : null;
+                const q = idsSet ? q0.filter(it => it && idsSet.has(String(it.docId || '').trim())) : q0;
+                if (!q.length) return { ok: 0, fail: 0 };
+
+                processingEvidQueue = true;
+
+                const { getFirestore, doc, updateDoc, getDoc } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const { getStorage, ref, uploadBytes, getDownloadURL } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'
+                );
+                const db = getFirestore();
+                const storage = getStorage();
+
+                const nextQueue = [];
+                let ok = 0;
+                let fail = 0;
+
+                let usuarioInspeccionEmail = '';
+                try {
+                    if (u && u.email) usuarioInspeccionEmail = String(u.email).toLowerCase();
+                } catch {}
+
+                for (const it of q0) {
+                    const docId = String(it?.docId || '').trim();
+                    if (idsSet && docId && !idsSet.has(docId)) {
+                        nextQueue.push(it);
+                        continue;
+                    }
+                    try {
+                        const evidenciaNombre = String(it?.evidenciaNombre || '').trim();
+                        const storagePath = String(it?.storagePath || '').trim();
+                        const kind = String(it?.kind || '').trim();
+                        const idx = (it?.idx != null) ? Number(it.idx) : null;
+                        const slot = (it?.slot != null) ? Number(it.slot) : null;
+                        const dano = String(it?.dano || '').trim().toUpperCase();
+                        const key = String(it?._key || '').trim();
+
+                        if (!docId || !storagePath || !evidenciaNombre || !kind || slot == null || !key) {
+                            try { await idbDel(key); } catch {}
+                            continue;
+                        }
+
+                        const blob = await idbGet(key);
+                        if (!blob) {
+                            try { await idbDel(key); } catch {}
+                            continue;
+                        }
+
+                        const stRef = ref(storage, storagePath);
+                        await uploadBytes(stRef, blob);
+                        const url = await getDownloadURL(stRef);
+
+                        const docRef = doc(db, 'inspecciones', docId);
+
+                        if (kind === 'obs') {
+                            const patch = {
+                                syncStatus: 'SYNCED',
+                                usuarioInspeccionEmail: usuarioInspeccionEmail || '',
+                            };
+                            if (slot === 2) {
+                                patch.observacionesFotoUrl2 = url;
+                                patch.observacionesFotoPath2 = storagePath;
+                                patch.observacionesFotoNombre2 = evidenciaNombre;
+                            } else {
+                                patch.observacionesFotoUrl = url;
+                                patch.observacionesFotoPath = storagePath;
+                                patch.observacionesFotoNombre = evidenciaNombre;
+                            }
+                            await updateDoc(docRef, patch);
+                            await idbDel(key);
+                            ok += 1;
+                            continue;
+                        }
+
+                        const snap = await getDoc(docRef);
+                        if (!snap.exists()) {
+                            await idbDel(key);
+                            ok += 1;
+                            continue;
+                        }
+                        const data = snap.data() || {};
+                        const params = Array.isArray(data.parametros) ? data.parametros.slice() : [];
+                        if (idx == null || idx < 0 || idx >= params.length) {
+                            await idbDel(key);
+                            ok += 1;
+                            continue;
+                        }
+                        const p = params[idx] ? { ...(params[idx] || {}) } : null;
+                        if (!p) {
+                            await idbDel(key);
+                            ok += 1;
+                            continue;
+                        }
+
+                        if (kind === 'param') {
+                            if (slot === 1) {
+                                p.evidenciaUrl = url;
+                                p.evidenciaPath = storagePath;
+                                p.evidenciaNombre = evidenciaNombre;
+                            } else {
+                                p.evidenciaUrl2 = url;
+                                p.evidenciaPath2 = storagePath;
+                                p.evidenciaNombre2 = evidenciaNombre;
+                            }
+                        } else if (kind === 'dano') {
+                            const by = (p.evidenciasPorDano && typeof p.evidenciasPorDano === 'object') ? { ...(p.evidenciasPorDano || {}) } : {};
+                            by[dano] = { ...(by[dano] || {}) };
+                            if (slot === 1) {
+                                by[dano].evidenciaUrl = url;
+                                by[dano].evidenciaPath = storagePath;
+                                by[dano].evidenciaNombre = evidenciaNombre;
+                            } else {
+                                by[dano].evidenciaUrl2 = url;
+                                by[dano].evidenciaPath2 = storagePath;
+                                by[dano].evidenciaNombre2 = evidenciaNombre;
+                            }
+                            p.evidenciasPorDano = by;
+                        } else {
+                            await idbDel(key);
+                            ok += 1;
+                            continue;
+                        }
+
+                        params[idx] = p;
+                        await updateDoc(docRef, {
+                            parametros: params,
+                            syncStatus: 'SYNCED',
+                            usuarioInspeccionEmail: usuarioInspeccionEmail || '',
+                        });
+
+                        await idbDel(key);
+                        ok += 1;
+                    } catch {
+                        nextQueue.push(it);
+                        fail += 1;
+                    }
+                }
+
+                saveEvidQueue(nextQueue);
+                return { ok, fail };
+            } catch {
+                return { ok: 0, fail: 0 };
+            } finally {
+                processingEvidQueue = false;
+            }
+        }
+
         function patchInspeccionLocalPorId(localId, patch) {
             if (!localId) return;
             const lista = leerListaInspeccionesLocalRaw();
@@ -1475,6 +1720,7 @@
             let fail = 0;
             const failDetails = [];
             const syncedIds = new Set();
+            const touchedIds = new Set();
             try {
                 const { getFirestore, doc, setDoc, serverTimestamp } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -1484,7 +1730,10 @@
                 for (const r of pendientesSync) {
                     const localId = String(r.localId || r.id || '').trim();
                     if (!localId) continue;
-                    const payload = { ...r, creadoEn: serverTimestamp(), syncStatus: 'SYNCED' };
+                    touchedIds.add(localId);
+                    const stPrev = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
+                    const debePendEvid = (stPrev === 'PENDING_EVID') || hasPendingEvidForDoc(localId);
+                    const payload = { ...r, creadoEn: serverTimestamp(), syncStatus: debePendEvid ? 'PENDING_EVID' : 'SYNCED' };
                     try {
                         await setDoc(doc(db, 'inspecciones', localId), payload, { merge: true });
                         syncedIds.add(localId);
@@ -1517,7 +1766,9 @@
                             if (!r) return r;
                             const id = String(r.localId || r.id || '').trim();
                             if (id && syncedIds.has(id)) {
-                                return { ...(r || {}), syncStatus: 'SYNCED' };
+                                const stPrev = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
+                                const debePendEvid = (stPrev === 'PENDING_EVID') || hasPendingEvidForDoc(id);
+                                return { ...(r || {}), syncStatus: debePendEvid ? 'PENDING_EVID' : 'SYNCED' };
                             }
                             return r;
                         } catch {
@@ -1555,6 +1806,28 @@
                     }).join(' | ');
                 } else if (fail > 0) {
                     resumen = 'Error desconocido al sincronizar (sin código).';
+                }
+            } catch {}
+
+            try {
+                if (touchedIds.size) {
+                    await processEvidQueueInspectList(touchedIds);
+                    try {
+                        const listaNow2 = leerListaInspeccionesLocalRaw();
+                        const next2 = (Array.isArray(listaNow2) ? listaNow2 : []).map(r => {
+                            try {
+                                if (!r) return r;
+                                const id = String(r.localId || r.id || '').trim();
+                                if (!id || !touchedIds.has(id)) return r;
+                                const stPrev = String(r && r.syncStatus ? r.syncStatus : '').trim().toUpperCase();
+                                if (stPrev !== 'PENDING_EVID') return r;
+                                return { ...(r || {}), syncStatus: hasPendingEvidForDoc(id) ? 'PENDING_EVID' : 'SYNCED' };
+                            } catch {
+                                return r;
+                            }
+                        });
+                        escribirListaInspeccionesLocalRaw(next2);
+                    } catch {}
                 }
             } catch {}
 
