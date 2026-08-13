@@ -68,58 +68,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage y sincronizados con Firestore
+    // Estados por equipo (ON/OFF/WIP) desde Firestore (source of truth: inventarioEstados)
+    // Fallback: cache local únicamente si Firestore no está disponible.
     const claveEstadoOverride = 'pct_invre_estado_override';
     let mapaEstadoOverride = {};
-    try {
-        const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
-        const parsed = JSON.parse(crudo);
-        if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
-    } catch {
-        mapaEstadoOverride = {};
-    }
 
     (async () => {
+        // Intentar cargar siempre desde Firestore; si falla, usar cache local.
         try {
-            // Solo admin/director sincronizan overrides desde Firestore.
-            // Supervisor opera en modo lectura y usa cache local (evita errores de permisos).
-            let canSyncFromFirestore = false;
+            const { getFirestore, collection, getDocs, getDocsFromServer } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const db = getFirestore();
+            const colRef = collection(db, 'inventarioEstados');
+            let snap = null;
             try {
-                const auth = window.auth;
-                const u = auth && auth.currentUser ? auth.currentUser : null;
-                if (u && typeof u.getIdTokenResult === 'function') {
-                    const tok = await u.getIdTokenResult();
-                    const role = (tok && tok.claims && tok.claims.role) ? String(tok.claims.role) : '';
-                    canSyncFromFirestore = (role === 'admin' || role === 'director');
-                } else {
-                    canSyncFromFirestore = !!(window.isAdmin || window.isDirector);
-                }
+                snap = await getDocsFromServer(colRef);
             } catch {
-                canSyncFromFirestore = !!(window.isAdmin || window.isDirector);
+                snap = await getDocs(colRef);
             }
-
-            if (canSyncFromFirestore && window.db) {
-                const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-                const db = getFirestore();
-                const colRef = collection(db, 'inventarioEstados');
-                const snap = await getDocs(colRef);
-                snap.forEach(docSnap => {
-                    const data = docSnap.data() || {};
-                    const equipoId = docSnap.id || data.equipoId || '';
-                    let edo = (data.edo || '').toString().trim().toUpperCase();
-                    if (!edo) edo = 'ON';
-                    if (equipoId) {
-                        mapaEstadoOverride[equipoId] = edo;
-                    }
-                });
-                try {
-                    localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
-                } catch (e) {
-                    console.warn('No se pudo cachear overrides de estado desde Firestore', e);
-                }
-            }
+            const next = {};
+            snap.forEach(docSnap => {
+                const data = docSnap.data() || {};
+                const equipoId = docSnap.id || data.equipoId || '';
+                let edo = (data.edo || '').toString().trim().toUpperCase();
+                if (!edo) edo = 'ON';
+                if (equipoId) next[equipoId] = edo;
+            });
+            mapaEstadoOverride = next;
+            try {
+                localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
+            } catch {}
         } catch (e) {
-            console.warn('No se pudieron cargar estados de inventario desde Firestore', e);
+            console.warn('No se pudieron cargar estados de inventario desde Firestore; usando cache local', e);
+            try {
+                const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+                const parsed = JSON.parse(crudo);
+                if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
+                else mapaEstadoOverride = {};
+            } catch {
+                mapaEstadoOverride = {};
+            }
         }
     })();
 
@@ -247,8 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const getEdoEfectivo = (cols) => {
                 const equipo = idxEquipo >= 0 ? (cols[idxEquipo] || '') : '';
-                let edoBase = idxEdo >= 0 ? String(cols[idxEdo] || '').trim().toUpperCase() : '';
-                if (!edoBase) edoBase = 'ON';
+                // Source of truth: inventarioEstados (Firestore). CSV EDO ya no es fuente de verdad.
+                const edoBase = 'ON';
                 const override = equipo ? mapaEstadoOverride[equipo] : '';
                 const edoEf = override ? String(override).trim().toUpperCase() : edoBase;
                 return { equipo, edoBase, edoEf };
@@ -1166,11 +1153,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                     return;
                                 }
 
-                                if (nuevo === edoBase) {
-                                    delete mapaEstadoOverride[equipo];
-                                } else {
-                                    mapaEstadoOverride[equipo] = nuevo;
-                                }
+                                // Source of truth: Firestore inventarioEstados.
+                                // Siempre mantenemos el mapa con el valor elegido, incluso ON.
+                                mapaEstadoOverride[equipo] = nuevo;
 
                                 try {
                                     localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
@@ -1185,6 +1170,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                     await setDoc(ref, { edo: nuevo }, { merge: true });
                                 } catch (e) {
                                     console.error('No se pudo guardar estado de inventario en Firestore', e);
+                                    // Revertir cambio local si Firestore falló para evitar falsas expectativas.
+                                    try {
+                                        mapaEstadoOverride[equipo] = previo;
+                                        try {
+                                            localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
+                                        } catch {}
+                                        select.value = previo;
+                                    } catch {}
+                                    try { alert('No se pudo guardar el estado en el sistema (Firestore). Revisa conexión/sesión y reintenta.'); } catch {}
                                 }
 
                                 // Re-render resumen (usa estado efectivo)
