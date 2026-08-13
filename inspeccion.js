@@ -2547,6 +2547,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const idxDiam1 = headers.indexOf('DIAMETRO 1');
             const idxTipo1 = headers.indexOf('TIPO 1');
             const idxCon1 = headers.indexOf('CONEXIÓN 1');
+            const idxCon2 = headers.indexOf('CONEXIÓN 2');
+            const idxCon3 = headers.indexOf('CONEXIÓN 3');
             const idxPres1 = headers.indexOf('PRESION 1');
             const idxX1 = headers.indexOf('X 1');
             const idxServicio = headers.indexOf('SERVICIO');
@@ -2568,6 +2570,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const diametro1 = String(data.diametro1 || '').trim();
                 const tipo1 = String(data.tipo1 || '').trim();
                 const conexion1 = String(data.conexion1 || '').trim();
+                const conexion2 = String(data.conexion2 || '').trim();
+                const conexion3 = String(data.conexion3 || '').trim();
                 const presion1 = String(data.presion1 || '').trim();
                 const x1 = String(data.x1 || '').trim();
                 const servicio = String(data.servicio || '').trim();
@@ -2585,6 +2589,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 cols[idxDiam1] = diametro1;
                 cols[idxTipo1] = tipo1;
                 cols[idxCon1] = conexion1;
+                if (idxCon2 >= 0) cols[idxCon2] = conexion2;
+                if (idxCon3 >= 0) cols[idxCon3] = conexion3;
                 cols[idxPres1] = presion1;
                 cols[idxX1] = x1;
                 cols[idxServicio] = servicio;
@@ -2913,45 +2919,53 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch {}
         }
 
-        // XO: elegir formato coherente con el patrón H/M visible en PRODUCTO/DESCRIPCION/REPORTE
-        // (p.ej. HXMXH, MXHXM, "XO H X M", etc.).
+        // XO: elegir formato coherente con el patrón visible en PRODUCTO/DESCRIPCION/REPORTE
+        // (p.ej. "XO H X M", "XO API X H", "XO ANSI X M", etc.).
         try {
             const prodUpper = String(get(idxProducto) || '').toUpperCase().trim();
             const descUpper = String(get(idxDescripcion) || '').toUpperCase().trim();
             const repUpper = String(reporte || '').toUpperCase().trim();
             const texto = `${prodUpper} ${descUpper} ${repUpper}`;
-            const esXO = /\bXO\b/.test(texto);
+            const esXO = /\bXXO\b|\bXO\b/.test(texto);
             if (esXO) {
-                const lettersRaw = (texto.match(/[HM]/g) || []).join('');
-                const normalizeLetters = (s) => {
-                    const arr = String(s || '').split('').filter(c => c === 'H' || c === 'M');
-                    // XO solo tiene 2 conexiones relevantes (A/B). Si viene un patrón de 3 letras
-                    // (p.ej. HXMXH o MXHXM), el tercer caracter suele referir a un segmento interno;
-                    // para el formato/parametrización de XO nos quedamos con las primeras 2 letras.
-                    if (arr.length >= 2) return [arr[0], arr[1]];
-                    return [];
+                const baseType = 'XO';
+
+                const normalizeSides = (arr) => {
+                    const out = (arr || [])
+                        .map(x => String(x || '').toUpperCase().trim())
+                        .filter(x => x === 'H' || x === 'M' || x === 'API' || x === 'ANSI');
+                    return out.length >= 2 ? [out[0], out[1]] : [];
                 };
 
                 let pair = [];
-                // Prioridad 1: detectar explícitamente "XO ... H X M" cerca de XO
+                // Prioridad 1: patrón explícito cerca de XO/XXO: "XO API X H", "XO H X M", etc.
                 try {
-                    const m = texto.match(/\bXO\b[^HM]{0,30}([HM])\s*[X\-\/\s]*([HM])\b/);
-                    if (m && m[1] && m[2]) pair = [m[1], m[2]];
+                    const m = texto.match(/\b(XXO|XO)\b[^A-Z]{0,30}(API|ANSI|H|M)\s*[X\-\/\s]+(API|ANSI|H|M)\b/);
+                    if (m && m[2] && m[3]) pair = normalizeSides([m[2], m[3]]);
                 } catch {}
-                // Prioridad 2: paréntesis con patrón (HMXH/MXHXM)
+                // Prioridad 2: paréntesis con patrón (solo H/M legacy)
                 if (!pair.length) {
                     try {
                         const m2 = texto.match(/\(([HMX\s\-\/]{3,12})\)/);
-                        if (m2 && m2[1]) pair = normalizeLetters(m2[1]);
+                        if (m2 && m2[1]) {
+                            const raw = String(m2[1] || '').toUpperCase().replace(/[^HM]/g, '');
+                            const chars = raw.split('').filter(c => c === 'H' || c === 'M');
+                            pair = normalizeSides(chars);
+                        }
                     } catch {}
                 }
-                // Fallback: primeras 2 letras H/M del texto
-                if (!pair.length) pair = normalizeLetters(lettersRaw);
 
-                const tryKey = (key) => {
+                const findFormatoByLoose = (a, b) => {
                     try {
-                        const k = normFormatoKey(key);
-                        return (k && formatosPorCodigo[k]) ? formatosPorCodigo[k] : null;
+                        const targetLoose = normFormatoKeyLoose(`${baseType} ${a} X ${b}`);
+                        const targetLooseRev = normFormatoKeyLoose(`${baseType} ${b} X ${a}`);
+                        const keys = Object.keys(formatosPorCodigo || {});
+                        const found = keys.find(k => {
+                            const kl = normFormatoKeyLoose(k);
+                            if (!kl.includes(baseType)) return false;
+                            return kl.endsWith(targetLoose) || kl.includes(targetLoose) || kl.endsWith(targetLooseRev) || kl.includes(targetLooseRev);
+                        });
+                        return found ? formatosPorCodigo[found] : null;
                     } catch {
                         return null;
                     }
@@ -2960,31 +2974,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (pair.length === 2) {
                     const a = pair[0];
                     const b = pair[1];
-                    // Elegir por casos
-                    let kCanon = '';
-                    if (a === 'H' && b === 'H') kCanon = 'PCT-FR-320 - D - XO H X H';
-                    else if (a === 'M' && b === 'M') kCanon = 'PCT-FR-320 - E - XO M X M';
-                    else {
-                        // Mixto: el catálogo tiene XO H X M; si viene al revés intentar ambas
-                        kCanon = 'PCT-FR-320 - C - XO H X M';
-                    }
+                    // Caso legacy XO HH/MM/HM: mantener llaves canon conocidas
+                    if (baseType === 'XO' && (a === 'H' || a === 'M') && (b === 'H' || b === 'M')) {
+                        const tryKey = (key) => {
+                            try {
+                                const k = normFormatoKey(key);
+                                return (k && formatosPorCodigo[k]) ? formatosPorCodigo[k] : null;
+                            } catch {
+                                return null;
+                            }
+                        };
+                        let kCanon = '';
+                        if (a === 'H' && b === 'H') kCanon = 'PCT-FR-320 - D - XO H X H';
+                        else if (a === 'M' && b === 'M') kCanon = 'PCT-FR-320 - E - XO M X M';
+                        else kCanon = 'PCT-FR-320 - C - XO H X M';
 
-                    const hit = tryKey(kCanon);
-                    if (hit) {
-                        formatoLista = hit;
-                    } else if (kCanon.includes('XO H X M')) {
-                        // Si no existe la clave canon, intentar buscar por loose match con el par inferido.
-                        try {
-                            const targetLoose = normFormatoKeyLoose(`XO ${a} X ${b}`);
-                            const targetLooseRev = normFormatoKeyLoose(`XO ${b} X ${a}`);
-                            const keys = Object.keys(formatosPorCodigo || {});
-                            const found = keys.find(k => {
-                                const kl = normFormatoKeyLoose(k);
-                                if (!kl.includes('XO')) return false;
-                                return kl.endsWith(targetLoose) || kl.includes(targetLoose) || kl.endsWith(targetLooseRev) || kl.includes(targetLooseRev);
-                            });
-                            if (found) formatoLista = formatosPorCodigo[found];
-                        } catch {}
+                        const hit = tryKey(kCanon);
+                        if (hit) formatoLista = hit;
+                        else {
+                            const found = findFormatoByLoose(a, b);
+                            if (found) formatoLista = found;
+                        }
+                    } else {
+                        const found = findFormatoByLoose(a, b);
+                        if (found) formatoLista = found;
                     }
                 }
             }
@@ -3205,7 +3218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const descripcionStr = (get(idxDescripcion) || '').toString().toUpperCase();
         const textoEquipo = `${productoStr} ${equipoStr} ${descripcionStr}`;
         const esTee = /\bTEE\b|TEES/.test(textoEquipo);
-        const aplicaCaraAB = !esTee && /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXO\b|\bDSA\b|\bSSA\b/.test(
+        const aplicaCaraAB = !esTee && /CARRETE ADAPTADOR|CARRETE ESPACIADOR|BRIDA ADAPTADORA|BRIDA DE PASO|\bXXO\b|\bXO\b|\bDSA\b|\bSSA\b/.test(
             textoEquipo
         );
         const parametrosRender = (() => {
@@ -3226,7 +3239,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // XO: algunos catálogos no traen CONEXIÓN 2 pero el reporte sí indica el patrón (p.ej. "XO API X H").
             // Inferir letras faltantes para poder renderizar rosca hembra/macho.
             try {
-                const esXO = /\bXO\b/.test(textoEquipo);
+                const esXO = /\bXXO\b|\bXO\b/.test(textoEquipo);
                 if (esXO) {
                     const repStr = String(reporte || '').toUpperCase();
                     const descStr = String(get(idxDescripcion) || '').toUpperCase();
@@ -3239,13 +3252,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pickLetters = (s) => {
                         // Prioridad 1: patrón explícito cerca de XO: "XO H X M" / "XO API H X M"
                         // (evita confundir con otras H/M del resto de la descripción)
-                        const m1 = s.match(/\bXO\b\s*(?:API\b\s*)?([HM])\s*[X]\s*([HM])\b/);
+                        const m1 = s.match(/\b(?:XXO|XO)\b\s*(?:API\b\s*)?([HM])\s*[X]\s*([HM])\b/);
                         if (m1 && m1[1] && m1[2]) return [m1[1], m1[2]];
                         // Prioridad 2: variante compacta "XO HXM" / "XO API HXM"
-                        const m2 = s.match(/\bXO\b\s*(?:API\b\s*)?([HM])\s*[X]\s*([HM])\b/);
+                        const m2 = s.match(/\b(?:XXO|XO)\b\s*(?:API\b\s*)?([HM])\s*[X]\s*([HM])\b/);
                         if (m2 && m2[1] && m2[2]) return [m2[1], m2[2]];
                         // Fallback: tomar las primeras dos letras H/M después de XO (menos confiable)
-                        const afterXO = (s.split(/\bXO\b/)[1] || '').trim();
+                        const afterXO = (s.split(/\b(?:XXO|XO)\b/)[1] || '').trim();
                         return (afterXO.match(/[HM]/g) || []).slice(0, 2);
                     };
 
@@ -3255,21 +3268,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (letters.length >= 2) {
                         const a = connLetters(letters[0]);
                         const b = connLetters(letters[1]);
-                        // Si el patrón viene explícito en descripción/reporte, usarlo como fuente de verdad
-                        // aunque el inventario traiga CONEXIÓN 1 errónea.
-                        if (a) c1 = a;
-                        if (b) c2 = b;
+                        // Regla XO: Firestore (CONEXIÓN 1/2) es la fuente de verdad.
+                        // Solo completar lados faltantes si el inventario no trae H/M.
+                        if (!c1 && a) c1 = a;
+                        if (!c2 && b) c2 = b;
                     } else if (letters.length === 1) {
                         const only = connLetters(letters[0]);
                         if (only) {
-                            // Si ya tengo un lado y coincide con 'only', el otro debe ser el opuesto.
+                            // Regla XO: si solo viene una letra explícita (p.ej. "XO API X M"),
+                            // asumir ambos lados iguales a esa letra.
                             if (c1 && !c2) {
-                                c2 = (c1 === only) ? opp(only) : only;
+                                c2 = only;
                             } else if (c2 && !c1) {
-                                c1 = (c2 === only) ? opp(only) : only;
+                                c1 = only;
                             } else if (!c1 && !c2) {
-                                // Si no tengo nada, asumir el patrón más común: (opuesto) x (only)
-                                c1 = opp(only);
+                                c1 = only;
                                 c2 = only;
                             }
                         }
@@ -3294,7 +3307,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Para equipos A/B: intercalar Área de sellado y Espárragos/Tuercas como A luego B
             if (aplicaCaraAB) {
-                const esXO = /\bXO\b/.test(textoEquipo);
+                const esXO = /\bXXO\b|\bXO\b/.test(textoEquipo);
                 const resto = [];
                 let tieneSellado = false;
                 let tieneEsp = false;

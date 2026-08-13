@@ -160,6 +160,13 @@
             </div>
         </section>
 
+        <section id="seccion-vista-toggle" style="margin: 0 0 1rem; display:flex; justify-content:center;">
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; justify-content:center;">
+                <button id="pl-view-resumen" type="button" style="padding:0.45rem 0.85rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; font-weight:700;">Resumen</button>
+                <button id="pl-view-historico" type="button" style="padding:0.45rem 0.85rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; font-weight:700;">Histórico</button>
+            </div>
+        </section>
+
         <section class="pruebas-dashboard" style="margin-bottom: 1.5rem;">
             <div style="display:flex; align-items:baseline; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem;">
                 <h2 style="margin:0;">Resumen de Equipos</h2>
@@ -256,21 +263,28 @@
             
 
             <section id="seccion-resumen-equipo" style="margin-bottom:1rem; display:none;">
-                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Estado por equipo (última prueba)</h3>
+                <h3 style="font-size:1rem; margin-bottom:0.35rem;">Resumen por equipo</h3>
                 <p style="font-size:0.85rem; color:#6b7280; margin-bottom:0.5rem;">
-                    Para cada equipo se muestra la última prueba registrada y su estado de vigencia. Este resumen no se ve afectado por el filtro de búsqueda.
+                    Para cada equipo se muestra la anual (LT) y el histórico de post-trabajo. Este resumen no se ve afectado por el filtro de búsqueda.
                 </p>
+                <section class="actividad-toolbar" style="margin:0 0 0.5rem; padding:0.5rem 0.75rem; box-shadow:none; border:1px solid #e5e7eb;">
+                    <div class="actividad-toolbar-left" style="margin-left:auto;">
+                        <input type="search" id="pl-resumen-buscar" placeholder="Filtrar resumen por equipo, serial, producto..." />
+                    </div>
+                </section>
                 <div class="tabla-inspecciones-wrapper" style="overflow-x:auto;">
-                    <table id="tabla-pruebas-resumen" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:900px;">
+                    <table id="tabla-pruebas-resumen" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1100px;">
                         <thead>
                             <tr style="background:#f3f4f6;">
                                 <th style="text-align:left; padding:0.4rem;">Equipo</th>
+                                <th style="text-align:left; padding:0.4rem;">Serial</th>
+                                <th style="text-align:left; padding:0.4rem;">Producto</th>
                                 <th style="text-align:left; padding:0.4rem;">Descripción</th>
-                                <th style="text-align:left; padding:0.4rem;">Última prueba</th>
-                                <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
-                                <th style="text-align:left; padding:0.4rem;">Técnico</th>
-                                <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
-                                <th style="text-align:left; padding:0.4rem;">Estado</th>
+                                <th style="text-align:left; padding:0.4rem;">Anual LT (última)</th>
+                                <th style="text-align:left; padding:0.4rem;">Vence</th>
+                                <th style="text-align:left; padding:0.4rem;">Estado anual</th>
+                                <th style="text-align:left; padding:0.4rem;">Post (año vigente)</th>
+                                <th style="text-align:left; padding:0.4rem;">Último post</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-pruebas-resumen"></tbody>
@@ -282,7 +296,7 @@
             </section>
         </section>
 
-        <section class="pruebas-panel" style="margin-bottom: 1.5rem;">
+        <section class="pruebas-panel" id="seccion-historico-pruebas" style="margin-bottom: 1.5rem;">
             <h2>Pruebas y calibraciones</h2>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
                 Se muestran las pruebas registradas en Firestore y su estado de vigencia según la fecha de próxima prueba.
@@ -486,7 +500,7 @@
     import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const auth = window.auth;
-    const APP_VERSION = '2026-08-08-1';
+    const APP_VERSION = '2026-08-12-3';
 
     (async () => {
         try {
@@ -543,6 +557,19 @@
                     alert('No fue posible exportar los errores.');
                 }
             });
+
+            const normPruebaTipo = (v) => {
+                try {
+                    const s = String(v || '').toUpperCase().trim();
+                    if (!s) return '';
+                    if (s.includes('UTT')) return 'UTT';
+                    if (s.includes('LT')) return 'LT';
+                    if (s.includes('VT') || s.includes('PT') || s.includes('MT')) return 'VT/PT/MT';
+                    return s;
+                } catch {
+                    return '';
+                }
+            };
         }
 
         try {
@@ -1304,6 +1331,7 @@
         const tbodyListado = document.getElementById('tbody-pruebas-listado');
         const msgListado = document.getElementById('mensaje-sin-pruebas-listado');
         const inputBuscar = document.getElementById('pruebas-buscar');
+        const inputBuscarResumen = document.getElementById('pl-resumen-buscar');
         const lblPend = document.getElementById('pruebas-contador-pendientes');
         const lblVenc = document.getElementById('pruebas-contador-vencidas');
         const lblHist = document.getElementById('pruebas-contador-historico');
@@ -1311,6 +1339,11 @@
         const lblPT = document.getElementById('pruebas-contador-pt');
         const lblRep = document.getElementById('pruebas-contador-rep');
         const btnVerTodas = document.getElementById('btn-pruebas-ver-todas');
+
+        const btnViewResumen = document.getElementById('pl-view-resumen');
+        const btnViewHistorico = document.getElementById('pl-view-historico');
+        const seccionResumenEquipo = document.getElementById('seccion-resumen-equipo');
+        const seccionHistorico = document.getElementById('seccion-historico-pruebas');
 
         const tbodyResumen = document.getElementById('tbody-pruebas-resumen');
         const msgResumen = document.getElementById('mensaje-sin-pruebas-resumen');
@@ -1438,10 +1471,45 @@
         const cardR15Val = document.getElementById('card-rango-15-val');
         const cardR0Val = document.getElementById('card-rango-0-val');
 
+        // Modo de vista: resumen agrupado vs histórico por documento
+        let viewMode = 'resumen';
+        try {
+            const prev = String(localStorage.getItem('pct_pruebaslist_view_mode') || '').trim();
+            if (prev === 'historico' || prev === 'resumen') viewMode = prev;
+        } catch {}
+        if (window.isInspector) viewMode = 'historico';
+
+        function applyViewMode() {
+            try {
+                if (btnViewResumen) {
+                    const active = viewMode === 'resumen';
+                    btnViewResumen.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
+                    btnViewResumen.style.fontWeight = active ? '800' : '700';
+                }
+                if (btnViewHistorico) {
+                    const active = viewMode === 'historico';
+                    btnViewHistorico.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
+                    btnViewHistorico.style.fontWeight = active ? '800' : '700';
+                }
+                if (seccionResumenEquipo) seccionResumenEquipo.style.display = (viewMode === 'resumen') ? '' : 'none';
+                if (seccionHistorico) seccionHistorico.style.display = (viewMode === 'historico') ? '' : 'none';
+            } catch {}
+        }
+
+        function setViewMode(next) {
+            viewMode = (next === 'historico') ? 'historico' : 'resumen';
+            try { localStorage.setItem('pct_pruebaslist_view_mode', viewMode); } catch {}
+            applyViewMode();
+            try { render(); } catch {}
+        }
+
+        if (btnViewResumen) btnViewResumen.addEventListener('click', () => setViewMode('resumen'));
+        if (btnViewHistorico) btnViewHistorico.addEventListener('click', () => setViewMode('historico'));
+        applyViewMode();
+
         // Inspector: ocultar chips/resúmenes y evitar filtros (solo lista recientes 32h)
         const seccionChipsAlertas = document.getElementById('seccion-chips-alertas');
         const seccionChipsPeriodo = document.getElementById('seccion-chips-periodo');
-        const seccionResumenEquipo = document.getElementById('seccion-resumen-equipo');
         if (window.isInspector) {
             if (seccionChipsAlertas) seccionChipsAlertas.style.display = 'none';
             if (seccionChipsPeriodo) seccionChipsPeriodo.style.display = 'none';
@@ -4560,7 +4628,9 @@
         }
 
         function render() {
-            const filtro = (inputBuscar?.value || '').toLowerCase().trim();
+            const filtroHistorico = (inputBuscar?.value || '').toLowerCase().trim();
+            const filtroResumen = (inputBuscarResumen?.value || '').toLowerCase().trim();
+            const filtro = (viewMode === 'resumen') ? filtroResumen : filtroHistorico;
 
             tbodyListado.innerHTML = '';
             if (msgListado) msgListado.style.display = 'none';
@@ -4583,14 +4653,14 @@
 
             const hoy = hoySinHora();
 
-            const enriquecidas = pruebas.map(reg => {
+            const enriched = pruebas.map(reg => {
                 const clasif = clasificarPrueba(reg);
                 const fechaReal = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
                 return { ...reg, _clasif: clasif, _fechaRealDate: fechaReal };
             });
 
             const porRealizar = [];
-            const historico = [...enriquecidas];
+            const historico = [...enriched];
             try {
                 historico.sort((a, b) => {
                     const aMs = (a && a._fechaRealDate instanceof Date) ? a._fechaRealDate.getTime() : 0;
@@ -4610,7 +4680,7 @@
             } catch {}
             const totalHistorico = historico.length;
 
-            enriquecidas.forEach(reg => {
+            enriched.forEach(reg => {
                 if (reg._clasif.estado === 'VIGENTE' || reg._clasif.estado === 'VENCIDA') {
                     porRealizar.push(reg);
                 }
@@ -4618,7 +4688,7 @@
 
             // Construir referencia: última ANUAL por equipo
             const anualPorEquipo = new Map();
-            enriquecidas.forEach(reg => {
+            enriched.forEach(reg => {
                 const eq = normEquipoKey(reg.equipo);
                 if (!eq) return;
                 const periodo = (reg.periodo || '').toString().trim().toUpperCase();
@@ -4629,6 +4699,19 @@
                     anualPorEquipo.set(eq, reg);
                 }
             });
+
+            const normPruebaTipo = (v) => {
+                try {
+                    const s = String(v || '').toUpperCase().trim();
+                    if (!s) return '';
+                    if (s.includes('UTT')) return 'UTT';
+                    if (s.includes('LT')) return 'LT';
+                    if (s.includes('VT') || s.includes('PT') || s.includes('MT')) return 'VT/PT/MT';
+                    return s;
+                } catch {
+                    return '';
+                }
+            };
 
             // Visualizador de cobertura por equipo (inventario como base):
             // 100%: ANUAL + VT/PT/MT + UTT por equipo (se ignoran Post-trabajo/Reparación para completar cobertura)
@@ -4900,81 +4983,178 @@
                 }
             } catch {}
 
-            // Resumen por equipo (última ANUAL) incluyendo equipos sin ANUAL (desde inventario)
-            if (tbodyResumen && lblResVig && lblResVenc && lblResSin) {
-                const listaEquiposBase = equiposInventario && equiposInventario.size
-                    ? Array.from(equiposInventario)
-                    : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+            // Resumen por equipo+serial: ANUAL LT como ancla, POST-TRABAJO histórico por año vigente (o total si no hay anual)
+            if (tbodyResumen) {
+                const baseKeys = new Map();
+                try {
+                    const equiposBase = (equiposInventario && equiposInventario.size)
+                        ? Array.from(equiposInventario)
+                        : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+                    equiposBase.forEach(eqK => {
+                        const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                        const srK = normSerialKey(serialInv);
+                        const key = `${eqK}__${srK}`;
+                        if (!baseKeys.has(key)) baseKeys.set(key, { eqK, srK });
+                    });
+                } catch {}
+                try {
+                    (Array.isArray(enriched) ? enriched : []).forEach(r => {
+                        const eqK = normEquipoKey(r && r.equipo ? String(r.equipo) : '');
+                        if (!eqK) return;
+                        const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                        const serialRaw = (r && (r.numeroSerie || r.serial)) ? String(r.numeroSerie || r.serial) : '';
+                        const srK = normSerialKey(serialRaw) || normSerialKey(serialInv) || '';
+                        const key = `${eqK}__${srK}`;
+                        if (!baseKeys.has(key)) baseKeys.set(key, { eqK, srK });
+                    });
+                } catch {}
 
-                if (!listaEquiposBase.length && msgResumen) {
-                    msgResumen.style.display = 'block';
-                }
+                const anualesLt = new Map();
+                const postRows = [];
+                const anualHistCount = new Map();
+                const postHistCount = new Map();
 
-                let cntEquiposVig = 0;
-                let cntEquiposVenc = 0;
-                let cntEquiposSin = 0;
-                let cntEquiposPorCaducar = 0;
+                (Array.isArray(enriched) ? enriched : []).forEach(r => {
+                    if (!r) return;
+                    const eqK = normEquipoKey(r && r.equipo ? String(r.equipo) : '');
+                    if (!eqK) return;
+                    const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                    const serialRaw = (r && (r.numeroSerie || r.serial)) ? String(r.numeroSerie || r.serial) : '';
+                    const srK = normSerialKey(serialRaw) || normSerialKey(serialInv) || '';
+                    const gKey = `${eqK}__${srK}`;
 
-                const listaEquiposFiltrada = listaEquiposBase.filter(eq => {
-                    if (!filtroCobertura) return true;
-                    const cov = (window._equiposCobertura && window._equiposCobertura[eq]) ? window._equiposCobertura[eq] : null;
-                    const cat = cov ? cov.cat : 'sin';
-                    return cat === filtroCobertura;
+                    const periodo = (r.periodo || '').toString().trim().toUpperCase();
+                    const tipo = normPruebaTipo(r.pruebaTipo || r.prueba || '');
+                    const fr = (r._fechaRealDate instanceof Date) ? r._fechaRealDate : parseFechaRealizacion(r.fechaRealizacion || r.fechaPrueba || '');
+
+                    if (periodo === 'POST-TRABAJO') {
+                        postRows.push({ gKey, fr, reg: r });
+                        postHistCount.set(gKey, (postHistCount.get(gKey) || 0) + 1);
+                        return;
+                    }
+                    if (periodo && periodo !== 'ANUAL') return;
+
+                    // Historial anual: solo LT para el resumen
+                    if (tipo !== 'LT') return;
+                    anualHistCount.set(gKey, (anualHistCount.get(gKey) || 0) + 1);
+                    const prev = anualesLt.get(gKey);
+                    if (!prev || (fr && prev.fr && fr.getTime() > prev.fr.getTime()) || (!prev.fr && fr)) {
+                        anualesLt.set(gKey, { fr, reg: r });
+                    }
                 });
 
-                listaEquiposFiltrada.sort((a, b) => {
-                    const cmp = a.localeCompare(b);
-                    return (sortListado.key === 'equipo' && sortListado.dir === 'desc') ? -cmp : cmp;
-                }).forEach(eq => {
-                    const reg = anualPorEquipo.get(eq) || null;
-                    const estado = reg ? reg._clasif.estado : 'SIN_PRUEBA';
+                const fmtDate = (d) => {
+                    try {
+                        if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        const yy = String(d.getFullYear());
+                        return `${dd}/${mm}/${yy}`;
+                    } catch {
+                        return '';
+                    }
+                };
 
-                    if (estado === 'VIGENTE') {
-                        cntEquiposVig += 1;
-                        const dProx = parseProxima(reg ? (reg.proxima || '') : '');
-                        if (dProx) {
-                            const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                            if (dias >= 0 && dias <= 60) cntEquiposPorCaducar += 1;
+                const rows = Array.from(baseKeys.values()).map(({ eqK, srK }) => {
+                    const gKey = `${eqK}__${srK}`;
+                    const anual = anualesLt.get(gKey) || null;
+                    let anualFr = anual && anual.fr ? anual.fr : null;
+                    let anualProx = null;
+                    let anualEstado = 'SIN_ANUAL';
+                    if (anual && anual.reg) {
+                        anualProx = parseProxima(anual.reg.proxima || '') || null;
+                        if (!anualProx && anualFr) {
+                            const d = new Date(anualFr);
+                            d.setFullYear(d.getFullYear() + 1);
+                            d.setHours(0,0,0,0);
+                            if (!isNaN(d.getTime())) anualProx = d;
                         }
-                    } else if (estado === 'VENCIDA') {
-                        cntEquiposVenc += 1;
-                    } else {
-                        cntEquiposSin += 1;
+                        if (anualProx) {
+                            const hoy0 = hoySinHora();
+                            anualEstado = (anualProx.getTime() < hoy0.getTime()) ? 'VENCIDA' : 'VIGENTE';
+                        } else {
+                            anualEstado = 'SIN_FECHA';
+                        }
                     }
 
-                    const fila = document.createElement('tr');
-                    const proximaStr = reg ? fmtProxima(reg.proxima || '') : '';
-                    const fechaReal = reg ? fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '') : '';
-                    const tecnico = reg ? (reg.tecnico || '') : '';
-                    const noRep = reg ? (reg.noReporte || '') : '';
-                    const desc = reg && reg.descripcion
-                        ? reg.descripcion
-                        : (descripcionPorEquipoInv[eq] || '');
+                    // POST: si hay anual, contar dentro de ventana anual; si no, contar todo el histórico.
+                    let postCount = 0;
+                    let lastPost = null;
+                    postRows.forEach(p => {
+                        if (!p || p.gKey !== gKey) return;
+                        if (!p.fr) return;
+                        if (anualFr && anualProx) {
+                            if (p.fr.getTime() < anualFr.getTime()) return;
+                            if (p.fr.getTime() >= anualProx.getTime()) return;
+                        }
+                        postCount += 1;
+                        if (!lastPost || p.fr.getTime() > lastPost.getTime()) lastPost = p.fr;
+                    });
+                    if (!(anualFr && anualProx)) {
+                        // En modo sin anual: postCount ya cuenta todo; si no hay posts, 0.
+                    }
 
-                    const badge =
-                        estado === 'VIGENTE'
-                            ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>'
-                            : estado === 'VENCIDA'
-                                ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>'
-                                : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin prueba</span>';
+                    const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : ((productoPorSerialInv && srK && productoPorSerialInv[srK]) ? String(productoPorSerialInv[srK]) : '');
+                    const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : ((descripcionPorSerialInv && srK && descripcionPorSerialInv[srK]) ? String(descripcionPorSerialInv[srK]) : '');
 
-                    fila.innerHTML = `
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eq}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaReal}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${proximaStr}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tecnico}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${noRep}</td>
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badge}</td>
-                    `;
-                    tbodyResumen.appendChild(fila);
+                    return {
+                        eqK,
+                        srK,
+                        prod,
+                        desc,
+                        anualFr,
+                        anualProx,
+                        anualEstado,
+                        anualHist: anualHistCount.get(gKey) || 0,
+                        postHist: postHistCount.get(gKey) || 0,
+                        postCount,
+                        lastPost,
+                    };
                 });
 
-                lblResVig.textContent = String(cntEquiposVig);
-                lblResVenc.textContent = String(cntEquiposVenc);
-                lblResSin.textContent = String(cntEquiposSin);
-                if (lblResPorCad) lblResPorCad.textContent = String(cntEquiposPorCaducar);
-                if (lblResCaducadas) lblResCaducadas.textContent = String(cntEquiposVenc);
+                rows.sort((a, b) => {
+                    const cmp = String(a.eqK || '').localeCompare(String(b.eqK || ''));
+                    if (cmp !== 0) return cmp;
+                    return String(a.srK || '').localeCompare(String(b.srK || ''));
+                });
+
+                if (!rows.length && msgResumen) msgResumen.style.display = 'block';
+
+                rows.forEach(r => {
+                    if (filtro) {
+                        const t = `${r.eqK} ${r.srK} ${r.prod} ${r.desc}`.toLowerCase();
+                        if (!t.includes(filtro)) return;
+                    }
+
+                    const badge =
+                        r.anualEstado === 'VIGENTE'
+                            ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Vigente</span>'
+                            : r.anualEstado === 'VENCIDA'
+                                ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:0.75rem;">Vencida</span>'
+                                : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin anual</span>';
+
+                    const postLabel = (r.anualFr && r.anualProx)
+                        ? `${r.postCount} (año) · ${r.postHist} total`
+                        : `${r.postHist} total`;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${r.eqK}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${r.srK || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${r.prod || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${r.desc || ''}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtDate(r.anualFr)}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtDate(r.anualProx)}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badge}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${postLabel}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtDate(r.lastPost)}</td>
+                    `;
+                    tbodyResumen.appendChild(tr);
+                });
+            }
+
+            if (viewMode === 'resumen') {
+                return;
             }
 
             // Ordenar priorizando próximas a vencer (VIGENTE con días >= 0, ascendente) POR PRUEBA,
@@ -5678,6 +5858,12 @@
 
         if (inputBuscar) {
             inputBuscar.addEventListener('input', () => {
+                render();
+            });
+        }
+
+        if (inputBuscarResumen) {
+            inputBuscarResumen.addEventListener('input', () => {
                 render();
             });
         }
