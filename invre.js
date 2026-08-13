@@ -110,18 +110,166 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
 
-    fetch('docs/INVENTARIOTOTAL04-202602.csv')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('No se pudo cargar INVENTARIOTOTAL04-202602.csv');
-            }
-            return response.text();
-        })
-        .then(texto => {
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (!lineas.length) return;
+    (async () => {
+        try {
+            try {
+                tbody.innerHTML = '<tr><td colspan="30" style="padding:0.8rem; color:#64748b;">Cargando inventario…</td></tr>';
+            } catch {}
 
-            const headersLocal = parseCSVLine(lineas[0]);
+            // Esperar un poco a que termine la carga inicial de inventarioEstados
+            // (evita que pinte todo como ON y luego cambie, y evita carreras en dispositivos lentos).
+            try {
+                const t0 = Date.now();
+                while (Date.now() - t0 < 2200) {
+                    await new Promise(r => setTimeout(r, 60));
+                    break;
+                }
+            } catch {}
+
+            const headersLocal = [
+                '',
+                'EDO',
+                'PRODUCTO',
+                'SERIAL',
+                'EQUIPO / ACTIVO',
+                'DESCRIPCION',
+                'REPORTE P/P',
+                'PROPIEDAD',
+                'DIAMETRO 1',
+                'TIPO 1',
+                'CONEXIÓN 1',
+                'PRESION 1',
+                'X 1',
+                'DIAMETRO 2',
+                'TIPO 2',
+                'CONEXIÓN 2',
+                'PRESION 2',
+                'X 2',
+                'DIAMETRO 3',
+                'TIPO 3',
+                'CONEXIÓN 3',
+                'PRESION 3',
+                'P.T.',
+                'SERVICIO',
+                'A / L',
+                'TEMP',
+                'TIPO EQUIPO',
+                'ACERO',
+                'INFORMACION FLEJE COMPLETA',
+                'INFORMACION FLEJE'
+            ];
+
+            const idxEdo = headersLocal.indexOf('EDO');
+            const idxProducto = headersLocal.indexOf('PRODUCTO');
+            const idxSerial = headersLocal.indexOf('SERIAL');
+            const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
+            const idxDescripcion = headersLocal.indexOf('DESCRIPCION');
+            const idxReporte = headersLocal.indexOf('REPORTE P/P');
+            const idxProp = headersLocal.indexOf('PROPIEDAD');
+            const idxDiam1 = headersLocal.indexOf('DIAMETRO 1');
+            const idxTipo1 = headersLocal.indexOf('TIPO 1');
+            const idxConexion1 = headersLocal.indexOf('CONEXIÓN 1');
+            const idxPresion1 = headersLocal.indexOf('PRESION 1');
+            const idxX1 = headersLocal.indexOf('X 1');
+            const idxDiam2 = headersLocal.indexOf('DIAMETRO 2');
+            const idxTipo2 = headersLocal.indexOf('TIPO 2');
+            const idxConexion2 = headersLocal.indexOf('CONEXIÓN 2');
+            const idxPresion2 = headersLocal.indexOf('PRESION 2');
+            const idxX2 = headersLocal.indexOf('X 2');
+            const idxDiam3 = headersLocal.indexOf('DIAMETRO 3');
+            const idxTipo3 = headersLocal.indexOf('TIPO 3');
+            const idxConexion3 = headersLocal.indexOf('CONEXIÓN 3');
+            const idxPresion3 = headersLocal.indexOf('PRESION 3');
+            const idxPt = headersLocal.indexOf('P.T.');
+            const idxServicio = headersLocal.indexOf('SERVICIO');
+            const idxAL = headersLocal.indexOf('A / L');
+            const idxTemp = headersLocal.indexOf('TEMP');
+            const idxTipoEquipo = headersLocal.indexOf('TIPO EQUIPO');
+            const idxAcero = headersLocal.indexOf('ACERO');
+            const idxInfoFlejeCompleta = headersLocal.indexOf('INFORMACION FLEJE COMPLETA');
+            const idxInfoFleje = headersLocal.indexOf('INFORMACION FLEJE');
+
+            const norm = (s) => {
+                return String(s ?? '')
+                    .toString()
+                    .trim()
+                    .replace(/\u00A0/g, ' ')
+                    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
+                    .replace(/[\u200B-\u200D\uFEFF]+/g, '')
+                    .replace(/\s+/g, ' ');
+            };
+            const getEdoForEquipo = (equipoKey, edoFallback) => {
+                try {
+                    const key = String(equipoKey || '').trim();
+                    const hit = key ? mapaEstadoOverride[key] : '';
+                    const v = (hit || edoFallback || 'ON').toString().trim().toUpperCase();
+                    return v || 'ON';
+                } catch {
+                    return 'ON';
+                }
+            };
+
+            let docs = [];
+            try {
+                const { getFirestore, collection, getDocs, getDocsFromServer } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                const colRef = collection(db, 'equipos');
+                let snap = null;
+                try {
+                    snap = await getDocsFromServer(colRef);
+                } catch {
+                    snap = await getDocs(colRef);
+                }
+                docs = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+            } catch (e) {
+                console.error('No se pudo cargar inventario desde Firestore', e);
+                docs = [];
+            }
+
+            if (!docs.length) {
+                try {
+                    tbody.innerHTML = '<tr><td colspan="30" style="padding:0.8rem; color:#64748b;">No se cargaron equipos desde Firestore. Revisa sesión/permisos/conexión y recarga.</td></tr>';
+                } catch {}
+            }
+
+            const filasDatos = (docs || []).map((d, i) => {
+                const cols = new Array(headersLocal.length).fill('');
+                cols[0] = String(i + 1);
+                // Preferir docId como identidad del equipo (evita errores por equipoKey corrupto en el documento).
+                const equipoKey = norm(d.id || d.equipoKey);
+                cols[idxEquipo] = equipoKey;
+                cols[idxSerial] = norm(d.serial);
+                cols[idxProducto] = norm(d.producto);
+                cols[idxDescripcion] = norm(d.descripcion);
+                cols[idxReporte] = norm(d.reportePP);
+                cols[idxProp] = norm(d.propiedad);
+                cols[idxDiam1] = norm(d.diametro1);
+                cols[idxTipo1] = norm(d.tipo1);
+                cols[idxConexion1] = norm(d.conexion1);
+                cols[idxPresion1] = norm(d.presion1);
+                cols[idxX1] = norm(d.x1);
+                cols[idxDiam2] = norm(d.diametro2);
+                cols[idxTipo2] = norm(d.tipo2);
+                cols[idxConexion2] = norm(d.conexion2);
+                cols[idxPresion2] = norm(d.presion2);
+                cols[idxX2] = norm(d.x2);
+                cols[idxDiam3] = norm(d.diametro3);
+                cols[idxTipo3] = norm(d.tipo3);
+                cols[idxConexion3] = norm(d.conexion3);
+                cols[idxPresion3] = norm(d.presion3);
+                cols[idxPt] = norm(d.pt);
+                cols[idxServicio] = norm(d.servicio);
+                cols[idxAL] = norm(d.al);
+                cols[idxTemp] = norm(d.temp);
+                cols[idxTipoEquipo] = norm(d.tipoEquipo);
+                cols[idxAcero] = norm(d.acero);
+                cols[idxInfoFlejeCompleta] = norm(d.infoFlejeCompleta);
+                cols[idxInfoFleje] = norm(d.infoFleje);
+                cols[idxEdo] = getEdoForEquipo(equipoKey, d.edo);
+                return cols;
+            });
 
             // Selección de filas (equipos) para exportación
             const selectedRowIds = new Set();
@@ -188,26 +336,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             thead.appendChild(trHead);
 
-            // Guardar filas en memoria para poder filtrarlas
-            const filasDatos = lineas.slice(1)
-                .map(linea => parseCSVLine(linea))
-                .filter(cols => cols.length);
-
             // Inicializar IDs de fila para selección/exports
             try { filasDatos.forEach(cols => { getRowId(cols); }); } catch {}
-
-            const idxEquipo = headersLocal.indexOf('EQUIPO / ACTIVO');
-            const idxDescripcion = headersLocal.indexOf('DESCRIPCION');
-            const idxSerial = headersLocal.indexOf('SERIAL');
-            const idxReporte = headersLocal.indexOf('REPORTE P/P');
-            const idxEdo = headersLocal.indexOf('EDO');
-            const idxProducto = headersLocal.indexOf('PRODUCTO');
-            const idxTipoEquipo = headersLocal.indexOf('TIPO EQUIPO');
-            const idxDiam1 = headersLocal.indexOf('DIAMETRO 1');
-            const idxTipo1 = headersLocal.indexOf('TIPO 1');
-            const idxConexion1 = headersLocal.indexOf('CONEXIÓN 1');
-            const idxPresion1 = headersLocal.indexOf('PRESION 1');
-            const idxAL = headersLocal.indexOf('A / L');
 
             const getSpec4206_6206 = (cols) => {
                 try {
@@ -1312,8 +1442,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 wrapper.scrollLeft = scrollLeft - walkX;
                 wrapper.scrollTop = scrollTop - walkY;
             });
-        })
-        .catch(err => {
+        } catch (err) {
             console.error(err);
-        });
+        }
+    })();
 });

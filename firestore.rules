@@ -83,7 +83,7 @@ service cloud.firestore {
 
     match /inventarioEstados/{docId} {
       allow read: if canReadCatalogs();
-      allow write: if false;
+      allow write: if isRoleAny(['admin', 'director']);
     }
 
     match /inspecciones/{docId} {
