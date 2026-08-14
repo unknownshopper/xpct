@@ -68,12 +68,12 @@ service cloud.firestore {
 
     match /catalogo_danos/{docId} {
       allow read: if canReadCatalogs();
-      allow write: if false;
+      allow write: if isRoleAny(['admin']);
     }
 
     match /equipos_overrides/{docId} {
       allow read: if canReadCatalogs();
-      allow write: if false;
+      allow write: if isRoleAny(['admin']);
     }
 
     match /equipos/{docId} {

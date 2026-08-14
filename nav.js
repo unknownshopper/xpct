@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'pruebasrangos.html',
         'inspeccion.html',
         'inspectlist.html',
+        'catalogodanos.html',
         'invre.html',
         'servicio.html',
         'serviciolist.html',
@@ -508,6 +509,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Inventario (invre.html): admin/director/supervisor/auxger/capturista
                     ensureInvreNavLink(isAdmin || isDirector || isSupervisor || isAuxger || isCapturista);
+
+                    // Inspecciones: Catálogo de daños (visible para quien ya tiene acceso a Inspecciones)
+                    try {
+                        document.querySelectorAll('a[href="catalogodanos.html"]').forEach(a => {
+                            const li = a.closest('li') || a;
+                            li.style.display = '';
+                            if (currentPage === 'catalogodanos.html') a.classList.add('active');
+                            else a.classList.remove('active');
+                        });
+                    } catch {}
 
                     // Servicio: admin/director/supervisor/inspector/capturista (no visor)
                     ensureServicioNavDropdown(isAdmin || isDirector || isSupervisor || isInspector || isCapturista);

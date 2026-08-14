@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo de daños</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body style="margin:0;">
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">
+            &#9776;
+        </button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                        <li><a href="pruebasrangos.html">Rangos</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#" class="active">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                        <li><a href="catalogodanos.html" class="active">Catálogo de daños</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="inspeccion-page" style="max-width: 100%; margin: 0; padding: 0;">
+        <section class="inspectlist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin:0 0 0.5rem;">
+                <a href="index.html" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; color:#111827; font-weight:800; font-size:0.95rem; padding:0.25rem 0.5rem; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff;">
+                    <span aria-hidden="true">←</span>
+                    <span>Inicio</span>
+                </a>
+            </div>
+
+            <h2>Catálogo de daños</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Fuente de verdad: Firestore (<code>catalogo_danos</code>). Solo <strong>admin</strong> puede editar.
+            </p>
+
+            <div class="tabla-inspecciones-wrapper" style="margin:0.75rem 0 0.9rem; padding:0.75rem; border:1px solid #e5e7eb; border-radius:0.75rem; background:#ffffff;">
+                <h3 style="margin:0 0 0.4rem; font-size:1rem;">Mapeo por familia / variante (auditoría)</h3>
+                <p style="margin:0 0 0.75rem; font-size:0.85rem; color:#6b7280;">
+                    Navega por <strong>familia</strong> y, si aplica, por <strong>variante</strong> (ej. XO). Define los <strong>parámetros de daño aplicables</strong> y guárdalos en Firestore.
+                </p>
+
+                <div style="display:grid; grid-template-columns: 320px 1fr; gap:12px; align-items:start;">
+                    <div style="border:1px solid #e5e7eb; border-radius:12px; background:#fff; padding:10px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;">
+                            <div style="font-weight:900; color:#111827;">Familias</div>
+                            <div style="font-size:0.8rem; color:#6b7280;" id="cdf-count">0</div>
+                        </div>
+                        <input type="search" id="cdf-buscar" placeholder="Buscar familia/variante..." style="width:100%; margin-bottom:10px;" autocomplete="off">
+                        <div id="cdf-tree"></div>
+                    </div>
+
+                    <div style="border:1px solid #e5e7eb; border-radius:12px; background:#fff; padding:10px;">
+                        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:900; color:#111827;" id="cdm-titulo">Selecciona una familia…</div>
+                                <div style="font-size:0.82rem; color:#6b7280;" id="cdm-subtitulo"></div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <button type="button" id="cdm-btn-editar" style="display:none; padding:0.35rem 0.75rem; border-radius:0.5rem; border:1px solid #d1d5db; background:#111827; color:#ffffff; font-size:0.85rem;">Editar</button>
+                                <button type="button" id="cdm-btn-guardar" style="display:none; padding:0.35rem 0.75rem; border-radius:0.5rem; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; font-size:0.85rem;">Guardar</button>
+                            </div>
+                        </div>
+
+                        <div id="cdm-detalle" style="display:none; margin-top:10px;">
+                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px;">
+                                <div style="min-width:160px;">
+                                    <label for="cdm-familia" style="display:block; font-size:0.8rem; color:#374151; margin:0 0 0.15rem;">Familia</label>
+                                    <input type="text" id="cdm-familia" style="width:100%;" autocomplete="off" disabled>
+                                </div>
+                                <div style="min-width:220px;">
+                                    <label for="cdm-variante" style="display:block; font-size:0.8rem; color:#374151; margin:0 0 0.15rem;">Variante</label>
+                                    <input type="text" id="cdm-variante" style="width:100%;" autocomplete="off" disabled>
+                                </div>
+                                <div style="font-size:0.8rem; color:#6b7280;">Seleccionados: <span id="cdm-count">0</span></div>
+                            </div>
+
+                            <div id="cdm-parametros" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:8px;"></div>
+                            <p id="cdm-msg" style="font-size:0.85rem; color:#6b7280; margin-top:0.6rem; display:none;"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="cd-toolbar" style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; justify-content:space-between; margin:0.25rem 0 0.75rem;">
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                    <input type="search" id="cd-buscar" placeholder="Buscar parámetro u opción..." style="min-width: 260px;" autocomplete="off">
+                    <button type="button" id="cd-btn-nuevo" style="display:none; padding:0.35rem 0.75rem; border-radius:0.5rem; border:1px solid #d1d5db; background:#111827; color:#ffffff; font-size:0.85rem;">Nuevo</button>
+                </div>
+                <div style="font-size:0.85rem; color:#4b5563;">
+                    <span id="cd-contador">0 registros</span>
+                </div>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+                <table id="cd-tabla" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:#f3f4f6;">
+                            <th style="text-align:left; padding:0.4rem;">Key</th>
+                            <th style="text-align:left; padding:0.4rem;">Parámetro</th>
+                            <th style="text-align:left; padding:0.4rem;">Opciones (separadas por coma)</th>
+                            <th style="text-align:left; padding:0.4rem;">Actualizado</th>
+                            <th style="text-align:left; padding:0.4rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cd-tbody"></tbody>
+                </table>
+                <p id="cd-msg" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;"></p>
+            </div>
+        </section>
+    </main>
+
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const auth = window.auth;
+
+    const emailSpan = document.getElementById('nav-user-email');
+    const btnLogout = document.getElementById('btn-logout');
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            try {
+                const next = `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`;
+                window.location.href = `login.html?next=${encodeURIComponent(next)}`;
+            } catch {
+                window.location.href = 'login.html';
+            }
+            return;
+        }
+
+        const email = (user.email || '').toLowerCase();
+        if (emailSpan) emailSpan.textContent = email;
+
+        try {
+            const token = await user.getIdTokenResult();
+            const role = (token?.claims?.role) || null;
+            window.userRole = role;
+            window.isAdmin = role === 'admin';
+            window.isDirector = role === 'director';
+            window.isSupervisor = role === 'supervisor';
+            window.isInspector = role === 'inspector';
+            window.isCapturista = role === 'capturista';
+            window.isAuxger = role === 'auxger';
+            window.isSgi = (role === 'sgi') || (email === 'sgi@pc-t.com.mx');
+            window.isCops = email === 'cops@pc-t.com.mx';
+
+            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
+                window.location.href = 'website.html';
+                return;
+            }
+        } catch (e) {
+            try { console.error('[catalogodanos] No se pudo obtener claims/rol:', e); } catch {}
+            try { await signOut(auth); } catch {}
+            try {
+                const next = `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`;
+                window.location.href = `login.html?next=${encodeURIComponent(next)}`;
+            } catch {
+                window.location.href = 'login.html';
+            }
+        }
+    });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.href = 'website.html';
+            }
+        });
+    }
+    </script>
+
+    <script src="nav.js"></script>
+    <script src="catalogodanos.js?v=20260813_1"></script>
+</body>
+</html>
