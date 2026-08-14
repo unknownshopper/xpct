@@ -43,6 +43,26 @@ document.addEventListener('DOMContentLoaded', () => {
         .replace(/\s+/g, ' ');
 
     const drawMap = {
+        '90': {
+            __default: 'docs/draws/Codo90I.jpeg',
+        },
+        CA: {
+            __default: 'docs/draws/AdapterSpoolBW.png',
+        },
+        BP: {
+            __default: 'docs/draws/BridaDePrueba.jpg',
+        },
+        CAP: {
+            __default: 'docs/draws/tapaM.jpg',
+        },
+        PLG: {
+            __default: 'docs/draws/taponH.jpg',
+        },
+
+
+        DSA: {
+            __default: 'docs/draws/DSA.jpg',
+        },
         XO: {
             'ANSI x ANSI': 'docs/draws/AnsiXAnsi.png',
             'API x API': 'docs/draws/ApiXApi.png',
@@ -55,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'M x M': 'docs/draws/XoMXM.png',
         },
         TEE: {
+            __default: 'docs/draws/T1.jpeg',
             'TEE 1': 'docs/draws/T1.jpeg',
             'TEE 2': 'docs/draws/T2.png',
             'TEE 3': 'docs/draws/T3.png',
@@ -389,7 +410,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const fam = String(familiaKey || '').trim().toUpperCase();
             const v = String(varianteKey || '').trim();
-            const src = (drawMap[fam] && drawMap[fam][v]) ? drawMap[fam][v] : '';
+            const src = (drawMap[fam] && drawMap[fam][v])
+                ? drawMap[fam][v]
+                : ((drawMap[fam] && drawMap[fam].__default) ? drawMap[fam].__default : '');
             if (imgDraw) {
                 if (src) {
                     imgDraw.src = src;
