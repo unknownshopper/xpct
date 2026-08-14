@@ -422,11 +422,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     boxEquipos.innerHTML = '<div style="padding:10px; color:#6b7280; font-size:0.85rem;">Sin equipos.</div>';
                 } else {
                     boxEquipos.innerHTML = list.slice(0, 200).map(eq => {
+                        const prod = String(eq.producto || '').trim();
                         const desc = String(eq.descripcion || '').trim();
+                        const flejeCompleta = String(eq.infoFlejeCompleta || '').trim();
+                        const fleje = String(eq.infoFleje || '').trim();
+                        const detalle = desc || flejeCompleta || fleje;
                         return `
                             <div style="padding:8px 10px; border-bottom:1px solid #f3f4f6;">
                                 <div style="font-weight:900; color:#111827;">${escapeHtml(eq.id)}</div>
-                                ${desc ? `<div style="font-size:0.8rem; color:#6b7280; margin-top:2px;">${escapeHtml(desc)}</div>` : ''}
+                                ${prod ? `<div style="font-size:0.78rem; color:#111827; margin-top:2px; font-weight:800;">${escapeHtml(prod)}</div>` : ''}
+                                ${detalle ? `<div style="font-size:0.8rem; color:#6b7280; margin-top:2px;">${escapeHtml(detalle)}</div>` : ''}
                             </div>
                         `;
                     }).join('');
