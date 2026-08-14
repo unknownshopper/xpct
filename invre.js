@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const thead = document.getElementById('thead-invre');
     const tbody = document.getElementById('tbody-invre');
     const wrapper = document.querySelector('.tabla-invre-wrapper');
+    const lblTotalEquipos = document.getElementById('invre-total-equipos');
     const inputFiltroTexto = document.getElementById('invre-filtro-texto');
     const selectFiltroReporte = document.getElementById('invre-filtro-reporte');
     const btnExportSelected = document.getElementById('invre-export-selected');
@@ -227,6 +228,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('No se pudo cargar inventario desde Firestore', e);
                 docs = [];
             }
+
+            try {
+                if (lblTotalEquipos) lblTotalEquipos.textContent = String((docs || []).length);
+            } catch {}
 
             if (!docs.length) {
                 try {

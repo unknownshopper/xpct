@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputBuscarFam = document.getElementById('cdf-buscar');
     const boxTree = document.getElementById('cdf-tree');
     const lblFamCount = document.getElementById('cdf-count');
+    const lblTotalEquipos = document.getElementById('cdf-total-equipos');
 
     const lblTituloMap = document.getElementById('cdm-titulo');
     const lblSubMap = document.getElementById('cdm-subtitulo');
@@ -304,6 +305,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (lblFamCount) lblFamCount.textContent = String(_familiasIndex.length);
+        } catch {}
+
+        try {
+            if (lblTotalEquipos) {
+                const listTotal = Array.isArray(_equiposList) ? _equiposList.length : 0;
+                const sumByFam = _familiasIndex.reduce((acc, f) => acc + (Number(f.total) || 0), 0);
+                lblTotalEquipos.textContent = (listTotal === sumByFam)
+                    ? String(listTotal)
+                    : `${listTotal} (Σ familias=${sumByFam})`;
+            }
         } catch {}
     }
 
