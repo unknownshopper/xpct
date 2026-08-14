@@ -21,6 +21,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const lblCountSel = document.getElementById('cdm-count');
     const msgMap = document.getElementById('cdm-msg');
 
+    const imgDraw = document.getElementById('cdm-draw');
+    const msgDraw = document.getElementById('cdm-draw-msg');
+    const boxEquipos = document.getElementById('cdm-equipos');
+    const lblEqCount = document.getElementById('cdm-eq-count');
+
     const escapeHtml = (s) => String(s ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -35,6 +40,23 @@ document.addEventListener('DOMContentLoaded', () => {
         .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
         .replace(/[\u200B-\u200D\uFEFF]+/g, '')
         .replace(/\s+/g, ' ');
+
+    const drawMap = {
+        XO: {
+            'ANSI x ANSI': 'docs/draws/AnsiXAnsi.png',
+            'API x API': 'docs/draws/ApiXApi.png',
+            'ANSI x H': 'docs/draws/XoAnsiXH.jpg',
+            'ANSI x M': 'docs/draws/XoAnsiXM.jpg',
+            'API x H': 'docs/draws/XoApiXH.png',
+            'API x M': 'docs/draws/XoApiXM.png',
+            'H x H': 'docs/draws/XoHXH.jpg',
+            'H x M': 'docs/draws/XoHXM.jpg',
+            'M x M': 'docs/draws/XoMXM.png',
+        },
+        TEE: {
+            'TEE 1': 'docs/draws/T1.jpeg',
+        }
+    };
 
     function fmtTs(ts) {
         try {
@@ -133,6 +155,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function extractTEESubFromDescripcion(desc) {
+        try {
+            const s = String(desc || '').trim().toUpperCase().replace(/\s+/g, ' ');
+            const m = s.match(/\bTEE\s*(1|2|3)\b/);
+            if (!m) return '';
+            return `TEE ${m[1]}`;
+        } catch {
+            return '';
+        }
+    }
+
+    function extractTEESubFromDescripcionV2(desc) {
+        // Intenta inferir de formatos reales vistos: "TEE (HXMXM) ..."
+        // Regla conocida: T1 = exactamente 1 H y 2 M (orden no importa).
+        try {
+            const s = String(desc || '').trim().toUpperCase().replace(/\s+/g, ' ');
+            const direct = extractTEESubFromDescripcion(s);
+            if (direct) return direct;
+
+            const par = s.match(/\bTEE\s*\(([HM](?:X[HM]){2})\)/);
+            if (!par) return '';
+            const seq = String(par[1] || '').replace(/X/g, '');
+            const letters = seq.split('');
+            const countH = letters.filter(x => x === 'H').length;
+            const countM = letters.filter(x => x === 'M').length;
+            if (countH === 1 && countM === 2) return 'TEE 1';
+            // TEE 2/3: por ahora no inferimos sin una regla explícita en datos.
+            return '';
+        } catch {
+            return '';
+        }
+    }
+
     function buildFamiliasIndex() {
         // Index de familias desde equipos (PCT-<FAM>-...) y variantes desde overrides.varianteKey
         const famMap = new Map();
@@ -145,6 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // XO: inferir variantes desde descripcion (solo Firestore)
             if (fam === 'XO') {
                 const v = extractXOVarianteFromDescripcion(eq.descripcion || '');
+                if (v) famMap.get(fam).variantes.add(v);
+            }
+
+            // TEE: inferir subfamilia/variante (TEE 1/2/3) desde descripcion
+            if (fam === 'TEE') {
+                const v = extractTEESubFromDescripcionV2(eq.descripcion || '');
                 if (v) famMap.get(fam).variantes.add(v);
             }
         }
@@ -200,13 +261,18 @@ document.addEventListener('DOMContentLoaded', () => {
         boxTree.innerHTML = items.map(f => {
             const isSelFam = _selectedFamiliaKey === f.familiaKey;
             const hasVars = (f.variantes || []).length > 0;
+            const isExpanded = hasVars && _expandedFamilies.has(f.familiaKey);
             const header = `
                 <div data-kind="familia" data-fam="${escapeHtml(f.familiaKey)}" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:10px; cursor:pointer; ${isSelFam ? 'background:#eff6ff; border:1px solid #bfdbfe;' : 'background:#f9fafb; border:1px solid #e5e7eb;'}">
-                    <div style="font-weight:900; color:#111827;">${escapeHtml(f.familiaKey)}</div>
+                    <div style="font-weight:900; color:#111827; display:flex; align-items:center; gap:8px;">
+                        ${hasVars ? `<span style=\"font-size:0.9rem; color:#6b7280;\">${isExpanded ? '▾' : '▸'}</span>` : `<span style=\"width:12px;\"></span>`}
+                        <span>${escapeHtml(f.familiaKey)}</span>
+                    </div>
                     <div style="font-size:0.8rem; color:#6b7280;">${escapeHtml(String(f.total || 0))}${hasVars ? ` · ${escapeHtml(String(f.variantes.length))} variantes` : ''}</div>
                 </div>
             `;
             if (!hasVars) return `<div style="margin-bottom:8px;">${header}</div>`;
+            if (!isExpanded) return `<div style="margin-bottom:8px;">${header}</div>`;
 
             const vars = f.variantes.map(v => {
                 const isSelVar = isSelFam && _selectedVarianteKey === v;
@@ -242,6 +308,57 @@ document.addEventListener('DOMContentLoaded', () => {
         return _overridesByKey.get(String(docId || '')) || null;
     }
 
+    function renderDrawAndEquipos(familiaKey, varianteKey) {
+        // Imagen
+        try {
+            const fam = String(familiaKey || '').trim().toUpperCase();
+            const v = String(varianteKey || '').trim();
+            const src = (drawMap[fam] && drawMap[fam][v]) ? drawMap[fam][v] : '';
+            if (imgDraw) {
+                if (src) {
+                    imgDraw.src = src;
+                    imgDraw.style.display = '';
+                } else {
+                    imgDraw.removeAttribute('src');
+                    imgDraw.style.display = 'none';
+                }
+            }
+            if (msgDraw) msgDraw.textContent = src ? src : 'Sin imagen asignada.';
+        } catch {}
+
+        // Equipos list
+        try {
+            const fam = String(familiaKey || '').trim().toUpperCase();
+            const v = String(varianteKey || '').trim();
+            let list = _equiposList.filter(eq => inferFamiliaFromEquipoKey(eq.id) === fam);
+            if (fam === 'XO' && v) {
+                list = list.filter(eq => extractXOVarianteFromDescripcion(eq.descripcion || '') === v);
+            }
+            if (fam === 'TEE' && v) {
+                list = list.filter(eq => extractTEESubFromDescripcionV2(eq.descripcion || '') === v);
+            }
+
+            list = list.slice().sort((a, b) => String(a.id).localeCompare(String(b.id), 'es'));
+
+            if (lblEqCount) lblEqCount.textContent = String(list.length);
+            if (boxEquipos) {
+                if (!list.length) {
+                    boxEquipos.innerHTML = '<div style="padding:10px; color:#6b7280; font-size:0.85rem;">Sin equipos.</div>';
+                } else {
+                    boxEquipos.innerHTML = list.slice(0, 200).map(eq => {
+                        const desc = String(eq.descripcion || '').trim();
+                        return `
+                            <div style="padding:8px 10px; border-bottom:1px solid #f3f4f6;">
+                                <div style="font-weight:900; color:#111827;">${escapeHtml(eq.id)}</div>
+                                ${desc ? `<div style="font-size:0.8rem; color:#6b7280; margin-top:2px;">${escapeHtml(desc)}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+        } catch {}
+    }
+
     function renderMapping() {
         const familiaKey = String(_selectedFamiliaKey || '').trim().toUpperCase();
         const varianteKey = String(_selectedVarianteKey || '').trim();
@@ -266,6 +383,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lblSubMap) lblSubMap.textContent = `Firestore: equipos_overrides/${docId}`;
         } catch {}
 
+        renderDrawAndEquipos(familiaKey, varianteKey);
+
         try {
             if (inputFamilia) inputFamilia.value = familiaKey;
             if (inputVariante) inputVariante.value = varianteKey;
@@ -279,11 +398,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const k = normKey(r.parametroKey || r.id);
                     const checked = selectedKeys.has(k);
                     return `
-                        <label style="display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff;">
+                        <label style="display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border-bottom:1px solid #f3f4f6; cursor:${canEdit ? 'pointer' : 'default'};">
                             <input type="checkbox" data-param-key="${escapeHtml(k)}" ${checked ? 'checked' : ''} ${canEdit ? '' : 'disabled'} style="margin-top:2px;">
-                            <span>
-                                <div style="font-weight:800; color:#111827;">${escapeHtml(r.parametro || r.id)}</div>
-                                <div style="font-size:0.78rem; color:#6b7280;">${escapeHtml((r.opciones || []).slice(0, 8).join(', '))}${(r.opciones || []).length > 8 ? '…' : ''}</div>
+                            <span style="display:block;">
+                                <div style="font-weight:900; color:#111827;">${escapeHtml(r.parametro || r.id)}</div>
+                                <div style="font-size:0.78rem; color:#6b7280;">${escapeHtml((r.opciones || []).slice(0, 10).join(', '))}${(r.opciones || []).length > 10 ? '…' : ''}</div>
                             </span>
                         </label>
                     `;
@@ -379,6 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let _selectedVarianteKey = '';
     let _selectedMappingDocId = '';
     let _isEditingMap = false;
+    let _expandedFamilies = new Set();
 
     function render() {
         if (!tbody) return;
@@ -620,11 +740,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fam = String(node.getAttribute('data-fam') || '').trim().toUpperCase();
                 const v = String(node.getAttribute('data-var') || '').trim();
                 if (!fam) return;
-                _selectedFamiliaKey = fam;
-                _selectedVarianteKey = '';
-                if (kind === 'variante') _selectedVarianteKey = v;
-                renderFamiliasTree();
-                renderMapping();
+
+                const famObj = _familiasIndex.find(x => x.familiaKey === fam);
+                const hasVars = !!(famObj && Array.isArray(famObj.variantes) && famObj.variantes.length);
+
+                if (kind === 'familia') {
+                    _selectedFamiliaKey = fam;
+                    _selectedVarianteKey = '';
+                    if (hasVars) {
+                        // Toggle expand/contract
+                        if (_expandedFamilies.has(fam)) _expandedFamilies.delete(fam);
+                        else _expandedFamilies.add(fam);
+                    }
+                    renderFamiliasTree();
+                    renderMapping();
+                    return;
+                }
+
+                if (kind === 'variante') {
+                    _selectedFamiliaKey = fam;
+                    _selectedVarianteKey = v;
+                    if (hasVars) _expandedFamilies.add(fam);
+                    renderFamiliasTree();
+                    renderMapping();
+                    return;
+                }
             });
         }
 

@@ -108,7 +108,25 @@
                                 <div style="font-size:0.8rem; color:#6b7280;">Seleccionados: <span id="cdm-count">0</span></div>
                             </div>
 
-                            <div id="cdm-parametros" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:8px;"></div>
+                            <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin:0 0 10px;">
+                                <div style="width:260px; min-width:220px;">
+                                    <div style="font-size:0.8rem; color:#374151; font-weight:800; margin:0 0 0.25rem;">Referencia visual</div>
+                                    <div id="cdm-draw-wrap" style="border:1px solid #e5e7eb; border-radius:12px; background:#f9fafb; padding:8px;">
+                                        <img id="cdm-draw" alt="Referencia" style="display:none; width:100%; height:auto; border-radius:10px;">
+                                        <div id="cdm-draw-msg" style="font-size:0.8rem; color:#6b7280;">Sin imagen asignada.</div>
+                                    </div>
+                                </div>
+
+                                <div style="flex:1; min-width:260px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 0.25rem;">
+                                        <div style="font-size:0.8rem; color:#374151; font-weight:800;">Equipos encontrados</div>
+                                        <div style="font-size:0.8rem; color:#6b7280;"><span id="cdm-eq-count">0</span></div>
+                                    </div>
+                                    <div id="cdm-equipos" style="max-height:220px; overflow:auto; border:1px solid #e5e7eb; border-radius:12px; background:#ffffff;"></div>
+                                </div>
+                            </div>
+
+                            <div id="cdm-parametros" style="display:block;"></div>
                             <p id="cdm-msg" style="font-size:0.85rem; color:#6b7280; margin-top:0.6rem; display:none;"></p>
                         </div>
                     </div>
