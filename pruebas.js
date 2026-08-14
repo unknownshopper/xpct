@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchInventarioTexto() {
         // Inventario desde Firestore (sin CSV en runtime): se genera un CSV sintético
         // para reutilizar la lógica existente de parse/índices/datalists.
-        const { getFirestore, collection, getDocs } = await import(
+        const { getFirestore, collection, getDocs, getDocsFromServer } = await import(
             'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
         );
         const db = getFirestore();
@@ -112,16 +112,44 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         const lines = [headers.join(',')];
-        const snap = await getDocs(collection(db, 'equipos'));
+
+        // Source of truth para EDO: inventarioEstados/{equipoKey}.edo
+        const edoByEquipo = {};
+        try {
+            const colEdo = collection(db, 'inventarioEstados');
+            let snapEdo = null;
+            try {
+                snapEdo = await getDocsFromServer(colEdo);
+            } catch {
+                snapEdo = await getDocs(colEdo);
+            }
+            snapEdo.forEach(docSnap => {
+                const data = docSnap.data() || {};
+                const equipoId = String(docSnap.id || data.equipoId || '').trim();
+                const edo = String(data.edo || '').trim().toUpperCase();
+                if (equipoId) edoByEquipo[equipoId] = edo || 'ON';
+            });
+        } catch {}
+
+        let snap = null;
+        try {
+            snap = await getDocsFromServer(collection(db, 'equipos'));
+        } catch {
+            snap = await getDocs(collection(db, 'equipos'));
+        }
         let i = 0;
         snap.forEach(docSnap => {
             const data = docSnap.data() || {};
+            const equipoId = String(docSnap.id || data.equipoKey || data.equipoDisplay || '').trim();
+            const edoEf = (equipoId && edoByEquipo[equipoId])
+                ? String(edoByEquipo[equipoId] || '').trim()
+                : String(data.edo || '').trim();
             const row = [
                 String(++i),
-                csvEscape(String(data.edo || '').trim()),
+                csvEscape(String(edoEf || '').trim()),
                 csvEscape(String(data.producto || '').trim()),
                 csvEscape(String(data.serial || '').trim()),
-                csvEscape(String(docSnap.id || data.equipoKey || data.equipoDisplay || '').trim()),
+                csvEscape(equipoId),
                 csvEscape(String(data.descripcion || '').trim()),
                 csvEscape(String(data.reportePP || '').trim()),
                 csvEscape(String(data.propiedad || '').trim()),
