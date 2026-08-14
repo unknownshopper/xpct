@@ -56,9 +56,9 @@
     <main class="inspeccion-page" style="max-width: 100%; margin: 0; padding: 0;">
         <section class="inspectlist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
             <div style="display:flex; align-items:center; justify-content:flex-start; margin:0 0 0.5rem;">
-                <a href="index.html" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; color:#111827; font-weight:800; font-size:0.95rem; padding:0.25rem 0.5rem; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff;">
+                <a id="cd-btn-back-invre" href="invre.html" style="display:none; align-items:center; gap:0.4rem; text-decoration:none; color:#111827; font-weight:800; font-size:0.95rem; padding:0.25rem 0.5rem; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff;">
                     <span aria-hidden="true">←</span>
-                    <span>Inicio</span>
+                    <span>Inventario</span>
                 </a>
             </div>
 
@@ -185,6 +185,8 @@
         const email = (user.email || '').toLowerCase();
         if (emailSpan) emailSpan.textContent = email;
 
+        const btnBackInvre = document.getElementById('cd-btn-back-invre');
+
         try {
             const token = await user.getIdTokenResult();
             const role = (token?.claims?.role) || null;
@@ -197,6 +199,12 @@
             window.isAuxger = role === 'auxger';
             window.isSgi = (role === 'sgi') || (email === 'sgi@pc-t.com.mx');
             window.isCops = email === 'cops@pc-t.com.mx';
+
+            try {
+                const localPart = (email.split('@')[0] || '').toLowerCase();
+                const canSeeBack = !!(window.isAdmin || localPart === 'jalcz' || localPart === 'lgmt' || localPart === 'sgi' || email === 'sgi@pc-t.com.mx');
+                if (btnBackInvre) btnBackInvre.style.display = canSeeBack ? 'inline-flex' : 'none';
+            } catch {}
 
             if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
                 window.location.href = 'website.html';

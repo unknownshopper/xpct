@@ -53,7 +53,13 @@
 
     <main style="margin: 0; padding: 0.5rem 0.5rem 1rem 0.5rem;">
         <section class="detalle-equipo" style="padding: 0.75rem 0.75rem 0.5rem; max-width: 100%;">
-            <h2>Inventario de equipos (invre.csv)</h2>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                <h2 style="margin:0;">Inventario de equipos (invre.csv)</h2>
+                <a href="catalogodanos.html" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; padding:0.45rem 0.75rem; border-radius:999px; border:1px solid #2563eb; background:#2563eb; color:#ffffff; font-weight:800; font-size:0.85rem;">
+                    <span>Catálogo de daños</span>
+                    <span aria-hidden="true">→</span>
+                </a>
+            </div>
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
                 Lista completa de equipos activos según <code>docs/invre.csv</code>. Luego podemos agregar filtros, búsqueda avanzada o enlaces a inspección.
             </p>
