@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         TEE: {
             'TEE 1': 'docs/draws/T1.jpeg',
+            'TEE 2': 'docs/draws/T2.png',
+            'TEE 3': 'docs/draws/T3.png',
         }
     };
 
@@ -166,23 +168,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function extractTEESubFromProducto(producto) {
+        try {
+            const s = String(producto || '').trim().toUpperCase().replace(/\s+/g, ' ');
+            // En CSV/Firestore: PRODUCTO puede venir como "TEE 1", "TEE 2", "TEE 3"
+            const m = s.match(/\bTEE\s*(1|2|3)\b/);
+            if (!m) return '';
+            return `TEE ${m[1]}`;
+        } catch {
+            return '';
+        }
+    }
+
     function extractTEESubFromDescripcionV2(desc) {
         // Intenta inferir de formatos reales vistos: "TEE (HXMXM) ..."
-        // Regla conocida: T1 = exactamente 1 H y 2 M (orden no importa).
+        // Referencia (pendiente de cotejo, pero suficiente para arrancar):
+        // T1 = H x M x M (y equivalentes por permutación: HMM/MHM/MMH)
+        // T2 = H x M x H
+        // T3 = H x H x M
         try {
             const s = String(desc || '').trim().toUpperCase().replace(/\s+/g, ' ');
             const direct = extractTEESubFromDescripcion(s);
             if (direct) return direct;
 
-            const par = s.match(/\bTEE\s*\(([HM](?:X[HM]){2})\)/);
-            if (!par) return '';
-            const seq = String(par[1] || '').replace(/X/g, '');
-            const letters = seq.split('');
-            const countH = letters.filter(x => x === 'H').length;
-            const countM = letters.filter(x => x === 'M').length;
+            // Acepta formatos: (HXMXH) o (H X M X H)
+            let a = '', b = '', c = '';
+            const parSpaced = s.match(/\bTEE\s*\(\s*([HM])\s*X\s*([HM])\s*X\s*([HM])\s*\)/);
+            if (parSpaced) {
+                a = String(parSpaced[1] || '').trim();
+                b = String(parSpaced[2] || '').trim();
+                c = String(parSpaced[3] || '').trim();
+            } else {
+                const par = s.match(/\bTEE\s*\(([HM](?:X[HM]){2})\)/);
+                if (!par) return '';
+                const tokens = String(par[1] || '').split('X').map(x => String(x || '').trim());
+                if (tokens.length !== 3) return '';
+                a = tokens[0];
+                b = tokens[1];
+                c = tokens[2];
+            }
+
+            const key = `${a}${b}${c}`;
+            if (key === 'HMH') return 'TEE 2';
+            if (key === 'HHM') return 'TEE 3';
+
+            // T1: exactamente 1 H y 2 M (cualquier orden)
+            const countH = (a === 'H') + (b === 'H') + (c === 'H');
+            const countM = (a === 'M') + (b === 'M') + (c === 'M');
             if (countH === 1 && countM === 2) return 'TEE 1';
-            // TEE 2/3: por ahora no inferimos sin una regla explícita en datos.
+
             return '';
+        } catch {
+            return '';
+        }
+    }
+
+    function extractTEESubFromEquipo(eq) {
+        try {
+            if (!eq) return '';
+            // Prioridad: producto (más confiable según tu migración)
+            const byProd = extractTEESubFromProducto(eq.producto || '');
+            if (byProd) return byProd;
+            // Fallbacks: descripción
+            const byDesc1 = extractTEESubFromDescripcion(eq.descripcion || '');
+            if (byDesc1) return byDesc1;
+            return extractTEESubFromDescripcionV2(eq.descripcion || '');
         } catch {
             return '';
         }
@@ -194,19 +244,25 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const eq of _equiposList) {
             const fam = inferFamiliaFromEquipoKey(eq.id);
             if (!fam) continue;
-            if (!famMap.has(fam)) famMap.set(fam, { familiaKey: fam, total: 0, variantes: new Set() });
+            if (!famMap.has(fam)) famMap.set(fam, { familiaKey: fam, total: 0, variantes: new Map() });
             famMap.get(fam).total += 1;
 
             // XO: inferir variantes desde descripcion (solo Firestore)
             if (fam === 'XO') {
                 const v = extractXOVarianteFromDescripcion(eq.descripcion || '');
-                if (v) famMap.get(fam).variantes.add(v);
+                if (v) {
+                    const m = famMap.get(fam).variantes;
+                    m.set(v, (m.get(v) || 0) + 1);
+                }
             }
 
             // TEE: inferir subfamilia/variante (TEE 1/2/3) desde descripcion
             if (fam === 'TEE') {
-                const v = extractTEESubFromDescripcionV2(eq.descripcion || '');
-                if (v) famMap.get(fam).variantes.add(v);
+                const v = extractTEESubFromEquipo(eq);
+                if (v) {
+                    const m = famMap.get(fam).variantes;
+                    m.set(v, (m.get(v) || 0) + 1);
+                }
             }
         }
 
@@ -220,23 +276,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fam = String(parts[0] || '').trim().toUpperCase();
                 const varKey = parts.length > 1 ? parts.slice(1).join('__') : '';
                 if (!fam) continue;
-                if (!famMap.has(fam)) famMap.set(fam, { familiaKey: fam, total: 0, variantes: new Set() });
-                if (varKey) famMap.get(fam).variantes.add(varKey);
+                if (!famMap.has(fam)) famMap.set(fam, { familiaKey: fam, total: 0, variantes: new Map() });
+                if (varKey) {
+                    const m2 = famMap.get(fam).variantes;
+                    if (!m2.has(varKey)) m2.set(varKey, 0);
+                }
                 continue;
             }
 
             const fam = String((ov && ov.familiaKey) ? ov.familiaKey : inferFamiliaFromEquipoKey(idStr)).trim().toUpperCase();
             const v = String((ov && ov.varianteKey) ? ov.varianteKey : '').trim();
             if (!fam || !v) continue;
-            if (!famMap.has(fam)) famMap.set(fam, { familiaKey: fam, total: 0, variantes: new Set() });
-            famMap.get(fam).variantes.add(v);
+            if (!famMap.has(fam)) famMap.set(fam, { familiaKey: fam, total: 0, variantes: new Map() });
+            const m3 = famMap.get(fam).variantes;
+            if (!m3.has(v)) m3.set(v, 0);
         }
 
         _familiasIndex = Array.from(famMap.values())
             .map(x => ({
                 familiaKey: x.familiaKey,
                 total: x.total,
-                variantes: Array.from(x.variantes.values()).sort((a, b) => String(a).localeCompare(String(b), 'es'))
+                variantes: Array.from(x.variantes.entries())
+                    .map(([k, count]) => ({ key: k, count: Number(count) || 0 }))
+                    .sort((a, b) => String(a.key).localeCompare(String(b.key), 'es'))
             }))
             .sort((a, b) => String(a.familiaKey).localeCompare(String(b.familiaKey), 'es'));
 
@@ -274,11 +336,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!hasVars) return `<div style="margin-bottom:8px;">${header}</div>`;
             if (!isExpanded) return `<div style="margin-bottom:8px;">${header}</div>`;
 
-            const vars = f.variantes.map(v => {
+            const vars = f.variantes.map(vObj => {
+                const v = String(vObj && vObj.key ? vObj.key : '').trim();
+                const cnt = Number(vObj && vObj.count ? vObj.count : 0) || 0;
                 const isSelVar = isSelFam && _selectedVarianteKey === v;
                 return `
-                    <div data-kind="variante" data-fam="${escapeHtml(f.familiaKey)}" data-var="${escapeHtml(v)}" style="margin:6px 0 0 14px; padding:7px 10px; border-radius:10px; cursor:pointer; ${isSelVar ? 'background:#ecfdf5; border:1px solid #bbf7d0;' : 'background:#ffffff; border:1px solid #e5e7eb;'}">
+                    <div data-kind="variante" data-fam="${escapeHtml(f.familiaKey)}" data-var="${escapeHtml(v)}" style="margin:6px 0 0 14px; padding:7px 10px; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px; ${isSelVar ? 'background:#ecfdf5; border:1px solid #bbf7d0;' : 'background:#ffffff; border:1px solid #e5e7eb;'}">
                         <div style="font-weight:800; color:#111827; font-size:0.9rem;">${escapeHtml(v)}</div>
+                        <div style="font-size:0.8rem; color:#6b7280;">${escapeHtml(String(cnt))}</div>
                     </div>
                 `;
             }).join('');
@@ -335,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 list = list.filter(eq => extractXOVarianteFromDescripcion(eq.descripcion || '') === v);
             }
             if (fam === 'TEE' && v) {
-                list = list.filter(eq => extractTEESubFromDescripcionV2(eq.descripcion || '') === v);
+                list = list.filter(eq => extractTEESubFromEquipo(eq) === v);
             }
 
             list = list.slice().sort((a, b) => String(a.id).localeCompare(String(b.id), 'es'));
