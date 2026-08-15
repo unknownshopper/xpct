@@ -107,70 +107,124 @@ export const importEquipos = onRequest(
       let written = 0;
       const samples = [];
 
+      const edoRank = (v) => {
+        const s = String(v || '').trim().toUpperCase();
+        if (s === 'ON') return 3;
+        if (s === 'OFF') return 2;
+        if (s === 'WIP') return 1;
+        return 0;
+      };
+
+      const scoreRow = (p) => {
+        const edo = edoRank(p.edo);
+        const hasProd = p.producto ? 1 : 0;
+        const hasDesc = p.descripcion ? 1 : 0;
+        const hasSerial = p.serial ? 1 : 0;
+        const descLen = Math.min(2000, String(p.descripcion || '').length);
+        return (edo * 1000000) + (hasProd * 10000) + (hasDesc * 8000) + (hasSerial * 4000) + descLen;
+      };
+
       const rows = lines.slice(1);
-      for (let i = 0; i < rows.length; i += batchLimit) {
-        const chunk = rows.slice(i, i + batchLimit);
-        const batch = db.batch();
+      const bestByEquipo = new Map();
+      const conflicts = [];
 
-        for (const line of chunk) {
-          const cols = parseCSVLine(line);
-          const equipoRaw = (idxEquipo >= 0 && idxEquipo < cols.length) ? String(cols[idxEquipo] || '').trim() : '';
-          if (!equipoRaw) continue;
+      for (let i = 0; i < rows.length; i++) {
+        const line = rows[i];
+        const cols = parseCSVLine(line);
+        const equipoRaw = (idxEquipo >= 0 && idxEquipo < cols.length) ? String(cols[idxEquipo] || '').trim() : '';
+        if (!equipoRaw) continue;
 
-          const serialRaw = (idxSerial >= 0 && idxSerial < cols.length) ? String(cols[idxSerial] || '').trim() : '';
-          const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
-          const equipoKey = resolved.equipoCanon || normEquipoKey(equipoRaw);
-          if (!equipoKey) continue;
+        const serialRaw = (idxSerial >= 0 && idxSerial < cols.length) ? String(cols[idxSerial] || '').trim() : '';
+        const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+        const equipoKey = resolved.equipoCanon || normEquipoKey(equipoRaw);
+        if (!equipoKey) continue;
 
-          const payload = {
-            version: 1,
-            updatedAt: importedAt,
-            equipoKey,
-            equipoDisplay: equipoRaw,
-            serial: resolved.serialCanon || serialRaw || '',
-            descripcion: (idxDesc >= 0 && idxDesc < cols.length) ? String(cols[idxDesc] || '').trim() : '',
-            reportePP: (idxReporte >= 0 && idxReporte < cols.length) ? String(cols[idxReporte] || '').trim() : '',
-            propiedad: (idxProp >= 0 && idxProp < cols.length) ? String(cols[idxProp] || '').trim() : '',
-            producto: (idxProducto >= 0 && idxProducto < cols.length) ? String(cols[idxProducto] || '').trim() : '',
-            acero: (idxAcero >= 0 && idxAcero < cols.length) ? String(cols[idxAcero] || '').trim() : '',
-            tipoEquipo: (idxTipoEquipo >= 0 && idxTipoEquipo < cols.length) ? String(cols[idxTipoEquipo] || '').trim() : '',
-            edo: (idxEdo >= 0 && idxEdo < cols.length) ? String(cols[idxEdo] || '').trim() : '',
-            diametro1: (idxDiam1 >= 0 && idxDiam1 < cols.length) ? String(cols[idxDiam1] || '').trim() : '',
-            tipo1: (idxTipo1 >= 0 && idxTipo1 < cols.length) ? String(cols[idxTipo1] || '').trim() : '',
-            conexion1: (idxCon1 >= 0 && idxCon1 < cols.length) ? String(cols[idxCon1] || '').trim() : '',
-            presion1: (idxPres1 >= 0 && idxPres1 < cols.length) ? String(cols[idxPres1] || '').trim() : '',
-            x1: (idxX1 >= 0 && idxX1 < cols.length) ? String(cols[idxX1] || '').trim() : '',
-            diametro2: (idxDiam2 >= 0 && idxDiam2 < cols.length) ? String(cols[idxDiam2] || '').trim() : '',
-            tipo2: (idxTipo2 >= 0 && idxTipo2 < cols.length) ? String(cols[idxTipo2] || '').trim() : '',
-            conexion2: (idxCon2 >= 0 && idxCon2 < cols.length) ? String(cols[idxCon2] || '').trim() : '',
-            presion2: (idxPres2 >= 0 && idxPres2 < cols.length) ? String(cols[idxPres2] || '').trim() : '',
-            x2: (idxX2 >= 0 && idxX2 < cols.length) ? String(cols[idxX2] || '').trim() : '',
-            diametro3: (idxDiam3 >= 0 && idxDiam3 < cols.length) ? String(cols[idxDiam3] || '').trim() : '',
-            tipo3: (idxTipo3 >= 0 && idxTipo3 < cols.length) ? String(cols[idxTipo3] || '').trim() : '',
-            conexion3: (idxCon3 >= 0 && idxCon3 < cols.length) ? String(cols[idxCon3] || '').trim() : '',
-            presion3: (idxPres3 >= 0 && idxPres3 < cols.length) ? String(cols[idxPres3] || '').trim() : '',
-            pt: (idxPT >= 0 && idxPT < cols.length) ? String(cols[idxPT] || '').trim() : '',
-            servicio: (idxServicio >= 0 && idxServicio < cols.length) ? String(cols[idxServicio] || '').trim() : '',
-            al: (idxAL >= 0 && idxAL < cols.length) ? String(cols[idxAL] || '').trim() : '',
-            temp: (idxTemp >= 0 && idxTemp < cols.length) ? String(cols[idxTemp] || '').trim() : '',
-            infoFlejeCompleta: (idxFlejeCompleta >= 0 && idxFlejeCompleta < cols.length) ? String(cols[idxFlejeCompleta] || '').trim() : '',
-            infoFleje: (idxFleje >= 0 && idxFleje < cols.length) ? String(cols[idxFleje] || '').trim() : '',
-            source: 'INVENTARIOTOTAL',
-          };
+        const payload = {
+          version: 1,
+          updatedAt: importedAt,
+          equipoKey,
+          equipoDisplay: equipoRaw,
+          serial: resolved.serialCanon || serialRaw || '',
+          descripcion: (idxDesc >= 0 && idxDesc < cols.length) ? String(cols[idxDesc] || '').trim() : '',
+          reportePP: (idxReporte >= 0 && idxReporte < cols.length) ? String(cols[idxReporte] || '').trim() : '',
+          propiedad: (idxProp >= 0 && idxProp < cols.length) ? String(cols[idxProp] || '').trim() : '',
+          producto: (idxProducto >= 0 && idxProducto < cols.length) ? String(cols[idxProducto] || '').trim() : '',
+          acero: (idxAcero >= 0 && idxAcero < cols.length) ? String(cols[idxAcero] || '').trim() : '',
+          tipoEquipo: (idxTipoEquipo >= 0 && idxTipoEquipo < cols.length) ? String(cols[idxTipoEquipo] || '').trim() : '',
+          edo: (idxEdo >= 0 && idxEdo < cols.length) ? String(cols[idxEdo] || '').trim() : '',
+          diametro1: (idxDiam1 >= 0 && idxDiam1 < cols.length) ? String(cols[idxDiam1] || '').trim() : '',
+          tipo1: (idxTipo1 >= 0 && idxTipo1 < cols.length) ? String(cols[idxTipo1] || '').trim() : '',
+          conexion1: (idxCon1 >= 0 && idxCon1 < cols.length) ? String(cols[idxCon1] || '').trim() : '',
+          presion1: (idxPres1 >= 0 && idxPres1 < cols.length) ? String(cols[idxPres1] || '').trim() : '',
+          x1: (idxX1 >= 0 && idxX1 < cols.length) ? String(cols[idxX1] || '').trim() : '',
+          diametro2: (idxDiam2 >= 0 && idxDiam2 < cols.length) ? String(cols[idxDiam2] || '').trim() : '',
+          tipo2: (idxTipo2 >= 0 && idxTipo2 < cols.length) ? String(cols[idxTipo2] || '').trim() : '',
+          conexion2: (idxCon2 >= 0 && idxCon2 < cols.length) ? String(cols[idxCon2] || '').trim() : '',
+          presion2: (idxPres2 >= 0 && idxPres2 < cols.length) ? String(cols[idxPres2] || '').trim() : '',
+          x2: (idxX2 >= 0 && idxX2 < cols.length) ? String(cols[idxX2] || '').trim() : '',
+          diametro3: (idxDiam3 >= 0 && idxDiam3 < cols.length) ? String(cols[idxDiam3] || '').trim() : '',
+          tipo3: (idxTipo3 >= 0 && idxTipo3 < cols.length) ? String(cols[idxTipo3] || '').trim() : '',
+          conexion3: (idxCon3 >= 0 && idxCon3 < cols.length) ? String(cols[idxCon3] || '').trim() : '',
+          presion3: (idxPres3 >= 0 && idxPres3 < cols.length) ? String(cols[idxPres3] || '').trim() : '',
+          pt: (idxPT >= 0 && idxPT < cols.length) ? String(cols[idxPT] || '').trim() : '',
+          servicio: (idxServicio >= 0 && idxServicio < cols.length) ? String(cols[idxServicio] || '').trim() : '',
+          al: (idxAL >= 0 && idxAL < cols.length) ? String(cols[idxAL] || '').trim() : '',
+          temp: (idxTemp >= 0 && idxTemp < cols.length) ? String(cols[idxTemp] || '').trim() : '',
+          infoFlejeCompleta: (idxFlejeCompleta >= 0 && idxFlejeCompleta < cols.length) ? String(cols[idxFlejeCompleta] || '').trim() : '',
+          infoFleje: (idxFleje >= 0 && idxFleje < cols.length) ? String(cols[idxFleje] || '').trim() : '',
+          source: 'INVENTARIOTOTAL',
+        };
 
-          batch.set(db.collection('equipos').doc(String(equipoKey)), payload, { merge: true });
-          processed += 1;
-          written += 1;
-
-          if (samples.length < 20) {
-            samples.push({ equipoKey, equipoDisplay: equipoRaw, reportePP: payload.reportePP || '' });
-          }
+        processed += 1;
+        const score = scoreRow(payload);
+        const prev = bestByEquipo.get(String(equipoKey));
+        if (!prev) {
+          bestByEquipo.set(String(equipoKey), { score, payload, lineNo: i + 2 });
+          continue;
         }
 
+        const prevPayload = prev.payload || {};
+        const isDifferent = (
+          String(prevPayload.serial || '').trim() !== String(payload.serial || '').trim() ||
+          String(prevPayload.descripcion || '').trim() !== String(payload.descripcion || '').trim() ||
+          String(prevPayload.producto || '').trim() !== String(payload.producto || '').trim() ||
+          String(prevPayload.edo || '').trim().toUpperCase() !== String(payload.edo || '').trim().toUpperCase()
+        );
+        if (isDifferent && conflicts.length < 250) {
+          conflicts.push({
+            equipoKey,
+            keepLine: prev.lineNo,
+            dropLine: i + 2,
+            keepEdo: String(prevPayload.edo || '').trim(),
+            dropEdo: String(payload.edo || '').trim(),
+            keepSerial: String(prevPayload.serial || '').trim(),
+            dropSerial: String(payload.serial || '').trim(),
+          });
+        }
+
+        if (score > prev.score) {
+          bestByEquipo.set(String(equipoKey), { score, payload, lineNo: i + 2 });
+        }
+      }
+
+      const winners = Array.from(bestByEquipo.values()).map(x => x.payload);
+      written = winners.length;
+
+      for (let i = 0; i < winners.length; i += batchLimit) {
+        const chunk = winners.slice(i, i + batchLimit);
+        const batch = db.batch();
+        for (const payload of chunk) {
+          const equipoKey = String(payload.equipoKey || '').trim();
+          if (!equipoKey) continue;
+          batch.set(db.collection('equipos').doc(equipoKey), payload, { merge: true });
+          if (samples.length < 20) {
+            samples.push({ equipoKey, equipoDisplay: payload.equipoDisplay || '', reportePP: payload.reportePP || '' });
+          }
+        }
         await batch.commit();
       }
 
-      res.status(200).json({ ok: true, processed, written, samples });
+      res.status(200).json({ ok: true, processed, written, samples, conflictsCount: conflicts.length, conflicts });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e && e.message ? e.message : e) });
     }
