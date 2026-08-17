@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ensureActividadNavDropdown(!isAuxger);
 
                     // Inventario (invre.html): admin/director/supervisor/auxger/capturista
-                    ensureInvreNavLink(isAdmin || isDirector || isSupervisor || isAuxger || isCapturista);
+                    ensureInvreNavLink(isAdmin || isDirector || isSupervisor || isSgi || isAuxger || isCapturista);
 
                     // Inspecciones: Catálogo de daños (visible para quien ya tiene acceso a Inspecciones)
                     try {

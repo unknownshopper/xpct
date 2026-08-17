@@ -5941,40 +5941,6 @@
                 }
             } catch {}
 
-            // Si el dataset está incompleto, preferir contadores cacheados del dashboard (snapshot completo) para chips/rangos.
-            try {
-                const dashTotal = parseInt(String(localStorage.getItem('pct_dash_pruebas_total') || ''), 10);
-                const byServer = (typeof _totalServer === 'number' && _totalServer > 0 && (pruebas && pruebas.length < _totalServer));
-                const byDash = (dashTotal && !Number.isNaN(dashTotal) && dashTotal > 0 && (pruebas && pruebas.length < dashTotal));
-                const isPartial = byServer || byDash;
-                if (isPartial) {
-                    const c60 = parseInt(String(localStorage.getItem('pct_dash_pruebas_60') || ''), 10);
-                    const c30 = parseInt(String(localStorage.getItem('pct_dash_pruebas_30') || ''), 10);
-                    const c15 = parseInt(String(localStorage.getItem('pct_dash_pruebas_15') || ''), 10);
-                    const c0  = parseInt(String(localStorage.getItem('pct_dash_pruebas_0')  || ''), 10);
-                    if (!Number.isNaN(c60)) cntChip60 = c60;
-                    if (!Number.isNaN(c30)) cntChip30 = c30;
-                    if (!Number.isNaN(c15)) cntChip15 = c15;
-                    if (!Number.isNaN(c0))  cntChip0  = c0;
-                }
-            } catch {}
-
-            // Si existe cache reciente del dashboard, usarlo para evitar discrepancias visuales.
-            try {
-                const cachedAt = parseInt(String(localStorage.getItem('pct_dash_pruebas_cached_at') || ''), 10);
-                const isFresh = cachedAt && !Number.isNaN(cachedAt) && (Date.now() - cachedAt) < (10 * 60 * 1000);
-                if (isFresh) {
-                    const c60 = parseInt(String(localStorage.getItem('pct_dash_pruebas_60') || ''), 10);
-                    const c30 = parseInt(String(localStorage.getItem('pct_dash_pruebas_30') || ''), 10);
-                    const c15 = parseInt(String(localStorage.getItem('pct_dash_pruebas_15') || ''), 10);
-                    const c0  = parseInt(String(localStorage.getItem('pct_dash_pruebas_0')  || ''), 10);
-                    if (!Number.isNaN(c60)) cntChip60 = c60;
-                    if (!Number.isNaN(c30)) cntChip30 = c30;
-                    if (!Number.isNaN(c15)) cntChip15 = c15;
-                    if (!Number.isNaN(c0))  cntChip0  = c0;
-                }
-            } catch {}
-
             if (!_csvPreviewActive) {
                 if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
                 if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
