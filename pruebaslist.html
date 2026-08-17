@@ -6540,9 +6540,27 @@
         }
 
         function exportarCsv() {
-            const filas = obtenerSeleccionadas();
+            const filasSeleccionadas = obtenerSeleccionadas();
+            const filasVisibles = Array.isArray(tbodyListado._filasVisibles) ? tbodyListado._filasVisibles : [];
+            let filas = (filasSeleccionadas && filasSeleccionadas.length) ? filasSeleccionadas : filasVisibles;
+
+            // Asegurar que el CSV respete el filtro por tipo (LT / VT-PT-MT / UTT)
+            try {
+                if (typeof categoriaTipoPrueba === 'function' && filtroTiposPrueba instanceof Set) {
+                    const total = 3;
+                    const selected = filtroTiposPrueba.size;
+                    const isPartial = selected > 0 && selected < total;
+                    if (isPartial) {
+                        filas = filas.filter(r => {
+                            const cat = categoriaTipoPrueba(r);
+                            return !!(cat && filtroTiposPrueba.has(cat));
+                        });
+                    }
+                }
+            } catch {}
+
             if (!filas.length) {
-                alert('Selecciona al menos una prueba para exportar.');
+                alert('No hay filas para exportar con los filtros actuales.');
                 return;
             }
 
