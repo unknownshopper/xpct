@@ -477,7 +477,29 @@
                                 <th style="text-align:left; padding:0.4rem;">Serial</th>
                                 <th style="text-align:left; padding:0.4rem;">Producto</th>
                                 <th style="text-align:left; padding:0.4rem;">Descripción</th>
-                                <th id="th-pruebas-sort-prueba" style="text-align:left; padding:0.4rem; cursor:pointer; user-select:none;">Prueba / Calib.</th>
+                                <th id="th-pruebas-sort-prueba" style="text-align:left; padding:0.4rem; cursor:pointer; user-select:none; position:relative;">
+                                    <span id="pl-th-prueba-label">Prueba / Calib.</span>
+                                    <button id="pl-prueba-filter-btn" type="button" title="Filtrar por tipo" style="margin-left:6px; padding:0.1rem 0.35rem; border-radius:8px; border:1px solid #d1d5db; background:#ffffff; cursor:pointer; font-size:0.85rem;">▾</button>
+                                    <div id="pl-prueba-filter-panel" style="display:none; position:absolute; right:6px; top:calc(100% + 6px); z-index:40; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,0.18); padding:0.6rem 0.65rem; min-width:220px; cursor:default;">
+                                        <div style="font-weight:800; margin-bottom:0.35rem;">Tipo</div>
+                                        <label style="display:flex; gap:0.5rem; align-items:center; padding:0.15rem 0;">
+                                            <input id="pl-prueba-filter-lt" type="checkbox" checked>
+                                            <span>LT</span>
+                                        </label>
+                                        <label style="display:flex; gap:0.5rem; align-items:center; padding:0.15rem 0;">
+                                            <input id="pl-prueba-filter-vpm" type="checkbox" checked>
+                                            <span>VT/PT/MT</span>
+                                        </label>
+                                        <label style="display:flex; gap:0.5rem; align-items:center; padding:0.15rem 0;">
+                                            <input id="pl-prueba-filter-utt" type="checkbox" checked>
+                                            <span>UTT</span>
+                                        </label>
+                                        <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:0.5rem;">
+                                            <button id="pl-prueba-filter-all" type="button" style="padding:0.25rem 0.5rem; border-radius:10px; border:1px solid #d1d5db; background:#ffffff;">Todas</button>
+                                            <button id="pl-prueba-filter-none" type="button" style="padding:0.25rem 0.5rem; border-radius:10px; border:1px solid #d1d5db; background:#ffffff;">Ninguna</button>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th style="text-align:left; padding:0.4rem;">Área inspección</th>
                                 <th style="text-align:left; padding:0.4rem;">Resultado</th>
                                 <th style="text-align:left; padding:0.4rem;">Emisor</th>
@@ -4662,6 +4684,66 @@
 
         const thSortEquipo = document.getElementById('th-pruebas-sort-equipo');
         const thSortPrueba = document.getElementById('th-pruebas-sort-prueba');
+        const thPruebaLabel = document.getElementById('pl-th-prueba-label');
+        const btnPruebaFilter = document.getElementById('pl-prueba-filter-btn');
+        const panelPruebaFilter = document.getElementById('pl-prueba-filter-panel');
+        const chkPruebaLT = document.getElementById('pl-prueba-filter-lt');
+        const chkPruebaVPM = document.getElementById('pl-prueba-filter-vpm');
+        const chkPruebaUTT = document.getElementById('pl-prueba-filter-utt');
+        const btnPruebaAll = document.getElementById('pl-prueba-filter-all');
+        const btnPruebaNone = document.getElementById('pl-prueba-filter-none');
+
+        let filtroTiposPrueba = new Set(['LT', 'VPM', 'UTT']);
+        try {
+            const raw = String(localStorage.getItem('pct_pruebaslist_tipo_filter') || '');
+            if (raw) {
+                const parts = raw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                if (parts.length) filtroTiposPrueba = new Set(parts);
+            }
+        } catch {}
+
+        function persistFiltroTiposPrueba() {
+            try { localStorage.setItem('pct_pruebaslist_tipo_filter', Array.from(filtroTiposPrueba).join(',')); } catch {}
+        }
+
+        function syncFiltroTiposPruebaUI() {
+            try { if (chkPruebaLT) chkPruebaLT.checked = filtroTiposPrueba.has('LT'); } catch {}
+            try { if (chkPruebaVPM) chkPruebaVPM.checked = filtroTiposPrueba.has('VPM'); } catch {}
+            try { if (chkPruebaUTT) chkPruebaUTT.checked = filtroTiposPrueba.has('UTT'); } catch {}
+        }
+
+        function togglePanelPruebaFilter(force) {
+            try {
+                if (!panelPruebaFilter) return;
+                const isOpen = panelPruebaFilter.style.display !== 'none' && panelPruebaFilter.style.display !== '' ? true : (panelPruebaFilter.style.display === 'block');
+                const next = (typeof force === 'boolean') ? force : !isOpen;
+                panelPruebaFilter.style.display = next ? 'block' : 'none';
+            } catch {}
+        }
+
+        function categoriaTipoPrueba(reg) {
+            try {
+                const raw = (reg && (reg.pruebaTipo || reg.prueba)) ? String(reg.pruebaTipo || reg.prueba) : '';
+                const canon = (typeof normalizaPrueba === 'function') ? normalizaPrueba(raw) : raw.toUpperCase().trim();
+                const c = String(canon || '').toUpperCase();
+                if (!c) return null;
+                if (c.includes('UTT')) return 'UTT';
+                if (c.includes('LT')) return 'LT';
+                if (c.includes('VT') || c.includes('PT') || c.includes('MT') || c.includes('VPM')) return 'VPM';
+                return null;
+            } catch { return null; }
+        }
+
+        function applyPruebaFilterHeaderBadge() {
+            try {
+                if (!btnPruebaFilter) return;
+                const total = 3;
+                const selected = filtroTiposPrueba.size;
+                const active = selected > 0 && selected < total;
+                btnPruebaFilter.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
+                btnPruebaFilter.style.fontWeight = active ? '800' : '700';
+            } catch {}
+        }
 
         function applySortHeaderEquipo() {
             try {
@@ -4679,11 +4761,11 @@
             try {
                 if (!sortListado || typeof sortListado !== 'object') sortListado = { key: '', dir: 'asc' };
                 if (!thSortPrueba) return;
-                const base = thSortPrueba.getAttribute('data-base-label') || thSortPrueba.textContent || 'Prueba / Calib.';
+                const base = thSortPrueba.getAttribute('data-base-label') || (thPruebaLabel ? (thPruebaLabel.textContent || '') : '') || 'Prueba / Calib.';
                 if (!thSortPrueba.getAttribute('data-base-label')) thSortPrueba.setAttribute('data-base-label', base);
                 const isActive = sortListado.key === 'prueba';
                 const arrow = isActive ? (sortListado.dir === 'asc' ? ' ▲' : ' ▼') : '';
-                thSortPrueba.textContent = `${base}${arrow}`;
+                if (thPruebaLabel) thPruebaLabel.textContent = `${base}${arrow}`;
             } catch {}
         }
 
@@ -4721,6 +4803,68 @@
                 } catch {}
             });
             applySortHeaderPrueba();
+        }
+
+        syncFiltroTiposPruebaUI();
+        applyPruebaFilterHeaderBadge();
+
+        if (btnPruebaFilter) {
+            btnPruebaFilter.addEventListener('click', (e) => {
+                try { e.preventDefault(); } catch {}
+                try { e.stopPropagation(); } catch {}
+                togglePanelPruebaFilter();
+            });
+            btnPruebaFilter.addEventListener('mousedown', (e) => {
+                try { e.stopPropagation(); } catch {}
+            });
+        }
+
+        if (panelPruebaFilter) {
+            panelPruebaFilter.addEventListener('click', (e) => {
+                try { e.stopPropagation(); } catch {}
+            });
+        }
+
+        document.addEventListener('click', () => {
+            togglePanelPruebaFilter(false);
+        });
+
+        const onFiltroTiposChanged = () => {
+            try {
+                const next = new Set();
+                if (chkPruebaLT && chkPruebaLT.checked) next.add('LT');
+                if (chkPruebaVPM && chkPruebaVPM.checked) next.add('VPM');
+                if (chkPruebaUTT && chkPruebaUTT.checked) next.add('UTT');
+                filtroTiposPrueba = next;
+                persistFiltroTiposPrueba();
+                applyPruebaFilterHeaderBadge();
+                try { render(); } catch {}
+            } catch {}
+        };
+
+        if (chkPruebaLT) chkPruebaLT.addEventListener('change', onFiltroTiposChanged);
+        if (chkPruebaVPM) chkPruebaVPM.addEventListener('change', onFiltroTiposChanged);
+        if (chkPruebaUTT) chkPruebaUTT.addEventListener('change', onFiltroTiposChanged);
+
+        if (btnPruebaAll) {
+            btnPruebaAll.addEventListener('click', (e) => {
+                try { e.preventDefault(); e.stopPropagation(); } catch {}
+                filtroTiposPrueba = new Set(['LT', 'VPM', 'UTT']);
+                syncFiltroTiposPruebaUI();
+                persistFiltroTiposPrueba();
+                applyPruebaFilterHeaderBadge();
+                try { render(); } catch {}
+            });
+        }
+        if (btnPruebaNone) {
+            btnPruebaNone.addEventListener('click', (e) => {
+                try { e.preventDefault(); e.stopPropagation(); } catch {}
+                filtroTiposPrueba = new Set();
+                syncFiltroTiposPruebaUI();
+                persistFiltroTiposPrueba();
+                applyPruebaFilterHeaderBadge();
+                try { render(); } catch {}
+            });
         }
 
         function render() {
@@ -5653,6 +5797,15 @@
                 // Aplicar filtro por periodo si está activo
                 const periodoNorm = (reg.periodo || '').toString().trim().toUpperCase() || 'ANUAL';
                 if (filtroPeriodo && periodoNorm !== filtroPeriodo) return;
+
+                // Filtro por tipo de prueba (LT / VT-PT-MT / UTT)
+                try {
+                    if (filtroTiposPrueba && filtroTiposPrueba.size >= 0) {
+                        const cat = categoriaTipoPrueba(reg);
+                        if (cat && !filtroTiposPrueba.has(cat)) return;
+                        if (!cat && filtroTiposPrueba.size > 0) return;
+                    }
+                } catch {}
 
                 // Si hay un chip de rango activo, alinear el listado a la misma regla que los chips:
                 // solo la última ANUAL por equipo+tipo (según fecha próxima efectiva del snapshot completo).
