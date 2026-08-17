@@ -61,43 +61,21 @@
         font-weight: 700;
       }
 
-      #pl-loader {
-        position: fixed;
-        inset: 0;
-        background: rgba(15, 23, 42, 0.35);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
+      #pruebas-resumen-parcial[data-load="loading"] {
+        color: #b91c1c;
+        font-weight: 700;
+        animation: plpulse 0.95s ease-in-out infinite;
       }
 
-      #pl-loader .pl-loader-card {
-        background: #ffffff;
-        color: #111827;
-        border-radius: 12px;
-        padding: 14px 16px;
-        box-shadow: 0 10px 40px rgba(15, 23, 42, 0.35);
-        min-width: 220px;
-        max-width: 92vw;
-        font-size: 14px;
-        line-height: 1.35;
-        display: flex;
-        align-items: center;
-        gap: 10px;
+      #pruebas-resumen-parcial[data-load="ready"] {
+        color: #166534;
+        font-weight: 700;
       }
 
-      #pl-loader .pl-spinner {
-        width: 18px;
-        height: 18px;
-        border: 2px solid #e5e7eb;
-        border-top-color: #2563eb;
-        border-radius: 999px;
-        animation: plspin 0.9s linear infinite;
-      }
-
-      @keyframes plspin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+      @keyframes plpulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.35; }
+        100% { opacity: 1; }
       }
 
       #pl-toast {
@@ -124,12 +102,6 @@
     </style>
 </head>
 <body>
-    <div id="pl-loader" aria-hidden="true">
-        <div class="pl-loader-card">
-            <div class="pl-spinner"></div>
-            <div id="pl-loader-text">Cargando...</div>
-        </div>
-    </div>
     <div id="pl-toast" role="status" aria-live="polite"></div>
     <header>
         <div class="logo">
@@ -571,23 +543,8 @@
     const auth = window.auth;
     const APP_VERSION = '2026-08-12-3';
 
-    const plLoader = document.getElementById('pl-loader');
-    const plLoaderText = document.getElementById('pl-loader-text');
     const plToast = document.getElementById('pl-toast');
     let _plToastTimer = null;
-
-    function showLoader(text) {
-        try {
-            if (plLoaderText) plLoaderText.textContent = String(text || 'Cargando...');
-            if (plLoader) plLoader.style.display = 'flex';
-        } catch {}
-    }
-
-    function hideLoader() {
-        try {
-            if (plLoader) plLoader.style.display = 'none';
-        } catch {}
-    }
 
     function showToast(text) {
         try {
@@ -598,6 +555,16 @@
             _plToastTimer = setTimeout(() => {
                 try { plToast.style.display = 'none'; } catch {}
             }, 2800);
+        } catch {}
+    }
+
+    function setProgressState(state) {
+        try {
+            const el = document.getElementById('pruebas-resumen-parcial');
+            if (!el) return;
+            if (state === 'loading') el.setAttribute('data-load', 'loading');
+            else if (state === 'ready') el.setAttribute('data-load', 'ready');
+            else el.removeAttribute('data-load');
         } catch {}
     }
 
@@ -2179,27 +2146,33 @@
             }
         }
 
-        showLoader('Cargando pruebas...');
+        setProgressState('loading');
         try {
             await leerPagina({ reset: true, forceNetwork: true });
             if (!pruebas || !pruebas.length) {
                 await leerPagina({ reset: true, forceNetwork: false });
             }
+
+            // Leer total real desde servidor (para mostrar "Mostrando X de Y")
+            await leerTotalServidor();
+
+            // Reconstruir llaves tras carga inicial
+            try { buildExistingKeys(); } catch {}
+
+            // Render inicial
+            try { render(); } catch {}
+            try { window.pruebas = window.pctGetPruebas(); } catch {}
         } catch (e) {
             console.error('Fallo al cargar pruebas (inicio)', e);
         } finally {
-            hideLoader();
+            // Marcar listo: si aún faltan páginas, el auto-load lo volverá a poner en loading
+            try {
+                const complete = (typeof _totalServer === 'number' && Array.isArray(pruebas) && pruebas.length >= _totalServer) || !_lastDoc;
+                setProgressState(complete ? 'ready' : 'loading');
+            } catch {
+                setProgressState('ready');
+            }
         }
-
-        // Leer total real desde servidor (para mostrar "Mostrando X de Y")
-        await leerTotalServidor();
-
-        // Reconstruir llaves tras carga inicial
-        try { buildExistingKeys(); } catch {}
-
-        // Render inicial
-        try { render(); } catch {}
-        try { window.pruebas = window.pctGetPruebas(); } catch {}
 
         // Auto-completar el resumen al entrar (carga completa en segundo plano)
         try {
@@ -2219,6 +2192,7 @@
                 _isLoadingAll = true;
                 try {
                     if (lblResumenParcial) lblResumenParcial.textContent = `Cargando resumen completo...`;
+                    setProgressState('loading');
                     let safety = 0;
                     while (_lastDoc && safety < 300) {
                         safety += 1;
@@ -2235,6 +2209,7 @@
                     }
                 } finally {
                     _isLoadingAll = false;
+                    setProgressState('ready');
                     try {
                         if (Array.isArray(pruebas) && pruebas.length) {
                             localStorage.setItem(claveTotalCached, String(pruebas.length));
@@ -6288,7 +6263,6 @@
         async function actualizarCampoNoReporte(id, nuevoValor) {
             if (!id) return;
             try {
-                showLoader('Guardando No. reporte / cert...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6310,15 +6284,12 @@
             } catch (e) {
                 console.error('No se pudo actualizar el No. reporte / cert. para id ' + id, e);
                 alert('No se pudo guardar el cambio de No. reporte / cert. Revisa la consola para más detalles.');
-            } finally {
-                hideLoader();
             }
         }
 
         async function actualizarCampoResultado(id, nuevoValor) {
             if (!id) return;
             try {
-                showLoader('Guardando Resultado...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6336,15 +6307,12 @@
             } catch (e) {
                 console.error('No se pudo actualizar el Resultado para id ' + id, e);
                 alert('No se pudo guardar el cambio de Resultado. Revisa la consola para más detalles.');
-            } finally {
-                hideLoader();
             }
         }
 
         async function actualizarCampoPeriodo(id, nuevoValor) {
             if (!id) return;
             try {
-                showLoader('Guardando Periodo...');
                 const { getFirestore, doc, updateDoc, deleteField } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6403,15 +6371,12 @@
             } catch (e) {
                 console.error('No se pudo actualizar el Periodo para id ' + id, e);
                 alert('No se pudo guardar el cambio de Periodo. Revisa la consola para más detalles.');
-            } finally {
-                hideLoader();
             }
         }
 
         async function actualizarCampoEmisor(id, nuevoValor) {
             if (!id) return;
             try {
-                showLoader('Guardando Emisor...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6429,15 +6394,12 @@
             } catch (e) {
                 console.error('No se pudo actualizar el Emisor para id ' + id, e);
                 alert('No se pudo guardar el cambio de Emisor. Revisa la consola para más detalles.');
-            } finally {
-                hideLoader();
             }
         }
 
         async function actualizarCampoTecnico(id, nuevoValor) {
             if (!id) return;
             try {
-                showLoader('Guardando Técnico...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6455,8 +6417,6 @@
             } catch (e) {
                 console.error('No se pudo actualizar el Técnico para id ' + id, e);
                 alert('No se pudo guardar el cambio de Técnico. Revisa la consola para más detalles.');
-            } finally {
-                hideLoader();
             }
         }
 
@@ -6598,7 +6558,6 @@
             }
 
             try {
-                showLoader('Eliminando...');
                 const { getFirestore, doc, deleteDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6644,8 +6603,6 @@
             } catch (e) {
                 console.error('Error al eliminar pruebas desde Firestore', e);
                 alert('Ocurrió un error al eliminar las pruebas. Revisa la consola para más detalles.');
-            } finally {
-                hideLoader();
             }
         }
 
