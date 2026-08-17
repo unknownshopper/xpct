@@ -15,6 +15,127 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 const PORT = process.env.PORT || 8080;
 const TZ = process.env.TZ || 'America/Mexico_City';
 
+function parseCSVLine(line) {
+  const out = [];
+  let cur = '';
+  let inQuotes = false;
+  const s = String(line ?? '');
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '"') {
+      if (inQuotes && s[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === ',' && !inQuotes) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function safeReadLocalFile(relPath) {
+  try {
+    const candidates = [
+      path.resolve(process.cwd(), relPath),
+      path.resolve(process.cwd(), '..', relPath),
+      path.resolve(__dirname, '..', relPath),
+    ];
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+      } catch {}
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+function loadAliasesFromCsvText(text) {
+  const map = {};
+  try {
+    const lines = String(text || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
+    if (!lines.length) return map;
+    const headers = parseCSVLine(lines[0]).map(h => String(h || '').trim());
+    const idxMal = headers.indexOf('Equipo mal escrito');
+    const idxOk = headers.indexOf('Equipo correcto');
+    if (idxMal < 0 || idxOk < 0) return map;
+    lines.slice(1).forEach(l => {
+      const cols = parseCSVLine(l);
+      const mal = (idxMal >= 0 && idxMal < cols.length) ? cols[idxMal] : '';
+      const ok = (idxOk >= 0 && idxOk < cols.length) ? cols[idxOk] : '';
+      const kmal = normEquipoKey(mal);
+      const kok = normEquipoKey(ok);
+      if (!kmal || !kok) return;
+      map[kmal] = kok;
+    });
+  } catch {}
+  return map;
+}
+
+function loadSerialPorEquipoFromInventarioCsvText(text) {
+  const serialPorEquipo = {};
+  try {
+    const lines = String(text || '').split(/\r?\n/).filter(l => String(l || '').trim() !== '');
+    if (!lines.length) return serialPorEquipo;
+    const headers = parseCSVLine(lines[0]).map(h => String(h || '').trim());
+    const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
+    const idxSerial = headers.indexOf('SERIAL');
+    if (idxEquipo < 0) return serialPorEquipo;
+    lines.slice(1).forEach(l => {
+      const cols = parseCSVLine(l);
+      const eq = (idxEquipo >= 0 && idxEquipo < cols.length) ? cols[idxEquipo] : '';
+      const sr = (idxSerial >= 0 && idxSerial < cols.length) ? cols[idxSerial] : '';
+      const eqK = normEquipoKey(eq);
+      const srK = String(sr || '').trim();
+      if (!eqK) return;
+      if (srK && !serialPorEquipo[eqK]) serialPorEquipo[eqK] = srK;
+    });
+  } catch {}
+  return serialPorEquipo;
+}
+
+function resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv }) {
+  const eq0 = normEquipoKey(equipoRaw);
+  const sr0 = String(serialRaw || '').trim();
+  let eqCanon = (eq0 && aliasMap && aliasMap[eq0]) ? String(aliasMap[eq0] || '') : eq0;
+  try {
+    if (eqCanon && !(serialPorEquipoInv && serialPorEquipoInv[eqCanon])) {
+      const m = String(eqCanon).match(/^(.*-)(\d{1,3})$/);
+      if (m && m[1] && m[2] && m[2].length < 3) {
+        const padded = `${m[1]}${String(m[2]).padStart(3, '0')}`;
+        const paddedKey = normEquipoKey(padded);
+        if (paddedKey && serialPorEquipoInv && serialPorEquipoInv[paddedKey]) {
+          eqCanon = paddedKey;
+        }
+      }
+    }
+  } catch {}
+  let srCanon = sr0;
+  try {
+    const srInv = (eqCanon && serialPorEquipoInv && serialPorEquipoInv[eqCanon])
+      ? String(serialPorEquipoInv[eqCanon] || '').trim()
+      : '';
+    if (srInv) srCanon = srInv;
+  } catch {}
+  return { equipoCanon: eqCanon, serialCanon: srCanon };
+}
+
+function equipoOperativoFromEdo(edo) {
+  const e = String(edo || '').trim().toUpperCase();
+  if (!e) return true;
+  return (e === 'ON' || e === 'ACTIVO' || e === 'WIP');
+}
+
 function normEquipoKey(v) {
   let t = (v || '').toString();
   t = t.replace(/\u00A0/g, ' ');
@@ -142,7 +263,7 @@ function requireAdminEmail(emailLower) {
   };
 }
 
-async function queryUltimasAnuales() {
+async function queryUltimasAnuales({ aliasMap, serialPorEquipoInv, edoPorEquipoInv } = {}) {
   const db = admin.firestore();
   const snap = await db.collection('pruebas').get();
   const porEquipoPrueba = new Map();
@@ -155,11 +276,22 @@ async function queryUltimasAnuales() {
     // Backward compat: sin periodo => tratar como ANUAL
     if (periodo && periodo !== 'ANUAL') return;
     const equipoRaw = (data.equipo || data.equipoId || data.activo || '').toString().trim();
-    const equipoDisplay = equipoRaw || doc.id;
-    const equipoKey = normEquipoKey(equipoRaw);
+    const serialRaw = (data.numeroSerie || data.serial || '').toString().trim();
+    const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+    const equipoCanon = resolved.equipoCanon;
+    const serialCanon = resolved.serialCanon;
+
+    const equipoDisplay = equipoCanon || equipoRaw || doc.id;
+    const equipoKey = normEquipoKey(equipoDisplay);
+
+    try {
+      const edo = (edoPorEquipoInv && equipoKey) ? edoPorEquipoInv[equipoKey] : '';
+      if (edo && !equipoOperativoFromEdo(edo)) return;
+    } catch {}
+
     const prueba = (data.prueba || data.pruebaTipo || '').toString().trim();
     const pruebaKey = normPruebaKey(prueba || 'ANUAL');
-    const serial = (data.numeroSerie || data.serial || '').toString().trim();
+    const serial = serialCanon;
     const fechaReal = parseFecha(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
     let proxima = parseFecha(data.proxima || '');
     // Derivar próxima a partir de fechaReal + 1 año si falta
@@ -188,10 +320,21 @@ async function queryUltimasAnuales() {
     };
     if (!current) {
       porEquipoPrueba.set(key, payload);
-    } else {
-      const a = current.fechaReal || new Date(0);
-      const b = fechaReal || new Date(0);
-      if (b.getTime() >= a.getTime()) porEquipoPrueba.set(key, payload);
+      return;
+    }
+
+    const aProx = current.proxima || null;
+    const bProx = proxima || null;
+    if (bProx && (!aProx || bProx.getTime() > aProx.getTime())) {
+      porEquipoPrueba.set(key, payload);
+      return;
+    }
+    if (aProx && bProx && bProx.getTime() < aProx.getTime()) return;
+
+    const aFR = current.fechaReal || null;
+    const bFR = fechaReal || null;
+    if (bFR && (!aFR || bFR.getTime() > aFR.getTime())) {
+      porEquipoPrueba.set(key, payload);
     }
   });
 
@@ -227,25 +370,27 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
       .sort((a, b) => a.dias - b.dias)
       .map(x => `
         <tr>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.equipo}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.serial || '-'}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.prueba || '-'}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${fmt(x.proxima)}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${(x.dias ?? '-')}</td>
-          ${includeEstado ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${typeof x.dias === 'number' ? estadoFromDias(x.dias) : '-'}</td>` : ''}
-          ${includeMotivo ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb;\">${x.failReason || '-'}</td>` : ''}
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb; line-height:1.35; vertical-align:top;">
+            <div style="font-weight:700; white-space:nowrap;">${x.equipo}</div>
+            <div style="color:#6b7280; white-space:nowrap;">${x.serial || '-'}</div>
+          </td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb; line-height:1.35; vertical-align:top;">
+            <div style="font-weight:700; white-space:nowrap;">${x.prueba || '-'}</div>
+            <div style="color:#6b7280; white-space:nowrap;">${fmt(x.proxima)}</div>
+          </td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb; line-height:1.35; vertical-align:top; white-space:nowrap;">${(x.dias ?? '-')}</td>
+          ${includeEstado ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb; line-height:1.35; vertical-align:top; white-space:nowrap;\">${typeof x.dias === 'number' ? estadoFromDias(x.dias) : '-'}</td>` : ''}
+          ${includeMotivo ? `<td style=\"padding:6px 8px;border-bottom:1px solid #e5e7eb; line-height:1.35; vertical-align:top;\">${x.failReason || '-'}</td>` : ''}
         </tr>
       `).join('');
     return `
       <h3 style="margin:14px 0 6px; font-size:14px; color:#111827;">${titulo} (${items.length})</h3>
-      <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;font-size:13px;">
+      <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;font-size:12px; table-layout:fixed;">
         <thead>
           <tr>
-            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Equipo</th>
-            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Serial</th>
-            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Prueba / Calib.</th>
-            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Próxima</th>
-            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Días</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600; width:38%;">Equipo / Serial</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600; width:32%;">Prueba / Próxima</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600; width:10%;">Días</th>
             ${includeEstado ? '<th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Estado</th>' : ''}
             ${includeMotivo ? '<th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Motivo</th>' : ''}
           </tr>
@@ -257,10 +402,16 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
 
   // Header with logo (CID must be attached when sending)
   const headerHtml = `
-    <div style="padding:12px 0 8px; display:flex; align-items:center; gap:12px;">
-      <img src="cid:logo_pctch" alt="PCT" style="height:36px; width:auto; display:block;" />
-      <div style="font-size:18px; font-weight:600; color:#111827;">Alertas de pruebas por vencer</div>
-    </div>
+    <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse; width:100%; margin:0; padding:0;">
+      <tr>
+        <td style="padding:12px 0 8px; vertical-align:middle; width:48px;">
+          <img src="cid:logo_pctch" alt="PCT" style="height:36px; width:auto; display:block;" />
+        </td>
+        <td style="padding:12px 0 8px; vertical-align:middle;">
+          <div style="font-size:18px; font-weight:600; color:#111827; line-height:1.25;">Alertas de pruebas por vencer</div>
+        </td>
+      </tr>
+    </table>
   `;
 
   const mainHtml = `
@@ -360,7 +511,26 @@ async function enviarCorreo({ html, subject }) {
 async function calcularYEnviar({ testMode = false, force = false }) {
   ensureAdmin();
   const db = admin.firestore();
-  const ultimas = await queryUltimasAnuales();
+
+  const invText = safeReadLocalFile('docs/INVENTARIOTOTAL04-202602.csv');
+  const aliasText = safeReadLocalFile('docs/malescritos.csv');
+  const aliasMap = loadAliasesFromCsvText(aliasText);
+  const serialPorEquipoInv = loadSerialPorEquipoFromInventarioCsvText(invText);
+
+  const edoPorEquipoInv = {};
+  try {
+    const edoSnap = await db.collection('inventarioEstados').get();
+    edoSnap.forEach(d => {
+      const data = d.data() || {};
+      const equipoId = String(d.id || data.equipoId || '').trim();
+      const eqK = normEquipoKey(equipoId);
+      if (!eqK) return;
+      const edo = String(data.edo || '').trim().toUpperCase();
+      if (edo && !edoPorEquipoInv[eqK]) edoPorEquipoInv[eqK] = edo;
+    });
+  } catch {}
+
+  const ultimas = await queryUltimasAnuales({ aliasMap, serialPorEquipoInv, edoPorEquipoInv });
 
   const lista60 = [];
   const lista30 = [];

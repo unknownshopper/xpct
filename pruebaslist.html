@@ -1181,7 +1181,7 @@
 
         // Visor: solo lectura (sin selección, sin acciones)
         try {
-            if (window.isVisor) {
+            if (window.isVisor && !permitirEliminar) {
                 const idsOcultar = [
                     'btn-pruebas-registrar',
                     'btn-pruebas-eliminar',
