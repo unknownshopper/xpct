@@ -259,6 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const isAdmin = role === 'admin';
                     const isDirector = role === 'director';
+                    const isSgi = role === 'sgi';
                     const isSupervisor = role === 'supervisor';
                     const isInspector = role === 'inspector';
                     const isCapturista = role === 'capturista';
@@ -493,6 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const shouldShowByRole =
                         isAdmin ||
                         isDirector ||
+                        isSgi ||
                         isSupervisor ||
                         (isInspector && currentPage === 'index.html') ||
                         (isAuxger && currentPage === 'index.html') ||
