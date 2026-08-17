@@ -61,9 +61,76 @@
         font-weight: 700;
       }
 
+      #pl-loader {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.35);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+
+      #pl-loader .pl-loader-card {
+        background: #ffffff;
+        color: #111827;
+        border-radius: 12px;
+        padding: 14px 16px;
+        box-shadow: 0 10px 40px rgba(15, 23, 42, 0.35);
+        min-width: 220px;
+        max-width: 92vw;
+        font-size: 14px;
+        line-height: 1.35;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      #pl-loader .pl-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #e5e7eb;
+        border-top-color: #2563eb;
+        border-radius: 999px;
+        animation: plspin 0.9s linear infinite;
+      }
+
+      @keyframes plspin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      #pl-toast {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 18px;
+        z-index: 10000;
+        display: none;
+        background: #111827;
+        color: #ffffff;
+        padding: 10px 12px;
+        border-radius: 999px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        font-size: 13px;
+        line-height: 1.2;
+        max-width: 92vw;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
     </style>
 </head>
 <body>
+    <div id="pl-loader" aria-hidden="true">
+        <div class="pl-loader-card">
+            <div class="pl-spinner"></div>
+            <div id="pl-loader-text">Cargando...</div>
+        </div>
+    </div>
+    <div id="pl-toast" role="status" aria-live="polite"></div>
     <header>
         <div class="logo">
             <img src="img/logopctch.png" alt="Logo PCT">
@@ -409,6 +476,7 @@
                     <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1350px; table-layout:fixed;">
                         <colgroup>
                             <col style="width:34px;">
+                            <col style="width:160px;">
                             <col style="width:120px;">
                             <col style="width:120px;">
                             <col style="width:110px;">
@@ -420,7 +488,6 @@
                             <col style="width:220px;">
                             <col style="width:170px;">
                             <col style="width:160px;">
-                            <col style="width:160px;">
                             <col style="width:130px;">
                             <col style="width:140px;">
                             <col style="width:140px;">
@@ -428,6 +495,7 @@
                         <thead>
                             <tr style="background:#f3f4f6;">
                                 <th style="text-align:center; padding:0.35rem;"><input type="checkbox" id="pruebas-select-todos" style="display:block; margin:0 auto;"></th>
+                                <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
                                 <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Periodo</th>
@@ -439,7 +507,6 @@
                                 <th style="text-align:left; padding:0.4rem;">Descripción</th>
                                 <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
                                 <th style="text-align:left; padding:0.4rem;">Área inspección</th>
-                                <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
                                 <th style="text-align:left; padding:0.4rem;">Resultado</th>
                                 <th style="text-align:left; padding:0.4rem;">Emisor</th>
                                 <th style="text-align:left; padding:0.4rem;">Técnico</th>
@@ -503,6 +570,36 @@
 
     const auth = window.auth;
     const APP_VERSION = '2026-08-12-3';
+
+    const plLoader = document.getElementById('pl-loader');
+    const plLoaderText = document.getElementById('pl-loader-text');
+    const plToast = document.getElementById('pl-toast');
+    let _plToastTimer = null;
+
+    function showLoader(text) {
+        try {
+            if (plLoaderText) plLoaderText.textContent = String(text || 'Cargando...');
+            if (plLoader) plLoader.style.display = 'flex';
+        } catch {}
+    }
+
+    function hideLoader() {
+        try {
+            if (plLoader) plLoader.style.display = 'none';
+        } catch {}
+    }
+
+    function showToast(text) {
+        try {
+            if (!plToast) return;
+            if (_plToastTimer) clearTimeout(_plToastTimer);
+            plToast.textContent = String(text || 'Listo');
+            plToast.style.display = 'block';
+            _plToastTimer = setTimeout(() => {
+                try { plToast.style.display = 'none'; } catch {}
+            }, 2800);
+        } catch {}
+    }
 
     (async () => {
         try {
@@ -1299,6 +1396,7 @@
                 <td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;">
                     <input type="checkbox" disabled style="display:block; margin:0 auto;">
                 </td>
+                <td style="padding:0.4rem;">${String(r.noReporte || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.fechaRealizacion || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.proxima || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.periodo || '').trim() || ''}</td>
@@ -1310,7 +1408,6 @@
                 <td style="padding:0.4rem;">${String(r.descripcion || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.pruebaTipo || r.prueba || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.area || '').trim() || ''}</td>
-                <td style="padding:0.4rem;">${String(r.noReporte || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.resultado || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.emisor || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.tecnico || '').trim() || ''}</td>
@@ -2097,6 +2194,7 @@
             }
         }
 
+        showLoader('Cargando pruebas...');
         try {
             await leerPagina({ reset: true, forceNetwork: true });
             if (!pruebas || !pruebas.length) {
@@ -2104,6 +2202,8 @@
             }
         } catch (e) {
             console.error('Fallo al cargar pruebas (inicio)', e);
+        } finally {
+            hideLoader();
         }
 
         // Leer total real desde servidor (para mostrar "Mostrando X de Y")
@@ -5364,6 +5464,7 @@
                             ${tdSelect}
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
@@ -5373,7 +5474,6 @@
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
-                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
@@ -5654,6 +5754,7 @@
 
                 fila.innerHTML = `
                     ${tdSelect}
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${celdaNoRep}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '')}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtProxima(proximaStr)}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
@@ -5665,7 +5766,6 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${celdaNoRep}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaResultado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaEmisor}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaTecnico}</td>
@@ -6132,6 +6232,7 @@
         async function actualizarCampoNoReporte(id, nuevoValor) {
             if (!id) return;
             try {
+                showLoader('Guardando No. reporte / cert...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6149,15 +6250,19 @@
                 try { localStorage.setItem(claveLocal, JSON.stringify(pruebas)); } catch {}
                 try { window.pruebas = window.pctGetPruebas(); } catch {}
                 try { buildExistingKeys(); } catch {}
+                showToast('No. reporte / cert. modificado con éxito');
             } catch (e) {
                 console.error('No se pudo actualizar el No. reporte / cert. para id ' + id, e);
                 alert('No se pudo guardar el cambio de No. reporte / cert. Revisa la consola para más detalles.');
+            } finally {
+                hideLoader();
             }
         }
 
         async function actualizarCampoResultado(id, nuevoValor) {
             if (!id) return;
             try {
+                showLoader('Guardando Resultado...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6171,15 +6276,19 @@
                     }
                     return reg;
                 });
+                showToast('Resultado modificado con éxito');
             } catch (e) {
                 console.error('No se pudo actualizar el Resultado para id ' + id, e);
                 alert('No se pudo guardar el cambio de Resultado. Revisa la consola para más detalles.');
+            } finally {
+                hideLoader();
             }
         }
 
         async function actualizarCampoPeriodo(id, nuevoValor) {
             if (!id) return;
             try {
+                showLoader('Guardando Periodo...');
                 const { getFirestore, doc, updateDoc, deleteField } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6234,15 +6343,19 @@
 
                 try { if (typeof cacheDashboardPruebasSnapshot === 'function') cacheDashboardPruebasSnapshot(pruebas); } catch {}
                 try { localStorage.setItem('pct_pruebas_updated_at', String(Date.now())); } catch {}
+                showToast('Periodo modificado con éxito');
             } catch (e) {
                 console.error('No se pudo actualizar el Periodo para id ' + id, e);
                 alert('No se pudo guardar el cambio de Periodo. Revisa la consola para más detalles.');
+            } finally {
+                hideLoader();
             }
         }
 
         async function actualizarCampoEmisor(id, nuevoValor) {
             if (!id) return;
             try {
+                showLoader('Guardando Emisor...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6256,15 +6369,19 @@
                     }
                     return reg;
                 });
+                showToast('Emisor modificado con éxito');
             } catch (e) {
                 console.error('No se pudo actualizar el Emisor para id ' + id, e);
                 alert('No se pudo guardar el cambio de Emisor. Revisa la consola para más detalles.');
+            } finally {
+                hideLoader();
             }
         }
 
         async function actualizarCampoTecnico(id, nuevoValor) {
             if (!id) return;
             try {
+                showLoader('Guardando Técnico...');
                 const { getFirestore, doc, updateDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6278,9 +6395,12 @@
                     }
                     return reg;
                 });
+                showToast('Técnico modificado con éxito');
             } catch (e) {
                 console.error('No se pudo actualizar el Técnico para id ' + id, e);
                 alert('No se pudo guardar el cambio de Técnico. Revisa la consola para más detalles.');
+            } finally {
+                hideLoader();
             }
         }
 
@@ -6422,6 +6542,7 @@
             }
 
             try {
+                showLoader('Eliminando...');
                 const { getFirestore, doc, deleteDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
@@ -6446,10 +6567,12 @@
                     await leerPagina({ reset: true, forceNetwork: true });
                 } catch {}
                 try { render(); } catch {}
-                alert('Eliminación completada.');
+                showToast('Eliminación completada');
             } catch (e) {
                 console.error('Error al eliminar pruebas desde Firestore', e);
                 alert('Ocurrió un error al eliminar las pruebas. Revisa la consola para más detalles.');
+            } finally {
+                hideLoader();
             }
         }
 
