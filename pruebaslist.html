@@ -227,7 +227,7 @@
             </div>
         </section>
 
-        <section id="seccion-vista-toggle" style="margin: 0 0 1rem; display:flex; justify-content:center;">
+        <section id="seccion-vista-toggle" style="margin: 0 0 1rem; display:none; justify-content:center;">
             <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; justify-content:center;">
                 <button id="pl-view-resumen" type="button" style="padding:0.45rem 0.85rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; font-weight:700;">Resumen</button>
                 <button id="pl-view-historico" type="button" style="padding:0.45rem 0.85rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; font-weight:700;">Histórico</button>
@@ -505,7 +505,7 @@
                                 <th style="text-align:left; padding:0.4rem;">Serial</th>
                                 <th style="text-align:left; padding:0.4rem;">Producto</th>
                                 <th style="text-align:left; padding:0.4rem;">Descripción</th>
-                                <th style="text-align:left; padding:0.4rem;">Prueba / Calib.</th>
+                                <th id="th-pruebas-sort-prueba" style="text-align:left; padding:0.4rem; cursor:pointer; user-select:none;">Prueba / Calib.</th>
                                 <th style="text-align:left; padding:0.4rem;">Área inspección</th>
                                 <th style="text-align:left; padding:0.4rem;">Resultado</th>
                                 <th style="text-align:left; padding:0.4rem;">Emisor</th>
@@ -1572,13 +1572,8 @@
         const cardR15Val = document.getElementById('card-rango-15-val');
         const cardR0Val = document.getElementById('card-rango-0-val');
 
-        // Modo de vista: resumen agrupado vs histórico por documento
-        let viewMode = 'resumen';
-        try {
-            const prev = String(localStorage.getItem('pct_pruebaslist_view_mode') || '').trim();
-            if (prev === 'historico' || prev === 'resumen') viewMode = prev;
-        } catch {}
-        if (window.isInspector) viewMode = 'historico';
+        // Modo de vista: se usa únicamente histórico
+        let viewMode = 'historico';
 
         function applyViewMode() {
             try {
@@ -1596,16 +1591,6 @@
                 if (seccionHistorico) seccionHistorico.style.display = (viewMode === 'historico') ? '' : 'none';
             } catch {}
         }
-
-        function setViewMode(next) {
-            viewMode = (next === 'historico') ? 'historico' : 'resumen';
-            try { localStorage.setItem('pct_pruebaslist_view_mode', viewMode); } catch {}
-            applyViewMode();
-            try { render(); } catch {}
-        }
-
-        if (btnViewResumen) btnViewResumen.addEventListener('click', () => setViewMode('resumen'));
-        if (btnViewHistorico) btnViewHistorico.addEventListener('click', () => setViewMode('historico'));
         applyViewMode();
 
         // Inspector: ocultar chips/resúmenes y evitar filtros (solo lista recientes 32h)
@@ -4701,6 +4686,7 @@
         }
 
         const thSortEquipo = document.getElementById('th-pruebas-sort-equipo');
+        const thSortPrueba = document.getElementById('th-pruebas-sort-prueba');
 
         function applySortHeaderEquipo() {
             try {
@@ -4711,6 +4697,18 @@
                 const isActive = sortListado.key === 'equipo';
                 const arrow = isActive ? (sortListado.dir === 'asc' ? ' ▲' : ' ▼') : '';
                 thSortEquipo.textContent = `${base}${arrow}`;
+            } catch {}
+        }
+
+        function applySortHeaderPrueba() {
+            try {
+                if (!sortListado || typeof sortListado !== 'object') sortListado = { key: '', dir: 'asc' };
+                if (!thSortPrueba) return;
+                const base = thSortPrueba.getAttribute('data-base-label') || thSortPrueba.textContent || 'Prueba / Calib.';
+                if (!thSortPrueba.getAttribute('data-base-label')) thSortPrueba.setAttribute('data-base-label', base);
+                const isActive = sortListado.key === 'prueba';
+                const arrow = isActive ? (sortListado.dir === 'asc' ? ' ▲' : ' ▼') : '';
+                thSortPrueba.textContent = `${base}${arrow}`;
             } catch {}
         }
 
@@ -4725,16 +4723,35 @@
                         sortListado.dir = 'asc';
                     }
                     applySortHeaderEquipo();
+                    applySortHeaderPrueba();
                     try { render(); } catch {}
                 } catch {}
             });
             applySortHeaderEquipo();
         }
 
+        if (thSortPrueba) {
+            thSortPrueba.addEventListener('click', () => {
+                try {
+                    if (!sortListado || typeof sortListado !== 'object') sortListado = { key: '', dir: 'asc' };
+                    if (sortListado.key === 'prueba') {
+                        sortListado.dir = (sortListado.dir === 'asc') ? 'desc' : 'asc';
+                    } else {
+                        sortListado.key = 'prueba';
+                        sortListado.dir = 'asc';
+                    }
+                    applySortHeaderEquipo();
+                    applySortHeaderPrueba();
+                    try { render(); } catch {}
+                } catch {}
+            });
+            applySortHeaderPrueba();
+        }
+
         function render() {
             const filtroHistorico = (inputBuscar?.value || '').toLowerCase().trim();
             const filtroResumen = (inputBuscarResumen?.value || '').toLowerCase().trim();
-            const filtro = (viewMode === 'resumen') ? filtroResumen : filtroHistorico;
+            const filtro = filtroHistorico;
 
             try {
                 if (btnBuscarServidor) {
@@ -4744,7 +4761,15 @@
             } catch {}
 
             try {
-                if (lblResultados) lblResultados.textContent = 'Resultados: 0';
+                if (lblResultados) {
+                    if (filtro) {
+                        lblResultados.style.display = '';
+                        lblResultados.textContent = 'Coincidencias: 0';
+                    } else {
+                        lblResultados.textContent = '';
+                        lblResultados.style.display = 'none';
+                    }
+                }
             } catch {}
 
             tbodyListado.innerHTML = '';
@@ -5240,9 +5265,9 @@
 
                 let cntResultadosResumen = 0;
                 rows.forEach(r => {
-                    if (filtro) {
+                    if (filtroResumen) {
                         const t = `${r.eqK} ${r.srK} ${r.prod} ${r.desc}`.toLowerCase();
-                        if (!t.includes(filtro)) return;
+                        if (!t.includes(filtroResumen)) return;
                     }
 
                     const badge =
@@ -5271,10 +5296,6 @@
                     tbodyResumen.appendChild(tr);
                     cntResultadosResumen += 1;
                 });
-
-                try {
-                    if (lblResultados) lblResultados.textContent = `Resultados: ${cntResultadosResumen}`;
-                } catch {}
             }
 
             if (viewMode === 'resumen') {
@@ -5348,7 +5369,36 @@
                     const cmp = ea.localeCompare(eb);
                     return desc ? -cmp : cmp;
                 });
+            } else if (sortListado.key === 'prueba') {
+                const desc = sortListado.dir === 'desc';
+                const kPr = (reg) => {
+                    try {
+                        const raw = (reg && (reg.prueba || reg.pruebaTipo)) ? String(reg.prueba || reg.pruebaTipo) : '';
+                        const canon = (typeof normalizaPrueba === 'function') ? normalizaPrueba(raw) : raw.toUpperCase().trim();
+                        return String(canon || '').toUpperCase().trim();
+                    } catch {
+                        return '';
+                    }
+                };
+                listaOrdenada.sort((a, b) => {
+                    const pa = kPr(a);
+                    const pb = kPr(b);
+                    if (pa === pb) {
+                        const ea = normEquipoKey(a && a.equipo ? String(a.equipo) : '');
+                        const eb = normEquipoKey(b && b.equipo ? String(b.equipo) : '');
+                        if (ea && eb && ea !== eb) return ea.localeCompare(eb);
+                        const aMs = (a && a._fechaRealDate instanceof Date) ? a._fechaRealDate.getTime() : 0;
+                        const bMs = (b && b._fechaRealDate instanceof Date) ? b._fechaRealDate.getTime() : 0;
+                        return bMs - aMs;
+                    }
+                    if (!pa) return 1;
+                    if (!pb) return -1;
+                    const cmp = pa.localeCompare(pb);
+                    return desc ? -cmp : cmp;
+                });
             }
+
+            let cntCoincidencias = 0;
 
             let cntPend = 0;
             let cntVenc = 0;
@@ -5419,7 +5469,10 @@
                         const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : '';
                         const serial = (serialPorEquipoInv && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
                         const textoBuscarEq = `${eqK} ${serial} ${prod} ${desc}`.toLowerCase();
-                        if (filtro && !textoBuscarEq.includes(filtro)) return;
+                        if (filtro) {
+                            if (!textoBuscarEq.includes(filtro)) return;
+                            cntCoincidencias += 1;
+                        }
 
                         const edo = (edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).toUpperCase() : '';
                         const isWip = (edo === 'WIP');
@@ -5509,7 +5562,7 @@
                     }
                 }
                 try {
-                    if (lblResultados) lblResultados.textContent = `Resultados: ${cntHist}`;
+                    if (lblResultados && filtro) lblResultados.textContent = `Coincidencias: ${cntCoincidencias}`;
                 } catch {}
                 tbodyListado._filasVisibles = filasVisibles;
                 return;
@@ -5538,7 +5591,10 @@
                 const desc = (reg && reg.descripcion) ? String(reg.descripcion) : descDerivado;
 
                 const textoBuscar = `${eqK || ''} ${serialCelda || ''} ${prod || ''} ${desc || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
-                if (filtro && !textoBuscar.includes(filtro)) return;
+                if (filtro) {
+                    if (!textoBuscar.includes(filtro)) return;
+                    cntCoincidencias += 1;
+                }
 
                 // Filtro por cobertura (100/parcial/sin) aplicado al listado grande por equipo
                 if (filtroCobertura) {
@@ -5813,7 +5869,7 @@
             }
 
             try {
-                if (lblResultados) lblResultados.textContent = `Resultados: ${cntHist}`;
+                if (lblResultados && filtro) lblResultados.textContent = `Coincidencias: ${cntCoincidencias}`;
             } catch {}
 
             try {
@@ -6511,7 +6567,7 @@
             // Seguridad: validar permiso aunque se fuerce el UI
             try {
                 const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-                const autorizado = !!(window.isAdmin || mail === 'sgi@pc-t.com.mx');
+                const autorizado = !!(window.isAdmin || window.userRole === 'sgi' || mail === 'sgi@pc-t.com.mx');
                 if (!autorizado) {
                     alert('No autorizado para eliminar pruebas.');
                     return;
@@ -6549,11 +6605,19 @@
 
                 const db = (window.db || getFirestore());
 
+                const failed = [];
+                let permDenied = false;
+
                 for (const id of idsAEliminar) {
                     try {
                         const ref = doc(db, 'pruebas', id);
                         await deleteDoc(ref);
                     } catch (e) {
+                        const code = (e && (e.code || e.name)) ? String(e.code || e.name) : '';
+                        const msg = (e && e.message) ? String(e.message) : '';
+                        const isDenied = /permission-denied/i.test(code) || /PERMISSION_DENIED/i.test(msg);
+                        if (isDenied) permDenied = true;
+                        failed.push({ id, code });
                         console.warn('No se pudo eliminar la prueba con id ' + id, e);
                     }
                 }
@@ -6567,7 +6631,16 @@
                     await leerPagina({ reset: true, forceNetwork: true });
                 } catch {}
                 try { render(); } catch {}
-                showToast('Eliminación completada');
+
+                if (!failed.length) {
+                    showToast('Eliminación completada');
+                } else if (permDenied) {
+                    showToast('No autorizado para eliminar (permisos)');
+                    alert('No se pudieron eliminar una o más pruebas por permisos.\n\nSi SGI debe poder borrar, su usuario debe tener rol "sgi" en Firestore (custom claim).');
+                } else {
+                    showToast(`No se pudieron eliminar ${failed.length} de ${idsAEliminar.size}`);
+                    alert(`No se pudieron eliminar ${failed.length} de ${idsAEliminar.size} pruebas.\n\nIntenta de nuevo o revisa la consola.`);
+                }
             } catch (e) {
                 console.error('Error al eliminar pruebas desde Firestore', e);
                 alert('Ocurrió un error al eliminar las pruebas. Revisa la consola para más detalles.');
