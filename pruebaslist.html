@@ -1675,6 +1675,17 @@
                 setActive(npar, nuevo === 'parcial');
                 setActive(nsin, nuevo === 'sin');
             } catch {}
+
+            // Al filtrar por cobertura (100/parcial), por defecto se busca snapshot anual.
+            try {
+                if ((nuevo === '100' || nuevo === 'parcial') && !filtroPeriodo) {
+                    filtroPeriodo = 'ANUAL';
+                    if (lblAnual) lblAnual.dataset.active = '1';
+                    if (lblPT) lblPT.dataset.active = '0';
+                    if (lblRep) lblRep.dataset.active = '0';
+                    actualizarChipsPeriodoActivos();
+                }
+            } catch {}
             render();
         }
 
@@ -5797,6 +5808,24 @@
                 // Aplicar filtro por periodo si está activo
                 const periodoNorm = (reg.periodo || '').toString().trim().toUpperCase() || 'ANUAL';
                 if (filtroPeriodo && periodoNorm !== filtroPeriodo) return;
+
+                // Cobertura (100/parcial): listar solo snapshot anual (última ANUAL por equipo+tipo)
+                try {
+                    const covSnap = (filtroCobertura === '100' || filtroCobertura === 'parcial');
+                    if (covSnap && esAnualReg && !esHistoricoReg && window._pctFullSnapshotCounters && window._pctFullSnapshotCounters.latestDueByKey) {
+                        const at = Number(window._pctFullSnapshotCounters.at || 0);
+                        const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+                        if (isFresh) {
+                            const tipoK = (typeof normalizaPrueba === 'function')
+                                ? normalizaPrueba(reg.prueba || reg.pruebaTipo || 'ANUAL')
+                                : String(reg.prueba || reg.pruebaTipo || 'ANUAL').toUpperCase().trim();
+                            const keyK = `${normEquipoKey(eqK || '')}__${String(tipoK || '').toUpperCase().trim()}`;
+                            const dueMsLatest = window._pctFullSnapshotCounters.latestDueByKey[keyK];
+                            const dueMsRow = proximaBase ? proximaBase.getTime() : 0;
+                            if (dueMsLatest && dueMsRow && dueMsRow !== dueMsLatest) return;
+                        }
+                    }
+                } catch {}
 
                 // Filtro por tipo de prueba (LT / VT-PT-MT / UTT)
                 try {
