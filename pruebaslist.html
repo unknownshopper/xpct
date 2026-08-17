@@ -306,6 +306,8 @@
                 <!-- Left: search -->
                 <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                     <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
+                    <span id="pruebas-buscar-resultados" style="font-size:0.85rem; color:#6b7280; white-space:nowrap;">Resultados: 0</span>
+                    <button id="btn-pruebas-buscar-servidor" type="button" title="Buscar coincidencias exactas en Firestore (serial/equipo)" style="padding:0.35rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; font-size:0.85rem; display:none;">Buscar servidor</button>
                     <div style="position:relative;">
                         <button id="btn-pruebas-rangos" type="button" style="padding:0.45rem 0.75rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">Rangos</button>
                         <div id="panel-pruebas-rangos" style="display:none; position:absolute; left:0; top:calc(100% + 6px); z-index:30; min-width:360px; max-width:520px; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,0.18); padding:0.75rem;">
@@ -1331,6 +1333,8 @@
         const tbodyListado = document.getElementById('tbody-pruebas-listado');
         const msgListado = document.getElementById('mensaje-sin-pruebas-listado');
         const inputBuscar = document.getElementById('pruebas-buscar');
+        const lblResultados = document.getElementById('pruebas-buscar-resultados');
+        const btnBuscarServidor = document.getElementById('btn-pruebas-buscar-servidor');
         const inputBuscarResumen = document.getElementById('pl-resumen-buscar');
         const lblPend = document.getElementById('pruebas-contador-pendientes');
         const lblVenc = document.getElementById('pruebas-contador-vencidas');
@@ -4632,6 +4636,17 @@
             const filtroResumen = (inputBuscarResumen?.value || '').toLowerCase().trim();
             const filtro = (viewMode === 'resumen') ? filtroResumen : filtroHistorico;
 
+            try {
+                if (btnBuscarServidor) {
+                    const raw = (inputBuscar?.value || '').toString().trim();
+                    btnBuscarServidor.style.display = raw ? '' : 'none';
+                }
+            } catch {}
+
+            try {
+                if (lblResultados) lblResultados.textContent = 'Resultados: 0';
+            } catch {}
+
             tbodyListado.innerHTML = '';
             if (msgListado) msgListado.style.display = 'none';
             if (tbodyResumen) tbodyResumen.innerHTML = '';
@@ -4648,6 +4663,9 @@
                 if (lblResSin) lblResSin.textContent = '0';
                 if (lblResPorCad) lblResPorCad.textContent = '0';
                 if (lblResCaducadas) lblResCaducadas.textContent = '0';
+                try {
+                    if (lblResultados) lblResultados.textContent = 'Resultados: 0';
+                } catch {}
                 return;
             }
 
@@ -5120,6 +5138,7 @@
 
                 if (!rows.length && msgResumen) msgResumen.style.display = 'block';
 
+                let cntResultadosResumen = 0;
                 rows.forEach(r => {
                     if (filtro) {
                         const t = `${r.eqK} ${r.srK} ${r.prod} ${r.desc}`.toLowerCase();
@@ -5150,7 +5169,12 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtDate(r.lastPost)}</td>
                     `;
                     tbodyResumen.appendChild(tr);
+                    cntResultadosResumen += 1;
                 });
+
+                try {
+                    if (lblResultados) lblResultados.textContent = `Resultados: ${cntResultadosResumen}`;
+                } catch {}
             }
 
             if (viewMode === 'resumen') {
@@ -5384,6 +5408,9 @@
                         else lblHist.textContent = `${totalHistorico} en histórico`;
                     }
                 }
+                try {
+                    if (lblResultados) lblResultados.textContent = `Resultados: ${cntHist}`;
+                } catch {}
                 tbodyListado._filasVisibles = filasVisibles;
                 return;
             }
@@ -5684,6 +5711,10 @@
                     else lblHist.textContent = `${totalHistorico} en histórico`;
                 }
             }
+
+            try {
+                if (lblResultados) lblResultados.textContent = `Resultados: ${cntHist}`;
+            } catch {}
 
             try {
                 if (!_csvPreviewActive) {
@@ -6013,13 +6044,6 @@
 
         function obtenerSeleccionadas() {
             const filas = tbodyListado._filasVisibles || [];
-            // Si el usuario marcó "seleccionar todos", exportar todas las filas visibles
-            // (evita discrepancias si hay re-render, filas sin checkbox, o estados no sincronizados).
-            try {
-                if (chkSelectTodos && chkSelectTodos.checked) {
-                    return Array.isArray(filas) ? filas.slice() : [];
-                }
-            } catch {}
             const checks = tbodyListado.querySelectorAll('.prueba-select:checked');
             const seleccionadas = [];
             checks.forEach(chk => {
@@ -6413,9 +6437,15 @@
                     }
                 }
 
-                // Filtrar las pruebas en memoria y volver a renderizar
-                pruebas = pruebas.filter(reg => !(reg && reg.id && idsAEliminar.has(String(reg.id))));
-                render();
+                try {
+                    if (chkSelectTodos) chkSelectTodos.checked = false;
+                } catch {}
+
+                // Refrescar desde servidor para evitar inconsistencias con paginación/cache
+                try {
+                    await leerPagina({ reset: true, forceNetwork: true });
+                } catch {}
+                try { render(); } catch {}
                 alert('Eliminación completada.');
             } catch (e) {
                 console.error('Error al eliminar pruebas desde Firestore', e);
@@ -6425,6 +6455,54 @@
 
         if (btnEliminar) {
             btnEliminar.addEventListener('click', eliminarSeleccionadas);
+        }
+
+        async function buscarEnServidorExacto() {
+            try {
+                const raw = (inputBuscar?.value || '').toString().trim();
+                if (!raw) return;
+
+                const { getFirestore, collection, getDocs, query, where } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = (window.db || getFirestore());
+                const colRef = collection(db, 'pruebas');
+
+                const candidates = new Set([
+                    raw,
+                    raw.toUpperCase(),
+                    raw.toLowerCase(),
+                ].map(s => String(s || '').trim()).filter(Boolean));
+
+                const out = new Map();
+                const runQ = async (field, val) => {
+                    try {
+                        const q = query(colRef, where(field, '==', val));
+                        const snap = await getDocs(q);
+                        snap.forEach(d => out.set(d.id, { id: d.id, ...d.data() }));
+                    } catch {}
+                };
+
+                for (const v of candidates) {
+                    await runQ('serial', v);
+                    await runQ('numeroSerie', v);
+                    await runQ('equipo', v);
+                }
+
+                pruebas = Array.from(out.values());
+                try {
+                    _lastDoc = null;
+                    _loadedIds = new Set(pruebas.map(r => (r && r.id) ? String(r.id) : '').filter(Boolean));
+                } catch {}
+                try { render(); } catch {}
+            } catch (e) {
+                console.error('No se pudo buscar en servidor', e);
+                alert('No se pudo buscar en servidor. Revisa la consola.');
+            }
+        }
+
+        if (btnBuscarServidor) {
+            btnBuscarServidor.addEventListener('click', buscarEnServidorExacto);
         }
 
         if (btnRegistrar) {
