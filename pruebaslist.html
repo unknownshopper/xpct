@@ -219,11 +219,21 @@
                     <div class="dash-card-label">Equipos probados 100%</div>
                     <div class="dash-card-value" id="pruebas-equipos-100">0</div>
                     <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">ANUAL + VT/PT/MT + UTT</div>
+                    <div style="display:flex; gap:0.35rem; flex-wrap:wrap; margin-top:0.4rem;">
+                        <span id="pruebas-equipos-miss-lt" class="chip" style="font-size:0.78rem;">LT: 0</span>
+                        <span id="pruebas-equipos-miss-vpm" class="chip" style="font-size:0.78rem;">VT/PT/MT: 0</span>
+                        <span id="pruebas-equipos-miss-utt" class="chip" style="font-size:0.78rem;">UTT: 0</span>
+                    </div>
                 </div>
                 <div class="dash-card">
                     <div class="dash-card-label">Equipos probados parcialmente</div>
                     <div class="dash-card-value" id="pruebas-equipos-parcial">0</div>
                     <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">Con pruebas, incompleto</div>
+                    <div style="display:flex; gap:0.35rem; flex-wrap:wrap; margin-top:0.4rem;">
+                        <span id="pruebas-equipos-parcial-miss-lt" class="chip" style="font-size:0.78rem;">LT: 0</span>
+                        <span id="pruebas-equipos-parcial-miss-vpm" class="chip" style="font-size:0.78rem;">VT/PT/MT: 0</span>
+                        <span id="pruebas-equipos-parcial-miss-utt" class="chip" style="font-size:0.78rem;">UTT: 0</span>
+                    </div>
                 </div>
                 <div class="dash-card">
                     <div class="dash-card-label">Equipos sin pruebas</div>
@@ -374,29 +384,24 @@
                 <!-- Right: actions -->
                 <div class="actividad-toolbar-right" style="display:flex; gap:0.5rem; margin-left:auto;">
                     <input id="input-import-csv" type="file" accept=".csv" style="display:none;" />
-                    <button id="btn-pruebas-import-csv" title="Importar formato_pruebas.csv" style="display:none;">Ingresar formato.csv</button>
+                    <button id="btn-pruebas-import-csv" title="Importar formato_pruebas.csv">Ingresar formato.csv</button>
                     <input id="input-delete-csv" type="file" accept=".csv" style="display:none;" />
                     <button id="btn-pruebas-delete-csv" title="Eliminar registros del CSV en Firestore" style="display:none;">Eliminar por CSV</button>
                     <button id="btn-pruebas-refresh" title="Actualizar desde servidor">Actualizar</button>
-                    <button id="btn-pruebas-more" title="Cargar más resultados">Cargar más</button>
-                    <button id="btn-pruebas-ver-todas" title="Cargar todas las pruebas (bajo demanda)">Ver todas</button>
-                    <button id="btn-pruebas-diagnose-invalid" title="Detecta registros donde Prueba / Calib no es LT, UTT o VT/PT/MT">Diagnosticar Prueba inválida</button>
-                    <button id="btn-pruebas-export-invalid" title="Exporta a CSV los registros inválidos detectados">Exportar inválidas (CSV)</button>
-                    <button id="btn-pruebas-fix-invalid" title="Corrige Prueba/Calib inválida y completa Área inspección cuando se puede inferir del inventario">Corregir Prueba/Área (auto)</button>
-                    <button id="btn-pruebas-diagnose-future" title="Detecta registros con fechaRealizacion o proxima en años futuros">Diagnosticar fechas futuras</button>
-                    <button id="btn-pruebas-export-future" title="Exporta a CSV los registros con fechas futuras detectadas">Exportar futuras (CSV)</button>
-                    <button id="btn-pruebas-fix-future" title="Corrige automáticamente fechas futuras (fechaRealizacion en 2027+ -> 2026 y recalcula próxima si aplica)">Corregir fechas futuras (auto)</button>
+                    <button id="btn-pruebas-more" title="Cargar más resultados" style="display:none;">Cargar más</button>
+                    <button id="btn-pruebas-ver-todas" title="Cargar todas las pruebas (bajo demanda)" style="display:none;">Ver todas</button>
+                    <button id="btn-pruebas-diagnose-invalid" title="Detecta registros donde Prueba / Calib no es LT, UTT o VT/PT/MT" style="display:none;">Diagnosticar Prueba inválida</button>
+                    <button id="btn-pruebas-export-invalid" title="Exporta a CSV los registros inválidos detectados" style="display:none;">Exportar inválidas (CSV)</button>
+                    <button id="btn-pruebas-fix-invalid" title="Corrige Prueba/Calib inválida y completa Área inspección cuando se puede inferir del inventario" style="display:none;">Corregir Prueba/Área (auto)</button>
+                    <button id="btn-pruebas-diagnose-future" title="Detecta registros con fechaRealizacion o proxima en años futuros" style="display:none;">Diagnosticar fechas futuras</button>
+                    <button id="btn-pruebas-export-future" title="Exporta a CSV los registros con fechas futuras detectados" style="display:none;">Exportar futuras (CSV)</button>
+                    <button id="btn-pruebas-fix-future" title="Corrige automáticamente fechas futuras (fechaRealizacion en 2027+ -> 2026 y recalcula próxima si aplica)" style="display:none;">Corregir fechas futuras (auto)</button>
                     <select id="pl-bulk-periodo" title="Cambiar período (masivo) a las filas seleccionadas" style="height:32px; font-size:0.9rem; padding:0 0.4rem; border-radius:8px; border:1px solid #d1d5db; background:#fff;">
                         <option value="">Período…</option>
                         <option value="ANUAL">Anual</option>
                         <option value="POST-TRABAJO">Post-trabajo</option>
                         <option value="REPARACION">Reparación</option>
                     </select>
-                    <label id="bulk-fecha-wrap" title="Opcional: marcar prueba realizada y asignar fecha" style="display:flex; gap:0.35rem; align-items:center; font-size:0.85rem; padding:0 0.35rem; border:1px solid #e5e7eb; border-radius:8px; background:#fff;">
-                        <input type="checkbox" id="chk-bulk-fecha" />
-                        Prueba realizada
-                        <input id="input-bulk-fecha" type="date" style="height:28px; font-size:0.85rem; padding:0 0.3rem; border-radius:6px; border:1px solid #d1d5db; background:#fff;" />
-                    </label>
                     <button id="btn-pruebas-bulk-periodo" title="Aplicar período seleccionado a las filas marcadas">Aplicar período</button>
                     <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Abrir registro</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
@@ -4994,12 +4999,19 @@
                 const lblSin = document.getElementById('pruebas-equipos-sin');
                 const lblSinWip = document.getElementById('pruebas-equipos-sin-wip');
                 const lblTot = document.getElementById('pruebas-equipos-total');
+                const lblMissLt = document.getElementById('pruebas-equipos-miss-lt');
+                const lblMissVpm = document.getElementById('pruebas-equipos-miss-vpm');
+                const lblMissUtt = document.getElementById('pruebas-equipos-miss-utt');
+                const lblParMissLt = document.getElementById('pruebas-equipos-parcial-miss-lt');
+                const lblParMissVpm = document.getElementById('pruebas-equipos-parcial-miss-vpm');
+                const lblParMissUtt = document.getElementById('pruebas-equipos-parcial-miss-utt');
 
                 const equiposBase = (equiposInventario && equiposInventario.size)
                     ? Array.from(equiposInventario)
                     : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
 
                 const equiposConAlgo = new Set();
+                const equiposConLt = new Set();
                 const equiposConVpm = new Set();
                 const equiposConUtt = new Set();
                 (pruebas || []).forEach(r => {
@@ -5010,9 +5022,13 @@
                     const esHistorico = (periodo === 'POST-TRABAJO' || periodo === 'REPARACION');
                     if (esHistorico) return;
 
+                    const esAnual = (!periodo || periodo === 'ANUAL');
+                    if (!esAnual) return;
+
                     const p = ((r && (r.prueba || r.pruebaTipo)) ? String(r.prueba || r.pruebaTipo) : '').toUpperCase();
                     if (p.includes('UTT')) equiposConUtt.add(eq);
                     if (p.includes('VT') || p.includes('PT') || p.includes('MT')) equiposConVpm.add(eq);
+                    if (p.includes('LT')) equiposConLt.add(eq);
                 });
                 const equiposConAnual = new Set(Array.from(anualPorEquipo.keys()));
 
@@ -5020,23 +5036,40 @@
                 let cPar = 0;
                 let cSin = 0;
                 let cSinWip = 0;
+                let missLt = 0;
+                let missVpm = 0;
+                let missUtt = 0;
+                let missLtPar = 0;
+                let missVpmPar = 0;
+                let missUttPar = 0;
 
                 window._equiposCobertura = window._equiposCobertura || {};
 
                 equiposBase.forEach(eq => {
                     const hasAny = equiposConAlgo.has(eq);
                     const hasAnual = equiposConAnual.has(eq);
+                    const hasLt = equiposConLt.has(eq);
                     const hasVpm = equiposConVpm.has(eq);
                     const hasUtt = equiposConUtt.has(eq);
                     const is100 = !!(hasAnual && hasVpm && hasUtt);
                     const cat = (!hasAny) ? 'sin' : (is100 ? '100' : 'parcial');
-                    window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasVpm, hasUtt };
+                    window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasLt, hasVpm, hasUtt };
                     if (cat === '100') c100 += 1;
                     else if (cat === 'parcial') cPar += 1;
                     else {
                         cSin += 1;
                         const edo = (edoPorEquipoInv && edoPorEquipoInv[eq]) ? String(edoPorEquipoInv[eq]).toUpperCase() : '';
                         if (edo === 'WIP') cSinWip += 1;
+                    }
+
+                    if (!hasLt) missLt += 1;
+                    if (!hasVpm) missVpm += 1;
+                    if (!hasUtt) missUtt += 1;
+
+                    if (cat === 'parcial') {
+                        if (!hasLt) missLtPar += 1;
+                        if (!hasVpm) missVpmPar += 1;
+                        if (!hasUtt) missUttPar += 1;
                     }
                 });
 
@@ -5045,6 +5078,12 @@
                 if (lblSin) lblSin.textContent = String(cSin);
                 if (lblSinWip) lblSinWip.textContent = String(cSinWip);
                 if (lblTot) lblTot.textContent = String(equiposBase.length);
+                if (lblMissLt) lblMissLt.textContent = `LT: ${missLt}`;
+                if (lblMissVpm) lblMissVpm.textContent = `VT/PT/MT: ${missVpm}`;
+                if (lblMissUtt) lblMissUtt.textContent = `UTT: ${missUtt}`;
+                if (lblParMissLt) lblParMissLt.textContent = `LT: ${missLtPar}`;
+                if (lblParMissVpm) lblParMissVpm.textContent = `VT/PT/MT: ${missVpmPar}`;
+                if (lblParMissUtt) lblParMissUtt.textContent = `UTT: ${missUttPar}`;
             } catch {}
 
             // Construir referencia de categoría por registro (LT, VT/PT/MT, UTT)
