@@ -37,11 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const role = (tok && tok.claims && tok.claims.role) ? String(tok.claims.role) : '';
             const isAdmin = role === 'admin';
             const isDirector = role === 'director';
+            const isSgi = role === 'sgi';
             const isSupervisor = role === 'supervisor';
             window.isAdmin = !!isAdmin;
             window.isDirector = !!isDirector;
             window.isSupervisor = !!isSupervisor;
-            if (!(isAdmin || isDirector || isSupervisor)) {
+            window.isSgi = !!isSgi;
+            if (!(isAdmin || isDirector || isSupervisor || isSgi)) {
                 window.location.href = 'index.html';
             }
         } catch {

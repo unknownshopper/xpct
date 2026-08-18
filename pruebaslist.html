@@ -807,7 +807,8 @@
             // Permisos: permitir a admin/director/supervisor y a usuarios específicos (sgi/jalcz/operaciones)
             try {
                 const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-                const puedeEditar = !!(window.isAdmin || window.isDirector || window.isSupervisor || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
+                const esSgi = !!(window.userRole === 'sgi' || window.isSgi);
+                const puedeEditar = !!(window.isAdmin || window.isDirector || window.isSupervisor || esSgi || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
                 if (!puedeEditar) {
                     alert('No autorizado para aplicar cambios masivos.');
                     return;
