@@ -902,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // (localStorage/BroadcastChannel solo aplican dentro del mismo navegador).
         try {
             let lastAutoRefresh = 0;
-            const AUTO_REFRESH_MS = 60 * 1000;
+            const AUTO_REFRESH_MS = 10 * 60 * 1000;
             setInterval(() => {
                 try {
                     if (document.visibilityState && document.visibilityState !== 'visible') return;
@@ -912,7 +912,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     try { spanPruebas.textContent = 'Actualizando...'; } catch {}
                     cargarResumenPruebas({ forceNetwork: true });
                 } catch {}
-            }, 5000);
+            }, 30000);
 
             document.addEventListener('visibilitychange', () => {
                 try {
