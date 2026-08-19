@@ -1267,7 +1267,14 @@
             }
         }
 
+        // Compatibilidad: el render principal llama buildThumbMalo()
+        function buildThumbMalo(insp) {
+            return renderThumbMalo(insp);
+        }
+
         const evidenciaStorageMissingCache = new Set();
+        const evidenciaStorageResolvedCache = new Map();
+        const evidenciaStorageInFlight = new Map();
 
         async function resolverThumbsMalo() {
             const imgs = Array.from(document.querySelectorAll('img.insp-thumb-malo'));
@@ -1304,8 +1311,30 @@
                     let url = '';
                     for (const p of candidatos) {
                         if (p && evidenciaStorageMissingCache.has(p)) continue;
+                        if (p && evidenciaStorageResolvedCache.has(p)) {
+                            url = String(evidenciaStorageResolvedCache.get(p) || '').trim();
+                            if (url) break;
+                        }
                         try {
-                            url = await getDownloadURL(stRef(storage, p));
+                            if (p && evidenciaStorageInFlight.has(p)) {
+                                url = await evidenciaStorageInFlight.get(p);
+                            } else {
+                                const prom = (async () => {
+                                    try {
+                                        const u = await getDownloadURL(stRef(storage, p));
+                                        const out = String(u || '').trim();
+                                        if (out) evidenciaStorageResolvedCache.set(p, out);
+                                        return out;
+                                    } catch {
+                                        evidenciaStorageMissingCache.add(p);
+                                        return '';
+                                    } finally {
+                                        try { evidenciaStorageInFlight.delete(p); } catch {}
+                                    }
+                                })();
+                                if (p) evidenciaStorageInFlight.set(p, prom);
+                                url = await prom;
+                            }
                             if (url) break;
                         } catch {}
                     }
