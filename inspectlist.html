@@ -39,6 +39,11 @@
             word-break: break-word;
             overflow-wrap: anywhere;
         }
+
+        @keyframes insp-loading-indeterminate {
+            0% { transform: translateX(-120%); }
+            100% { transform: translateX(220%); }
+        }
     </style>
 </head>
 <body style="margin:0;">
@@ -101,6 +106,20 @@
             <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
                 Se muestran inspecciones registradas contra las actividades actuales. Puedes filtrar y seleccionar filas para acciones futuras.
             </p>
+
+            <div id="insp-loading-banner" style="display:none; position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:9999; background:#ffffff; border:1px solid #e5e7eb; border-radius:16px; padding:0.75rem 0.9rem; width:min(560px, calc(100vw - 28px)); box-shadow:0 18px 48px rgba(15,23,42,0.18); pointer-events:none;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                    <div style="min-width:0;">
+                        <div style="font-weight:900; color:#0f172a;">Cargando…</div>
+                        <div id="insp-loading-title" style="font-size:0.92rem; color:#0f172a; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" aria-live="polite">Cargando inspecciones…</div>
+                        <div id="insp-loading-note" style="font-size:0.85rem; color:#64748b; margin-top:2px;">Ideal: espera a que termine para ver totales y filtros correctos.</div>
+                    </div>
+                    <div id="insp-loading-meta" style="font-size:0.8rem; color:#475569; white-space:nowrap; align-self:center;">--</div>
+                </div>
+                <div style="margin-top:0.55rem; height:7px; border-radius:999px; background:#eef2ff; overflow:hidden;">
+                    <div id="insp-loading-bar" style="height:100%; width:38%; border-radius:999px; background:linear-gradient(90deg,#60a5fa,#2563eb); will-change:transform; animation:insp-loading-indeterminate 1.05s ease-in-out infinite;"></div>
+                </div>
+            </div>
 
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
                 <div class="dash-card" id="insp-card-wrap-pendientes">
@@ -440,6 +459,10 @@
         const thFechaReal = document.getElementById('insp-th-fecha-real');
         const thFechaRealHuerfana = document.getElementById('insp-th-fecha-real-huerfana');
 
+        const loadingBanner = document.getElementById('insp-loading-banner');
+        const loadingTitle = document.getElementById('insp-loading-title');
+        const loadingMeta = document.getElementById('insp-loading-meta');
+
         const secSinInsp = document.getElementById('insp-seccion-sin-insp');
         const tbodySinInsp = document.getElementById('tbody-equipos-sin-insp');
         const msgSinInsp = document.getElementById('mensaje-sin-sin-insp');
@@ -458,6 +481,15 @@
         let vistaActiva = null; // 'pendientes' | 'realizadas' | 'sin_insp' | 'no_atendidas' | null
 
         let isLoadingDatos = false;
+
+        function setLoadingUi(show, stage, meta) {
+            try {
+                if (!loadingBanner) return;
+                loadingBanner.style.display = show ? '' : 'none';
+                if (loadingTitle) loadingTitle.textContent = stage || (show ? 'Cargando inspecciones…' : '');
+                if (loadingMeta) loadingMeta.textContent = meta || (show ? 'Procesando…' : '');
+            } catch {}
+        }
 
         // Estado inicial: al entrar solo mostrar tarjetas + sync-local.
         try {
@@ -720,6 +752,7 @@
             if (datosCargados) return;
             if (isLoadingDatos) return;
             isLoadingDatos = true;
+            setLoadingUi(true, 'Cargando inspecciones…', 'Preparando…');
             try {
                 await waitForDbReady();
             } catch {}
@@ -727,9 +760,11 @@
                 filtroCardsSnapshot = null;
             } catch {}
             try {
+                setLoadingUi(true, 'Cargando inspecciones…', 'Leyendo Firestore…');
                 await cargarDatos();
             } finally {
                 isLoadingDatos = false;
+                if (datosCargados) setLoadingUi(false);
             }
         }
 
@@ -2215,6 +2250,11 @@
 
             try {
 
+            try {
+                const vistaLabel = vistaActiva ? String(vistaActiva) : '';
+                setLoadingUi(true, 'Cargando inspecciones…', vistaLabel ? `Vista: ${vistaLabel}` : 'Construyendo listado…');
+            } catch {}
+
             try { filtroCardsSnapshot = null; } catch {}
             tbody.innerHTML = '';
             msg.style.display = 'none';
@@ -3503,6 +3543,8 @@
             if (quierePendientes && !quiereTodo) {
                 // Solo pendientes: evitar render de realizadas y no atendidas (más pesado)
                 datosCargados = true;
+
+            try { setLoadingUi(true, 'Cargando inspecciones…', 'Finalizando…'); } catch {}
                 try { if (vistaActiva) setVista(vistaActiva); } catch {}
                 return;
             }
@@ -4729,6 +4771,9 @@
                 } catch {
                     isLoadingDatos = false;
                 }
+                try {
+                    if (!isLoadingDatos && datosCargados) setLoadingUi(false);
+                } catch {}
             }
         }
 
