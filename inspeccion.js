@@ -72,9 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const puedeOmitirFotos = () => {
         try {
             if (esEquipoTercero) return false;
-            const selTipo = document.getElementById('inspeccion-tipo');
-            const tipo = selTipo ? String(selTipo.value || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
-            if (tipo && tipo !== 'POST-TRABAJO') return true;
             return !!window.isSgi;
         } catch {
             return false;
@@ -6873,6 +6870,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (p.estado.toUpperCase() === 'MALO') {
+                    // En POST-TRABAJO / RECEPCION / REINSPECCION: evidencia obligatoria cuando hay daño.
+                    // Única excepción: SGI puede omitir fotos.
+                    let exigirFotoPorDano = true;
+                    try {
+                        const selTipo = document.getElementById('inspeccion-tipo');
+                        const tipo = selTipo
+                            ? String(selTipo.value || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                            : '';
+                        exigirFotoPorDano = (tipo === 'POST-TRABAJO' || tipo === 'RECEPCION' || tipo === 'REINSPECCION');
+                    } catch {}
+
                     // Exigir tipo de daño solo si el parámetro no es Recubrimiento (o similar sin selector de daño)
                     const baseNombre = (p.nombre || '').toLowerCase();
                     const tieneSelectorDanos = !baseNombre.includes('recubrimiento');
@@ -6945,7 +6953,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     }
                                 } catch {}
                             }
-                            if (!has1 && !puedeOmitirFotos()) {
+                            if (!has1 && exigirFotoPorDano && !puedeOmitirFotos()) {
                                 alert(`Adjunta fotografía de evidencia (Foto 1) para: ${p.nombre} - ${dk}`);
                                 try {
                                     btnGuardar.innerHTML = prevBtnHtml;
@@ -6972,7 +6980,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             } catch {}
                         }
                         const tieneFoto = !!(tieneNueva || tienePrevia);
-                        if (!tieneFoto && !puedeOmitirFotos()) {
+                        if (!tieneFoto && exigirFotoPorDano && !puedeOmitirFotos()) {
                             alert(`Adjunta fotografía de evidencia para: ${p.nombre}`);
                             try {
                                 btnGuardar.innerHTML = prevBtnHtml;

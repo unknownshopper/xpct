@@ -1202,19 +1202,52 @@
             return String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        function buildThumbMalo(insp) {
+        function renderThumbMalo(insp) {
             try {
                 const params = Array.isArray(insp?.parametros) ? insp.parametros : [];
                 const malo = params.find(p => {
                     const est = (p && p.estado ? String(p.estado) : '').trim().toUpperCase();
                     if (est !== 'MALO') return false;
-                    const hasAny = (p && (p.evidenciaUrl || p.evidenciaNombre || p.evidenciaPath));
-                    return !!hasAny;
+                    // Legacy: evidencia a nivel parámetro
+                    if (p && (p.evidenciaUrl || p.evidenciaNombre || p.evidenciaPath || p.evidenciaUrl2 || p.evidenciaNombre2 || p.evidenciaPath2)) return true;
+                    // Nuevo esquema: evidencia por daño (chips)
+                    try {
+                        const by = (p && p.evidenciasPorDano && typeof p.evidenciasPorDano === 'object') ? p.evidenciasPorDano : null;
+                        if (!by) return false;
+                        const sel = Array.isArray(p.danosSeleccionados)
+                            ? p.danosSeleccionados.map(x => String(x || '').trim().toUpperCase()).filter(Boolean)
+                            : [];
+                        const danos = sel.length ? sel : Object.keys(by || {}).map(k => String(k || '').trim().toUpperCase()).filter(Boolean);
+                        return danos.some(dk => {
+                            const b = by && by[dk] ? by[dk] : null;
+                            return !!(b && (b.evidenciaUrl || b.evidenciaNombre || b.evidenciaPath || b.evidenciaUrl2 || b.evidenciaNombre2 || b.evidenciaPath2));
+                        });
+                    } catch {
+                        return false;
+                    }
                 });
                 if (!malo) return '';
-                const src = String(malo.evidenciaUrl || '').trim();
-                const path = String(malo.evidenciaPath || '').trim();
-                const name = String(malo.evidenciaNombre || '').trim();
+                // Preferir URL directa; si no, dejar path/nombre para resolver con Storage.
+                let src = String(malo.evidenciaUrl || '').trim();
+                let path = String(malo.evidenciaPath || '').trim();
+                let name = String(malo.evidenciaNombre || '').trim();
+                if (!src && (!path && !name)) {
+                    try {
+                        const by = (malo && malo.evidenciasPorDano && typeof malo.evidenciasPorDano === 'object') ? malo.evidenciasPorDano : null;
+                        const sel = Array.isArray(malo.danosSeleccionados)
+                            ? malo.danosSeleccionados.map(x => String(x || '').trim().toUpperCase()).filter(Boolean)
+                            : [];
+                        const danos = sel.length ? sel : Object.keys(by || {}).map(k => String(k || '').trim().toUpperCase()).filter(Boolean);
+                        for (const dk of danos) {
+                            const b = by && by[dk] ? by[dk] : null;
+                            if (!b) continue;
+                            src = String(b.evidenciaUrl || '').trim();
+                            path = String(b.evidenciaPath || '').trim();
+                            name = String(b.evidenciaNombre || '').trim();
+                            if (src || path || name) break;
+                        }
+                    } catch {}
+                }
                 const inspId = String(insp?.id || '').trim();
                 return `
                     <img
