@@ -37,6 +37,28 @@
         max-height: calc(100vh - 280px);
       }
 
+      #tabla-pruebas-listado td:nth-child(2) {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      #tabla-pruebas-listado td:nth-child(2) .pl-norep-static {
+        display: block;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      #tabla-pruebas-listado td:nth-child(2) input.pl-norep {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       /* Chips de período (arriba del Resumen) con estilo neutro gris y efecto activo */
       .chips-periodo .chip {
         background: #f8fafc; /* gris claro */
@@ -453,16 +475,16 @@
                     <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1350px; table-layout:fixed;">
                         <colgroup>
                             <col style="width:34px;">
-                            <col style="width:160px;">
+                            <col style="width:220px;">
                             <col style="width:120px;">
                             <col style="width:120px;">
                             <col style="width:110px;">
                             <col style="width:150px;">
-                            <col style="width:130px;">
+                            <col style="width:80px;">
                             <col style="width:120px;">
                             <col style="width:170px;">
                             <col style="width:130px;">
-                            <col style="width:220px;">
+                            <col style="width:320px;">
                             <col style="width:170px;">
                             <col style="width:160px;">
                             <col style="width:130px;">
@@ -1387,11 +1409,19 @@
             const statusTxt = status === 'synced' ? 'Enviada' : 'Pendiente';
             const serialLocal = normSerialKey(r.numeroSerie || r.serial || '');
 
+            const noRepLocal = String(r.noReporte || '').trim();
+            const noRepLocalHtml = noRepLocal
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+
             tr.innerHTML = `
                 <td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;">
                     <input type="checkbox" disabled style="display:block; margin:0 auto;">
                 </td>
-                <td style="padding:0.4rem;">${String(r.noReporte || '').trim() || ''}</td>
+                <td style="padding:0.4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><span class="pl-norep-static" title="${noRepLocalHtml}">${noRepLocalHtml}</span></td>
                 <td style="padding:0.4rem;">${String(r.fechaRealizacion || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.proxima || '').trim() || ''}</td>
                 <td style="padding:0.4rem;">${String(r.periodo || '').trim() || ''}</td>
@@ -5999,9 +6029,15 @@
                     : textoPrueba;
 
                 const textoNoRep = (reg.noReporte || '').toString();
+                const textoNoRepHtml = textoNoRep
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
                 const celdaNoRep = esEditable
                     ? `<input type="text" class="pl-norep" required data-id="${reg.id || ''}" data-prev="${textoNoRep.replace(/"/g, '&quot;')}" value="${textoNoRep.replace(/"/g, '&quot;')}" style="direction:rtl; text-align:left;">`
-                    : textoNoRep;
+                    : `<span class="pl-norep-static" title="${textoNoRepHtml}">${textoNoRepHtml}</span>`;
 
                 const resultadoActual = (reg.resultado || '').toString();
                 const celdaResultado = esEditable
@@ -6024,7 +6060,7 @@
 
                 fila.innerHTML = `
                     ${tdSelect}
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${celdaNoRep}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:normal; overflow-wrap:anywhere; word-break:break-word;">${celdaNoRep}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '')}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtProxima(proximaStr)}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
