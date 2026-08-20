@@ -3816,6 +3816,11 @@
                 return { valids, errors, warnings };
             }
 
+            let vpmDetalleUsadoAreaCount = 0;
+            let vpmDetalleSinAreaCount = 0;
+            const vpmDetalleUsadoAreaEj = [];
+            const vpmDetalleSinAreaEj = [];
+
             // Mapear áreas previas conocidas por equipo/serial a partir de lo ya cargado
             const areaPorEquipoPrev = {};
             const areaPorSerialPrev = {};
@@ -3909,8 +3914,13 @@
                     let pruebaDetalleNorm = (rec.pruebaDetalle || '').toString().trim();
                     if (requiereDetalleVpm && !pruebaDetalleNorm) {
                         pruebaDetalleNorm = (rec.areaPrueba || areaResolved || '').toString().trim();
-                        if (pruebaDetalleNorm) warnings.push(`L${n}: pruebaDetalle ausente para VT/PT/MT; se usará área "${pruebaDetalleNorm}"`);
-                        else warnings.push(`L${n}: pruebaDetalle ausente para VT/PT/MT y no hay área; se permitirá vacío`);
+                        if (pruebaDetalleNorm) {
+                            vpmDetalleUsadoAreaCount += 1;
+                            if (vpmDetalleUsadoAreaEj.length < 6) vpmDetalleUsadoAreaEj.push(`L${n}`);
+                        } else {
+                            vpmDetalleSinAreaCount += 1;
+                            if (vpmDetalleSinAreaEj.length < 6) vpmDetalleSinAreaEj.push(`L${n}`);
+                        }
                     }
 
                     valids.push({
@@ -3935,6 +3945,13 @@
                     });
                 }
             });
+
+            if (vpmDetalleUsadoAreaCount > 0) {
+                warnings.push(`VT/PT/MT: ${vpmDetalleUsadoAreaCount} filas sin pruebaDetalle; se usó areaPrueba/área resuelta como detalle (ej.: ${vpmDetalleUsadoAreaEj.join(', ')}${vpmDetalleUsadoAreaCount > vpmDetalleUsadoAreaEj.length ? ', ...' : ''})`);
+            }
+            if (vpmDetalleSinAreaCount > 0) {
+                warnings.push(`VT/PT/MT: ${vpmDetalleSinAreaCount} filas sin pruebaDetalle y sin área; se permitió vacío (ej.: ${vpmDetalleSinAreaEj.join(', ')}${vpmDetalleSinAreaCount > vpmDetalleSinAreaEj.length ? ', ...' : ''})`);
+            }
 
             return { valids, errors, warnings };
         }
