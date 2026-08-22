@@ -6009,7 +6009,9 @@
                 const esAdmin = !!window.isAdmin;
                 const periodoTexto = periodoActual || '';
 
-                const esEditable = !!(window.isAdmin || window.isDirector || window.isSupervisor);
+                const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
+                const esSgi = !!(window.userRole === 'sgi' || window.isSgi);
+                const esEditable = !!(window.isAdmin || window.isDirector || window.isSupervisor || esSgi || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
                 const esAdminOnly = !!window.isAdmin;
                 const celdaPeriodo = esEditable
                     ? `<select class="pl-periodo" data-id="${reg.id || ''}">
