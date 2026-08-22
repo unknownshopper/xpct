@@ -236,6 +236,21 @@
                     <button id="btn-pruebas-completar-resumen" type="button" style="display:none;">Completar resumen</button>
                 </div>
             </div>
+
+            <div id="pl-loading-banner" style="display:none; position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:9999; background:#ffffff; border:1px solid #e5e7eb; border-radius:16px; padding:0.75rem 0.9rem; width:min(560px, calc(100vw - 28px)); box-shadow:0 18px 48px rgba(15,23,42,0.18); pointer-events:none;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                    <div style="min-width:0;">
+                        <div style="font-weight:900; color:#0f172a;">Cargando…</div>
+                        <div id="pl-loading-sub" style="font-size:0.9rem; color:#334155; margin-top:2px;">Cargando pruebas…</div>
+                        <div id="pl-loading-hint" style="font-size:0.82rem; color:#64748b; margin-top:6px;">Sugerencia: espera a que el resumen termine de cargar para ver conteos correctos.</div>
+                    </div>
+                    <div id="pl-loading-pct" style="font-weight:800; color:#0f172a; font-variant-numeric:tabular-nums;">0%</div>
+                </div>
+                <div style="margin-top:10px; height:10px; background:#e5e7eb; border-radius:999px; overflow:hidden;">
+                    <div id="pl-loading-bar" style="height:100%; width:0%; background:linear-gradient(90deg,#2563eb,#22c55e); border-radius:999px; transition:width 180ms ease;"></div>
+                </div>
+                <div id="pl-loading-meta" style="margin-top:8px; font-size:0.82rem; color:#64748b; font-variant-numeric:tabular-nums;">0 de 0</div>
+            </div>
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
                 <div class="dash-card">
                     <div class="dash-card-label">Equipos probados 100%</div>
@@ -590,7 +605,7 @@
     import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const auth = window.auth;
-    const APP_VERSION = '2026-08-12-3';
+    const APP_VERSION = '2026-08-22-1';
 
     const plToast = document.getElementById('pl-toast');
     let _plToastTimer = null;
@@ -614,6 +629,47 @@
             if (state === 'loading') el.setAttribute('data-load', 'loading');
             else if (state === 'ready') el.setAttribute('data-load', 'ready');
             else el.removeAttribute('data-load');
+        } catch {}
+
+        try {
+            if (state === 'loading') {
+                setPlLoaderVisible(true);
+                updatePlLoaderProgress();
+            } else if (state === 'ready') {
+                updatePlLoaderProgress();
+                setPlLoaderVisible(false);
+            }
+        } catch {}
+    }
+
+    function setPlLoaderVisible(show) {
+        try {
+            const box = document.getElementById('pl-loading-banner');
+            if (!box) return;
+            box.style.display = show ? 'block' : 'none';
+        } catch {}
+    }
+
+    function updatePlLoaderProgress() {
+        try {
+            const box = document.getElementById('pl-loading-banner');
+            if (!box || box.style.display === 'none') return;
+
+            const sub = document.getElementById('pl-loading-sub');
+            const pctEl = document.getElementById('pl-loading-pct');
+            const bar = document.getElementById('pl-loading-bar');
+            const meta = document.getElementById('pl-loading-meta');
+
+            const loaded = (Array.isArray(window.pctGetPruebas ? window.pctGetPruebas() : window.pruebas) ? (window.pctGetPruebas ? window.pctGetPruebas().length : window.pruebas.length) : 0);
+            const total = (typeof window._plTotalServer === 'number' && isFinite(window._plTotalServer) && window._plTotalServer > 0)
+                ? window._plTotalServer
+                : 0;
+
+            const pct = (total > 0) ? Math.max(0, Math.min(100, Math.round((loaded / total) * 100))) : 0;
+            if (pctEl) pctEl.textContent = `${pct}%`;
+            if (bar) bar.style.width = `${pct}%`;
+            if (meta) meta.textContent = `${loaded} de ${total || '…'}`;
+            if (sub) sub.textContent = (total > 0) ? `Cargando pruebas… (${loaded}/${total})` : `Cargando pruebas… (${loaded})`;
         } catch {}
     }
 
@@ -1875,6 +1931,7 @@
             btnRefresh.addEventListener('click', async () => {
                 await leerPagina({ reset: true, forceNetwork: true });
                 render();
+                try { setTimeout(() => { try { autoCompletarResumen(); } catch {} }, 50); } catch {}
             });
         }
         if (btnMore) {
@@ -1905,6 +1962,8 @@
         let _totalServer = null;
         let _isLoadingAll = false;
         let _isLoadingMore = false;
+
+        try { window._plTotalServer = 0; } catch {}
 
         let _paginationMode = 'creadoEnMs';
         let _loadedIds = new Set();
@@ -2246,51 +2305,67 @@
         // Auto-completar el resumen al entrar (carga completa en segundo plano)
         try {
             setTimeout(async () => {
-                if (_csvPreviewActive) return;
-                if (_isLoadingAll || _isLoadingMore) return;
-                if (!_lastDoc) {
-                    try {
-                        if (Array.isArray(pruebas) && pruebas.length) {
-                            localStorage.setItem(claveTotalCached, String(pruebas.length));
-                            _totalServer = pruebas.length;
-                        }
-                    } catch {}
-                    return;
-                }
-
-                _isLoadingAll = true;
-                try {
-                    if (lblResumenParcial) lblResumenParcial.textContent = `Cargando resumen completo...`;
-                    setProgressState('loading');
-                    let safety = 0;
-                    while (_lastDoc && safety < 300) {
-                        safety += 1;
-                        const added = await leerPagina({ reset: false, forceNetwork: false });
-                        if (!added) {
-                            const addedNet = await leerPagina({ reset: false, forceNetwork: true });
-                            if (!addedNet) break;
-                        }
-                        if (safety % 3 === 0) {
-                            try { buildExistingKeys(); } catch {}
-                            try { actualizarContadoresTiposLocal(pruebas); } catch {}
-                            render();
-                        }
-                    }
-                } finally {
-                    _isLoadingAll = false;
-                    setProgressState('ready');
-                    try {
-                        if (Array.isArray(pruebas) && pruebas.length) {
-                            localStorage.setItem(claveTotalCached, String(pruebas.length));
-                            _totalServer = pruebas.length;
-                        }
-                    } catch {}
-                    try { window.pruebas = window.pctGetPruebas(); } catch {}
-                    try { buildExistingKeys(); } catch {}
-                    try { actualizarContadoresTiposLocal(pruebas); } catch {}
-                    try { render(); } catch {}
-                }
+                await autoCompletarResumen();
             }, 50);
+        } catch {}
+
+        async function autoCompletarResumen() {
+            if (_csvPreviewActive) return;
+            if (_isLoadingAll || _isLoadingMore) return;
+            if (!_lastDoc) {
+                try {
+                    if (Array.isArray(pruebas) && pruebas.length) {
+                        localStorage.setItem(claveTotalCached, String(pruebas.length));
+                        _totalServer = pruebas.length;
+                    }
+                } catch {}
+                return;
+            }
+
+            _isLoadingAll = true;
+            try {
+                if (lblResumenParcial) lblResumenParcial.textContent = `Cargando resumen completo...`;
+                setProgressState('loading');
+                let safety = 0;
+                while (_lastDoc && safety < 300) {
+                    safety += 1;
+                    const added = await leerPagina({ reset: false, forceNetwork: true });
+                    if (!added) {
+                        break;
+                    }
+                    if (safety % 3 === 0) {
+                        try { buildExistingKeys(); } catch {}
+                        try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                        render();
+                    }
+                }
+            } finally {
+                _isLoadingAll = false;
+                setProgressState('ready');
+                try {
+                    if (Array.isArray(pruebas) && pruebas.length) {
+                        localStorage.setItem(claveTotalCached, String(pruebas.length));
+                        _totalServer = pruebas.length;
+                    }
+                } catch {}
+                try { window.pruebas = window.pctGetPruebas(); } catch {}
+                try { buildExistingKeys(); } catch {}
+                try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                try { render(); } catch {}
+            }
+        }
+
+        try {
+            window._plDiag = window._plDiag || {};
+            window._plDiag.getCoverageSample = () => {
+                try {
+                    const total = (typeof _totalServer === 'number') ? _totalServer : null;
+                    const loaded = Array.isArray(pruebas) ? pruebas.length : 0;
+                    return { loaded, total, lastDoc: !!_lastDoc, isLoadingAll: _isLoadingAll, isLoadingMore: _isLoadingMore };
+                } catch {
+                    return null;
+                }
+            };
         } catch {}
 
         async function cargarTodas() {
@@ -5063,7 +5138,18 @@
                 const equiposConVpm = new Set();
                 const equiposConUtt = new Set();
                 (pruebas || []).forEach(r => {
-                    const eq = normEquipoKey(r && r.equipo ? String(r.equipo) : '');
+                    const eq = (() => {
+                        try {
+                            const rr = r || {};
+                            const { equipoCanon } = resolverEquipoYSerialCanon(
+                                rr.equipo,
+                                (rr.serial || rr.numeroSerie || rr.noSerie || '')
+                            );
+                            return equipoCanon || normEquipoKey(rr && rr.equipo ? String(rr.equipo) : '');
+                        } catch {
+                            return normEquipoKey(r && r.equipo ? String(r.equipo) : '');
+                        }
+                    })();
                     if (eq) equiposConAlgo.add(eq);
 
                     const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
@@ -5785,6 +5871,133 @@
                 return;
             }
 
+            if (filtroCobertura === 'parcial' || filtroCobertura === '100') {
+                let equiposSel = [];
+                try {
+                    const base = (equiposInventario && equiposInventario.size)
+                        ? Array.from(equiposInventario)
+                        : Object.keys(window._equiposCobertura || {});
+                    equiposSel = base
+                        .map(eq => normEquipoKey(eq))
+                        .filter(Boolean)
+                        .filter(eqK => {
+                            const cov = (window._equiposCobertura && eqK && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
+                            return cov && cov.cat === filtroCobertura;
+                        });
+                } catch { equiposSel = []; }
+
+                const vistos = new Set();
+                equiposSel
+                    .filter(eqK => {
+                        if (vistos.has(eqK)) return false;
+                        vistos.add(eqK);
+                        return true;
+                    })
+                    .sort((a, b) => {
+                        const cmp = a.localeCompare(b);
+                        return (sortListado.key === 'equipo' && sortListado.dir === 'desc') ? -cmp : cmp;
+                    })
+                    .forEach(eqK => {
+                        const cov = (window._equiposCobertura && eqK && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
+                        if (!cov) return;
+                        const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : '';
+                        const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : '';
+                        const serial = (serialPorEquipoInv && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                        const textoBuscarEq = `${eqK} ${serial} ${prod} ${desc}`.toLowerCase();
+                        if (filtro) {
+                            if (!textoBuscarEq.includes(filtro)) return;
+                            cntCoincidencias += 1;
+                        }
+
+                        const faltantes = [];
+                        if (!cov.hasAnual) faltantes.push('ANUAL');
+                        if (!cov.hasVpm) faltantes.push('VT/PT/MT');
+                        if (!cov.hasUtt) faltantes.push('UTT');
+                        if (!cov.hasLt) faltantes.push('LT');
+                        const badgeMain = (filtroCobertura === '100')
+                            ? '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#dcfce7; color:#166534; font-size:0.75rem;">Completo</span>'
+                            : '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#fef3c7; color:#92400e; font-size:0.75rem;">Parcial</span>';
+                        const badgeMiss = faltantes.length
+                            ? `<span title="Faltantes" style="margin-left:0.35rem; padding:0.1rem 0.5rem; border-radius:999px; background:#e0f2fe; color:#075985; font-size:0.75rem;">Faltan: ${faltantes.join(', ')}</span>`
+                            : '';
+                        const badgeEstado = `${badgeMain}${badgeMiss}`;
+
+                        const idx = filasVisibles.length;
+                        filasVisibles.push({
+                            id: '',
+                            equipo: eqK,
+                            producto: prod,
+                            descripcion: desc,
+                            periodo: 'ANUAL',
+                            fechaRealizacion: '',
+                            proxima: '',
+                            prueba: '',
+                            area: '',
+                            noReporte: '',
+                            resultado: '',
+                            emisor: '',
+                            tecnico: '',
+                            _placeholder: true,
+                            _cobertura: filtroCobertura,
+                        });
+
+                        const fila = document.createElement('tr');
+                        const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}" style="display:block; margin:0 auto;"></td>`;
+                        fila.innerHTML = `
+                            ${tdSelect}
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">ANUAL</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial ? normSerialKey(serial) : '-'}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
+                        `;
+
+                        fila.style.cursor = 'pointer';
+                        fila.addEventListener('dblclick', (e) => {
+                            try {
+                                const target = e && e.target;
+                                if (target && target.closest && target.closest('input, select, button, a, label')) return;
+                            } catch {}
+                            try {
+                                const params = new URLSearchParams();
+                                if (eqK) params.set('equipo', eqK);
+                                if (prod) params.set('producto', prod);
+                                if (desc) params.set('descripcion', desc);
+                                params.set('periodo', 'ANUAL');
+                                window.open(`pruebas.html?${params.toString()}`, '_blank');
+                            } catch {}
+                        });
+
+                        tbodyListado.appendChild(fila);
+                        cntHist += 1;
+                    });
+
+                if (msgListado) msgListado.style.display = (cntHist ? 'none' : 'block');
+                if (!_csvPreviewActive) {
+                    if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
+                    if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
+                    if (lblHist) {
+                        if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
+                        else lblHist.textContent = `${totalHistorico} en histórico`;
+                    }
+                }
+                try {
+                    if (lblResultados && filtro) lblResultados.textContent = `Coincidencias: ${cntCoincidencias}`;
+                } catch {}
+                tbodyListado._filasVisibles = filasVisibles;
+                return;
+            }
+
             listaOrdenada.forEach(reg => {
                 const resolved = resolverEquipoYSerialCanon(
                     (reg && reg.equipo != null) ? reg.equipo : '',
@@ -6133,6 +6346,12 @@
                             lblResumenParcial.textContent = `Resumen basado en ${totalHistorico}`;
                         }
                     }
+
+                    try {
+                        window._plTotalServer = (typeof _totalServer === 'number' && isFinite(_totalServer) && _totalServer > 0) ? _totalServer : 0;
+                    } catch {}
+                    try { updatePlLoaderProgress(); } catch {}
+
                     const isPartial = (typeof _totalServer === 'number' && _totalServer > 0 && (pruebas && pruebas.length < _totalServer));
                     if (btnCompletarResumen) btnCompletarResumen.style.display = (isPartial && !_isLoadingAll) ? '' : 'none';
                 }
