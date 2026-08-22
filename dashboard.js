@@ -518,16 +518,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge black">${totalVencidas}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟦 <span>60-31 días</span></span>
-                            <span class="badge blue">${porVencer60}</span>
+                            <span class="row-left">� <span>15-1 días</span></span>
+                            <span class="badge red">${porVencer15}</span>
                         </div>
                         <div class="dash-stat-row">
                             <span class="row-left">🟨 <span>30-16 días</span></span>
                             <span class="badge amber">${porVencer30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟥 <span>15-1 días</span></span>
-                            <span class="badge red">${porVencer15}</span>
+                            <span class="row-left">� <span>60-31 días</span></span>
+                            <span class="badge blue">${porVencer60}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
                             <span class="row-left">🧪 <span>Tipos</span></span>
@@ -731,16 +731,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge black">${totalVencidas}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟦 <span>60-31 días</span></span>
-                            <span class="badge blue">${porVencer60}</span>
+                            <span class="row-left">� <span>15-1 días</span></span>
+                            <span class="badge red">${porVencer15}</span>
                         </div>
                         <div class="dash-stat-row">
                             <span class="row-left">🟨 <span>30-16 días</span></span>
                             <span class="badge amber">${porVencer30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟥 <span>15-1 días</span></span>
-                            <span class="badge red">${porVencer15}</span>
+                            <span class="row-left">� <span>60-31 días</span></span>
+                            <span class="badge blue">${porVencer60}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
                             <span class="row-left">🧪 <span>Tipos</span></span>
@@ -871,16 +871,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="badge black">${d0}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟦 <span>60-31 días</span></span>
-                            <span class="badge blue">${d60}</span>
+                            <span class="row-left">� <span>15-1 días</span></span>
+                            <span class="badge red">${d15}</span>
                         </div>
                         <div class="dash-stat-row">
                             <span class="row-left">🟨 <span>30-16 días</span></span>
                             <span class="badge amber">${d30}</span>
                         </div>
                         <div class="dash-stat-row">
-                            <span class="row-left">🟥 <span>15-1 días</span></span>
-                            <span class="badge red">${d15}</span>
+                            <span class="row-left">� <span>60-31 días</span></span>
+                            <span class="badge blue">${d60}</span>
                         </div>
                         <div class="dash-stat-row small" style="margin-top:0.15rem;">
                             <span class="row-left">🧪 <span>Tipos</span></span>
