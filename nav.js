@@ -1000,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${c60 ? `🟦 60-31 días: <strong>${c60}</strong><br>` : ''}
                     ${c30 ? `🟨 30-16 días: <strong>${c30}</strong><br>` : ''}
                     ${c15 ? `🟥 15-1 días: <strong>${c15}</strong><br>` : ''}
-                    ${c0 ? `☠️ 0 días (vencidas): <strong>${c0}</strong><br>` : ''}
+                    ☠️ 0 días (vencidas): <strong>${c0}</strong><br>
                     <div style="margin-top:6px;"><a href="pruebaslist.html" style="color:#93c5fd;text-decoration:underline;">Ver listado de pruebas</a></div>
                 </div>`;
             cont.appendChild(toast);
