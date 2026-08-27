@@ -107,6 +107,10 @@
                         <option value="RETENEDOR">Retenedor</option>
                     </select>
                 </div>
+                <div class="campo" id="campo-presion-lt" style="display:none;">
+                    <label for="inv-presion-lt">Presión (LT)</label>
+                    <input type="text" id="inv-presion-lt" placeholder="Presión" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                </div>
                 <div class="campo">
                     <label for="inv-material">Material</label>
                     <input type="text" id="inv-material" placeholder="Material">
@@ -211,9 +215,13 @@
                 window.userRole = role;
                 window.isAdmin = role === 'admin';
                 window.isDirector = role === 'director';
+                window.isSgi = role === 'sgi';
                 window.isInspector = role === 'inspector';
                 window.isCapturista = role === 'capturista';
                 window.isVisor = role === 'visor';
+                window.isAuxger = role === 'auxger';
+                window.isAuxndt = (role === 'auxndt' || role === 'aux_ndt' || role === 'audndt');
+                window.isCops = role === 'cops';
 
                 // Visor: no debe registrar
                 if (window.isVisor) {
@@ -222,6 +230,12 @@
                         if (btnGuardar) btnGuardar.style.display = 'none';
                     } catch {}
                     window.location.href = 'pruebaslist.html';
+                    return;
+                }
+
+                // Inspector y cops: no deben registrar pruebas
+                if (window.isInspector || window.isCops) {
+                    window.location.href = 'inspectlist.html';
                     return;
                 }
 

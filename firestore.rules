@@ -35,7 +35,12 @@ service cloud.firestore {
 
     function canWritePruebas() {
       // Permitir carga/importación de pruebas (PND/calibraciones) desde pruebaslist/pruebas.
-      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'auxger']);
+      return isRoleAny(['admin', 'director', 'sgi', 'auxger', 'auxndt', 'aux_ndt']);
+    }
+
+    function canUpdatePruebas() {
+      // Solo SGI puede modificar registros existentes.
+      return isRoleAny(['sgi']);
     }
 
     function canDeletePruebas() {
@@ -112,8 +117,8 @@ service cloud.firestore {
     match /pruebas/{docId} {
       allow read: if canReadOperativo();
       allow create: if canWritePruebas();
-      allow update: if canWritePruebas();
-      allow delete: if canDeletePruebas();
+      allow update: if canUpdatePruebas();
+      allow delete: if canUpdatePruebas();
     }
 
     match /audit_logs/{docId} {

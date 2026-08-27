@@ -265,6 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isCapturista = role === 'capturista';
                     const isVisor = role === 'visor';
                     const isAuxger = role === 'auxger';
+                    const isAuxndt = (role === 'auxndt' || role === 'aux_ndt' || role === 'audndt');
+                    const isCops = role === 'cops' || ((user.email || '').toLowerCase() === 'cops@pc-t.com.mx');
 
                     // Ocultar links a páginas legacy (CSV) para que no existan rutas de navegación.
                     // Los archivos pueden permanecer como vestigio/histórico, pero no deben estar linkeados.
@@ -586,6 +588,27 @@ document.addEventListener('DOMContentLoaded', () => {
                             const li = a.closest('li') || a;
                             li.style.display = 'none';
                         });
+                    }
+
+                    // Inspector/cops: no deben ver Pruebas
+                    if (isInspector || isCops) {
+                        try {
+                            // Ocultar dropdown completo de Pruebas
+                            document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown').forEach(li => {
+                                const anchor = li.querySelector(':scope > a');
+                                if (!anchor) return;
+                                const text = (anchor.textContent || '').trim().toLowerCase();
+                                if (text.includes('pruebas')) {
+                                    li.style.display = 'none';
+                                }
+                            });
+
+                            // Si existieran links sueltos
+                            document.querySelectorAll('a[href="pruebas.html"], a[href="pruebaslist.html"], a[href="pruebasrangos.html"]').forEach(a => {
+                                const li = a.closest('li') || a;
+                                li.style.display = 'none';
+                            });
+                        } catch {}
                     }
 
                     // Inspector: solo ver Pruebas e Inspecciones (ocultar Actividad y rutas relacionadas)

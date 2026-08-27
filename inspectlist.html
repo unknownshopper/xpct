@@ -2902,7 +2902,7 @@
                                 if (resumen && resumen.equipoKey) {
                                     const tieneInsp = !!(resumen.inspeccion && resumen.inspeccion.docId);
                                     if (!tieneInsp) {
-                                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi || window.isCops);
+                                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi);
                                         const tr = document.createElement('tr');
                                         tr.className = 'insp-fila-pendiente insp-fila-inventario';
                                         const btnInspeccionar = puedeInspeccionar
@@ -2941,7 +2941,7 @@
                             }
                         } catch {}
 
-                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi || window.isCops);
+                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi);
                         const edoInspeccionable = (edo) => {
                             const e = (edo || '').toString().trim().toUpperCase();
                             return e === 'ON' || e === 'ACTIVO';
@@ -3469,7 +3469,7 @@
                             try { if (clickTimer) clearTimeout(clickTimer); } catch {}
                             const inspId = String(insp.id || '');
                             const actividadId = String((act && act.id) ? act.id : '');
-                            if (window.isAdmin || window.isDirector || window.isSgi || window.isCops) {
+                            if (window.isAdmin || window.isDirector || window.isSgi) {
                                 if (actividadId) {
                                     window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
                                     return;

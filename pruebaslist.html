@@ -442,6 +442,7 @@
                     <button id="btn-pruebas-bulk-periodo" title="Aplicar período seleccionado a las filas marcadas">Aplicar período</button>
                     <button id="btn-pruebas-registrar" title="Abrir el registro de pruebas para los equipos seleccionados" style="background:#f59e0b; color:#111827; border:1px solid #d97706;">Abrir registro</button>
                     <button id="btn-pruebas-eliminar">Eliminar seleccionadas</button>
+                    <button id="btn-pruebas-export-sin-pnd" title="Descarga CSV: una fila por equipo del inventario y marca con 🔴 lo que falta (ANUAL desde hoy)">Exportar sin PND (CSV)</button>
                     <button id="btn-pruebas-export-csv">Exportar CSV</button>
                 </div>
             </section>
@@ -487,7 +488,7 @@
                     Incluye todas las pruebas registradas. Las pruebas con próxima fecha vencida se resaltan en rojo.
                 </p>
                 <div class="tabla-inspecciones-wrapper listado-scroll" style="overflow-x:auto;">
-                    <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1350px; table-layout:fixed;">
+                    <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1460px; table-layout:fixed;">
                         <colgroup>
                             <col style="width:34px;">
                             <col style="width:220px;">
@@ -501,6 +502,7 @@
                             <col style="width:130px;">
                             <col style="width:320px;">
                             <col style="width:170px;">
+                            <col style="width:110px;">
                             <col style="width:160px;">
                             <col style="width:130px;">
                             <col style="width:140px;">
@@ -542,6 +544,7 @@
                                         </div>
                                     </div>
                                 </th>
+                                <th style="text-align:left; padding:0.4rem;">Presión (LT)</th>
                                 <th style="text-align:left; padding:0.4rem;">Área inspección</th>
                                 <th style="text-align:left; padding:0.4rem;">Resultado</th>
                                 <th style="text-align:left; padding:0.4rem;">Emisor</th>
@@ -882,16 +885,11 @@
                 return;
             }
 
-            // Permisos: permitir a admin/director/supervisor y a usuarios específicos (sgi/jalcz/operaciones)
-            try {
-                const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-                const esSgi = !!(window.userRole === 'sgi' || window.isSgi);
-                const puedeEditar = !!(window.isAdmin || window.isDirector || window.isSupervisor || esSgi || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
-                if (!puedeEditar) {
-                    alert('No autorizado para aplicar cambios masivos.');
-                    return;
-                }
-            } catch {}
+            // Permisos: solo SGI
+            if (!window.permitirEditarTabla) {
+                alert('No autorizado para aplicar cambios masivos.');
+                return;
+            }
 
             try {
                 try { if (btnBulkPeriodoEl) btnBulkPeriodoEl.disabled = true; } catch {}
@@ -1338,16 +1336,21 @@
             window.isAdmin = role === 'admin';
             window.isDirector = role === 'director';
             window.isSupervisor = role === 'supervisor';
+            window.isSgi = role === 'sgi';
             window.isInspector = role === 'inspector';
             window.isCapturista = role === 'capturista';
             window.isVisor = role === 'visor';
             window.isAuxger = role === 'auxger';
+            window.isAuxndt = (role === 'auxndt' || role === 'aux_ndt' || role === 'audndt');
+            window.isCops = role === 'cops';
         } catch {}
 
         window.currentUserEmail = email;
 
-        // Permisos por rol
-        const permitirEliminar = !!(window.isAdmin || email === 'sgi@pc-t.com.mx');
+        const mailLower = (email || '').toString().trim().toLowerCase();
+        const permitirEditarTabla = !!(window.isSgi || mailLower === 'sgi@pc-t.com.mx');
+        try { window.permitirEditarTabla = permitirEditarTabla; } catch {}
+        const permitirEliminar = permitirEditarTabla;
 
         // Visor: solo lectura (sin selección, sin acciones)
         try {
@@ -1377,12 +1380,10 @@
         const params = new URLSearchParams(window.location.search || '');
         const localMode = params.get('local') === '1';
 
-        // Inspector: no debe acceder al listado global; usar modo local
+        // Inspector/cops: no deben acceder a pruebaslist
         try {
-            if (window.isInspector && !localMode) {
-                const url = new URL(window.location.href);
-                url.searchParams.set('local', '1');
-                window.location.replace(url.toString());
+            if (window.isInspector || window.isCops) {
+                window.location.replace('inspectlist.html');
                 return;
             }
         } catch {}
@@ -1795,6 +1796,7 @@
 
         const chkSelectTodos = document.getElementById('pruebas-select-todos');
         const btnEliminar = document.getElementById('btn-pruebas-eliminar');
+        const btnExportSinPnd = document.getElementById('btn-pruebas-export-sin-pnd');
         const btnExportCsv = document.getElementById('btn-pruebas-export-csv');
         const btnRegistrar = document.getElementById('btn-pruebas-registrar');
         const selBulkPeriodo = document.getElementById('pl-bulk-periodo');
@@ -1820,21 +1822,21 @@
         const btnImportDeleteExisting = document.getElementById('btn-import-delete-existing');
         const btnImportCancel = document.getElementById('btn-import-cancel');
 
-        const permitirEliminar = !!(window.isAdmin || ((window.currentUserEmail || '').toString().trim().toLowerCase() === 'sgi@pc-t.com.mx'));
+        const permitirEliminarLocal = !!(window.permitirEditarTabla);
         // Ocultar botón eliminar si no tiene permiso. La cabecera de selección se mantiene visible para exportar.
-        if (btnEliminar) btnEliminar.style.display = permitirEliminar ? '' : 'none';
+        if (btnEliminar) btnEliminar.style.display = permitirEliminarLocal ? '' : 'none';
 
-        // "Actualizar prueba(s)": solo admin y usuarios específicos (sgi/jalcz)
+        // "Actualizar prueba(s)": solo SGI
         try {
             const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-            const permitirActualizar = !!(window.isAdmin || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
+            const permitirActualizar = !!(window.isSgi || mail === 'sgi@pc-t.com.mx');
             if (btnRegistrar) btnRegistrar.style.display = permitirActualizar ? '' : 'none';
         } catch {}
 
-        // Import CSV para admin o director
-        if (btnImportCsv) btnImportCsv.style.display = ((window.isAdmin || window.isDirector || window.isAuxger) ? '' : 'none');
+        // Import CSV para auxger/auxndt/sgi (carga), pero sin permisos de edición de tabla
+        if (btnImportCsv) btnImportCsv.style.display = ((window.isAuxger || window.isAuxndt || window.isSgi) ? '' : 'none');
         if (btnDeleteCsv) {
-            const canDelCsv = (window.isAdmin || window.isDirector);
+            const canDelCsv = !!(window.isSgi || ((window.currentUserEmail || '').toString().trim().toLowerCase() === 'sgi@pc-t.com.mx'));
             if (canDelCsv) {
                 try {
                     btnDeleteCsv.style.display = 'inline-block';
@@ -1871,7 +1873,7 @@
         if (btnDeleteCsv && inputDeleteCsv) {
             btnDeleteCsv.addEventListener('click', () => inputDeleteCsv.click());
             inputDeleteCsv.addEventListener('change', async (ev) => {
-                if (!(window.isAdmin || window.isDirector)) { alert('Se requiere rol admin o director para eliminar por CSV.'); return; }
+                if (!(window.isSgi || ((window.currentUserEmail || '').toString().trim().toLowerCase() === 'sgi@pc-t.com.mx'))) { alert('Se requiere rol SGI para eliminar por CSV.'); return; }
                 const file = ev.target.files && ev.target.files[0];
                 if (!file) return;
                 try {
@@ -2807,6 +2809,14 @@
                 if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
                 const cat = categoriaPruebaPreview(reg);
                 if (!cat) return;
+                if (cat === 'utt') {
+                    const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                    const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                    const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                    const serialKey = (typeof normSerialKey === 'function') ? normSerialKey(serialRaw) : '';
+                    const serial = (serialKey || serialInv || '').toString().trim();
+                    if (window.isNoUttEquipo && window.isNoUttEquipo(eqK, serial)) return;
+                }
                 const clasif = clasificarPrueba(reg);
                 const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
                 if (!prox) return;
@@ -3085,6 +3095,9 @@
 
         await cargarInventarioDesdeCsv();
         await cargarAliasesMalescritos();
+        try {
+            if (window.loadNoUttExclusions) await window.loadNoUttExclusions();
+        } catch {}
 
         // ================== Importación CSV (solo admin) ==================
         let importRowsReady = [];
@@ -4315,12 +4328,13 @@
 
         if (btnImportConfirm) {
             btnImportConfirm.addEventListener('click', async () => {
-                if (!(window.isAdmin || window.isDirector || window.isAuxger)) return;
+                if (!(window.isAuxger || window.isAuxndt || window.isSgi)) return;
                 btnImportConfirm.disabled = true;
                 try {
                     // Salir del modo vista previa CSV: después de importar, el origen de verdad es Firestore
+                    // Esconde el CSV preview y vuelve a estado normal.
                     try {
-                        _csvPreviewActive = false;
+                        if (importPreview) importPreview.style.display = 'none';
                         _csvPreviewRows = [];
                     } catch {}
 
@@ -5185,7 +5199,9 @@
                     const hasLt = equiposConLt.has(eq);
                     const hasVpm = equiposConVpm.has(eq);
                     const hasUtt = equiposConUtt.has(eq);
-                    const is100 = !!(hasAnual && hasVpm && hasUtt);
+                    const serialInv = (serialPorEquipoInv && eq && serialPorEquipoInv[eq]) ? String(serialPorEquipoInv[eq]) : '';
+                    const isNoUtt = !!(window.isNoUttEquipo && window.isNoUttEquipo(eq, serialInv));
+                    const is100 = !!(hasAnual && hasVpm && (hasUtt || isNoUtt));
                     const cat = (!hasAny) ? 'sin' : (is100 ? '100' : 'parcial');
                     window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasLt, hasVpm, hasUtt };
                     if (cat === '100') c100 += 1;
@@ -5198,12 +5214,12 @@
 
                     if (!hasLt) missLt += 1;
                     if (!hasVpm) missVpm += 1;
-                    if (!hasUtt) missUtt += 1;
+                    if (!isNoUtt && !hasUtt) missUtt += 1;
 
                     if (cat === 'parcial') {
                         if (!hasLt) missLtPar += 1;
                         if (!hasVpm) missVpmPar += 1;
-                        if (!hasUtt) missUttPar += 1;
+                        if (!isNoUtt && !hasUtt) missUttPar += 1;
                     }
                 });
 
@@ -5273,6 +5289,15 @@
                 if (!cat) return;
                 if (!isScopedIndicator(reg)) return;
 
+                if (cat === 'utt') {
+                    const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                    const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                    const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                    const serialKey = (typeof normSerialKey === 'function') ? normSerialKey(serialRaw) : '';
+                    const serial = (serialKey || serialInv || '').toString().trim();
+                    if (window.isNoUttEquipo && window.isNoUttEquipo(eqK, serial)) return;
+                }
+
                 const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
                 if (!eqK) return;
                 const tipo = (typeof normalizaPrueba === 'function')
@@ -5318,6 +5343,16 @@
                 latestAnualPorEquipoTipo.forEach(({ reg, dueMs }) => {
                     const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
                     if (!eqK) return;
+
+                    const cat = categoriaPrueba(reg);
+                    if (cat === 'utt') {
+                        const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                        const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                        const serialKey = (typeof normSerialKey === 'function') ? normSerialKey(serialRaw) : '';
+                        const serial = (serialKey || serialInv || '').toString().trim();
+                        if (window.isNoUttEquipo && window.isNoUttEquipo(eqK, serial)) return;
+                    }
+
                     const ms = (typeof dueMs === 'number' && isFinite(dueMs)) ? dueMs : 0;
                     if (!ms) return;
                     const prev = bestDueMsByEquipo.get(eqK) || 0;
@@ -5338,6 +5373,15 @@
                     if (!isNaN(d.getTime())) proxima = d;
                 }
                 if (!proxima) return;
+
+                if (cat === 'utt') {
+                    const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                    const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                    const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                    const serialKey = (typeof normSerialKey === 'function') ? normSerialKey(serialRaw) : '';
+                    const serial = (serialKey || serialInv || '').toString().trim();
+                    if (window.isNoUttEquipo && window.isNoUttEquipo(eqK, serial)) return;
+                }
 
                 // Override para LT: usar el mejor vencimiento anual del equipo si es mayor.
                 try {
@@ -6222,10 +6266,8 @@
                 const esAdmin = !!window.isAdmin;
                 const periodoTexto = periodoActual || '';
 
-                const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-                const esSgi = !!(window.userRole === 'sgi' || window.isSgi);
-                const esEditable = !!(window.isAdmin || window.isDirector || window.isSupervisor || esSgi || mail === 'sgi@pc-t.com.mx' || mail === 'jalcz@pc-t.com.mx' || mail === 'operaciones@pc-t.com.mx');
-                const esAdminOnly = !!window.isAdmin;
+                const esEditable = !!(window.permitirEditarTabla);
+                const esAdminOnly = !!(window.permitirEditarTabla);
                 const celdaPeriodo = esEditable
                     ? `<select class="pl-periodo" data-id="${reg.id || ''}">
                             <option value=""></option>
@@ -6270,6 +6312,8 @@
                 const celdaTecnico = esAdminOnly
                     ? `<input type="text" class="pl-tecnico" data-id="${reg.id || ''}" value="${(reg.tecnico || '').toString().replace(/"/g, '&quot;')}">`
                     : (reg.tecnico || '');
+
+                const presionLt = (reg && (reg.presionLt || reg.presion || reg.presionPrueba)) ? String(reg.presionLt || reg.presion || reg.presionPrueba).trim() : '';
                 
                 const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type=\"checkbox\" class=\"prueba-select\" data-idx=\"${idx}\" style=\"display:block; margin:0 auto;\"></td>`;
 
@@ -6286,6 +6330,7 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${String(prod || '').trim()}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${presionLt}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaResultado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaEmisor}</td>
@@ -6927,6 +6972,7 @@
                 'Producto',
                 'Descripcion',
                 'Prueba',
+                'PresionLt',
                 'Area',
                 'NoReporte',
                 'Resultado',
@@ -6978,6 +7024,7 @@
                     reg.producto || '',
                     reg.descripcion || '',
                     reg.prueba || reg.pruebaTipo || '',
+                    (reg && (reg.presionLt || reg.presion || reg.presionPrueba)) ? String(reg.presionLt || reg.presion || reg.presionPrueba).trim() : '',
                     reg.area || '',
                     reg.noReporte || '',
                     reg.resultado || '',
@@ -7003,16 +7050,139 @@
             btnExportCsv.addEventListener('click', exportarCsv);
         }
 
-        async function eliminarSeleccionadas() {
-            // Seguridad: validar permiso aunque se fuerce el UI
+        async function exportarEquiposSinPndCsv() {
             try {
-                const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-                const autorizado = !!(window.isAdmin || window.userRole === 'sgi' || mail === 'sgi@pc-t.com.mx');
-                if (!autorizado) {
-                    alert('No autorizado para eliminar pruebas.');
+                // Advertir si el listado cargado está parcial (paginación / "cargar más")
+                try {
+                    const parcial = (typeof _totalServer === 'number' && _totalServer > 0 && Array.isArray(pruebas) && pruebas.length < _totalServer);
+                    if (parcial) {
+                        const ok = window.confirm(`Atención: el listado cargado está incompleto (cargadas ${pruebas.length} de ${_totalServer}).\n\nEste CSV puede marcar como faltantes equipos que sí tienen pruebas, pero aún no están cargadas.\n\nPara precisión total usa "Ver todas" / "Completar resumen" y vuelve a exportar.\n\n¿Deseas continuar?`);
+                        if (!ok) return;
+                    }
+                } catch {}
+
+                try {
+                    if (window.loadNoUttExclusions) await window.loadNoUttExclusions();
+                } catch {}
+
+                const equiposBase = (equiposInventario && equiposInventario.size)
+                    ? Array.from(equiposInventario)
+                    : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+                if (!equiposBase.length) {
+                    alert('No hay equipos base para exportar (inventario vacío).');
                     return;
                 }
-            } catch {
+
+                const hoy = new Date();
+                hoy.setHours(0, 0, 0, 0);
+
+                const normTipo = (v) => {
+                    try {
+                        const s = String(v || '').toUpperCase();
+                        if (!s) return '';
+                        if (s.includes('UTT')) return 'UTT';
+                        if (s.includes('LT')) return 'LT';
+                        if (s.includes('VT') || s.includes('PT') || s.includes('MT')) return 'VT/PT/MT';
+                        return '';
+                    } catch {
+                        return '';
+                    }
+                };
+
+                const bestDueMs = new Map();
+                (Array.isArray(pruebas) ? pruebas : []).forEach(r => {
+                    const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
+                    if (periodo && periodo !== 'ANUAL') return;
+
+                    const tipo = normTipo(r && (r.prueba || r.pruebaTipo));
+                    if (!tipo) return;
+
+                    const eqK = (() => {
+                        try {
+                            const rr = r || {};
+                            const { equipoCanon } = resolverEquipoYSerialCanon(
+                                rr.equipo,
+                                (rr.serial || rr.numeroSerie || rr.noSerie || '')
+                            );
+                            return equipoCanon || normEquipoKey(rr && rr.equipo ? String(rr.equipo) : '');
+                        } catch {
+                            return normEquipoKey(r && r.equipo ? String(r.equipo) : '');
+                        }
+                    })();
+                    if (!eqK) return;
+
+                    let prox = parseProxima(r && r.proxima ? r.proxima : '');
+                    if (!prox) {
+                        const fr = parseFechaRealizacion((r && (r.fechaRealizacion || r.fechaPrueba || r.fecha)) ? (r.fechaRealizacion || r.fechaPrueba || r.fecha) : '');
+                        if (fr) {
+                            const d = new Date(fr);
+                            d.setFullYear(d.getFullYear() + 1);
+                            d.setHours(0, 0, 0, 0);
+                            if (!isNaN(d.getTime())) prox = d;
+                        }
+                    }
+                    if (!prox) return;
+                    const dueMs = prox.getTime();
+                    if (!dueMs) return;
+
+                    const key = `${eqK}__${tipo}`;
+                    const prev = bestDueMs.get(key) || 0;
+                    if (dueMs > prev) bestDueMs.set(key, dueMs);
+                });
+
+                function esc(val) {
+                    const s = String(val ?? '');
+                    if (/[",;\n]/.test(s)) {
+                        return '"' + s.replace(/"/g, '""') + '"';
+                    }
+                    return s;
+                }
+
+                const yyyy = hoy.getFullYear();
+                const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+                const dd = String(hoy.getDate()).padStart(2, '0');
+
+                const headers = ['Equipo', 'Serial', 'LT', 'VTPTMT', 'UTT'];
+                const lines = [headers.join(',')];
+
+                equiposBase.forEach(eqK => {
+                    const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                    const isNoUtt = !!(window.isNoUttEquipo && window.isNoUttEquipo(eqK, serialInv));
+
+                    const okLT = ((bestDueMs.get(`${eqK}__LT`) || 0) >= hoy.getTime());
+                    const okVPM = ((bestDueMs.get(`${eqK}__VT/PT/MT`) || 0) >= hoy.getTime());
+                    const okUTT = ((bestDueMs.get(`${eqK}__UTT`) || 0) >= hoy.getTime());
+
+                    const colLT = okLT ? '' : '🔴';
+                    const colVPM = okVPM ? '' : '🔴';
+                    const colUTT = isNoUtt ? 'N/A' : (okUTT ? '' : '🔴');
+
+                    const row = [eqK, serialInv, colLT, colVPM, colUTT].map(esc).join(',');
+                    lines.push(row);
+                });
+
+                const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `equipos_sin_pnd_${yyyy}${mm}${dd}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error('Export sin PND falló', e);
+                alert('No fue posible exportar el CSV de equipos sin PND. Revisa la consola.');
+            }
+        }
+
+        if (btnExportSinPnd) {
+            btnExportSinPnd.addEventListener('click', exportarEquiposSinPndCsv);
+        }
+
+        async function eliminarSeleccionadas() {
+            // Seguridad: validar permiso aunque se fuerce el UI
+            if (!window.permitirEditarTabla) {
                 alert('No autorizado para eliminar pruebas.');
                 return;
             }

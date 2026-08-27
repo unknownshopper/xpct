@@ -1012,16 +1012,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function actualizarVisibilidadDetallePrueba() {
         const campoDetalle = document.getElementById('campo-prueba-detalle');
+        const campoPresionLt = document.getElementById('campo-presion-lt');
         const sel = document.getElementById('inv-prueba');
         const selDetalle = document.getElementById('inv-prueba-detalle');
         if (!campoDetalle || !sel) return;
 
         const val = (sel.value || '').toUpperCase();
+        const tipoCanon = canonPruebaTipo(val);
         // Mostrar detalle solo para VT / PT / MT y si realmente hay opciones de detalle
         const tieneOpcionesDetalle =
             selDetalle && Array.from(selDetalle.options || []).some(o => o.value && o.value !== '');
 
-        if (canonPruebaTipo(val) === 'VT/PT/MT' && tieneOpcionesDetalle) {
+        if (tipoCanon === 'VT/PT/MT' && tieneOpcionesDetalle) {
             campoDetalle.style.display = 'block';
             if (selDetalle) selDetalle.required = true;
         } else {
@@ -1030,6 +1032,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (det) det.value = '';
             if (selDetalle) selDetalle.required = false;
         }
+
+        try {
+            const inputPres = document.getElementById('inv-presion-lt');
+            if (campoPresionLt) {
+                if (tipoCanon === 'LT') {
+                    campoPresionLt.style.display = 'block';
+                } else {
+                    campoPresionLt.style.display = 'none';
+                    if (inputPres) inputPres.value = '';
+                }
+            }
+        } catch {}
     }
 
     // Sincronizar Emisor según Ejecución (INTERNO => PCT bloqueado, EXTERNO => editable)
@@ -1351,6 +1365,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'inv-emisor',
             'inv-tecnico',
             'inv-contador',
+            'inv-presion-lt',
             'prueba-observaciones'
         ];
 
@@ -1522,6 +1537,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fechaPrueba = document.getElementById('prueba-fecha')?.value || '';
         const proxima = document.getElementById('inv-proxima')?.value || '';
+        const presionLt = (pruebaTipo === 'LT') ? ((document.getElementById('inv-presion-lt')?.value || '').trim()) : '';
 
         const registro = {
             equipo,
@@ -1533,6 +1549,7 @@ document.addEventListener('DOMContentLoaded', () => {
             prueba: pruebaTipo,
             pruebaTipo,
             pruebaDetalle,
+            presionLt,
             serial: document.getElementById('inv-serial')?.value || '',
             edo: document.getElementById('inv-edo')?.value || '',
             propiedad: document.getElementById('inv-propiedad')?.value || '',

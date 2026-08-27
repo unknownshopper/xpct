@@ -133,13 +133,13 @@
             window.isCapturista = role === 'capturista';
             window.isAuxger = role === 'auxger';
             window.isSgi = (role === 'sgi') || (email === 'sgi@pc-t.com.mx');
-            window.isCops = email === 'cops@pc-t.com.mx';
+            window.isCops = (role === 'cops') || (email === 'cops@pc-t.com.mx');
 
             // Acceso:
             // - View mode (desde inspectlist): permitir lectura a roles operativos
             // - Create/Edit: permitir a roles operativos (incluye inspector) y roles administrativos
             if (isViewMode) {
-                if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi)) {
+                if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
                     try {
                         const next = `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`;
                         window.location.href = `login.html?next=${encodeURIComponent(next)}`;
@@ -148,7 +148,7 @@
                     }
                     return;
                 }
-            } else if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
+            } else if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi)) {
                 try {
                     const next = `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`;
                     window.location.href = `login.html?next=${encodeURIComponent(next)}`;

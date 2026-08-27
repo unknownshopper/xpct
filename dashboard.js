@@ -420,6 +420,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch {}
 
                 const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
+                try {
+                    if (tipo === 'UTT' && window.isNoUttEquipo) {
+                        const eqK = normEquipoKey(equipo);
+                        const serialRaw = (data && (data.serial || data.numeroSerie || data.noSerie)) ? String(data.serial || data.numeroSerie || data.noSerie) : '';
+                        if (window.isNoUttEquipo(eqK, serialRaw)) return;
+                    }
+                } catch {}
                 const key = `${normEquipoKey(equipo)}__${tipo}`;
 
                 const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
@@ -664,6 +671,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             } catch {}
 
                             const tipo = normPruebaKey(data.pruebaTipo || data.prueba || 'ANUAL');
+                            try {
+                                if (tipo === 'UTT' && window.isNoUttEquipo) {
+                                    const eqK = normEquipoKey(equipo);
+                                    const serialRaw = (data && (data.serial || data.numeroSerie || data.noSerie)) ? String(data.serial || data.numeroSerie || data.noSerie) : '';
+                                    if (window.isNoUttEquipo(eqK, serialRaw)) return;
+                                }
+                            } catch {}
                             const key = `${normEquipoKey(equipo)}__${tipo}`;
 
                             const fr = parseFechaRealizacion(data.fechaRealizacion || data.fechaPrueba || data.fecha || '');
