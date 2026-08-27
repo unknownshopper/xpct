@@ -2902,7 +2902,7 @@
                                 if (resumen && resumen.equipoKey) {
                                     const tieneInsp = !!(resumen.inspeccion && resumen.inspeccion.docId);
                                     if (!tieneInsp) {
-                                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi);
+                                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi || window.isInspector || window.isCops);
                                         const tr = document.createElement('tr');
                                         tr.className = 'insp-fila-pendiente insp-fila-inventario';
                                         const btnInspeccionar = puedeInspeccionar
@@ -2941,7 +2941,7 @@
                             }
                         } catch {}
 
-                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi);
+                        const puedeInspeccionar = !!(window.isAdmin || window.isDirector || window.isSgi || window.isInspector || window.isCops);
                         const edoInspeccionable = (edo) => {
                             const e = (edo || '').toString().trim().toUpperCase();
                             return e === 'ON' || e === 'ACTIVO';
@@ -3142,6 +3142,29 @@
                                 return { act, insp, _kind: act ? 'act' : 'insp' };
                             });
 
+                        // Inspector/cops: solo ver inspecciones hechas por el usuario HOY
+                        try {
+                            const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
+                            if (mail && (window.isInspector || window.isCops)) {
+                                const hoy = new Date();
+                                hoy.setHours(0, 0, 0, 0);
+                                const hoyMs = hoy.getTime();
+                                subset = subset.filter(item => {
+                                    try {
+                                        const insp = item && item.insp ? item.insp : null;
+                                        if (!insp) return false;
+                                        const u = (insp.usuarioInspeccionEmail || insp.usuarioInspeccion || '').toString().trim().toLowerCase();
+                                        if (!u || u !== mail) return false;
+                                        const ms = toMs(insp.fecha || insp.creadoEn);
+                                        if (ms == null) return false;
+                                        return esMismoDiaLocal(ms, hoyMs);
+                                    } catch {
+                                        return false;
+                                    }
+                                });
+                            }
+                        } catch {}
+
                         // Filtro estricto por equipo cuando el usuario escribe un código completo (ej. PCT-XO-017)
                         if (filtro && esFiltroEquipoExacto(filtro)) {
                             const fk = normEqCodeLoose(filtro);
@@ -3332,7 +3355,7 @@
 
                     const accionesHtml = (insp) ? `
                             <button type="button" class="insp-btn-ver" data-insp-id="${insp?.id || ''}" data-actividad-id="${act && act.id ? act.id : ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; margin-right:0.25rem;">Ver</button>
-                            ${(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act && act.id ? act.id : ''}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
+                            ${(window.isAdmin || window.isDirector || window.isSupervisor || window.isSgi) ? `<button type="button" class="insp-btn-editar" data-actividad-id="${act && act.id ? act.id : ''}" data-insp-id="${insp?.id || ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Editar</button>` : ''}
                             ${(() => {
                                 const t = (insp?.tipoInspeccion || '').toString().trim().toUpperCase();
                                 const obs = (insp?.observaciones || '').toString().trim();
@@ -3469,7 +3492,7 @@
                             try { if (clickTimer) clearTimeout(clickTimer); } catch {}
                             const inspId = String(insp.id || '');
                             const actividadId = String((act && act.id) ? act.id : '');
-                            if (window.isAdmin || window.isDirector || window.isSgi) {
+                            if (window.isAdmin || window.isDirector || window.isSgi || window.isInspector || window.isCops) {
                                 if (actividadId) {
                                     window.location.href = `inspeccion.html?actividadId=${encodeURIComponent(actividadId)}`;
                                     return;

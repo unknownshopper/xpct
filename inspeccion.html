@@ -148,7 +148,7 @@
                     }
                     return;
                 }
-            } else if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi)) {
+            } else if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
                 try {
                     const next = `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`;
                     window.location.href = `login.html?next=${encodeURIComponent(next)}`;

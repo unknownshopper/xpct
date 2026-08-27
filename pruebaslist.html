@@ -885,7 +885,7 @@
                 return;
             }
 
-            // Permisos: solo SGI
+            // Permisos: admin/director/supervisor/sgi
             if (!window.permitirEditarTabla) {
                 alert('No autorizado para aplicar cambios masivos.');
                 return;
@@ -1348,9 +1348,10 @@
         window.currentUserEmail = email;
 
         const mailLower = (email || '').toString().trim().toLowerCase();
-        const permitirEditarTabla = !!(window.isSgi || mailLower === 'sgi@pc-t.com.mx');
+        const permitirEditarTabla = !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isSgi || mailLower === 'sgi@pc-t.com.mx');
+        const permitirEliminar = !!(window.isAdmin || window.isSgi || mailLower === 'sgi@pc-t.com.mx');
         try { window.permitirEditarTabla = permitirEditarTabla; } catch {}
-        const permitirEliminar = permitirEditarTabla;
+        try { window.permitirEliminarPruebas = permitirEliminar; } catch {}
 
         // Visor: solo lectura (sin selección, sin acciones)
         try {
@@ -1380,10 +1381,12 @@
         const params = new URLSearchParams(window.location.search || '');
         const localMode = params.get('local') === '1';
 
-        // Inspector/cops: no deben acceder a pruebaslist
+        // Inspector/cops: deben ver solo "lo de hoy" (modo local), mañana queda en blanco
         try {
-            if (window.isInspector || window.isCops) {
-                window.location.replace('inspectlist.html');
+            if ((window.isInspector || window.isCops) && !localMode) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('local', '1');
+                window.location.replace(url.toString());
                 return;
             }
         } catch {}
@@ -1822,21 +1825,22 @@
         const btnImportDeleteExisting = document.getElementById('btn-import-delete-existing');
         const btnImportCancel = document.getElementById('btn-import-cancel');
 
-        const permitirEliminarLocal = !!(window.permitirEditarTabla);
+        const permitirEliminarLocal = !!(window.permitirEliminarPruebas);
         // Ocultar botón eliminar si no tiene permiso. La cabecera de selección se mantiene visible para exportar.
         if (btnEliminar) btnEliminar.style.display = permitirEliminarLocal ? '' : 'none';
 
-        // "Actualizar prueba(s)": solo SGI
+        // "Actualizar prueba(s)": admin/director/supervisor/sgi
         try {
             const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-            const permitirActualizar = !!(window.isSgi || mail === 'sgi@pc-t.com.mx');
+            const permitirActualizar = !!(window.permitirEditarTabla || mail === 'sgi@pc-t.com.mx');
             if (btnRegistrar) btnRegistrar.style.display = permitirActualizar ? '' : 'none';
         } catch {}
 
         // Import CSV para auxger/auxndt/sgi (carga), pero sin permisos de edición de tabla
         if (btnImportCsv) btnImportCsv.style.display = ((window.isAuxger || window.isAuxndt || window.isSgi) ? '' : 'none');
         if (btnDeleteCsv) {
-            const canDelCsv = !!(window.isSgi || ((window.currentUserEmail || '').toString().trim().toLowerCase() === 'sgi@pc-t.com.mx'));
+            const mail = ((window.currentUserEmail || '').toString().trim().toLowerCase());
+            const canDelCsv = !!(window.isAdmin || window.isSgi || mail === 'sgi@pc-t.com.mx');
             if (canDelCsv) {
                 try {
                     btnDeleteCsv.style.display = 'inline-block';
@@ -1873,7 +1877,8 @@
         if (btnDeleteCsv && inputDeleteCsv) {
             btnDeleteCsv.addEventListener('click', () => inputDeleteCsv.click());
             inputDeleteCsv.addEventListener('change', async (ev) => {
-                if (!(window.isSgi || ((window.currentUserEmail || '').toString().trim().toLowerCase() === 'sgi@pc-t.com.mx'))) { alert('Se requiere rol SGI para eliminar por CSV.'); return; }
+                const mail = ((window.currentUserEmail || '').toString().trim().toLowerCase());
+                if (!(window.isAdmin || window.isSgi || mail === 'sgi@pc-t.com.mx')) { alert('Se requiere rol admin o SGI para eliminar por CSV.'); return; }
                 const file = ev.target.files && ev.target.files[0];
                 if (!file) return;
                 try {
@@ -7182,7 +7187,7 @@
 
         async function eliminarSeleccionadas() {
             // Seguridad: validar permiso aunque se fuerce el UI
-            if (!window.permitirEditarTabla) {
+            if (!window.permitirEliminarPruebas) {
                 alert('No autorizado para eliminar pruebas.');
                 return;
             }

@@ -26,7 +26,7 @@ service cloud.firestore {
     }
 
     function canCreateInspecciones() {
-      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'auxndt', 'aux_ndt']);
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'auxndt', 'aux_ndt', 'cops']);
     }
 
     function canDeleteInspecciones() {
@@ -39,8 +39,8 @@ service cloud.firestore {
     }
 
     function canUpdatePruebas() {
-      // Solo SGI puede modificar registros existentes.
-      return isRoleAny(['sgi']);
+      // Permitir actualización cuando se re-importa CSV y una fila ya existe.
+      return isRoleAny(['admin', 'director', 'supervisor', 'sgi', 'auxger', 'auxndt', 'aux_ndt']);
     }
 
     function canDeletePruebas() {
@@ -118,7 +118,7 @@ service cloud.firestore {
       allow read: if canReadOperativo();
       allow create: if canWritePruebas();
       allow update: if canUpdatePruebas();
-      allow delete: if canUpdatePruebas();
+      allow delete: if canDeletePruebas();
     }
 
     match /audit_logs/{docId} {
