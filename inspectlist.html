@@ -764,7 +764,9 @@
                 await cargarDatos();
             } finally {
                 isLoadingDatos = false;
-                if (datosCargados) setLoadingUi(false);
+                try {
+                    if (!isLoadingDatos) setLoadingUi(false);
+                } catch {}
             }
         }
 
@@ -4795,7 +4797,7 @@
                     isLoadingDatos = false;
                 }
                 try {
-                    if (!isLoadingDatos && datosCargados) setLoadingUi(false);
+                    if (!isLoadingDatos && runId === cargarDatosRunId) setLoadingUi(false);
                 } catch {}
             }
         }
