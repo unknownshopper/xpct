@@ -1,9 +1,17 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 (() => {
   if (window.db && window.auth) return; // ya inicializado
+
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    if (params.get('fsdebug') === '1') {
+      setLogLevel('debug');
+      console.debug('[firebase-init] Firestore debug ON (fsdebug=1)');
+    }
+  } catch {}
 
   const cfg = window.PCT_FIREBASE_CONFIG;
   if (!cfg) {

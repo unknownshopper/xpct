@@ -492,6 +492,7 @@
                         <colgroup>
                             <col style="width:34px;">
                             <col style="width:220px;">
+                            <col style="width:110px;">
                             <col style="width:120px;">
                             <col style="width:120px;">
                             <col style="width:110px;">
@@ -502,7 +503,6 @@
                             <col style="width:130px;">
                             <col style="width:320px;">
                             <col style="width:170px;">
-                            <col style="width:110px;">
                             <col style="width:160px;">
                             <col style="width:130px;">
                             <col style="width:140px;">
@@ -512,6 +512,7 @@
                             <tr style="background:#f3f4f6;">
                                 <th style="text-align:center; padding:0.35rem;"><input type="checkbox" id="pruebas-select-todos" style="display:block; margin:0 auto;"></th>
                                 <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
+                                <th style="text-align:left; padding:0.4rem;">Presión (LT)</th>
                                 <th style="text-align:left; padding:0.4rem;">Fecha realización</th>
                                 <th style="text-align:left; padding:0.4rem;">Próxima prueba</th>
                                 <th style="text-align:left; padding:0.4rem;">Periodo</th>
@@ -544,7 +545,6 @@
                                         </div>
                                     </div>
                                 </th>
-                                <th style="text-align:left; padding:0.4rem;">Presión (LT)</th>
                                 <th style="text-align:left; padding:0.4rem;">Área inspección</th>
                                 <th style="text-align:left; padding:0.4rem;">Resultado</th>
                                 <th style="text-align:left; padding:0.4rem;">Emisor</th>
@@ -6325,6 +6325,7 @@
                 fila.innerHTML = `
                     ${tdSelect}
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:normal; overflow-wrap:anywhere; word-break:break-word;">${celdaNoRep}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${presionLt}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '')}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtProxima(proximaStr)}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
@@ -6335,7 +6336,6 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${String(prod || '').trim()}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPrueba}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${presionLt}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${reg.area || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaResultado}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaEmisor}</td>
