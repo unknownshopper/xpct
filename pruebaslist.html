@@ -7309,7 +7309,8 @@
 
         function exportarCsv() {
             const filasSeleccionadas = obtenerSeleccionadas();
-            const filasVisibles = Array.isArray(tbodyListado._filasVisibles) ? tbodyListado._filasVisibles : [];
+            const tbodyListadoEl = document.getElementById('tbody-pruebas-listado');
+            const filasVisibles = (tbodyListadoEl && Array.isArray(tbodyListadoEl._filasVisibles)) ? tbodyListadoEl._filasVisibles : [];
             let filas = (filasSeleccionadas && filasSeleccionadas.length) ? filasSeleccionadas : filasVisibles;
 
             // Asegurar que el CSV respete el filtro por tipo (LT / VT-PT-MT / UTT)
@@ -7446,9 +7447,20 @@
                     if (window.loadNoUttExclusions) await window.loadNoUttExclusions();
                 } catch {}
 
-                const equiposBase = (equiposInventario && equiposInventario.size)
-                    ? Array.from(equiposInventario)
-                    : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+                let equiposBase = [];
+                try {
+                    if (window._plResumenesEquiposCache && window._plResumenesEquiposCache.items instanceof Map) {
+                        equiposBase = Array.from(window._plResumenesEquiposCache.items.keys()).map(k => normEquipoKey(k)).filter(Boolean);
+                    }
+                } catch {}
+                try {
+                    if (!equiposBase.length && window._equiposCobertura && typeof window._equiposCobertura === 'object') {
+                        equiposBase = Object.keys(window._equiposCobertura).map(k => normEquipoKey(k)).filter(Boolean);
+                    }
+                } catch {}
+                if (!equiposBase.length) {
+                    equiposBase = Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+                }
                 if (!equiposBase.length) {
                     alert('No hay equipos base para exportar (inventario vacío).');
                     return;
@@ -8095,7 +8107,44 @@ async function plOpenCoberturaModal(cat) {
 }
 
 function plInitDetalleTablaAnual() {
-  const can = !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isSgi || (window.currentUserEmail && String(window.currentUserEmail).toLowerCase() === 'sgi@pc-t.com.mx'));
+  // Controles del modal: deben funcionar para cualquier rol que pueda ver el modal.
+  try {
+    const modal = document.getElementById('pl-modal-anual');
+    if (modal && !modal.dataset.controlsBound) {
+      modal.dataset.controlsBound = '1';
+      const btnClose = document.getElementById('pl-modal-anual-close');
+      if (btnClose) btnClose.onclick = plCloseModalAnual;
+      modal.addEventListener('click', (ev) => {
+        if (ev.target === modal) plCloseModalAnual();
+      });
+      const btnCopy = document.getElementById('pl-modal-anual-copy');
+      if (btnCopy) btnCopy.onclick = async () => {
+        try {
+          const pre = document.getElementById('pl-modal-anual-pre');
+          const txt = pre ? pre.textContent : '';
+          if (!txt) return;
+          await navigator.clipboard.writeText(txt);
+          try { plToast('Copiado'); } catch {}
+        } catch {}
+      };
+      const btnCsv = document.getElementById('pl-modal-anual-csv');
+      if (btnCsv) btnCsv.onclick = () => {
+        const rows = window._plModalAnualLastRows || [];
+        const title = String(window._plModalAnualLastTitle || 'detalle').replace(/[^a-z0-9\-_]+/gi, '_');
+        plDownloadCsv(`${title}.csv`, rows);
+      };
+    }
+  } catch {}
+
+  const can = !!(
+    window.isAdmin ||
+    window.isDirector ||
+    window.isSupervisor ||
+    window.isSgi ||
+    window.isAuxger ||
+    window.isAuxndt ||
+    (window.currentUserEmail && String(window.currentUserEmail).toLowerCase() === 'sgi@pc-t.com.mx')
+  );
   if (!can) return false;
 
   const bucketFromDueMs = (dueMs) => {
@@ -8200,29 +8249,6 @@ function plInitDetalleTablaAnual() {
       });
     });
   });
-
-  const btnClose = document.getElementById('pl-modal-anual-close');
-  if (btnClose) btnClose.onclick = plCloseModalAnual;
-  const backdrop = document.getElementById('pl-modal-anual');
-  if (backdrop) backdrop.addEventListener('click', (ev) => {
-    if (ev.target === backdrop) plCloseModalAnual();
-  });
-  const btnCopy = document.getElementById('pl-modal-anual-copy');
-  if (btnCopy) btnCopy.onclick = async () => {
-    try {
-      const pre = document.getElementById('pl-modal-anual-pre');
-      const txt = pre ? pre.textContent : '';
-      if (!txt) return;
-      await navigator.clipboard.writeText(txt);
-      try { plToast('Copiado'); } catch {}
-    } catch {}
-  };
-  const btnCsv = document.getElementById('pl-modal-anual-csv');
-  if (btnCsv) btnCsv.onclick = () => {
-    const rows = window._plModalAnualLastRows || [];
-    const title = String(window._plModalAnualLastTitle || 'detalle').replace(/[^a-z0-9\-_]+/gi, '_');
-    plDownloadCsv(`${title}.csv`, rows);
-  };
 
   try { console.debug('[pruebaslist] detalle tabla anual habilitado'); } catch {}
   return true;
