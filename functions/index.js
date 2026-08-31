@@ -416,6 +416,13 @@ async function buildResumenGlobal() {
     totalAnuales: 0,
   };
 
+  const emptyBuckets = () => ({ gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0, total: 0, fail: 0 });
+  const pruebasAnualesByTipo = {
+    LT: emptyBuckets(),
+    UTT: emptyBuckets(),
+    'VT/PT/MT': emptyBuckets(),
+  };
+
   for (const reg of ultimas) {
     const equipoKey = reg.equipo || reg.docId;
     const eqK = normEquipoKey(equipoKey);
@@ -424,18 +431,33 @@ async function buildResumenGlobal() {
 
     const pruebaKey = normPruebaKey(reg.prueba || 'ANUAL');
 
+     const tipoTarget = (pruebaKey === 'LT' || pruebaKey === 'UTT' || pruebaKey === 'VT/PT/MT') ? pruebaKey : null;
+
     if (reg.failReason) {
       pruebaCounts.fail += 1;
+      if (tipoTarget && pruebasAnualesByTipo[tipoTarget]) pruebasAnualesByTipo[tipoTarget].fail += 1;
       continue;
     }
     pruebaCounts.totalAnuales += 1;
+    if (tipoTarget && pruebasAnualesByTipo[tipoTarget]) pruebasAnualesByTipo[tipoTarget].total += 1;
 
     const { bucket } = clasificarDias(reg.proxima);
-    if (bucket === 'vencidas') pruebaCounts.vencidas += 1;
-    else if (bucket === '60_30') pruebaCounts.bucket60_30 += 1;
-    else if (bucket === '30_15') pruebaCounts.bucket30_15 += 1;
-    else if (bucket === '15_0') pruebaCounts.bucket15_0 += 1;
-    else pruebaCounts.otras += 1;
+    if (bucket === 'vencidas') {
+      pruebaCounts.vencidas += 1;
+      if (tipoTarget && pruebasAnualesByTipo[tipoTarget]) pruebasAnualesByTipo[tipoTarget].d0 += 1;
+    } else if (bucket === '60_30') {
+      pruebaCounts.bucket60_30 += 1;
+      if (tipoTarget && pruebasAnualesByTipo[tipoTarget]) pruebasAnualesByTipo[tipoTarget].d60 += 1;
+    } else if (bucket === '30_15') {
+      pruebaCounts.bucket30_15 += 1;
+      if (tipoTarget && pruebasAnualesByTipo[tipoTarget]) pruebasAnualesByTipo[tipoTarget].d30 += 1;
+    } else if (bucket === '15_0') {
+      pruebaCounts.bucket15_0 += 1;
+      if (tipoTarget && pruebasAnualesByTipo[tipoTarget]) pruebasAnualesByTipo[tipoTarget].d15 += 1;
+    } else {
+      pruebaCounts.otras += 1;
+      if (tipoTarget && pruebasAnualesByTipo[tipoTarget]) pruebasAnualesByTipo[tipoTarget].gt60 += 1;
+    }
 
     void pruebaKey;
   }
@@ -446,6 +468,7 @@ async function buildResumenGlobal() {
     tz: TZ,
     edoCounts,
     pruebasAnuales: pruebaCounts,
+    pruebasAnualesByTipo,
     pruebasTotals,
   };
 }
@@ -677,6 +700,7 @@ async function buildResumenesEquiposAll() {
       version: 1,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       equipoKey,
+      serial: String((lt && lt.serial) || (utt && utt.serial) || (vpm && vpm.serial) || (serialPorEquipoInv && serialPorEquipoInv[equipoKey]) || '').trim(),
       edo: edo || 'ON',
       pruebas: {
         LT: lt ? {

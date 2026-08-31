@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "xpct-tab"
-  }
+    "default": "xpct-tab",
+    "staging": "xpct-tab"
+  },
+  "targets": {},
+  "etags": {}
 }

@@ -663,16 +663,41 @@
             const bar = document.getElementById('pl-loading-bar');
             const meta = document.getElementById('pl-loading-meta');
 
-            const loaded = (Array.isArray(window.pctGetPruebas ? window.pctGetPruebas() : window.pruebas) ? (window.pctGetPruebas ? window.pctGetPruebas().length : window.pruebas.length) : 0);
+            const loaded = (Array.isArray(window.pruebas) ? window.pruebas.length : (window.pctGetPruebas ? (window.pctGetPruebas() || []).length : 0)) || 0;
             const total = (typeof window._plTotalServer === 'number' && isFinite(window._plTotalServer) && window._plTotalServer > 0)
                 ? window._plTotalServer
-                : 0;
+                : null;
 
-            const pct = (total > 0) ? Math.max(0, Math.min(100, Math.round((loaded / total) * 100))) : 0;
-            if (pctEl) pctEl.textContent = `${pct}%`;
-            if (bar) bar.style.width = `${pct}%`;
+            const pct = (total && total > 0) ? Math.max(0, Math.min(100, Math.round((loaded / total) * 100))) : null;
+            if (pctEl) pctEl.textContent = (pct == null) ? '…' : `${pct}%`;
+            if (bar) bar.style.width = (pct == null) ? '6%' : `${pct}%`;
             if (meta) meta.textContent = `${loaded} de ${total || '…'}`;
-            if (sub) sub.textContent = (total > 0) ? `Cargando pruebas… (${loaded}/${total})` : `Cargando pruebas… (${loaded})`;
+            if (sub) sub.textContent = (total && total > 0) ? `Cargando pruebas… (${loaded}/${total})` : `Cargando pruebas… (${loaded})`;
+        } catch {}
+    }
+
+    function showPlLoaderSuccess({ loaded, total }) {
+        try {
+            const box = document.getElementById('pl-loading-banner');
+            if (!box) return;
+            setPlLoaderVisible(true);
+
+            const sub = document.getElementById('pl-loading-sub');
+            const pctEl = document.getElementById('pl-loading-pct');
+            const bar = document.getElementById('pl-loading-bar');
+            const meta = document.getElementById('pl-loading-meta');
+
+            const t = (typeof total === 'number' && isFinite(total) && total > 0) ? total : null;
+            const l = (typeof loaded === 'number' && isFinite(loaded) && loaded >= 0) ? loaded : 0;
+
+            if (pctEl) pctEl.textContent = '100%';
+            if (bar) bar.style.width = '100%';
+            if (meta) meta.textContent = `${l} de ${t || l}`;
+            if (sub) sub.textContent = `Cargadas con éxito ${l} pruebas`;
+
+            setTimeout(() => {
+                try { setPlLoaderVisible(false); } catch {}
+            }, 2500);
         } catch {}
     }
 
@@ -1572,36 +1597,67 @@
         const lblAlert30 = document.getElementById('pruebas-alert-30');
         const lblAlert15 = document.getElementById('pruebas-alert-15');
 
+        let _csvPreviewActive = false;
+        let _csvPreviewRows = [];
+
         // Resumen materializado (resumenes/global): preferirlo para contadores/chips
         (async () => {
             try {
                 if (_csvPreviewActive) return;
-                if (window.isInspector) return;
-                const { getFirestore, doc, getDoc } = await import(
+                const { doc, getDoc } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
-                const db0 = getFirestore();
+                // Esperar a que firebase-init.js inicialice window.db
+                let db0 = window.db || null;
+                if (!db0) {
+                    for (let i = 0; i < 40; i += 1) {
+                        await new Promise(r => setTimeout(r, 25));
+                        db0 = window.db || null;
+                        if (db0) break;
+                    }
+                }
+                if (!db0) {
+                    try { window._plResumenGlobalLoadError = { at: Date.now(), error: 'window.db no inicializado' }; } catch {}
+                    return;
+                }
                 const ref = doc(db0, 'resumenes', 'global');
                 const snap0 = await getDoc(ref);
                 const data0 = (snap0 && snap0.exists && snap0.exists()) ? (snap0.data() || null) : null;
                 if (!data0) return;
                 const pa = data0.pruebasAnuales || null;
                 const pt = data0.pruebasTotals || null;
-                if (!pa || !pt) return;
+                const paByTipo = data0.pruebasAnualesByTipo || null;
+                try { window._pctResumenGlobal = { at: Date.now(), data: data0 }; } catch {}
+                try { window._plResumenGlobalAnuales = pa || null; } catch {}
+                try { window._plResumenGlobalAnualesByTipo = paByTipo || null; } catch {}
+                if (!pt && !pa) return;
 
                 try {
-                    if (lblAlert60 && pa.bucket60_30 != null) lblAlert60.textContent = String(pa.bucket60_30);
-                    if (lblAlert30 && pa.bucket30_15 != null) lblAlert30.textContent = String(pa.bucket30_15);
-                    if (lblAlert15 && pa.bucket15_0 != null) lblAlert15.textContent = String(pa.bucket15_0);
-                    const lblAlert0 = document.getElementById('pruebas-alert-0');
-                    if (lblAlert0 && pa.vencidas != null) lblAlert0.textContent = String(pa.vencidas);
+                    window._plResumenGlobalTotals = {
+                        anualDocs: (pt && pt.anualDocs != null) ? Number(pt.anualDocs) : null,
+                        postTrabajoDocs: (pt && pt.postTrabajoDocs != null) ? Number(pt.postTrabajoDocs) : null,
+                        reparacionDocs: (pt && pt.reparacionDocs != null) ? Number(pt.reparacionDocs) : null,
+                        totalDocs: (pt && pt.totalDocs != null) ? Number(pt.totalDocs) : null,
+                    };
                 } catch {}
 
                 try {
-                    if (cardR60Val && pa.bucket60_30 != null) cardR60Val.textContent = String(pa.bucket60_30);
-                    if (cardR30Val && pa.bucket30_15 != null) cardR30Val.textContent = String(pa.bucket30_15);
-                    if (cardR15Val && pa.bucket15_0 != null) cardR15Val.textContent = String(pa.bucket15_0);
-                    if (cardR0Val && pa.vencidas != null) cardR0Val.textContent = String(pa.vencidas);
+                    if (pa) {
+                        if (lblAlert60 && pa.bucket60_30 != null) lblAlert60.textContent = String(pa.bucket60_30);
+                        if (lblAlert30 && pa.bucket30_15 != null) lblAlert30.textContent = String(pa.bucket30_15);
+                        if (lblAlert15 && pa.bucket15_0 != null) lblAlert15.textContent = String(pa.bucket15_0);
+                        const lblAlert0 = document.getElementById('pruebas-alert-0');
+                        if (lblAlert0 && pa.vencidas != null) lblAlert0.textContent = String(pa.vencidas);
+                    }
+                } catch {}
+
+                try {
+                    if (pa) {
+                        if (cardR60Val && pa.bucket60_30 != null) cardR60Val.textContent = String(pa.bucket60_30);
+                        if (cardR30Val && pa.bucket30_15 != null) cardR30Val.textContent = String(pa.bucket30_15);
+                        if (cardR15Val && pa.bucket15_0 != null) cardR15Val.textContent = String(pa.bucket15_0);
+                        if (cardR0Val && pa.vencidas != null) cardR0Val.textContent = String(pa.vencidas);
+                    }
                 } catch {}
 
                 try {
@@ -1609,34 +1665,43 @@
                         lblAnual.textContent = `ANUAL (${pt.anualDocs})`;
                         lblAnual.dataset.count = String(pt.anualDocs);
                     }
-                    if (lblPT && pt.postTrabajoDocs != null) {
-                        lblPT.textContent = `POST-TRABAJO (${pt.postTrabajoDocs})`;
-                        lblPT.dataset.count = String(pt.postTrabajoDocs);
+                    if (lblPT && window._plResumenGlobalTotals.postTrabajoDocs != null) {
+                        lblPT.textContent = `POST-TRABAJO (${window._plResumenGlobalTotals.postTrabajoDocs})`;
+                        lblPT.dataset.count = String(window._plResumenGlobalTotals.postTrabajoDocs);
                     }
-                    if (lblRep && pt.reparacionDocs != null) {
-                        lblRep.textContent = `REPARACION (${pt.reparacionDocs})`;
-                        lblRep.dataset.count = String(pt.reparacionDocs);
+                    if (lblRep && window._plResumenGlobalTotals.reparacionDocs != null) {
+                        lblRep.textContent = `REPARACIÓN (${window._plResumenGlobalTotals.reparacionDocs})`;
+                        lblRep.dataset.count = String(window._plResumenGlobalTotals.reparacionDocs);
                     }
                 } catch {}
 
                 try {
-                    const porRealizar = Number(pa.bucket60_30 || 0) + Number(pa.bucket30_15 || 0) + Number(pa.bucket15_0 || 0);
-                    if (lblPend) lblPend.textContent = `${porRealizar} por realizar`;
-                    if (lblVenc) lblVenc.textContent = `${Number(pa.vencidas || 0)} vencida${Number(pa.vencidas || 0) === 1 ? '' : 's'}`;
-                    if (lblHist) lblHist.textContent = `${Number(pt.totalDocs || 0)} en histórico`;
+                    if (pa) {
+                        const porRealizar = Number(pa.bucket60_30 || 0) + Number(pa.bucket30_15 || 0) + Number(pa.bucket15_0 || 0);
+                        if (lblPend) lblPend.textContent = `${porRealizar} por realizar`;
+                        if (lblVenc) lblVenc.textContent = `${Number(pa.vencidas || 0)} vencida${Number(pa.vencidas || 0) === 1 ? '' : 's'}`;
+                    }
+                    if (pt && lblHist) lblHist.textContent = `${Number(pt.totalDocs || 0)} en histórico`;
                 } catch {}
 
+                // window._pctResumenGlobal se expone arriba para diagnóstico.
+            } catch (e) {
                 try {
-                    window._pctResumenGlobal = { at: Date.now(), data: data0 };
+                    window._plResumenGlobalLoadError = {
+                        at: Date.now(),
+                        code: (e && (e.code || e.name)) ? String(e.code || e.name) : '',
+                        message: (e && e.message) ? String(e.message) : String(e),
+                    };
                 } catch {}
-            } catch {}
+                try { console.warn('[pruebaslist] fallo al leer resumenes/global', e); } catch {}
+            }
         })();
 
         const lblResumenParcial = document.getElementById('pruebas-resumen-parcial');
         const btnCompletarResumen = document.getElementById('btn-pruebas-completar-resumen');
 
-        let _csvPreviewActive = false;
-        let _csvPreviewRows = [];
+        _csvPreviewActive = false;
+        _csvPreviewRows = [];
 
         // Chips de filtro por rango de días
         const chipGT60 = document.getElementById('chip-gt60');
@@ -1644,7 +1709,8 @@
         const chip30 = document.getElementById('chip-30');
         const chip15 = document.getElementById('chip-15');
         const chip0 = document.getElementById('chip-0');
-        let filtroRango = null; // 'gt60' | '60' | '30' | '15' | '0' | null
+        window.filtroRango = (typeof window.filtroRango !== 'undefined') ? window.filtroRango : null;
+        let filtroRango = window.filtroRango; // 'gt60' | '60' | '30' | '15' | '0' | null
 
         const btnRangos = document.getElementById('btn-pruebas-rangos');
         const panelRangos = document.getElementById('panel-pruebas-rangos');
@@ -1772,6 +1838,13 @@
                 setActive(nsin, nuevo === 'sin');
             } catch {}
 
+            // Al usar el filtro de cobertura, mostrar el resumen por equipo.
+            try {
+                if (nuevo) viewMode = 'resumen';
+                else viewMode = 'historico';
+                applyViewMode();
+            } catch {}
+
             // Al filtrar por cobertura (100/parcial), por defecto se busca snapshot anual.
             try {
                 if ((nuevo === '100' || nuevo === 'parcial') && !filtroPeriodo) {
@@ -1789,9 +1862,21 @@
             const n100 = cardEq100 ? cardEq100.closest('.dash-card') : null;
             const npar = cardEqPar ? cardEqPar.closest('.dash-card') : null;
             const nsin = cardEqSin ? cardEqSin.closest('.dash-card') : null;
-            if (n100) n100.addEventListener('click', () => setFiltroCobertura((filtroCobertura === '100') ? null : '100'));
-            if (npar) npar.addEventListener('click', () => setFiltroCobertura((filtroCobertura === 'parcial') ? null : 'parcial'));
-            if (nsin) nsin.addEventListener('click', () => setFiltroCobertura((filtroCobertura === 'sin') ? null : 'sin'));
+            if (n100) n100.addEventListener('click', () => {
+                const next = (filtroCobertura === '100') ? null : '100';
+                setFiltroCobertura(next);
+                if (next) { try { plOpenCoberturaModal(next); } catch {} }
+            });
+            if (npar) npar.addEventListener('click', () => {
+                const next = (filtroCobertura === 'parcial') ? null : 'parcial';
+                setFiltroCobertura(next);
+                if (next) { try { plOpenCoberturaModal(next); } catch {} }
+            });
+            if (nsin) nsin.addEventListener('click', () => {
+                const next = (filtroCobertura === 'sin') ? null : 'sin';
+                setFiltroCobertura(next);
+                if (next) { try { plOpenCoberturaModal(next); } catch {} }
+            });
         } catch {}
 
         const detallePanel = document.getElementById('detalle-prueba');
@@ -1972,7 +2057,7 @@
 
         try { window._plTotalServer = 0; } catch {}
 
-        let _paginationMode = 'creadoEnMs';
+        let _paginationMode = 'fechaRealizacionMs';
         let _loadedIds = new Set();
 
         // Exponer dataset para diagnóstico en consola
@@ -2077,12 +2162,28 @@
 
         async function leerTotalServidor() {
             try {
+                // Preferir total del resumen materializado si existe (evita RunAggregationQuery).
+                try {
+                    const gt = (window._plResumenGlobalTotals && typeof window._plResumenGlobalTotals === 'object')
+                        ? window._plResumenGlobalTotals
+                        : null;
+                    const t = gt && gt.totalDocs != null ? Number(gt.totalDocs) : null;
+                    if (t && !isNaN(t) && t > 0) {
+                        _totalServer = t;
+                        try { window._plTotalServer = t; } catch {}
+                        try { localStorage.setItem(claveTotalCached, String(t)); } catch {}
+                        return;
+                    }
+                } catch {}
+
                 // Si ya hay un total cacheado, usarlo y NO disparar agregación.
                 // Esto evita el spam de 429 (RunAggregationQuery) en consola.
                 try {
                     const cachedNow = Number(localStorage.getItem(claveTotalCached) || '0');
                     if (cachedNow && !isNaN(cachedNow) && cachedNow > 0) {
                         _totalServer = cachedNow;
+                        try { window._plTotalServer = cachedNow; } catch {}
+                        return;
                     }
                 } catch {}
 
@@ -2111,18 +2212,10 @@
                         return;
                     }
                 } catch {}
-                const { getFirestore, collection, getCountFromServer } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
-                const db = getFirestore();
-                const colRef = collection(db, 'pruebas');
-                const agg = await getCountFromServer(colRef);
-                _totalServer = agg.data().count;
-                try {
-                    if (typeof _totalServer === 'number' && isFinite(_totalServer) && _totalServer > 0) {
-                        localStorage.setItem(claveTotalCached, String(_totalServer));
-                    }
-                } catch {}
+                // Si llegamos aquí, no hay resumen global ni cache; evitar contar en servidor para no generar RunAggregationQuery.
+                // Se mostrará el progreso con total desconocido hasta que el resumen global esté disponible.
+                _totalServer = null;
+                try { window._plTotalServer = 0; } catch {}
             } catch (e) {
                 const cached = (() => {
                     try {
@@ -2131,6 +2224,7 @@
                     } catch { return null; }
                 })();
                 _totalServer = cached;
+                try { window._plTotalServer = (cached && !isNaN(cached) && cached > 0) ? cached : 0; } catch {}
                 const code = (e && (e.code || (e.name && String(e.name)))) ? String(e.code || e.name) : '';
                 const msg = (e && e.message) ? String(e.message) : '';
                 const is429 = code.includes('resource-exhausted') || /429/.test(msg) || /Too Many Requests/i.test(msg);
@@ -2173,7 +2267,7 @@
                 if (reset) {
                     _lastDoc = null;
                     pruebas = [];
-                    _paginationMode = 'creadoEnMs';
+                    _paginationMode = 'fechaRealizacionMs';
                     _loadedIds = new Set();
                     try { window.pruebas = window.pctGetPruebas(); } catch {}
                 }
@@ -2188,11 +2282,18 @@
                     qBase = query(colRef, where('creadoEnMs', '>=', cutoffMs), orderBy('creadoEnMs', 'desc'), limit(_pageLimit));
                     if (_lastDoc) qBase = query(colRef, where('creadoEnMs', '>=', cutoffMs), orderBy('creadoEnMs', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
                 } else if (_paginationMode === 'docId') {
-                    qBase = query(colRef, orderBy(documentId()), limit(_pageLimit));
-                    if (_lastDoc) qBase = query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit));
+                    qBase = query(colRef, orderBy(documentId(), 'desc'), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, orderBy(documentId(), 'desc'), startAfter(_lastDoc), limit(_pageLimit));
                 } else if (_paginationMode === 'creadoEn') {
                     qBase = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
                     if (_lastDoc) qBase = query(colRef, orderBy('creadoEn', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+                } else if (_paginationMode === 'creadoEnMs') {
+                    qBase = query(colRef, orderBy('creadoEnMs', 'desc'), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, orderBy('creadoEnMs', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
+                } else if (_paginationMode === 'fechaRealizacionMs') {
+                    // Preferir fechaRealizacionMs para que "lo más reciente" sea por fecha de realización (si existe).
+                    qBase = query(colRef, orderBy('fechaRealizacionMs', 'desc'), limit(_pageLimit));
+                    if (_lastDoc) qBase = query(colRef, orderBy('fechaRealizacionMs', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
                 } else {
                     qBase = query(colRef, orderBy('creadoEnMs', 'desc'), limit(_pageLimit));
                     if (_lastDoc) qBase = query(colRef, orderBy('creadoEnMs', 'desc'), startAfter(_lastDoc), limit(_pageLimit));
@@ -2212,17 +2313,42 @@
                 if (!snap || snap.empty) {
                     // Para inspector no hacemos fallback a docId (evitar recorrer toda la colección)
                     if (!isInspector) {
-                        // Fallback 1: si estamos en creadoEnMs y no regresó docs (dataset legado), caer a creadoEn.
-                        if (_paginationMode !== 'creadoEn') {
+                        // Fallback 1: si estamos en fechaRealizacionMs y no regresó docs, caer a creadoEnMs.
+                        if (_paginationMode === 'fechaRealizacionMs') {
                             try {
-                                _paginationMode = 'creadoEn';
+                                _paginationMode = 'creadoEnMs';
                                 _lastDoc = null;
-                                const qAlt = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
-                                snap = forceNetwork ? await getDocs(qAlt) : (await getDocsFromCache(qAlt).catch(() => null)) || (await getDocs(qAlt));
+                                const qAlt0 = query(colRef, orderBy('creadoEnMs', 'desc'), limit(_pageLimit));
+                                snap = forceNetwork ? await getDocs(qAlt0) : (await getDocsFromCache(qAlt0).catch(() => null)) || (await getDocs(qAlt0));
+                            } catch {}
+                        }
+
+                        // Fallback 2: si creadoEnMs no regresó docs (dataset legado), caer a creadoEn.
+                        if (!snap || snap.empty) {
+                            try {
+                                if (_paginationMode !== 'creadoEn') {
+                                    _paginationMode = 'creadoEn';
+                                    _lastDoc = null;
+                                    const qAlt = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
+                                    snap = forceNetwork ? await getDocs(qAlt) : (await getDocsFromCache(qAlt).catch(() => null)) || (await getDocs(qAlt));
+                                }
                             } catch {}
                         }
                     }
                 }
+
+                // Heurística: si creadoEnMs devuelve muy pocos resultados en la primera página (dataset legacy), preferir creadoEn.
+                try {
+                    const esPrimerPagina = !!(reset && !_lastDoc);
+                    if (!isInspector && esPrimerPagina && _paginationMode === 'creadoEnMs' && snap && !snap.empty && snap.size > 0 && snap.size < 25) {
+                        try {
+                            _paginationMode = 'creadoEn';
+                            _lastDoc = null;
+                            const qAlt2 = query(colRef, orderBy('creadoEn', 'desc'), limit(_pageLimit));
+                            snap = forceNetwork ? await getDocs(qAlt2) : (await getDocsFromCache(qAlt2).catch(() => null)) || (await getDocs(qAlt2));
+                        } catch {}
+                    }
+                } catch {}
 
                 if (!snap || snap.empty) {
                     // Para inspector no hacemos fallback a docId (evitar recorrer toda la colección)
@@ -2231,8 +2357,8 @@
                         try {
                             _paginationMode = 'docId';
                             const qFallback = _lastDoc
-                                ? query(colRef, orderBy(documentId()), startAfter(_lastDoc), limit(_pageLimit))
-                                : query(colRef, orderBy(documentId()), limit(_pageLimit));
+                                ? query(colRef, orderBy(documentId(), 'desc'), startAfter(_lastDoc), limit(_pageLimit))
+                                : query(colRef, orderBy(documentId(), 'desc'), limit(_pageLimit));
                             snap = forceNetwork ? await getDocs(qFallback) : (await getDocsFromCache(qFallback).catch(() => null)) || (await getDocs(qFallback));
                         } catch {}
                     }
@@ -2297,24 +2423,27 @@
             // Render inicial
             try { render(); } catch {}
             try { window.pruebas = window.pctGetPruebas(); } catch {}
+
+            try {
+                window._plAfterLoadDiag = {
+                    pruebasLen: (Array.isArray(pruebas) ? pruebas.length : -1),
+                    totalServer: (typeof _totalServer === 'number' ? _totalServer : _totalServer),
+                    lastDoc: !!_lastDoc,
+                    paginationMode: _paginationMode,
+                    hasTbody: !!document.getElementById('tbody-pruebas-listado'),
+                };
+                window._plForceRender = () => {
+                    try { render(); } catch (e) { console.error('Force render falló', e); }
+                };
+            } catch {}
         } catch (e) {
             console.error('Fallo al cargar pruebas (inicio)', e);
         } finally {
-            // Marcar listo: si aún faltan páginas, el auto-load lo volverá a poner en loading
-            try {
-                const complete = (typeof _totalServer === 'number' && Array.isArray(pruebas) && pruebas.length >= _totalServer) || !_lastDoc;
-                setProgressState(complete ? 'ready' : 'loading');
-            } catch {
-                setProgressState('ready');
-            }
+            // Al entrar: ocultar banner tras carga inicial. El banner se usará solo en cargas explícitas (Ver todas/Completar resumen).
+            try { setProgressState('ready'); } catch {}
         }
 
-        // Auto-completar el resumen al entrar (carga completa en segundo plano)
-        try {
-            setTimeout(async () => {
-                await autoCompletarResumen();
-            }, 50);
-        } catch {}
+        // Mantener carga paginada al entrar (reduce lecturas). El resumen global se toma de `resumenes/global`.
 
         async function autoCompletarResumen() {
             if (_csvPreviewActive) return;
@@ -2324,6 +2453,7 @@
                     if (Array.isArray(pruebas) && pruebas.length) {
                         localStorage.setItem(claveTotalCached, String(pruebas.length));
                         _totalServer = pruebas.length;
+                        try { window._plTotalServer = _totalServer; } catch {}
                     }
                 } catch {}
                 return;
@@ -2340,6 +2470,9 @@
                     if (!added) {
                         break;
                     }
+                    try { window.pruebas = window.pctGetPruebas(); } catch {}
+                    try { window._plTotalServer = (typeof _totalServer === 'number' && isFinite(_totalServer) && _totalServer > 0) ? _totalServer : window._plTotalServer; } catch {}
+                    try { updatePlLoaderProgress(); } catch {}
                     if (safety % 3 === 0) {
                         try { buildExistingKeys(); } catch {}
                         try { actualizarContadoresTiposLocal(pruebas); } catch {}
@@ -2353,12 +2486,20 @@
                     if (Array.isArray(pruebas) && pruebas.length) {
                         localStorage.setItem(claveTotalCached, String(pruebas.length));
                         _totalServer = pruebas.length;
+                        try { window._plTotalServer = _totalServer; } catch {}
                     }
+                } catch {}
+                try {
+                    if (lblResumenParcial) {
+                        lblResumenParcial.textContent = '';
+                    }
+                    if (btnCompletarResumen) btnCompletarResumen.style.display = 'none';
                 } catch {}
                 try { window.pruebas = window.pctGetPruebas(); } catch {}
                 try { buildExistingKeys(); } catch {}
                 try { actualizarContadoresTiposLocal(pruebas); } catch {}
                 try { render(); } catch {}
+                try { showPlLoaderSuccess({ loaded: (Array.isArray(pruebas) ? pruebas.length : 0), total: _totalServer }); } catch {}
             }
         }
 
@@ -2391,6 +2532,9 @@
                 if (btnVerTodas) btnVerTodas.disabled = true;
                 while (_lastDoc && (pruebas.length < _totalServer)) {
                     await leerPagina({ reset: false, forceNetwork: true });
+                    try { window.pruebas = window.pctGetPruebas(); } catch {}
+                    try { window._plTotalServer = (typeof _totalServer === 'number' && isFinite(_totalServer) && _totalServer > 0) ? _totalServer : window._plTotalServer; } catch {}
+                    try { updatePlLoaderProgress(); } catch {}
                     render();
                 }
             } finally {
@@ -2402,6 +2546,9 @@
                         localStorage.setItem(claveTotalCached, String(pruebas.length));
                         _totalServer = pruebas.length;
                         try { actualizarContadoresTiposLocal(pruebas); } catch {}
+                        try { window._plTotalServer = _totalServer; } catch {}
+                        try { window.pruebas = window.pctGetPruebas(); } catch {}
+                        try { showPlLoaderSuccess({ loaded: pruebas.length, total: _totalServer }); } catch {}
                     }
                 } catch {}
             }
@@ -2587,311 +2734,191 @@
             } catch {}
         }
 
-        async function recalcularChipsDesdeSnapshotCompleto() {
-            try {
-                const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
-                const lblAlert0 = document.getElementById('pruebas-alert-0');
-                if (!lblAlert60 || !lblAlert30 || !lblAlert15 || !lblAlert0 || !lblAlertGT60) return;
+        function recalcularChipsDesdeSnapshotCompleto() {
+            actualizarContadoresTiposLocal(pruebas);
+        }
+        try { window.recalcularChipsDesdeSnapshotCompleto = recalcularChipsDesdeSnapshotCompleto; } catch {}
 
-                const { getFirestore, collection, getDocs } = await import(
-                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                );
-                const db = getFirestore();
-                const colRef = collection(db, 'pruebas');
-                const snap = await getDocs(colRef);
-                const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        function aplicarConteosDesdeCsvPreview(rows) {
+                const arr = Array.isArray(rows) ? rows : [];
+                _csvPreviewActive = true;
+                _csvPreviewRows = arr;
+
+                actualizarContadoresTiposLocal(arr);
 
                 const hoy = hoySinHora();
-                const latest = new Map();
-                const latestDueByKey = {};
-                const normPrueba = (v) => (v || '').toString().toUpperCase().trim();
-                const categoria = (reg) => {
-                    const p = normPrueba(reg && (reg.prueba || reg.pruebaTipo) ? (reg.prueba || reg.pruebaTipo) : '');
-                    if (!p) return null;
-                    if (p.includes('UTT')) return 'utt';
-                    if (p.includes('LT')) return 'lt';
-                    if (p.includes('VT') || p.includes('PT') || p.includes('MT')) return 'vpm';
-                    return null;
-                };
-                (Array.isArray(docs) ? docs : []).forEach(reg => {
-                    const periodoStr = (reg && reg.periodo ? String(reg.periodo) : '').trim().toUpperCase();
-                    if (!(periodoStr === 'ANUAL' || periodoStr === '')) return;
+                let cntPend = 0;
+                let cntVenc = 0;
+                const totalHistorico = arr.length;
 
-                    const eq = (reg && (reg.equipo || reg.activo || reg['EQUIPO / ACTIVO']) ? (reg.equipo || reg.activo || reg['EQUIPO / ACTIVO']) : '').toString().trim();
-                    if (!eq) return;
-                    if (!equipoOperativoDesdeInv(eq)) return;
-                    const tipo = normPrueba(reg.pruebaTipo || reg.prueba || 'ANUAL');
-                    const key = `${normEquipoKey(eq)}__${tipo}`;
-
-                    const cat = categoria(reg);
-                    if (!cat) return;
-
-                    let dProx = parseProxima(reg && reg.proxima ? reg.proxima : '');
-                    if (!dProx) {
-                        const fr = parseFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || reg.fecha || '');
-                        if (fr) {
-                            const d = new Date(fr);
-                            d.setFullYear(d.getFullYear() + 1);
-                            d.setHours(0,0,0,0);
-                            if (!isNaN(d.getTime())) dProx = d;
-                        }
-                    }
-                    const dueMs = dProx ? dProx.getTime() : 0;
-                    const prev = latest.get(key);
-                    const prevMs = prev ? (prev.dueMs || 0) : 0;
-                    if (!prev || dueMs >= prevMs) latest.set(key, { dueMs, cat });
-                });
-
-                try {
-                    latest.forEach((v, key) => {
-                        if (!v || !v.dueMs) return;
-                        latestDueByKey[key] = v.dueMs;
-                    });
-                } catch {}
-
-                let cnt0 = 0, cnt60 = 0, cnt30 = 0, cnt15 = 0, cntGT60 = 0;
-                const infCont = {
+                // Contadores por tipo y bucket (mismos buckets del Resumen de estado)
+                const cont = {
                     lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
                     vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
                     utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
                 };
 
-                latest.forEach(v => {
-                    const dueMs = v && v.dueMs ? v.dueMs : 0;
-                    if (!dueMs) return;
-                    const cat = v && v.cat ? v.cat : null;
+                function categoriaPruebaPreview(reg) {
+                    const p = ((reg.prueba || reg.pruebaTipo || '') + '').toUpperCase();
+                    if (!p) return null;
+                    if (p.includes('UTT')) return 'utt';
+                    if (p.includes('LT')) return 'lt';
+                    if (p.includes('VT') || p.includes('PT') || p.includes('MT')) return 'vpm';
+                    return null;
+                }
+
+                const anualPorEquipo = new Map();
+                arr.forEach(reg => {
+                    const eq = (reg.equipo || '').toString();
+                    if (!eq) return;
+                    if (!equipoOperativoDesdeInv(eq)) return;
+                    const periodo = (reg.periodo || '').toString().trim().toUpperCase();
+                    if (periodo && periodo !== 'ANUAL') return;
+                    const fr = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
+                    const actual = anualPorEquipo.get(eq);
+                    if (!actual || fr.getTime() > actual._fechaRealDate.getTime()) {
+                        anualPorEquipo.set(eq, { ...reg, _fechaRealDate: fr, _clasif: clasificarPrueba(reg) });
+                    }
+                });
+
+                // Contadores tipo dashboard
+                arr.forEach(reg => {
+                    const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                    const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                    if (!esAnualReg) return;
+                    if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
+                    const clasif = clasificarPrueba(reg);
+                    const estado = clasif ? clasif.estado : 'SIN_FECHA';
+                    if (estado === 'VENCIDA') { cntVenc += 1; return; }
+                    if (estado !== 'VIGENTE') return;
+                    const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
+                    if (!prox) return;
+                    const diasNum = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    if (!isNaN(diasNum) && diasNum >= 0 && diasNum <= 60) cntPend += 1;
+                });
+
+                // Chips superiores por rango (mismos criterios que render(): solo ANUAL)
+                let cntChipGT60 = 0;
+                let cntChip60 = 0;
+                let cntChip30 = 0;
+                let cntChip15 = 0;
+                let cntChip0 = 0;
+                arr.forEach(reg => {
+                    const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                    const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                    if (!esAnualReg) return;
+                    if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
+                    const clasif = clasificarPrueba(reg);
+                    const estado = clasif ? clasif.estado : 'SIN_FECHA';
+                    if (estado === 'VENCIDA') { cntChip0 += 1; return; }
+                    if (estado !== 'VIGENTE') return;
+                    const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
+                    if (!prox) return;
+                    const diasNum = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    if (isNaN(diasNum)) return;
+                    if (diasNum > 60) cntChipGT60 += 1;
+                    else if (diasNum >= 31 && diasNum <= 60) cntChip60 += 1;
+                    else if (diasNum >= 16 && diasNum <= 30) cntChip30 += 1;
+                    else if (diasNum >= 1 && diasNum <= 15) cntChip15 += 1;
+                });
+
+                try {
+                    const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
+                    const lblAlert0 = document.getElementById('pruebas-alert-0');
+                    if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
+                    if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
+                    if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
+                    if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
+                    if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
+                } catch {}
+
+                // Pintar tabla informativa (Resumen de estado) para ANUAL
+                arr.forEach(reg => {
+                    const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
+                    const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
+                    if (!esAnualReg) return;
+                    if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
+                    const cat = categoriaPruebaPreview(reg);
                     if (!cat) return;
-                    const dias = Math.round((dueMs - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                    if (dias <= 0) { cnt0 += 1; return; }
-                    if (dias > 60) { cntGT60 += 1; return; }
-                    if (dias >= 31) cnt60 += 1;
-                    else if (dias >= 16) cnt30 += 1;
-                    else if (dias >= 1) cnt15 += 1;
-                });
-
-                // Tabla informativa por categoría
-                latest.forEach(v => {
-                    const dueMs = v && v.dueMs ? v.dueMs : 0;
-                    if (!dueMs) return;
-                    const cat = v && v.cat ? v.cat : null;
-                    if (!cat || !infCont[cat]) return;
-                    const dias = Math.round((dueMs - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    if (cat === 'utt') {
+                        const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
+                        const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
+                        const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
+                        const serialKey = (typeof normSerialKey === 'function') ? normSerialKey(serialRaw) : '';
+                        const serial = (serialKey || serialInv || '').toString().trim();
+                        if (window.isNoUttEquipo && window.isNoUttEquipo(eqK, serial)) return;
+                    }
+                    const clasif = clasificarPrueba(reg);
+                    const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
+                    if (!prox) return;
+                    const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
                     if (isNaN(dias)) return;
-                    if (dias <= 0) { infCont[cat].d0 += 1; return; }
-                    if (dias > 60) infCont[cat].gt60 += 1;
-                    else if (dias >= 31) infCont[cat].d60 += 1;
-                    else if (dias >= 16) infCont[cat].d30 += 1;
-                    else if (dias >= 1) infCont[cat].d15 += 1;
+                    if (dias <= 0) { cont[cat].d0 += 1; return; }
+                    if (dias > 60) cont[cat].gt60 += 1;
+                    else if (dias >= 31) cont[cat].d60 += 1;
+                    else if (dias >= 16) cont[cat].d30 += 1;
+                    else if (dias >= 1) cont[cat].d15 += 1;
                 });
 
-                lblAlertGT60.textContent = String(cntGT60);
-                lblAlert60.textContent = String(cnt60);
-                lblAlert30.textContent = String(cnt30);
-                lblAlert15.textContent = String(cnt15);
-                lblAlert0.textContent = String(cnt0);
                 try {
-                    if (cardR60Val) cardR60Val.textContent = String(cnt60);
-                    if (cardR30Val) cardR30Val.textContent = String(cnt30);
-                    if (cardR15Val) cardR15Val.textContent = String(cnt15);
-                    if (cardR0Val)  cardR0Val.textContent  = String(cnt0);
+                    if (inf.lt.gt60) inf.lt.gt60.textContent = String(cont.lt.gt60);
+                    if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
+                    if (inf.lt.d30)  inf.lt.d30.textContent  = String(cont.lt.d30);
+                    if (inf.lt.d15)  inf.lt.d15.textContent  = String(cont.lt.d15);
+                    if (inf.lt.d0)   inf.lt.d0.textContent   = String(cont.lt.d0);
+
+                    if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(cont.vpm.gt60);
+                    if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(cont.vpm.d60);
+                    if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(cont.vpm.d30);
+                    if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(cont.vpm.d15);
+                    if (inf.vpm.d0)   inf.vpm.d0.textContent   = String(cont.vpm.d0);
+
+                    if (inf.utt.gt60) inf.utt.gt60.textContent = String(cont.utt.gt60);
+                    if (inf.utt.d60)  inf.utt.d60.textContent  = String(cont.utt.d60);
+                    if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
+                    if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
+                    if (inf.utt.d0)   inf.utt.d0.textContent   = String(cont.utt.d0);
                 } catch {}
 
+                if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
+                if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
+                if (lblHist) lblHist.textContent = `${totalHistorico} en histórico`;
+
+                if (lblResumenParcial) lblResumenParcial.textContent = `Resumen basado en CSV (${totalHistorico})`;
+                if (btnCompletarResumen) btnCompletarResumen.style.display = 'none';
+
+                // Resumen por equipo basado solo en CSV (equipos presentes)
                 try {
-                    window._pctFullSnapshotCounters = {
-                        at: Date.now(),
-                        chips: { gt60: cntGT60, d60: cnt60, d30: cnt30, d15: cnt15, d0: cnt0 },
-                        inf: infCont,
-                        latestDueByKey
-                    };
-                } catch {}
-
-                try { render(); } catch {}
-            } catch (e) {
-                console.warn('No se pudieron recalcular chips desde snapshot completo', e);
-            }
-        }
-        try { window.recalcularChipsDesdeSnapshotCompleto = recalcularChipsDesdeSnapshotCompleto; } catch {}
-        actualizarContadoresTiposLocal(pruebas);
-
-        function aplicarConteosDesdeCsvPreview(rows) {
-            const arr = Array.isArray(rows) ? rows : [];
-            _csvPreviewActive = true;
-            _csvPreviewRows = arr;
-
-            actualizarContadoresTiposLocal(arr);
-
-            const hoy = hoySinHora();
-            let cntPend = 0;
-            let cntVenc = 0;
-            const totalHistorico = arr.length;
-
-            // Contadores por tipo y bucket (mismos buckets del Resumen de estado)
-            const cont = {
-                lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
-                vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
-                utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
-            };
-
-            function categoriaPruebaPreview(reg) {
-                const p = ((reg.prueba || reg.pruebaTipo || '') + '').toUpperCase();
-                if (!p) return null;
-                if (p.includes('UTT')) return 'utt';
-                if (p.includes('LT')) return 'lt';
-                if (p.includes('VT') || p.includes('PT') || p.includes('MT')) return 'vpm';
-                return null;
-            }
-
-            const anualPorEquipo = new Map();
-            arr.forEach(reg => {
-                const eq = (reg.equipo || '').toString();
-                if (!eq) return;
-                if (!equipoOperativoDesdeInv(eq)) return;
-                const periodo = (reg.periodo || '').toString().trim().toUpperCase();
-                if (periodo && periodo !== 'ANUAL') return;
-                const fr = parseFechaRealizacion(reg.fechaRealizacion || '') || hoySinHora();
-                const actual = anualPorEquipo.get(eq);
-                if (!actual || fr.getTime() > actual._fechaRealDate.getTime()) {
-                    anualPorEquipo.set(eq, { ...reg, _fechaRealDate: fr, _clasif: clasificarPrueba(reg) });
-                }
-            });
-
-            // Contadores tipo dashboard
-            arr.forEach(reg => {
-                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
-                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
-                if (!esAnualReg) return;
-                if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
-                const clasif = clasificarPrueba(reg);
-                const estado = clasif ? clasif.estado : 'SIN_FECHA';
-                if (estado === 'VENCIDA') { cntVenc += 1; return; }
-                if (estado !== 'VIGENTE') return;
-                const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
-                if (!prox) return;
-                const diasNum = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                if (!isNaN(diasNum) && diasNum >= 0 && diasNum <= 60) cntPend += 1;
-            });
-
-            // Chips superiores por rango (mismos criterios que render(): solo ANUAL)
-            let cntChipGT60 = 0;
-            let cntChip60 = 0;
-            let cntChip30 = 0;
-            let cntChip15 = 0;
-            let cntChip0 = 0;
-            arr.forEach(reg => {
-                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
-                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
-                if (!esAnualReg) return;
-                if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
-                const clasif = clasificarPrueba(reg);
-                const estado = clasif ? clasif.estado : 'SIN_FECHA';
-                if (estado === 'VENCIDA') { cntChip0 += 1; return; }
-                if (estado !== 'VIGENTE') return;
-                const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
-                if (!prox) return;
-                const diasNum = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                if (isNaN(diasNum)) return;
-                if (diasNum > 60) cntChipGT60 += 1;
-                else if (diasNum >= 31 && diasNum <= 60) cntChip60 += 1;
-                else if (diasNum >= 16 && diasNum <= 30) cntChip30 += 1;
-                else if (diasNum >= 1 && diasNum <= 15) cntChip15 += 1;
-            });
-
-            try {
-                const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
-                const lblAlert0 = document.getElementById('pruebas-alert-0');
-                if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
-                if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
-                if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
-                if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
-                if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
-            } catch {}
-
-            // Pintar tabla informativa (Resumen de estado) para ANUAL
-            arr.forEach(reg => {
-                const periodoReg = (reg.periodo || '').toString().trim().toUpperCase();
-                const esAnualReg = (periodoReg === 'ANUAL' || !periodoReg);
-                if (!esAnualReg) return;
-                if (!equipoOperativoDesdeInv(reg && reg.equipo ? reg.equipo : '')) return;
-                const cat = categoriaPruebaPreview(reg);
-                if (!cat) return;
-                if (cat === 'utt') {
-                    const eqK = normEquipoKey(reg && reg.equipo ? String(reg.equipo) : '');
-                    const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
-                    const serialRaw = (reg && (reg.numeroSerie || reg.serial)) ? String(reg.numeroSerie || reg.serial) : '';
-                    const serialKey = (typeof normSerialKey === 'function') ? normSerialKey(serialRaw) : '';
-                    const serial = (serialKey || serialInv || '').toString().trim();
-                    if (window.isNoUttEquipo && window.isNoUttEquipo(eqK, serial)) return;
-                }
-                const clasif = clasificarPrueba(reg);
-                const prox = (clasif && clasif.proxima) ? clasif.proxima : null;
-                if (!prox) return;
-                const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                if (isNaN(dias)) return;
-                if (dias <= 0) { cont[cat].d0 += 1; return; }
-                if (dias > 60) cont[cat].gt60 += 1;
-                else if (dias >= 31) cont[cat].d60 += 1;
-                else if (dias >= 16) cont[cat].d30 += 1;
-                else if (dias >= 1) cont[cat].d15 += 1;
-            });
-
-            try {
-                if (inf.lt.gt60) inf.lt.gt60.textContent = String(cont.lt.gt60);
-                if (inf.lt.d60)  inf.lt.d60.textContent  = String(cont.lt.d60);
-                if (inf.lt.d30)  inf.lt.d30.textContent  = String(cont.lt.d30);
-                if (inf.lt.d15)  inf.lt.d15.textContent  = String(cont.lt.d15);
-                if (inf.lt.d0)   inf.lt.d0.textContent   = String(cont.lt.d0);
-
-                if (inf.vpm.gt60) inf.vpm.gt60.textContent = String(cont.vpm.gt60);
-                if (inf.vpm.d60)  inf.vpm.d60.textContent  = String(cont.vpm.d60);
-                if (inf.vpm.d30)  inf.vpm.d30.textContent  = String(cont.vpm.d30);
-                if (inf.vpm.d15)  inf.vpm.d15.textContent  = String(cont.vpm.d15);
-                if (inf.vpm.d0)   inf.vpm.d0.textContent   = String(cont.vpm.d0);
-
-                if (inf.utt.gt60) inf.utt.gt60.textContent = String(cont.utt.gt60);
-                if (inf.utt.d60)  inf.utt.d60.textContent  = String(cont.utt.d60);
-                if (inf.utt.d30)  inf.utt.d30.textContent  = String(cont.utt.d30);
-                if (inf.utt.d15)  inf.utt.d15.textContent  = String(cont.utt.d15);
-                if (inf.utt.d0)   inf.utt.d0.textContent   = String(cont.utt.d0);
-            } catch {}
-
-            if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
-            if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
-            if (lblHist) lblHist.textContent = `${totalHistorico} en histórico`;
-
-            if (lblResumenParcial) lblResumenParcial.textContent = `Resumen basado en CSV (${totalHistorico})`;
-            if (btnCompletarResumen) btnCompletarResumen.style.display = 'none';
-
-            // Resumen por equipo basado solo en CSV (equipos presentes)
-            try {
-                if (lblResVig && lblResVenc && lblResSin) {
-                    const equipos = Array.from(anualPorEquipo.keys());
-                    let cntEquiposVig = 0;
-                    let cntEquiposVenc = 0;
-                    let cntEquiposSin = 0;
-                    let cntEquiposPorCaducar = 0;
-                    equipos.forEach(eq => {
-                        const reg = anualPorEquipo.get(eq) || null;
-                        const estado = reg ? (reg._clasif && reg._clasif.estado ? reg._clasif.estado : 'SIN_FECHA') : 'SIN_PRUEBA';
-                        if (estado === 'VIGENTE') {
-                            cntEquiposVig += 1;
-                            const dProx = parseProxima(reg ? (reg.proxima || '') : '');
-                            if (dProx) {
-                                const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-                                if (dias >= 0 && dias <= 60) cntEquiposPorCaducar += 1;
+                    if (lblResVig && lblResVenc && lblResSin) {
+                        const equipos = Array.from(anualPorEquipo.keys());
+                        let cntEquiposVig = 0;
+                        let cntEquiposVenc = 0;
+                        let cntEquiposSin = 0;
+                        let cntEquiposPorCaducar = 0;
+                        equipos.forEach(eq => {
+                            const reg = anualPorEquipo.get(eq) || null;
+                            const estado = reg ? (reg._clasif && reg._clasif.estado ? reg._clasif.estado : 'SIN_FECHA') : 'SIN_PRUEBA';
+                            if (estado === 'VIGENTE') {
+                                cntEquiposVig += 1;
+                                const dProx = parseProxima(reg ? (reg.proxima || '') : '');
+                                if (dProx) {
+                                    const dias = Math.round((dProx.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                                    if (dias >= 0 && dias <= 60) cntEquiposPorCaducar += 1;
+                                }
+                            } else if (estado === 'VENCIDA') {
+                                cntEquiposVenc += 1;
+                            } else {
+                                cntEquiposSin += 1;
                             }
-                        } else if (estado === 'VENCIDA') {
-                            cntEquiposVenc += 1;
-                        } else {
-                            cntEquiposSin += 1;
-                        }
-                    });
-                    lblResVig.textContent = String(cntEquiposVig);
-                    lblResVenc.textContent = String(cntEquiposVenc);
-                    lblResSin.textContent = String(cntEquiposSin);
-                    if (lblResPorCad) lblResPorCad.textContent = String(cntEquiposPorCaducar);
-                    if (lblResCaducadas) lblResCaducadas.textContent = String(cntEquiposVenc);
-                }
-            } catch {}
+                        });
+                        lblResVig.textContent = String(cntEquiposVig);
+                        lblResVenc.textContent = String(cntEquiposVenc);
+                        lblResSin.textContent = String(cntEquiposSin);
+                        if (lblResPorCad) lblResPorCad.textContent = String(cntEquiposPorCaducar);
+                        if (lblResCaducadas) lblResCaducadas.textContent = String(cntEquiposVenc);
+                    }
+                } catch {}
+            }
         }
 
         function limpiarConteosCsvPreview() {
@@ -2903,53 +2930,16 @@
 
         async function cargarInventarioDesdeCsv() {
             try {
-                // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage y sincronizados con Firestore
+                // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage.
                 const claveEstadoOverride = 'pct_invre_estado_override';
                 let mapaEstadoOverride = {};
                 try {
                     const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
-                    const parsed = JSON.parse(crudo);
-                    if (parsed && typeof parsed === 'object') mapaEstadoOverride = parsed;
+                    const parsedOverride = JSON.parse(crudo);
+                    if (parsedOverride && typeof parsedOverride === 'object') mapaEstadoOverride = parsedOverride;
                 } catch {
                     mapaEstadoOverride = {};
                 }
-
-                try {
-                    let canSyncFromFirestore = false;
-                    try {
-                        const auth = window.auth;
-                        const u = auth && auth.currentUser ? auth.currentUser : null;
-                        if (u && typeof u.getIdTokenResult === 'function') {
-                            const tok = await u.getIdTokenResult();
-                            const role = (tok && tok.claims && tok.claims.role) ? String(tok.claims.role) : '';
-                            canSyncFromFirestore = (role === 'admin' || role === 'director');
-                        } else {
-                            canSyncFromFirestore = !!(window.isAdmin || window.isDirector);
-                        }
-                    } catch {
-                        canSyncFromFirestore = !!(window.isAdmin || window.isDirector);
-                    }
-
-                    if (canSyncFromFirestore) {
-                        const { getFirestore, collection, getDocs } = await import(
-                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                        );
-                        const db = getFirestore();
-                        const colRef = collection(db, 'inventarioEstados');
-                        const snap = await getDocs(colRef);
-                        snap.forEach(docSnap => {
-                            const data = docSnap.data() || {};
-                            const equipoId = (docSnap.id || data.equipoId || '').toString().trim();
-                            let edo = (data.edo || '').toString().trim().toUpperCase();
-                            if (!edo) edo = 'ON';
-                            const eqK = normEquipoKey(equipoId);
-                            if (eqK) mapaEstadoOverride[eqK] = edo;
-                        });
-                        try {
-                            localStorage.setItem(claveEstadoOverride, JSON.stringify(mapaEstadoOverride));
-                        } catch {}
-                    }
-                } catch {}
 
                 const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' });
                 if (!resp.ok) return;
@@ -2975,15 +2965,22 @@
                 const mapaEdo = {};
 
                 rows.forEach(cols => {
-                    let eq = normEquipoKey((cols[idxEquipo] || '').toString());
-                    const serial = normSerialKey(((idxSerial>=0 ? cols[idxSerial] : '') || ''));
+                    const eq = normEquipoKey((cols[idxEquipo] || '').toString());
+                    const serial = normSerialKey(((idxSerial >= 0 ? cols[idxSerial] : '') || ''));
                     if (!eq) return;
                     setEq.add(eq);
                     if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
                     if (idxEdo >= 0) {
                         let edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
                         if (!edo) edo = 'ON';
-                        const override = (mapaEstadoOverride && eq && mapaEstadoOverride[eq]) ? String(mapaEstadoOverride[eq]).trim().toUpperCase() : '';
+                        // Normalizar variantes comunes
+                        try {
+                            const edoRaw = edo;
+                            if (edoRaw.includes('WIP') || edoRaw.includes('WORK IN PROGRESS') || edoRaw.includes('EN PROCESO') || edoRaw.includes('PROCESO')) edo = 'WIP';
+                            else if (edoRaw.includes('OFF') || edoRaw.includes('FUERA') || edoRaw.includes('BAJA')) edo = 'OFF';
+                            else if (edoRaw.includes('ON') || edoRaw.includes('ACTIVO') || edoRaw.includes('OPERATIVO')) edo = 'ON';
+                        } catch {}
+                        const override = (mapaEstadoOverride && mapaEstadoOverride[eq]) ? String(mapaEstadoOverride[eq]).trim().toUpperCase() : '';
                         const edoEf = override || edo;
                         if (edoEf && !mapaEdo[eq]) mapaEdo[eq] = edoEf;
                     }
@@ -3010,14 +3007,13 @@
                         const idxSerial2 = headers2.indexOf('SERIAL');
                         const idxDesc2 = headers2.indexOf('DESCRIPCION');
                         const idxProd2 = headers2.indexOf('PRODUCTO');
-                        // Heurística: en invre2, después de ACERO vienen columnas para tipo de prueba y área.
                         const idxAcero2 = headers2.indexOf('ACERO');
-                        const idxTipoPrueba2 = (idxAcero2 >= 0) ? (idxAcero2 + 1) : -1; // 'LT' | 'VT / PT / MT' | 'UTT' ...
-                        const idxArea2 = (idxAcero2 >= 0) ? (idxAcero2 + 3) : -1;      // Área inspección (e.g., CAVIDAD, CARA, PARED)
+                        const idxTipoPrueba2 = (idxAcero2 >= 0) ? (idxAcero2 + 1) : -1;
+                        const idxArea2 = (idxAcero2 >= 0) ? (idxAcero2 + 3) : -1;
                         if (idxEquipo2 >= 0 && rows2.length) {
                             rows2.forEach(cols2 => {
-                                let eq2 = normEquipoKey((cols2[idxEquipo2] || '').toString());
-                                const serial2 = normSerialKey(((idxSerial2>=0 ? cols2[idxSerial2] : '') || ''));
+                                const eq2 = normEquipoKey((cols2[idxEquipo2] || '').toString());
+                                const serial2 = normSerialKey(((idxSerial2 >= 0 ? cols2[idxSerial2] : '') || ''));
                                 if (!eq2) return;
                                 setEq.add(eq2);
                                 if (serial2 && !mapaSerialPorEquipo[eq2]) mapaSerialPorEquipo[eq2] = serial2;
@@ -3031,7 +3027,6 @@
                                     if (prod2 && !mapaProd[eq2]) mapaProd[eq2] = prod2;
                                     if (serial2 && prod2 && !mapaProdSerial[serial2]) mapaProdSerial[serial2] = prod2;
                                 }
-                                // Mapear área por equipo/serial y tipo de prueba si están las columnas
                                 if (idxTipoPrueba2 >= 0 && idxArea2 >= 0) {
                                     const tipo2 = (cols2[idxTipoPrueba2] || '').toString().trim().toUpperCase();
                                     const area2 = (cols2[idxArea2] || '').toString().trim();
@@ -3039,10 +3034,8 @@
                                         const keyEq = `${eq2}::${tipo2}`;
                                         if (!areaPorEquipoPruebaInv[keyEq]) areaPorEquipoPruebaInv[keyEq] = area2;
                                         try {
-                                            if (eq2) {
-                                                if (!tiposPorEquipoPruebaInv[eq2]) tiposPorEquipoPruebaInv[eq2] = new Set();
-                                                tiposPorEquipoPruebaInv[eq2].add(tipo2);
-                                            }
+                                            if (!tiposPorEquipoPruebaInv[eq2]) tiposPorEquipoPruebaInv[eq2] = new Set();
+                                            tiposPorEquipoPruebaInv[eq2].add(tipo2);
                                         } catch {}
                                         if (serial2) {
                                             const keySn = `${serial2}::${tipo2}`;
@@ -3059,13 +3052,53 @@
                     }
                 } catch {}
 
-                equiposInventario = setEq;
-                descripcionPorEquipoInv = mapaDesc;
-                productoPorEquipoInv = mapaProd;
-                descripcionPorSerialInv = mapaDescSerial;
-                productoPorSerialInv = mapaProdSerial;
-                serialPorEquipoInv = mapaSerialPorEquipo;
-                edoPorEquipoInv = mapaEdo;
+                try {
+                    if (typeof equiposInventario !== 'undefined') equiposInventario = setEq;
+                    if (typeof descripcionPorEquipoInv !== 'undefined') descripcionPorEquipoInv = mapaDesc;
+                    if (typeof productoPorEquipoInv !== 'undefined') productoPorEquipoInv = mapaProd;
+                    if (typeof descripcionPorSerialInv !== 'undefined') descripcionPorSerialInv = mapaDescSerial;
+                    if (typeof productoPorSerialInv !== 'undefined') productoPorSerialInv = mapaProdSerial;
+                    if (typeof serialPorEquipoInv !== 'undefined') serialPorEquipoInv = mapaSerialPorEquipo;
+                    if (typeof edoPorEquipoInv !== 'undefined') edoPorEquipoInv = mapaEdo;
+                } catch {}
+
+                try {
+                    window._plInvState = {
+                        equiposInventario,
+                        descripcionPorEquipoInv,
+                        productoPorEquipoInv,
+                        descripcionPorSerialInv,
+                        productoPorSerialInv,
+                        serialPorEquipoInv,
+                        edoPorEquipoInv,
+                        aliasEquipoMalAEquipoCorrecto,
+                        areaPorEquipoPruebaInv,
+                        areaPorSerialPruebaInv,
+                        tiposPorEquipoPruebaInv,
+                        tiposPorSerialPruebaInv,
+                    };
+                } catch {}
+
+                // Estados ON/WIP/OFF: source of truth inventarioEstados (Firestore). Mergearlos aquí para chips/modales.
+                try {
+                    const estados = await plLoadInventarioEstados();
+                    if (estados && typeof estados === 'object') {
+                        const normEstados = {};
+                        try {
+                            Object.keys(estados || {}).forEach(k0 => {
+                                const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(k0 || '')) : String(k0 || '').trim().toUpperCase();
+                                if (!k) return;
+                                normEstados[k] = String(estados[k0] || '').trim().toUpperCase() || 'ON';
+                            });
+                        } catch {}
+                        edoPorEquipoInv = { ...(edoPorEquipoInv || {}), ...normEstados };
+                        try {
+                            if (window._plInvState && typeof window._plInvState === 'object') window._plInvState.edoPorEquipoInv = edoPorEquipoInv;
+                        } catch {}
+                    }
+                } catch {}
+
+                try { render(); } catch {}
             } catch (e) {
                 console.warn('No se pudo cargar invre.csv para resumen de pruebas', e);
             }
@@ -3166,7 +3199,22 @@
 
         function buildExistingKeys() {
             existingKeys = new Set();
-            (pruebas||[]).forEach(reg => {
+            const arr = (() => {
+                try {
+                    if (typeof pruebas !== 'undefined' && Array.isArray(pruebas)) return pruebas;
+                } catch {}
+                try {
+                    if (typeof window.pctGetPruebas === 'function') {
+                        const p = window.pctGetPruebas();
+                        if (Array.isArray(p)) return p;
+                    }
+                } catch {}
+                try {
+                    if (Array.isArray(window.pruebas)) return window.pruebas;
+                } catch {}
+                return [];
+            })();
+            arr.forEach(reg => {
                 const k = composeKey({
                     equipo: reg.equipo,
                     numeroSerie: reg.serial || reg.numeroSerie,
@@ -3179,7 +3227,7 @@
                 if (k) existingKeys.add(k);
             });
         }
-        buildExistingKeys();
+        try { buildExistingKeys(); } catch {}
         // Exponer utilidades para handlers definidos fuera de este alcance
         try {
             window.buildExistingKeys = buildExistingKeys;
@@ -4217,25 +4265,37 @@
         }
 
         async function deleteExistingFromCsv(rows) {
-            const { getFirestore, collection, getDocs, deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const { getFirestore, collection, getDocs, deleteDoc, doc, query, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
             const db = (window.db || getFirestore());
             // Construir mapa key->docId de Firestore
             const colRef = collection(db, 'pruebas');
-            const snap = await getDocs(colRef);
             const mapFs = new Map();
-            snap.docs.forEach(d => {
-                const data = d.data();
-                const k = composeKey({
-                    equipo: data.equipo,
-                    numeroSerie: data.serial || data.numeroSerie,
-                    periodo: data.periodo,
-                    prueba: data.prueba,
-                    fechaRealizacion: data.fechaRealizacion,
-                    noReporte: data.noReporte,
-                    area: data.area,
-                });
-                if (k) mapFs.set(k, d.id);
-            });
+
+            // Leer solo documentos relevantes (por equipo) en lugar de toda la colección.
+            try {
+                const equipos = Array.from(new Set((rows || []).map(r => (r && r.equipo) ? String(r.equipo).trim() : '').filter(Boolean)));
+                const chunkSize = 30; // límite de `in`
+                for (let i = 0; i < equipos.length; i += chunkSize) {
+                    const chunk = equipos.slice(i, i + chunkSize);
+                    const q = query(colRef, where('equipo', 'in', chunk));
+                    const snap = await getDocs(q);
+                    snap.docs.forEach(d => {
+                        const data = d.data();
+                        const k = composeKey({
+                            equipo: data.equipo,
+                            numeroSerie: data.serial || data.numeroSerie,
+                            periodo: data.periodo,
+                            prueba: data.prueba,
+                            fechaRealizacion: data.fechaRealizacion,
+                            noReporte: data.noReporte,
+                            area: data.area,
+                        });
+                        if (k) mapFs.set(k, d.id);
+                    });
+                }
+            } catch (e) {
+                console.error('No se pudo construir mapa de existentes por equipo', e);
+            }
 
             let delOk = 0, delMiss = 0, delFail = 0;
             let processed = 0;
@@ -4266,9 +4326,11 @@
             return { delOk, delMiss, delFail };
         }
 
-        if (btnImportCsv && inputImportCsv) {
-            btnImportCsv.addEventListener('click', () => inputImportCsv.click());
-            inputImportCsv.addEventListener('change', async (ev) => {
+        const btnImportCsvEl = document.getElementById('btn-pruebas-import-csv');
+        const inputImportCsvEl = document.getElementById('input-import-csv');
+        if (btnImportCsvEl && inputImportCsvEl) {
+            btnImportCsvEl.addEventListener('click', () => inputImportCsvEl.click());
+            inputImportCsvEl.addEventListener('change', async (ev) => {
                 const file = ev.target.files && ev.target.files[0];
                 if (!file) return;
                 try {
@@ -4331,24 +4393,33 @@
             });
         }
 
-        if (btnImportConfirm) {
-            btnImportConfirm.addEventListener('click', async () => {
+        const btnImportConfirmEl = document.getElementById('btn-import-confirm');
+        const btnImportDeleteExistingEl = document.getElementById('btn-import-delete-existing');
+        const btnImportCancelEl = document.getElementById('btn-import-cancel');
+        const importPreviewEl = document.getElementById('import-preview');
+        const importSummaryEl = document.getElementById('import-summary');
+        const importWarningsEl = document.getElementById('import-warnings');
+        const importErrorsEl = document.getElementById('import-errors');
+        const inputImportCsvEl2 = document.getElementById('input-import-csv');
+
+        if (btnImportConfirmEl) {
+            btnImportConfirmEl.addEventListener('click', async () => {
                 if (!(window.isAuxger || window.isAuxndt || window.isSgi)) return;
-                btnImportConfirm.disabled = true;
+                btnImportConfirmEl.disabled = true;
                 try {
                     // Salir del modo vista previa CSV: después de importar, el origen de verdad es Firestore
                     // Esconde el CSV preview y vuelve a estado normal.
                     try {
-                        if (importPreview) importPreview.style.display = 'none';
+                        if (importPreviewEl) importPreviewEl.style.display = 'none';
                         _csvPreviewRows = [];
                     } catch {}
 
                     const res = await doImportToFirestore(importRowsReady||[]);
-                    importSummary.innerHTML += ` - Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
+                    if (importSummaryEl) importSummaryEl.innerHTML += ` - Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
                     try {
                         if (res && Array.isArray(res.skippedSamples) && res.skippedSamples.length) {
                             const html = res.skippedSamples.map(s => `<li>${escapeHtml(s)}</li>`).join('');
-                            importWarnings.innerHTML = `<div style="margin-top:0.25rem;"><strong>Duplicados omitidos (muestra):</strong></div><ul>${html}</ul>` + (res.skipped > res.skippedSamples.length ? `<div style="margin-top:0.25rem;">... y ${res.skipped - res.skippedSamples.length} más</div>` : '');
+                            if (importWarningsEl) importWarningsEl.innerHTML = `<div style="margin-top:0.25rem;"><strong>Duplicados omitidos (muestra):</strong></div><ul>${html}</ul>` + (res.skipped > res.skippedSamples.length ? `<div style="margin-top:0.25rem;">... y ${res.skipped - res.skippedSamples.length} más</div>` : '');
                         }
                     } catch {}
                     // Recargar listado
@@ -4378,34 +4449,34 @@
 
                     // Cerrar/limpiar vista previa CSV para evitar que el UI siga mostrando conteos del CSV
                     try {
-                        if (importPreview) importPreview.style.display = 'none';
-                        if (importWarnings) importWarnings.innerHTML = '';
-                        if (importErrors) importErrors.innerHTML = '';
-                        if (btnImportConfirm) btnImportConfirm.style.display = 'none';
-                        if (btnImportDeleteExisting) btnImportDeleteExisting.style.display = 'none';
-                        if (btnImportCancel) btnImportCancel.style.display = 'none';
+                        if (importPreviewEl) importPreviewEl.style.display = 'none';
+                        if (importWarningsEl) importWarningsEl.innerHTML = '';
+                        if (importErrorsEl) importErrorsEl.innerHTML = '';
+                        if (btnImportConfirmEl) btnImportConfirmEl.style.display = 'none';
+                        if (btnImportDeleteExistingEl) btnImportDeleteExistingEl.style.display = 'none';
+                        if (btnImportCancelEl) btnImportCancelEl.style.display = 'none';
                         importRowsReady = [];
                         lastCsvText = '';
-                        if (inputImportCsv) inputImportCsv.value = '';
+                        if (inputImportCsvEl2) inputImportCsvEl2.value = '';
                     } catch {}
 
                     // Forzar refresco de chips de tipo con base en Firestore ya recargado
                     try { actualizarContadoresTiposLocal(pruebas); } catch {}
                     render();
                 } finally {
-                    btnImportConfirm.disabled = false;
+                    try { btnImportConfirmEl.disabled = false; } catch {}
                 }
             });
         }
 
-        if (btnImportCancel) {
-            btnImportCancel.addEventListener('click', () => {
-                if (importPreview) importPreview.style.display = 'none';
-                if (importSummary) importSummary.innerHTML = '';
-                if (importWarnings) importWarnings.innerHTML = '';
-                if (importErrors) importErrors.innerHTML = '';
+        if (btnImportCancelEl) {
+            btnImportCancelEl.addEventListener('click', () => {
+                if (importPreviewEl) importPreviewEl.style.display = 'none';
+                if (importSummaryEl) importSummaryEl.innerHTML = '';
+                if (importWarningsEl) importWarningsEl.innerHTML = '';
+                if (importErrorsEl) importErrorsEl.innerHTML = '';
                 importRowsReady = [];
-                if (inputImportCsv) inputImportCsv.value = '';
+                if (inputImportCsvEl2) inputImportCsvEl2.value = '';
                 try { limpiarConteosCsvPreview(); } catch {}
             });
         }
@@ -5026,6 +5097,163 @@
         }
 
         function render() {
+            // En algunos despliegues el dataset paginado vive en otro scope (window.pctGetPruebas/window.pruebas).
+            // Si el arreglo local está vacío pero ya hay datos cargados, sincronizar para que el UI pinte.
+            try {
+                const p = (typeof window.pctGetPruebas === 'function')
+                    ? window.pctGetPruebas()
+                    : (Array.isArray(window.pruebas) ? window.pruebas : []);
+                if (Array.isArray(p) && p.length && (!Array.isArray(pruebas) || !pruebas.length)) {
+                    pruebas = p;
+                }
+            } catch {}
+
+            // Resolver referencias DOM dentro de render para evitar errores por variables fuera de scope.
+            const tbodyListado = document.getElementById('tbody-pruebas-listado');
+            const msgListado = document.getElementById('mensaje-sin-pruebas-listado');
+            const inputBuscar = document.getElementById('pruebas-buscar');
+            const inputBuscarResumen = document.getElementById('pl-resumen-buscar');
+            const lblResultados = document.getElementById('pruebas-buscar-resultados');
+            const btnBuscarServidor = document.getElementById('btn-pruebas-buscar-servidor');
+            const tbodyResumen = document.getElementById('tbody-pruebas-resumen');
+            const msgResumen = document.getElementById('mensaje-sin-pruebas-resumen');
+            const lblPend = document.getElementById('pruebas-contador-pendientes');
+            const lblVenc = document.getElementById('pruebas-contador-vencidas');
+            const lblHist = document.getElementById('pruebas-contador-historico');
+            const lblAnual = document.getElementById('pruebas-contador-anual');
+            const lblPT = document.getElementById('pruebas-contador-pt');
+            const lblRep = document.getElementById('pruebas-contador-rep');
+            const lblResVig = document.getElementById('pruebas-resumen-vigentes');
+            const lblResVenc = document.getElementById('pruebas-resumen-vencidas');
+            const lblResSin = document.getElementById('pruebas-resumen-sin');
+            const lblResPorCad = document.getElementById('pruebas-resumen-porcaducar');
+            const lblResCaducadas = document.getElementById('pruebas-resumen-caducadas');
+
+            const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
+            const lblAlert60 = document.getElementById('pruebas-alert-60');
+            const lblAlert30 = document.getElementById('pruebas-alert-30');
+            const lblAlert15 = document.getElementById('pruebas-alert-15');
+            const lblAlert0 = document.getElementById('pruebas-alert-0');
+
+            const cardR60Val = document.getElementById('card-rango-60-val');
+            const cardR30Val = document.getElementById('card-rango-30-val');
+            const cardR15Val = document.getElementById('card-rango-15-val');
+            const cardR0Val = document.getElementById('card-rango-0-val');
+
+            const chkSelectTodos = document.getElementById('pruebas-select-todos');
+
+            // Tabla informativa "Resumen de estado Pruebas Anuales"
+            const inf = {
+                lt: {
+                    gt60: document.getElementById('inf-lt-gt60'),
+                    d60: document.getElementById('inf-lt-60'),
+                    d30: document.getElementById('inf-lt-30'),
+                    d15: document.getElementById('inf-lt-15'),
+                    d0:  document.getElementById('inf-lt-0'),
+                },
+                vpm: {
+                    gt60: document.getElementById('inf-vpm-gt60'),
+                    d60: document.getElementById('inf-vpm-60'),
+                    d30: document.getElementById('inf-vpm-30'),
+                    d15: document.getElementById('inf-vpm-15'),
+                    d0:  document.getElementById('inf-vpm-0'),
+                },
+                utt: {
+                    gt60: document.getElementById('inf-utt-gt60'),
+                    d60: document.getElementById('inf-utt-60'),
+                    d30: document.getElementById('inf-utt-30'),
+                    d15: document.getElementById('inf-utt-15'),
+                    d0:  document.getElementById('inf-utt-0'),
+                },
+            };
+
+            // Compat: algunas ramas antiguas del render referencian `hideMode`.
+            // Definirlo aquí evita ReferenceError sin afectar lógica si no se usa.
+            const hideMode = (typeof window.hideMode !== 'undefined') ? window.hideMode : null;
+
+            // Compat: `viewMode` puede existir en otro scope; usar fallback para evitar ReferenceError.
+            const viewMode = (typeof window.viewMode !== 'undefined' && window.viewMode)
+                ? window.viewMode
+                : 'historico';
+
+            // Compat: filtros pueden existir en otro scope; usar fallbacks para evitar ReferenceError.
+            const filtroCobertura = (typeof window.filtroCobertura !== 'undefined') ? window.filtroCobertura : '';
+            const filtroPeriodo = (typeof window.filtroPeriodo !== 'undefined') ? window.filtroPeriodo : '';
+            const filtroRango = (typeof window.filtroRango !== 'undefined') ? window.filtroRango : '';
+            const filtroTiposPrueba = (window.filtroTiposPrueba instanceof Set)
+                ? window.filtroTiposPrueba
+                : new Set(['LT', 'VPM', 'UTT']);
+
+            const _csvPreviewActive = (typeof window._csvPreviewActive !== 'undefined') ? !!window._csvPreviewActive : false;
+
+            // Inventario (puede vivir en otro scope). Usar fallbacks para que el render del listado no truene.
+            const _inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : {};
+            const equiposInventario = (_inv.equiposInventario instanceof Set) ? _inv.equiposInventario : new Set();
+            const descripcionPorEquipoInv = (_inv.descripcionPorEquipoInv && typeof _inv.descripcionPorEquipoInv === 'object') ? _inv.descripcionPorEquipoInv : {};
+            const productoPorEquipoInv = (_inv.productoPorEquipoInv && typeof _inv.productoPorEquipoInv === 'object') ? _inv.productoPorEquipoInv : {};
+            const descripcionPorSerialInv = (_inv.descripcionPorSerialInv && typeof _inv.descripcionPorSerialInv === 'object') ? _inv.descripcionPorSerialInv : {};
+            const productoPorSerialInv = (_inv.productoPorSerialInv && typeof _inv.productoPorSerialInv === 'object') ? _inv.productoPorSerialInv : {};
+            const serialPorEquipoInv = (_inv.serialPorEquipoInv && typeof _inv.serialPorEquipoInv === 'object') ? _inv.serialPorEquipoInv : {};
+            const edoPorEquipoInv = (_inv.edoPorEquipoInv && typeof _inv.edoPorEquipoInv === 'object') ? _inv.edoPorEquipoInv : {};
+            const aliasEquipoMalAEquipoCorrecto = (_inv.aliasEquipoMalAEquipoCorrecto && typeof _inv.aliasEquipoMalAEquipoCorrecto === 'object') ? _inv.aliasEquipoMalAEquipoCorrecto : {};
+            const areaPorEquipoPruebaInv = (_inv.areaPorEquipoPruebaInv && typeof _inv.areaPorEquipoPruebaInv === 'object') ? _inv.areaPorEquipoPruebaInv : {};
+            const areaPorSerialPruebaInv = (_inv.areaPorSerialPruebaInv && typeof _inv.areaPorSerialPruebaInv === 'object') ? _inv.areaPorSerialPruebaInv : {};
+            const tiposPorEquipoPruebaInv = (_inv.tiposPorEquipoPruebaInv && typeof _inv.tiposPorEquipoPruebaInv === 'object') ? _inv.tiposPorEquipoPruebaInv : {};
+            const tiposPorSerialPruebaInv = (_inv.tiposPorSerialPruebaInv && typeof _inv.tiposPorSerialPruebaInv === 'object') ? _inv.tiposPorSerialPruebaInv : {};
+
+            const resolverEquipoYSerialCanon = (typeof window.resolverEquipoYSerialCanon === 'function')
+                ? window.resolverEquipoYSerialCanon
+                : ((equipoRaw, serialRaw) => {
+                    const eq0 = (typeof normEquipoKey === 'function') ? normEquipoKey(String(equipoRaw || '')) : String(equipoRaw || '');
+                    const sr0 = (typeof normSerialKey === 'function') ? normSerialKey(String(serialRaw || '')) : String(serialRaw || '');
+                    let eqCanon = (eq0 && aliasEquipoMalAEquipoCorrecto && aliasEquipoMalAEquipoCorrecto[eq0])
+                        ? String(aliasEquipoMalAEquipoCorrecto[eq0] || '')
+                        : eq0;
+                    try {
+                        if (eqCanon && !(serialPorEquipoInv && serialPorEquipoInv[eqCanon])) {
+                            const m = String(eqCanon).match(/^(.*-)(\d{1,3})$/);
+                            if (m && m[1] && m[2] && m[2].length < 3) {
+                                const padded = `${m[1]}${String(m[2]).padStart(3, '0')}`;
+                                const paddedKey = (typeof normEquipoKey === 'function') ? normEquipoKey(padded) : padded;
+                                if (paddedKey && ((serialPorEquipoInv && serialPorEquipoInv[paddedKey]) || (equiposInventario && equiposInventario.has && equiposInventario.has(paddedKey)))) {
+                                    eqCanon = paddedKey;
+                                }
+                            }
+                        }
+                    } catch {}
+                    let srCanon = sr0;
+                    try {
+                        const fromInv = (eqCanon && serialPorEquipoInv && serialPorEquipoInv[eqCanon])
+                            ? ((typeof normSerialKey === 'function') ? normSerialKey(serialPorEquipoInv[eqCanon]) : String(serialPorEquipoInv[eqCanon]))
+                            : '';
+                        if (fromInv) srCanon = fromInv;
+                    } catch {}
+                    return { equipoCanon: eqCanon, serialCanon: srCanon };
+                });
+
+            try {
+                window._plRenderDiag = {
+                    pruebasLen: (Array.isArray(pruebas) ? pruebas.length : -1),
+                    hasTbody: !!tbodyListado,
+                    hasResumenTbody: !!tbodyResumen,
+                    filtroRango,
+                    filtroCobertura,
+                    filtroPeriodo,
+                    filtroTiposSize: (filtroTiposPrueba && typeof filtroTiposPrueba.size === 'number') ? filtroTiposPrueba.size : null,
+                };
+            } catch {}
+
+            if (!tbodyListado) {
+                try {
+                    const msg = document.getElementById('mensaje-sin-pruebas-listado');
+                    if (msg) {
+                        msg.style.display = 'block';
+                        msg.textContent = 'No se pudo inicializar la tabla de pruebas (DOM no encontrado).';
+                    }
+                } catch {}
+                return;
+            }
+
             const filtroHistorico = (inputBuscar?.value || '').toLowerCase().trim();
             const filtroResumen = (inputBuscarResumen?.value || '').toLowerCase().trim();
             const filtro = filtroHistorico;
@@ -5100,6 +5328,34 @@
             } catch {}
             const totalHistorico = historico.length;
 
+            // Chips de periodo (ANUAL / POST-TRABAJO / REPARACION)
+            // Si existe resumen global (server-side) preferirlo para no mostrar solo la página cargada.
+            try {
+                const gt = (window._plResumenGlobalTotals && typeof window._plResumenGlobalTotals === 'object')
+                    ? window._plResumenGlobalTotals
+                    : null;
+                const hasGlobal = !!(gt && (gt.anualDocs != null || gt.postTrabajoDocs != null || gt.reparacionDocs != null));
+
+                if (hasGlobal) {
+                    if (lblAnual && gt.anualDocs != null) lblAnual.textContent = `Anual: ${gt.anualDocs}`;
+                    if (lblPT && gt.postTrabajoDocs != null) lblPT.textContent = `Post-trabajo: ${gt.postTrabajoDocs}`;
+                    if (lblRep && gt.reparacionDocs != null) lblRep.textContent = `Reparación: ${gt.reparacionDocs}`;
+                } else {
+                    let cAnual = 0;
+                    let cPT = 0;
+                    let cRep = 0;
+                    (enriched || []).forEach(r => {
+                        const p = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
+                        if (p === 'POST-TRABAJO') cPT += 1;
+                        else if (p === 'REPARACION') cRep += 1;
+                        else cAnual += 1;
+                    });
+                    if (lblAnual) lblAnual.textContent = `Anual: ${cAnual}`;
+                    if (lblPT) lblPT.textContent = `Post-trabajo: ${cPT}`;
+                    if (lblRep) lblRep.textContent = `Reparación: ${cRep}`;
+                }
+            } catch {}
+
             enriched.forEach(reg => {
                 if (reg._clasif.estado === 'VIGENTE' || reg._clasif.estado === 'VENCIDA') {
                     porRealizar.push(reg);
@@ -5148,7 +5404,7 @@
                 const lblParMissVpm = document.getElementById('pruebas-equipos-parcial-miss-vpm');
                 const lblParMissUtt = document.getElementById('pruebas-equipos-parcial-miss-utt');
 
-                const equiposBase = (equiposInventario && equiposInventario.size)
+                let equiposBase = (equiposInventario && equiposInventario.size)
                     ? Array.from(equiposInventario)
                     : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
 
@@ -5156,34 +5412,61 @@
                 const equiposConLt = new Set();
                 const equiposConVpm = new Set();
                 const equiposConUtt = new Set();
-                (pruebas || []).forEach(r => {
-                    const eq = (() => {
-                        try {
-                            const rr = r || {};
-                            const { equipoCanon } = resolverEquipoYSerialCanon(
-                                rr.equipo,
-                                (rr.serial || rr.numeroSerie || rr.noSerie || '')
-                            );
-                            return equipoCanon || normEquipoKey(rr && rr.equipo ? String(rr.equipo) : '');
-                        } catch {
-                            return normEquipoKey(r && r.equipo ? String(r.equipo) : '');
-                        }
-                    })();
-                    if (eq) equiposConAlgo.add(eq);
+                const equiposConAnual = new Set();
+                let byEq = null;
 
-                    const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
-                    const esHistorico = (periodo === 'POST-TRABAJO' || periodo === 'REPARACION');
-                    if (esHistorico) return;
+                // Preferir resumenes_equipos (source-of-truth) si está disponible en caché.
+                try {
+                    const cached = window._plResumenesEquiposCache;
+                    const items = (cached && Array.isArray(cached.items)) ? cached.items : null;
+                    if (items && items.length) {
+                        // Base: todos los equipos del resumen materializado.
+                        equiposBase = Array.from(new Set(items.map(it => normEquipoKey(String(it.equipoKey || it.id || ''))).filter(Boolean)));
+                        byEq = new Map();
+                        items.forEach(it => {
+                            const eq = normEquipoKey(String(it.equipoKey || it.id || ''));
+                            if (!eq) return;
+                            if (byEq) byEq.set(eq, it);
+                            const hasPruebas = !!(it.pruebas && (it.pruebas.LT || it.pruebas.UTT || it.pruebas['VT/PT/MT']));
+                            if (hasPruebas) equiposConAlgo.add(eq);
+                            if (it.pruebas && it.pruebas.LT) { equiposConLt.add(eq); equiposConAnual.add(eq); }
+                            if (it.pruebas && it.pruebas['VT/PT/MT']) { equiposConVpm.add(eq); equiposConAnual.add(eq); }
+                            if (it.pruebas && it.pruebas.UTT) { equiposConUtt.add(eq); equiposConAnual.add(eq); }
+                        });
+                    }
+                } catch {}
 
-                    const esAnual = (!periodo || periodo === 'ANUAL');
-                    if (!esAnual) return;
+                // Fallback: si no hay caché, usar las pruebas cargadas (parcial).
+                if (!equiposConAlgo.size) {
+                    (pruebas || []).forEach(r => {
+                        const eq = (() => {
+                            try {
+                                const rr = r || {};
+                                const { equipoCanon } = resolverEquipoYSerialCanon(
+                                    rr.equipo,
+                                    (rr.serial || rr.numeroSerie || rr.noSerie || '')
+                                );
+                                return equipoCanon || normEquipoKey(rr && rr.equipo ? String(rr.equipo) : '');
+                            } catch {
+                                return normEquipoKey(r && r.equipo ? String(r.equipo) : '');
+                            }
+                        })();
+                        if (eq) equiposConAlgo.add(eq);
 
-                    const p = ((r && (r.prueba || r.pruebaTipo)) ? String(r.prueba || r.pruebaTipo) : '').toUpperCase();
-                    if (p.includes('UTT')) equiposConUtt.add(eq);
-                    if (p.includes('VT') || p.includes('PT') || p.includes('MT')) equiposConVpm.add(eq);
-                    if (p.includes('LT')) equiposConLt.add(eq);
-                });
-                const equiposConAnual = new Set(Array.from(anualPorEquipo.keys()));
+                        const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
+                        const esHistorico = (periodo === 'POST-TRABAJO' || periodo === 'REPARACION');
+                        if (esHistorico) return;
+
+                        const esAnual = (!periodo || periodo === 'ANUAL');
+                        if (!esAnual) return;
+
+                        equiposConAnual.add(eq);
+                        const p = ((r && (r.prueba || r.pruebaTipo)) ? String(r.prueba || r.pruebaTipo) : '').toUpperCase();
+                        if (p.includes('UTT')) equiposConUtt.add(eq);
+                        if (p.includes('VT') || p.includes('PT') || p.includes('MT')) equiposConVpm.add(eq);
+                        if (p.includes('LT')) equiposConLt.add(eq);
+                    });
+                }
 
                 let c100 = 0;
                 let cPar = 0;
@@ -5198,23 +5481,41 @@
 
                 window._equiposCobertura = window._equiposCobertura || {};
 
+                const wipSet = (() => {
+                    try {
+                        const c = window._plWipEquiposSet;
+                        return (c && c.items instanceof Set) ? c.items : null;
+                    } catch { return null; }
+                })();
+
                 equiposBase.forEach(eq => {
                     const hasAny = equiposConAlgo.has(eq);
                     const hasAnual = equiposConAnual.has(eq);
                     const hasLt = equiposConLt.has(eq);
                     const hasVpm = equiposConVpm.has(eq);
                     const hasUtt = equiposConUtt.has(eq);
-                    const serialInv = (serialPorEquipoInv && eq && serialPorEquipoInv[eq]) ? String(serialPorEquipoInv[eq]) : '';
+                    const serialInv = (() => {
+                        try {
+                            if (byEq && byEq.get(eq) && byEq.get(eq).serial) return String(byEq.get(eq).serial);
+                        } catch {}
+                        return (serialPorEquipoInv && eq && serialPorEquipoInv[eq]) ? String(serialPorEquipoInv[eq]) : '';
+                    })();
                     const isNoUtt = !!(window.isNoUttEquipo && window.isNoUttEquipo(eq, serialInv));
                     const is100 = !!(hasAnual && hasVpm && (hasUtt || isNoUtt));
-                    const cat = (!hasAny) ? 'sin' : (is100 ? '100' : 'parcial');
+                    const edo = (() => {
+                        try {
+                            if (byEq && byEq.get(eq) && byEq.get(eq).edo) return String(byEq.get(eq).edo).toUpperCase();
+                        } catch {}
+                        return (edoPorEquipoInv && edoPorEquipoInv[eq]) ? String(edoPorEquipoInv[eq]).toUpperCase() : '';
+                    })();
+                    const isWip = (String(edo || '').trim().toUpperCase() === 'WIP') || (!!(wipSet && wipSet.has(eq)));
+                    const cat = (!hasAny || isWip) ? 'sin' : (is100 ? '100' : 'parcial');
                     window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasLt, hasVpm, hasUtt };
                     if (cat === '100') c100 += 1;
                     else if (cat === 'parcial') cPar += 1;
                     else {
                         cSin += 1;
-                        const edo = (edoPorEquipoInv && edoPorEquipoInv[eq]) ? String(edoPorEquipoInv[eq]).toUpperCase() : '';
-                        if (edo === 'WIP') cSinWip += 1;
+                        if (isWip) cSinWip += 1;
                     }
 
                     if (!hasLt) missLt += 1;
@@ -5478,6 +5779,29 @@
                 }
             } catch {}
 
+            // Si hay resumen global materializado por tipo, preferirlo para la tabla informativa.
+            try {
+                if (!_csvPreviewActive && window._plResumenGlobalAnualesByTipo && window._pctResumenGlobal && window._pctResumenGlobal.at) {
+                    const at = Number(window._pctResumenGlobal.at || 0);
+                    const isFresh = at && isFinite(at) && (Date.now() - at) < (24 * 60 * 60 * 1000);
+                    if (isFresh) {
+                        const by = window._plResumenGlobalAnualesByTipo;
+                        const apply = (cat, key) => {
+                            const src = (by && by[key]) ? by[key] : null;
+                            if (!src) return;
+                            if (inf[cat].gt60) inf[cat].gt60.textContent = String(Number(src.gt60 || 0));
+                            if (inf[cat].d60)  inf[cat].d60.textContent  = String(Number(src.d60 || 0));
+                            if (inf[cat].d30)  inf[cat].d30.textContent  = String(Number(src.d30 || 0));
+                            if (inf[cat].d15)  inf[cat].d15.textContent  = String(Number(src.d15 || 0));
+                            if (inf[cat].d0)   inf[cat].d0.textContent   = String(Number(src.d0 || 0));
+                        };
+                        apply('lt', 'LT');
+                        apply('utt', 'UTT');
+                        apply('vpm', 'VT/PT/MT');
+                    }
+                }
+            } catch {}
+
             // Resumen por equipo+serial: ANUAL LT como ancla, POST-TRABAJO histórico por año vigente (o total si no hay anual)
             if (tbodyResumen) {
                 const baseKeys = new Map();
@@ -5488,8 +5812,7 @@
                     equiposBase.forEach(eqK => {
                         const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
                         const srK = normSerialKey(serialInv);
-                        const key = `${eqK}__${srK}`;
-                        if (!baseKeys.has(key)) baseKeys.set(key, { eqK, srK });
+                        if (!baseKeys.has(eqK)) baseKeys.set(eqK, { eqK, srK });
                     });
                 } catch {}
                 try {
@@ -5499,8 +5822,9 @@
                         const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
                         const serialRaw = (r && (r.numeroSerie || r.serial)) ? String(r.numeroSerie || r.serial) : '';
                         const srK = normSerialKey(serialRaw) || normSerialKey(serialInv) || '';
-                        const key = `${eqK}__${srK}`;
-                        if (!baseKeys.has(key)) baseKeys.set(key, { eqK, srK });
+                        const prev = baseKeys.get(eqK) || null;
+                        if (!prev) baseKeys.set(eqK, { eqK, srK });
+                        else if (!prev.srK && srK) baseKeys.set(eqK, { eqK, srK });
                     });
                 } catch {}
 
@@ -5516,7 +5840,7 @@
                     const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
                     const serialRaw = (r && (r.numeroSerie || r.serial)) ? String(r.numeroSerie || r.serial) : '';
                     const srK = normSerialKey(serialRaw) || normSerialKey(serialInv) || '';
-                    const gKey = `${eqK}__${srK}`;
+                    const gKey = eqK;
 
                     const periodo = (r.periodo || '').toString().trim().toUpperCase();
                     const tipo = normPruebaTipo(r.pruebaTipo || r.prueba || '');
@@ -5551,7 +5875,7 @@
                 };
 
                 const rows = Array.from(baseKeys.values()).map(({ eqK, srK }) => {
-                    const gKey = `${eqK}__${srK}`;
+                    const gKey = eqK;
                     const anual = anualesLt.get(gKey) || null;
                     let anualFr = anual && anual.fr ? anual.fr : null;
                     let anualProx = null;
@@ -5654,17 +5978,7 @@
                 return;
             }
 
-            // Ordenar priorizando próximas a vencer (VIGENTE con días >= 0, ascendente) POR PRUEBA,
-            // luego vencidas, luego sin fecha, y en cada grupo por fecha de realización desc.
-            function diasHastaProxima(reg) {
-                const clasif = clasificarPrueba(reg);
-                if (!clasif || !clasif.proxima) return null;
-                const hoy0 = hoySinHora();
-                const diffMs = clasif.proxima.getTime() - hoy0.getTime();
-                let dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
-                return dias;
-            }
-
+            // Orden por defecto: mostrar lo más reciente primero (por fecha de realización).
             const listaOrdenada = [...historico].sort((a, b) => {
                 // Si el usuario está buscando (equipo/serial/reporte), mostrar más reciente primero.
                 if (filtro) {
@@ -5683,28 +5997,15 @@
                     return 0;
                 }
 
-                const da = diasHastaProxima(a);
-                const db = diasHastaProxima(b);
-                const ea = (clasificarPrueba(a)?.estado) || 'SIN_FECHA';
-                const eb = (clasificarPrueba(b)?.estado) || 'SIN_FECHA';
+                const aMs = (a && a._fechaRealDate instanceof Date) ? a._fechaRealDate.getTime() : 0;
+                const bMs = (b && b._fechaRealDate instanceof Date) ? b._fechaRealDate.getTime() : 0;
+                if (bMs !== aMs) return bMs - aMs;
 
-                const cat = (regEstado, dias) => {
-                    if (regEstado === 'VIGENTE' && dias !== null && dias >= 0) return 0; // próximas a vencer
-                    if (regEstado === 'VENCIDA') return 1; // vencidas
-                    return 2; // sin fecha u otros
-                };
-
-                const ca = cat(ea, da);
-                const cb = cat(eb, db);
-                if (ca !== cb) return ca - cb;
-
-                if (ca === 0) {
-                    // Ambos en próximas a vencer: menor días primero
-                    if (da !== db) return (da ?? Number.POSITIVE_INFINITY) - (db ?? Number.POSITIVE_INFINITY);
-                }
-
-                // Mismo grupo: más reciente primero
-                return b._fechaRealDate.getTime() - a._fechaRealDate.getTime();
+                const aId = (a && a.id) ? String(a.id) : '';
+                const bId = (b && b.id) ? String(b.id) : '';
+                if (aId < bId) return 1;
+                if (aId > bId) return -1;
+                return 0;
             });
 
             try {
@@ -5793,9 +6094,7 @@
 
                 let equiposSin = [];
                 try {
-                    const base = (equiposInventario && equiposInventario.size)
-                        ? Array.from(equiposInventario)
-                        : Object.keys(window._equiposCobertura || {});
+                    const base = Object.keys(window._equiposCobertura || {});
                     equiposSin = base
                         .map(eq => normEquipoKey(eq))
                         .filter(Boolean)
@@ -5923,9 +6222,7 @@
             if (filtroCobertura === 'parcial' || filtroCobertura === '100') {
                 let equiposSel = [];
                 try {
-                    const base = (equiposInventario && equiposInventario.size)
-                        ? Array.from(equiposInventario)
-                        : Object.keys(window._equiposCobertura || {});
+                    const base = Object.keys(window._equiposCobertura || {});
                     equiposSel = base
                         .map(eq => normEquipoKey(eq))
                         .filter(Boolean)
@@ -6177,11 +6474,15 @@
                 } catch {}
 
                 // Filtro por tipo de prueba (LT / VT-PT-MT / UTT)
+                // Solo aplicar cuando sea un filtro parcial. Si está vacío ("ninguno"), no filtrar para evitar pantalla en 0.
                 try {
-                    if (filtroTiposPrueba && filtroTiposPrueba.size >= 0) {
+                    const total = 3;
+                    const selected = (filtroTiposPrueba && typeof filtroTiposPrueba.size === 'number') ? filtroTiposPrueba.size : total;
+                    const isPartial = selected > 0 && selected < total;
+                    if (isPartial) {
                         const cat = categoriaTipoPrueba(reg);
                         if (cat && !filtroTiposPrueba.has(cat)) return;
-                        if (!cat && filtroTiposPrueba.size > 0) return;
+                        if (!cat) return;
                     }
                 } catch {}
 
@@ -6415,9 +6716,6 @@
                 if (btnMore500Bottom) btnMore500Bottom.disabled = !hasMore || _isLoadingAll || _isLoadingMore;
             } catch {}
 
-            const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
-            const lblAlert0 = document.getElementById('pruebas-alert-0');
-
             // Recalcular chips desde la última ANUAL por equipo+tipo
             try {
                 cntChipGT60 = 0;
@@ -6467,33 +6765,55 @@
                     else if (d >= 16 && d <= 30) cntChip30 += 1;
                     else if (d >= 1 && d <= 15) cntChip15 += 1;
                 });
-            } catch {}
 
-            // Si hay contadores del snapshot completo, preferirlos para chips/rangos.
-            try {
-                if (!_csvPreviewActive && window._pctFullSnapshotCounters && window._pctFullSnapshotCounters.chips) {
-                    const at = Number(window._pctFullSnapshotCounters.at || 0);
-                    const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
-                    if (isFresh) {
-                        const c = window._pctFullSnapshotCounters.chips;
-                        if (c && typeof c === 'object') {
-                            if (typeof c.gt60 === 'number') cntChipGT60 = c.gt60;
-                            if (typeof c.d60 === 'number')  cntChip60  = c.d60;
-                            if (typeof c.d30 === 'number')  cntChip30  = c.d30;
-                            if (typeof c.d15 === 'number')  cntChip15  = c.d15;
-                            if (typeof c.d0 === 'number')   cntChip0   = c.d0;
+                // Si hay contadores del snapshot completo, preferirlos para chips/rangos.
+                try {
+                    if (!_csvPreviewActive && window._pctFullSnapshotCounters && window._pctFullSnapshotCounters.chips) {
+                        const at = Number(window._pctFullSnapshotCounters.at || 0);
+                        const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+                        if (isFresh) {
+                            const c = window._pctFullSnapshotCounters.chips;
+                            if (c && typeof c === 'object') {
+                                if (typeof c.gt60 === 'number') cntChipGT60 = c.gt60;
+                                if (typeof c.d60 === 'number')  cntChip60  = c.d60;
+                                if (typeof c.d30 === 'number')  cntChip30  = c.d30;
+                                if (typeof c.d15 === 'number')  cntChip15  = c.d15;
+                                if (typeof c.d0 === 'number')   cntChip0   = c.d0;
+                            }
                         }
                     }
-                }
+                } catch {}
+
+                // Si hay resumen global materializado, preferirlo (source-of-truth para chips ANUALES).
+                try {
+                    if (!_csvPreviewActive && window._plResumenGlobalAnuales && window._pctResumenGlobal && window._pctResumenGlobal.at) {
+                        const at = Number(window._pctResumenGlobal.at || 0);
+                        const isFresh = at && isFinite(at) && (Date.now() - at) < (24 * 60 * 60 * 1000);
+                        if (isFresh) {
+                            const pa = window._plResumenGlobalAnuales;
+                            if (pa && typeof pa === 'object') {
+                                if (pa.otras != null) cntChipGT60 = Number(pa.otras) || 0;
+                                if (pa.bucket60_30 != null) cntChip60 = Number(pa.bucket60_30) || 0;
+                                if (pa.bucket30_15 != null) cntChip30 = Number(pa.bucket30_15) || 0;
+                                if (pa.bucket15_0 != null) cntChip15 = Number(pa.bucket15_0) || 0;
+                                if (pa.vencidas != null) cntChip0 = Number(pa.vencidas) || 0;
+                            }
+                        }
+                    }
+                } catch {}
             } catch {}
 
-            if (!_csvPreviewActive) {
-                if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
-                if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
-                if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
-                if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
-                if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
-            }
+            try {
+                const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
+                const lblAlert0 = document.getElementById('pruebas-alert-0');
+                if (!_csvPreviewActive) {
+                    if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
+                    if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
+                    if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
+                    if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
+                    if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
+                }
+            } catch {}
 
             try {
                 if (cardR60Val) cardR60Val.textContent = String(cntChip60);
@@ -6518,26 +6838,18 @@
 
         try { window.refrescarPruebaslistUI = refrescarPruebaslistUI; } catch {}
 
-        try {
-            // Mantener chips alineados con dashboard: usar snapshot completo al cargar.
-            const tryRun = (n) => {
-                try {
-                    recalcularChipsDesdeSnapshotCompleto();
-                } catch {}
-                if (n <= 1) return;
-                setTimeout(() => { try { tryRun(n - 1); } catch {} }, 1200);
-            };
-            setTimeout(() => { try { tryRun(3); } catch {} }, 250);
-        } catch {}
+        try { if (typeof cacheDashboardPruebasSnapshot === 'function') cacheDashboardPruebasSnapshot(pruebas); } catch {}
 
-        if (inputBuscar) {
-            inputBuscar.addEventListener('input', () => {
+        const inputBuscarEl3 = document.getElementById('pruebas-buscar');
+        if (inputBuscarEl3) {
+            inputBuscarEl3.addEventListener('input', () => {
                 render();
             });
         }
 
-        if (inputBuscarResumen) {
-            inputBuscarResumen.addEventListener('input', () => {
+        const inputBuscarResumenEl3 = document.getElementById('pl-resumen-buscar');
+        if (inputBuscarResumenEl3) {
+            inputBuscarResumenEl3.addEventListener('input', () => {
                 render();
             });
         }
@@ -6565,34 +6877,55 @@
 
         function toggleFiltro(r) {
             filtroRango = (filtroRango === r) ? null : r;
+            try { window.filtroRango = filtroRango; } catch {}
+
+            // Los rangos aplican únicamente a ANUAL. Forzar el periodo para que el listado refleje el conteo.
+            try {
+                if (filtroRango) {
+                    if (typeof setFiltroPeriodo === 'function') setFiltroPeriodo('ANUAL');
+                    else filtroPeriodo = 'ANUAL';
+                }
+            } catch {}
             actualizarChipsUI();
             render();
         }
 
         function setFiltroDesdeRango(r) {
             filtroRango = r;
+            try { window.filtroRango = filtroRango; } catch {}
+
+            try {
+                if (filtroRango) {
+                    if (typeof setFiltroPeriodo === 'function') setFiltroPeriodo('ANUAL');
+                    else filtroPeriodo = 'ANUAL';
+                }
+            } catch {}
             actualizarChipsUI();
             render();
         }
 
         function togglePanelRangos(forceOpen = null) {
-            if (!panelRangos) return;
-            const isOpen = panelRangos.style.display !== 'none';
+            const panel = document.getElementById('panel-pruebas-rangos');
+            if (!panel) return;
+            const isOpen = panel.style.display !== 'none';
             const nextOpen = (forceOpen === null) ? !isOpen : !!forceOpen;
-            panelRangos.style.display = nextOpen ? 'block' : 'none';
+            panel.style.display = nextOpen ? 'block' : 'none';
         }
 
-        if (btnRangos && !btnRangos.dataset.bound) {
-            btnRangos.dataset.bound = '1';
-            btnRangos.addEventListener('click', (e) => {
+        const btnRangosEl4 = document.getElementById('btn-pruebas-rangos');
+        const panelRangosEl4 = document.getElementById('panel-pruebas-rangos');
+
+        if (btnRangosEl4 && !btnRangosEl4.dataset.bound) {
+            btnRangosEl4.dataset.bound = '1';
+            btnRangosEl4.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 togglePanelRangos();
             });
         }
-        if (panelRangos && !panelRangos.dataset.bound) {
-            panelRangos.dataset.bound = '1';
-            panelRangos.addEventListener('click', (e) => {
+        if (panelRangosEl4 && !panelRangosEl4.dataset.bound) {
+            panelRangosEl4.dataset.bound = '1';
+            panelRangosEl4.addEventListener('click', (e) => {
                 e.stopPropagation();
             });
         }
@@ -6602,10 +6935,14 @@
                 togglePanelRangos(false);
             });
         }
-        if (cardR60) cardR60.addEventListener('click', () => { toggleFiltro('60'); togglePanelRangos(false); });
-        if (cardR30) cardR30.addEventListener('click', () => { toggleFiltro('30'); togglePanelRangos(false); });
-        if (cardR15) cardR15.addEventListener('click', () => { toggleFiltro('15'); togglePanelRangos(false); });
-        if (cardR0)  cardR0.addEventListener('click', () => { toggleFiltro('0');  togglePanelRangos(false); });
+        const cardR60El5 = document.getElementById('card-rango-60');
+        const cardR30El5 = document.getElementById('card-rango-30');
+        const cardR15El5 = document.getElementById('card-rango-15');
+        const cardR0El5 = document.getElementById('card-rango-0');
+        if (cardR60El5) cardR60El5.addEventListener('click', () => { toggleFiltro('60'); togglePanelRangos(false); if (filtroRango === '60') { try { plOpenRangoModal('60'); } catch {} } });
+        if (cardR30El5) cardR30El5.addEventListener('click', () => { toggleFiltro('30'); togglePanelRangos(false); if (filtroRango === '30') { try { plOpenRangoModal('30'); } catch {} } });
+        if (cardR15El5) cardR15El5.addEventListener('click', () => { toggleFiltro('15'); togglePanelRangos(false); if (filtroRango === '15') { try { plOpenRangoModal('15'); } catch {} } });
+        if (cardR0El5)  cardR0El5.addEventListener('click', () => { toggleFiltro('0');  togglePanelRangos(false); if (filtroRango === '0')  { try { plOpenRangoModal('0'); } catch {} } });
 
         try {
             const sp = new URLSearchParams(window.location.search || '');
@@ -6615,26 +6952,39 @@
             }
         } catch {}
 
-        if (chipGT60) chipGT60.addEventListener('click', () => toggleFiltro('gt60'));
-        if (chip60)  chip60.addEventListener('click', () => toggleFiltro('60'));
-        if (chip30) chip30.addEventListener('click', () => toggleFiltro('30'));
-        if (chip15) chip15.addEventListener('click', () => toggleFiltro('15'));
-        if (chip0)  chip0.addEventListener('click', () => toggleFiltro('0'));
+        const chipGT60El5 = document.getElementById('chip-gt60');
+        const chip60El5 = document.getElementById('chip-60');
+        const chip30El5 = document.getElementById('chip-30');
+        const chip15El5 = document.getElementById('chip-15');
+        const chip0El5 = document.getElementById('chip-0');
+        if (chipGT60El5) chipGT60El5.addEventListener('click', () => { toggleFiltro('gt60'); if (filtroRango === 'gt60') { try { plOpenRangoModal('gt60'); } catch {} } });
+        if (chip60El5)  chip60El5.addEventListener('click', () => { toggleFiltro('60');  if (filtroRango === '60')  { try { plOpenRangoModal('60'); } catch {} } });
+        if (chip30El5) chip30El5.addEventListener('click', () => { toggleFiltro('30');  if (filtroRango === '30')  { try { plOpenRangoModal('30'); } catch {} } });
+        if (chip15El5) chip15El5.addEventListener('click', () => { toggleFiltro('15');  if (filtroRango === '15')  { try { plOpenRangoModal('15'); } catch {} } });
+        if (chip0El5)  chip0El5.addEventListener('click', () => { toggleFiltro('0');   if (filtroRango === '0')   { try { plOpenRangoModal('0'); } catch {} } });
 
-        actualizarChipsUI();
-        render();
+        try { if (typeof actualizarChipsUI === 'function') actualizarChipsUI(); } catch {}
+        try { render(); } catch {}
 
-        if (chkSelectTodos) {
-            chkSelectTodos.addEventListener('change', () => {
-                const checks = tbodyListado.querySelectorAll('.prueba-select');
+        const chkSelectTodosEl5 = document.getElementById('pruebas-select-todos');
+        const tbodyListadoEl5 = document.getElementById('tbody-pruebas-listado');
+        if (chkSelectTodosEl5 && tbodyListadoEl5) {
+            chkSelectTodosEl5.addEventListener('change', () => {
+                const checks = tbodyListadoEl5.querySelectorAll('.prueba-select');
                 checks.forEach(chk => {
-                    chk.checked = chkSelectTodos.checked;
+                    chk.checked = chkSelectTodosEl5.checked;
                 });
             });
         }
 
-        if (btnBulkPeriodo) {
-            btnBulkPeriodo.addEventListener('click', async () => {
+        const btnBulkPeriodoEl6 = document.getElementById('btn-pruebas-bulk-periodo');
+        const selBulkPeriodoEl6 = document.getElementById('pl-bulk-periodo');
+        const inputBulkFechaEl6 = document.getElementById('input-bulk-fecha');
+        const bulkFechaWrapEl6 = document.getElementById('bulk-fecha-wrap');
+        const tbodyListadoEl6 = document.getElementById('tbody-pruebas-listado');
+
+        if (btnBulkPeriodoEl6) {
+            btnBulkPeriodoEl6.addEventListener('click', async () => {
                 try {
                     if (typeof window.aplicarPeriodoMasivo !== 'function') throw new Error('Función de aplicación no inicializada (sesión/roles).');
                     await window.aplicarPeriodoMasivo();
@@ -6651,24 +7001,24 @@
             const mm = String(d.getMonth() + 1).padStart(2, '0');
             const dd = String(d.getDate()).padStart(2, '0');
             const val = `${d.getFullYear()}-${mm}-${dd}`;
-            if (inputBulkFecha && !inputBulkFecha.value) inputBulkFecha.value = val;
+            if (inputBulkFechaEl6 && !inputBulkFechaEl6.value) inputBulkFechaEl6.value = val;
         } catch {}
 
-        if (selBulkPeriodo) {
-            selBulkPeriodo.addEventListener('change', () => {
+        if (selBulkPeriodoEl6) {
+            selBulkPeriodoEl6.addEventListener('change', () => {
                 try {
-                    const p = selBulkPeriodo.value ? String(selBulkPeriodo.value).trim().toUpperCase() : '';
-                    if (bulkFechaWrap) bulkFechaWrap.style.display = (p === 'ANUAL' || p === 'POST-TRABAJO') ? '' : 'none';
+                    const p = selBulkPeriodoEl6.value ? String(selBulkPeriodoEl6.value).trim().toUpperCase() : '';
+                    if (bulkFechaWrapEl6) bulkFechaWrapEl6.style.display = (p === 'ANUAL' || p === 'POST-TRABAJO') ? '' : 'none';
                 } catch {}
             });
             try {
-                const p = selBulkPeriodo.value ? String(selBulkPeriodo.value).trim().toUpperCase() : '';
-                if (bulkFechaWrap) bulkFechaWrap.style.display = (p === 'ANUAL' || p === 'POST-TRABAJO') ? '' : 'none';
+                const p = selBulkPeriodoEl6.value ? String(selBulkPeriodoEl6.value).trim().toUpperCase() : '';
+                if (bulkFechaWrapEl6) bulkFechaWrapEl6.style.display = (p === 'ANUAL' || p === 'POST-TRABAJO') ? '' : 'none';
             } catch {}
         }
 
-        if (selBulkPeriodo) {
-            selBulkPeriodo.addEventListener('keydown', (e) => {
+        if (selBulkPeriodoEl6) {
+            selBulkPeriodoEl6.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     (async () => {
@@ -6686,8 +7036,8 @@
         }
 
         function obtenerSeleccionadas() {
-            const filas = tbodyListado._filasVisibles || [];
-            const checks = tbodyListado.querySelectorAll('.prueba-select:checked');
+            const filas = (tbodyListadoEl6 && tbodyListadoEl6._filasVisibles) ? tbodyListadoEl6._filasVisibles : [];
+            const checks = tbodyListadoEl6 ? tbodyListadoEl6.querySelectorAll('.prueba-select:checked') : [];
             const seleccionadas = [];
             checks.forEach(chk => {
                 const idx = parseInt(chk.getAttribute('data-idx'), 10);
@@ -7051,8 +7401,9 @@
             URL.revokeObjectURL(url);
         }
 
-        if (btnExportCsv) {
-            btnExportCsv.addEventListener('click', exportarCsv);
+        const btnExportCsvEl7 = document.getElementById('btn-pruebas-export-csv');
+        if (btnExportCsvEl7) {
+            btnExportCsvEl7.addEventListener('click', exportarCsv);
         }
 
         async function exportarEquiposSinPndCsv() {
@@ -7181,8 +7532,9 @@
             }
         }
 
-        if (btnExportSinPnd) {
-            btnExportSinPnd.addEventListener('click', exportarEquiposSinPndCsv);
+        const btnExportSinPndEl8 = document.getElementById('btn-pruebas-export-sin-pnd');
+        if (btnExportSinPndEl8) {
+            btnExportSinPndEl8.addEventListener('click', exportarEquiposSinPndCsv);
         }
 
         async function eliminarSeleccionadas() {
@@ -7237,7 +7589,8 @@
                 }
 
                 try {
-                    if (chkSelectTodos) chkSelectTodos.checked = false;
+                    const chkSelectTodosEl8 = document.getElementById('pruebas-select-todos');
+                    if (chkSelectTodosEl8) chkSelectTodosEl8.checked = false;
                 } catch {}
 
                 // Refrescar desde servidor para evitar inconsistencias con paginación/cache
@@ -7261,13 +7614,19 @@
             }
         }
 
-        if (btnEliminar) {
-            btnEliminar.addEventListener('click', eliminarSeleccionadas);
+        const btnEliminarEl9 = document.getElementById('btn-pruebas-eliminar');
+        const btnBuscarServidorEl9 = document.getElementById('btn-pruebas-buscar-servidor');
+        const btnRegistrarEl9 = document.getElementById('btn-pruebas-registrar');
+        const inputBuscarEl9 = document.getElementById('pruebas-buscar');
+        const tbodyListadoEl9 = document.getElementById('tbody-pruebas-listado');
+
+        if (btnEliminarEl9) {
+            btnEliminarEl9.addEventListener('click', eliminarSeleccionadas);
         }
 
         async function buscarEnServidorExacto() {
             try {
-                const raw = (inputBuscar?.value || '').toString().trim();
+                const raw = (inputBuscarEl9 && inputBuscarEl9.value ? inputBuscarEl9.value : '').toString().trim();
                 if (!raw) return;
 
                 const { getFirestore, collection, getDocs, query, where } = await import(
@@ -7309,16 +7668,16 @@
             }
         }
 
-        if (btnBuscarServidor) {
-            btnBuscarServidor.addEventListener('click', buscarEnServidorExacto);
+        if (btnBuscarServidorEl9) {
+            btnBuscarServidorEl9.addEventListener('click', buscarEnServidorExacto);
         }
 
-        if (btnRegistrar) {
-            btnRegistrar.addEventListener('click', abrirRegistroPruebasParaSeleccionadas);
+        if (btnRegistrarEl9) {
+            btnRegistrarEl9.addEventListener('click', abrirRegistroPruebasParaSeleccionadas);
         }
 
    // Delegación de eventos para inputs/selects editables de prueba, noReporte y resultado
-tbodyListado.addEventListener('change', (ev) => {
+if (tbodyListadoEl9) tbodyListadoEl9.addEventListener('change', (ev) => {
   const target = ev.target;
   if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) return;
 
@@ -7348,7 +7707,8 @@ tbodyListado.addEventListener('change', (ev) => {
 });
 
 // Guardar ediciones al presionar Enter (sin depender de blur)
-tbodyListado.addEventListener('keydown', (ev) => {
+const tbodyListadoEl10 = document.getElementById('tbody-pruebas-listado');
+if (tbodyListadoEl10) tbodyListadoEl10.addEventListener('keydown', (ev) => {
   const target = ev.target;
   if (!(target instanceof HTMLInputElement)) return;
   if (!target.classList.contains('pl-norep') && !target.classList.contains('pl-prueba') && !target.classList.contains('pl-emisor') && !target.classList.contains('pl-tecnico')) return;
@@ -7357,8 +7717,392 @@ tbodyListado.addEventListener('keydown', (ev) => {
   try { target.blur(); } catch {}
 });
 
+function plGetSerialFromEquipoKey(eqK) {
+  try {
+    const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : null;
+    const map = inv && inv.serialPorEquipoInv && typeof inv.serialPorEquipoInv === 'object' ? inv.serialPorEquipoInv : null;
+    const v = map && eqK && map[eqK] ? String(map[eqK]) : '';
+    return v;
+  } catch { return ''; }
+}
+
+async function plLoadResumenesEquiposCache() {
+  try {
+    const cached = window._plResumenesEquiposCache;
+    if (cached && cached.at && Array.isArray(cached.items) && (Date.now() - cached.at) < (10 * 60 * 1000)) {
+      return cached.items;
+    }
+  } catch {}
+  const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  let db0 = window.db;
+  if (!db0) {
+    for (let i = 0; i < 40; i += 1) {
+      await new Promise(r => setTimeout(r, 50));
+      db0 = window.db;
+      if (db0) break;
+    }
+  }
+  if (!db0) throw new Error('db_not_ready');
+  const snap = await getDocs(collection(db0, 'resumenes_equipos'));
+  const items = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+  try { window._plResumenesEquiposCache = { at: Date.now(), items }; } catch {}
+  return items;
+}
+
+async function plLoadInventarioEstados() {
+  const claveEstadoOverride = 'pct_invre_estado_override';
+  // 1) Intentar leer de Firestore (source of truth)
+  try {
+    const { collection, getDocs, getDocsFromServer } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    let db0 = window.db;
+    if (!db0) {
+      for (let i = 0; i < 40; i += 1) {
+        await new Promise(r => setTimeout(r, 50));
+        db0 = window.db;
+        if (db0) break;
+      }
+    }
+    if (!db0) throw new Error('db_not_ready');
+    const colRef = collection(db0, 'inventarioEstados');
+    let snap = null;
+    try { snap = await getDocsFromServer(colRef); } catch { snap = await getDocs(colRef); }
+    const next = {};
+    snap.forEach(docSnap => {
+      const data = docSnap.data() || {};
+      const equipoIdRaw = docSnap.id || data.equipoId || '';
+      const equipoId = (typeof normEquipoKey === 'function') ? normEquipoKey(String(equipoIdRaw || '')) : String(equipoIdRaw || '').trim().toUpperCase();
+      let edo = (data.edo || '').toString().trim().toUpperCase();
+      if (!edo) edo = 'ON';
+      if (equipoId) next[equipoId] = edo;
+    });
+    try { localStorage.setItem(claveEstadoOverride, JSON.stringify(next)); } catch {}
+    return next;
+  } catch (e) {
+    // 2) Fallback: cache local
+    try {
+      const crudo = localStorage.getItem(claveEstadoOverride) || '{}';
+      const parsed = JSON.parse(crudo);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+    return {};
+  }
+}
+
+async function plLoadEquiposWipSet() {
+  try {
+    const cached = window._plWipEquiposSet;
+    if (cached && cached.at && cached.items && (Date.now() - cached.at) < (10 * 60 * 1000)) {
+      return cached.items;
+    }
+  } catch {}
+
+  const { collection, getDocs, query, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  let db0 = window.db;
+  if (!db0) {
+    for (let i = 0; i < 40; i += 1) {
+      await new Promise(r => setTimeout(r, 50));
+      db0 = window.db;
+      if (db0) break;
+    }
+  }
+  if (!db0) throw new Error('db_not_ready');
+
+  const q = query(collection(db0, 'equipos'), where('edo', '==', 'WIP'));
+  const snap = await getDocs(q);
+  const set = new Set();
+  snap.forEach(d => {
+    const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(d.id || '')) : String(d.id || '').trim().toUpperCase();
+    if (k) set.add(k);
+  });
+  try { window._plWipEquiposSet = { at: Date.now(), items: set }; } catch {}
+  return set;
+}
+
+// Bootstrap: cargar inventarioEstados aunque falle el CSV de inventario.
+try {
+  if (!window._plInvEstadosBootstrapped) {
+    window._plInvEstadosBootstrapped = true;
+    (async () => {
+      try {
+        const estados = await plLoadInventarioEstados();
+        const normEstados = {};
+        try {
+          Object.keys(estados || {}).forEach(k0 => {
+            const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(k0 || '')) : String(k0 || '').trim().toUpperCase();
+            if (!k) return;
+            normEstados[k] = String(estados[k0] || '').trim().toUpperCase() || 'ON';
+          });
+        } catch {}
+
+        try {
+          if (typeof edoPorEquipoInv !== 'undefined') {
+            edoPorEquipoInv = { ...(edoPorEquipoInv || {}), ...normEstados };
+          }
+        } catch {}
+
+        try {
+          if (!window._plInvState || typeof window._plInvState !== 'object') window._plInvState = {};
+          window._plInvState.edoPorEquipoInv = { ...(window._plInvState.edoPorEquipoInv || {}), ...normEstados };
+        } catch {}
+
+        try { render(); } catch {}
+      } catch (e) {
+        console.warn('No se pudieron bootstrappear estados de inventario (inventarioEstados)', e);
+      }
+    })();
+  }
+} catch {}
+
+// Bootstrap: cargar el set de equipos en WIP desde Firestore (equipos.edo == 'WIP').
+try {
+  if (!window._plWipEquiposBootstrapped) {
+    window._plWipEquiposBootstrapped = true;
+    (async () => {
+      try {
+        await plLoadEquiposWipSet();
+        try { render(); } catch {}
+      } catch (e) {
+        console.warn('No se pudo cargar set de equipos WIP', e);
+      }
+    })();
+  }
+} catch {}
+
+function plBucketToFirestore(b) {
+  if (b === 'gt60') return 'otras';
+  if (b === 'd60') return '60_30';
+  if (b === 'd30') return '30_15';
+  if (b === 'd15') return '15_0';
+  if (b === 'd0') return 'vencidas';
+  return '';
+}
+
+function plOpenModalAnual(title, rows) {
+  const modal = document.getElementById('pl-modal-anual');
+  const tEl = document.getElementById('pl-modal-anual-title');
+  const pre = document.getElementById('pl-modal-anual-pre');
+  if (!modal || !pre) return;
+  if (tEl) tEl.textContent = title || 'Detalle';
+  const lines = (Array.isArray(rows) ? rows : []).map(r => {
+    const det = (r && r.detalle) ? String(r.detalle) : '';
+    return `${r._n || ''}\t${r.equipo || ''}\t${r.serial || ''}${det ? `\t${det}` : ''}`;
+  });
+  pre.textContent = lines.join('\n');
+  modal.style.display = 'flex';
+}
+
+function plCloseModalAnual() {
+  const modal = document.getElementById('pl-modal-anual');
+  if (modal) modal.style.display = 'none';
+}
+
+function plDownloadCsv(filename, rows) {
+  const header = 'n,equipo,serial,detalle\n';
+  const body = (Array.isArray(rows) ? rows : []).map(r => {
+    const n = String(r._n || '').replace(/"/g, '""');
+    const a = String(r.equipo || '').replace(/"/g, '""');
+    const b = String(r.serial || '').replace(/"/g, '""');
+    const c = String(r.detalle || '').replace(/"/g, '""');
+    return `"${n}","${a}","${b}","${c}"`;
+  }).join('\n');
+  const blob = new Blob([header + body + '\n'], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'detalle.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => { try { URL.revokeObjectURL(url); } catch {} }, 500);
+}
+
+function plBucketFromRango(r) {
+  if (r === 'gt60') return 'otras';
+  if (r === '60') return '60_30';
+  if (r === '30') return '30_15';
+  if (r === '15') return '15_0';
+  if (r === '0') return 'vencidas';
+  return '';
+}
+
+async function plOpenRangoModal(rangoKey) {
+  const fbBucket = plBucketFromRango(rangoKey);
+  if (!fbBucket) return;
+  const all = await plLoadResumenesEquiposCache();
+  const rows = [];
+  const tipos = ['LT', 'VT/PT/MT', 'UTT'];
+  all.forEach(it => {
+    const equipo = String(it.equipoKey || it.id || '').trim();
+    if (!equipo) return;
+    const serial = (it && it.serial) ? String(it.serial) : plGetSerialFromEquipoKey(equipo);
+    tipos.forEach(t => {
+      const pr = it && it.pruebas && it.pruebas[t] ? it.pruebas[t] : null;
+      const b = pr && pr.bucket ? String(pr.bucket) : '';
+      if (b !== fbBucket) return;
+      rows.push({ equipo, serial, detalle: t });
+    });
+  });
+  rows.sort((a, b) => {
+    const cmp = String(a.equipo).localeCompare(String(b.equipo));
+    if (cmp !== 0) return cmp;
+    return String(a.detalle).localeCompare(String(b.detalle));
+  });
+  const label = (rangoKey === 'gt60') ? '>60' : (rangoKey === '0' ? '0 (vencidas)' : (rangoKey === '60' ? '60-31' : (rangoKey === '30' ? '30-16' : '15-1')));
+  const title = `${label} días (${rows.length})`;
+  rows.forEach((r, i) => { r._n = i + 1; });
+  try { window._plModalAnualLastRows = rows; } catch {}
+  try { window._plModalAnualLastTitle = title; } catch {}
+  plOpenModalAnual(title, rows);
+}
+
+async function plOpenCoberturaModal(cat) {
+  const all = await plLoadResumenesEquiposCache();
+  const byEq = new Map();
+  all.forEach(it => {
+    const eq = normEquipoKey(String(it.equipoKey || it.id || ''));
+    if (!eq) return;
+    byEq.set(eq, it);
+  });
+  const rows = [];
+  let missLt = 0;
+  let missVpm = 0;
+  let missUtt = 0;
+  let wip = 0;
+  let on = 0;
+  const wipSet = (() => {
+    try {
+      const c = window._plWipEquiposSet;
+      return (c && c.items instanceof Set) ? c.items : null;
+    } catch { return null; }
+  })();
+  Object.keys(window._equiposCobertura || {}).forEach(eqK0 => {
+    const eqK = normEquipoKey(eqK0);
+    if (!eqK) return;
+    const cov = window._equiposCobertura[eqK];
+    if (!cov || cov.cat !== cat) return;
+    const it = byEq.get(eqK) || null;
+    const serial = (it && it.serial) ? String(it.serial) : plGetSerialFromEquipoKey(eqK);
+    const edo = (() => {
+      try {
+        // Preferir inventarioEstados (inventario.html) como fuente de verdad para ON/WIP/OFF
+        if (typeof edoPorEquipoInv !== 'undefined' && edoPorEquipoInv && edoPorEquipoInv[eqK]) return String(edoPorEquipoInv[eqK]);
+      } catch {}
+      try {
+        if (it && it.edo != null) return String(it.edo);
+      } catch {}
+      return '';
+    })();
+    const edoNorm = String(edo || '').trim().toUpperCase();
+    const isWip = (edoNorm === 'WIP') || (!!(wipSet && wipSet.has(eqK)));
+    const isOff = (edoNorm === 'OFF');
+    if (cat === 'sin' && isOff) return;
+    if (isWip) wip += 1;
+    else if (edoNorm === 'ON' || edoNorm === 'ACTIVO' || edoNorm === 'OPERATIVO' || !edoNorm) on += 1;
+    const miss = [];
+    if (!cov.hasVpm) { miss.push('VT/PT/MT'); missVpm += 1; }
+    if (!cov.hasUtt) { miss.push('UTT'); missUtt += 1; }
+    if (!cov.hasLt)  { miss.push('LT'); missLt += 1; }
+    const detalle = (cat === '100')
+      ? 'Completo'
+      : (cat === 'parcial'
+        ? `Faltan: ${miss.join(' / ')}`
+        : `${isWip ? 'WIP' : (edoNorm || 'ON')} sin pruebas`);
+    rows.push({ equipo: eqK, serial, detalle });
+  });
+  rows.sort((a, b) => String(a.equipo).localeCompare(String(b.equipo)));
+  const baseTitle = (cat === '100')
+    ? 'Equipos probados 100%'
+    : (cat === 'parcial' ? 'Equipos probados parcialmente' : 'Equipos sin pruebas');
+  const extra = (cat === 'parcial')
+    ? ` | LT: ${missLt} VT/PT/MT: ${missVpm} UTT: ${missUtt}`
+    : (cat === 'sin' ? ` | WIP: ${wip} ON: ${on}` : '');
+  const title = `${baseTitle} (${rows.length})${extra}`;
+  rows.forEach((r, i) => { r._n = i + 1; });
+  try { window._plModalAnualLastRows = rows; } catch {}
+  try { window._plModalAnualLastTitle = title; } catch {}
+  plOpenModalAnual(title, rows);
+}
+
+function plInitDetalleTablaAnual() {
+  const can = !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isSgi || (window.currentUserEmail && String(window.currentUserEmail).toLowerCase() === 'sgi@pc-t.com.mx'));
+  if (!can) return false;
+
+  const cells = [
+    ['LT', 'lt'],
+    ['VT/PT/MT', 'vpm'],
+    ['UTT', 'utt'],
+  ];
+  const buckets = [
+    ['gt60', 'gt60'],
+    ['60', 'd60'],
+    ['30', 'd30'],
+    ['15', 'd15'],
+    ['0', 'd0'],
+  ];
+
+  cells.forEach(([tipoKey, cat]) => {
+    buckets.forEach(([suffix, bucketKey]) => {
+      const id = `inf-${cat}-${suffix}`;
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.cursor = 'pointer';
+      el.title = 'Ver lista de equipos';
+      el.addEventListener('click', async () => {
+        try {
+          const fbBucket = plBucketToFirestore(bucketKey);
+          const all = await plLoadResumenesEquiposCache();
+          const rows = [];
+          all.forEach(it => {
+            const pr = it && it.pruebas && it.pruebas[tipoKey] ? it.pruebas[tipoKey] : null;
+            const b = pr && pr.bucket ? String(pr.bucket) : '';
+            if (!b || b !== fbBucket) return;
+            const equipo = String(it.equipoKey || it.id || '').trim();
+            if (!equipo) return;
+            const serial = (it && it.serial) ? String(it.serial) : plGetSerialFromEquipoKey(equipo);
+            rows.push({ equipo, serial, detalle: tipoKey });
+          });
+          rows.sort((a, b) => String(a.equipo).localeCompare(String(b.equipo)));
+          const title = `${tipoKey} - ${suffix === 'gt60' ? '>60' : (suffix === '0' ? '0 (vencidas)' : suffix)} días (${rows.length})`;
+          rows.forEach((r, i) => { r._n = i + 1; });
+          try { window._plModalAnualLastRows = rows; } catch {}
+          try { window._plModalAnualLastTitle = title; } catch {}
+          plOpenModalAnual(title, rows);
+        } catch (e) {
+          console.warn('No se pudo cargar detalle de celda', e);
+        }
+      });
+    });
+  });
+
+  const btnClose = document.getElementById('pl-modal-anual-close');
+  if (btnClose) btnClose.onclick = plCloseModalAnual;
+  const backdrop = document.getElementById('pl-modal-anual');
+  if (backdrop) backdrop.addEventListener('click', (ev) => {
+    if (ev.target === backdrop) plCloseModalAnual();
+  });
+  const btnCopy = document.getElementById('pl-modal-anual-copy');
+  if (btnCopy) btnCopy.onclick = async () => {
+    try {
+      const pre = document.getElementById('pl-modal-anual-pre');
+      const txt = pre ? pre.textContent : '';
+      if (!txt) return;
+      await navigator.clipboard.writeText(txt);
+      try { plToast('Copiado'); } catch {}
+    } catch {}
+  };
+  const btnCsv = document.getElementById('pl-modal-anual-csv');
+  if (btnCsv) btnCsv.onclick = () => {
+    const rows = window._plModalAnualLastRows || [];
+    const title = String(window._plModalAnualLastTitle || 'detalle').replace(/[^a-z0-9\-_]+/gi, '_');
+    plDownloadCsv(`${title}.csv`, rows);
+  };
+
+  try { console.debug('[pruebaslist] detalle tabla anual habilitado'); } catch {}
+  return true;
+}
+
 // Mostrar los últimos dígitos por defecto en No. reporte / cert.
-tbodyListado.addEventListener('focusin', (ev) => {
+if (tbodyListadoEl10) tbodyListadoEl10.addEventListener('focusin', (ev) => {
   const target = ev.target;
   if (!(target instanceof HTMLInputElement)) return;
   if (!target.classList.contains('pl-norep')) return;
@@ -7371,7 +8115,41 @@ tbodyListado.addEventListener('focusin', (ev) => {
 
 // Asegura ejecutar un render final tras registrar handlers
 try { render(); } catch {}
-}
+try {
+  const tryInit = async () => {
+    for (let i = 0; i < 40; i += 1) {
+      if (plInitDetalleTablaAnual()) return;
+      await new Promise(r => setTimeout(r, 100));
+    }
+  };
+  tryInit();
+} catch {}
+
+try {
+  (async () => {
+    try {
+      await plLoadResumenesEquiposCache();
+      try { render(); } catch {}
+    } catch {}
+  })();
+} catch {}
 </script>
+
+<div id="pl-modal-anual" style="display:none; position:fixed; inset:0; background:rgba(17,24,39,0.55); z-index:11000; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#ffffff; width:min(720px, 96vw); max-height:90vh; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.35); overflow:hidden; display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #e5e7eb; gap:10px;">
+      <div id="pl-modal-anual-title" style="font-weight:700; font-size:14px; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Detalle</div>
+      <div style="display:flex; gap:8px;">
+        <button id="pl-modal-anual-copy" class="btn" style="padding:6px 10px; font-size:12px;">Copiar</button>
+        <button id="pl-modal-anual-csv" class="btn" style="padding:6px 10px; font-size:12px;">Descargar CSV</button>
+        <button id="pl-modal-anual-close" class="btn" style="padding:6px 10px; font-size:12px;">Cerrar</button>
+      </div>
+    </div>
+    <div style="padding:12px 14px; overflow:auto;">
+      <div style="font-size:12px; color:#6b7280; margin-bottom:8px;">Equipo\tSerial</div>
+      <pre id="pl-modal-anual-pre" style="margin:0; font-size:12.5px; line-height:1.35; white-space:pre; font-variant-numeric:tabular-nums;"></pre>
+    </div>
+  </div>
+</div>
 </body>
 </html>
