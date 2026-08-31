@@ -6855,6 +6855,11 @@
         }
 
         function actualizarChipsUI() {
+            const chipGT60 = document.getElementById('chip-gt60');
+            const chip60 = document.getElementById('chip-60');
+            const chip30 = document.getElementById('chip-30');
+            const chip15 = document.getElementById('chip-15');
+            const chip0 = document.getElementById('chip-0');
             [chipGT60, chip60, chip30, chip15, chip0].forEach(ch => ch && ch.classList.remove('chip-active'));
             if (filtroRango === 'gt60' && chipGT60) chipGT60.classList.add('chip-active');
             if (filtroRango === '60' && chip60) chip60.classList.add('chip-active');
@@ -6863,6 +6868,10 @@
             if (filtroRango === '0' && chip0) chip0.classList.add('chip-active');
 
             try {
+                const cardR60 = document.getElementById('pruebas-card-r60');
+                const cardR30 = document.getElementById('pruebas-card-r30');
+                const cardR15 = document.getElementById('pruebas-card-r15');
+                const cardR0 = document.getElementById('pruebas-card-r0');
                 const mark = (el, active) => {
                     if (!el) return;
                     el.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
@@ -6886,8 +6895,16 @@
                     else filtroPeriodo = 'ANUAL';
                 }
             } catch {}
+            try {
+                viewMode = 'historico';
+                if (typeof applyViewMode === 'function') applyViewMode();
+            } catch {}
             actualizarChipsUI();
             render();
+            try {
+                const sec = document.getElementById('seccion-historico');
+                if (sec && typeof sec.scrollIntoView === 'function') sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch {}
         }
 
         function setFiltroDesdeRango(r) {
@@ -6900,8 +6917,16 @@
                     else filtroPeriodo = 'ANUAL';
                 }
             } catch {}
+            try {
+                viewMode = 'historico';
+                if (typeof applyViewMode === 'function') applyViewMode();
+            } catch {}
             actualizarChipsUI();
             render();
+            try {
+                const sec = document.getElementById('seccion-historico');
+                if (sec && typeof sec.scrollIntoView === 'function') sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch {}
         }
 
         function togglePanelRangos(forceOpen = null) {
@@ -6939,10 +6964,10 @@
         const cardR30El5 = document.getElementById('card-rango-30');
         const cardR15El5 = document.getElementById('card-rango-15');
         const cardR0El5 = document.getElementById('card-rango-0');
-        if (cardR60El5) cardR60El5.addEventListener('click', () => { toggleFiltro('60'); togglePanelRangos(false); if (filtroRango === '60') { try { plOpenRangoModal('60'); } catch {} } });
-        if (cardR30El5) cardR30El5.addEventListener('click', () => { toggleFiltro('30'); togglePanelRangos(false); if (filtroRango === '30') { try { plOpenRangoModal('30'); } catch {} } });
-        if (cardR15El5) cardR15El5.addEventListener('click', () => { toggleFiltro('15'); togglePanelRangos(false); if (filtroRango === '15') { try { plOpenRangoModal('15'); } catch {} } });
-        if (cardR0El5)  cardR0El5.addEventListener('click', () => { toggleFiltro('0');  togglePanelRangos(false); if (filtroRango === '0')  { try { plOpenRangoModal('0'); } catch {} } });
+        if (cardR60El5) cardR60El5.addEventListener('click', () => { toggleFiltro('60'); togglePanelRangos(false); });
+        if (cardR30El5) cardR30El5.addEventListener('click', () => { toggleFiltro('30'); togglePanelRangos(false); });
+        if (cardR15El5) cardR15El5.addEventListener('click', () => { toggleFiltro('15'); togglePanelRangos(false); });
+        if (cardR0El5)  cardR0El5.addEventListener('click', () => { toggleFiltro('0');  togglePanelRangos(false); });
 
         try {
             const sp = new URLSearchParams(window.location.search || '');
@@ -6957,11 +6982,11 @@
         const chip30El5 = document.getElementById('chip-30');
         const chip15El5 = document.getElementById('chip-15');
         const chip0El5 = document.getElementById('chip-0');
-        if (chipGT60El5) chipGT60El5.addEventListener('click', () => { toggleFiltro('gt60'); if (filtroRango === 'gt60') { try { plOpenRangoModal('gt60'); } catch {} } });
-        if (chip60El5)  chip60El5.addEventListener('click', () => { toggleFiltro('60');  if (filtroRango === '60')  { try { plOpenRangoModal('60'); } catch {} } });
-        if (chip30El5) chip30El5.addEventListener('click', () => { toggleFiltro('30');  if (filtroRango === '30')  { try { plOpenRangoModal('30'); } catch {} } });
-        if (chip15El5) chip15El5.addEventListener('click', () => { toggleFiltro('15');  if (filtroRango === '15')  { try { plOpenRangoModal('15'); } catch {} } });
-        if (chip0El5)  chip0El5.addEventListener('click', () => { toggleFiltro('0');   if (filtroRango === '0')   { try { plOpenRangoModal('0'); } catch {} } });
+        if (chipGT60El5) chipGT60El5.addEventListener('click', () => { toggleFiltro('gt60'); });
+        if (chip60El5)  chip60El5.addEventListener('click', () => { toggleFiltro('60'); });
+        if (chip30El5) chip30El5.addEventListener('click', () => { toggleFiltro('30'); });
+        if (chip15El5) chip15El5.addEventListener('click', () => { toggleFiltro('15'); });
+        if (chip0El5)  chip0El5.addEventListener('click', () => { toggleFiltro('0'); });
 
         try { if (typeof actualizarChipsUI === 'function') actualizarChipsUI(); } catch {}
         try { render(); } catch {}
@@ -7818,6 +7843,37 @@ async function plLoadEquiposWipSet() {
   return set;
 }
 
+async function plLoadEquiposOffSet() {
+  try {
+    const cached = window._plOffEquiposSet;
+    if (cached && cached.at && cached.items && (Date.now() - cached.at) < (10 * 60 * 1000)) {
+      return cached.items;
+    }
+  } catch {}
+
+  const { collection, getDocs, query, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  let db0 = window.db;
+  if (!db0) {
+    for (let i = 0; i < 40; i += 1) {
+      await new Promise(r => setTimeout(r, 50));
+      db0 = window.db;
+      if (db0) break;
+    }
+  }
+  if (!db0) throw new Error('db_not_ready');
+
+  // Nota: inventarioEstados solo guarda overrides, pero el catálogo 'equipos' trae el estado base.
+  const q = query(collection(db0, 'equipos'), where('edo', 'in', ['OFF', 'INACTIVO']));
+  const snap = await getDocs(q);
+  const set = new Set();
+  snap.forEach(d => {
+    const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(d.id || '')) : String(d.id || '').trim().toUpperCase();
+    if (k) set.add(k);
+  });
+  try { window._plOffEquiposSet = { at: Date.now(), items: set }; } catch {}
+  return set;
+}
+
 // Bootstrap: cargar inventarioEstados aunque falle el CSV de inventario.
 try {
   if (!window._plInvEstadosBootstrapped) {
@@ -7863,6 +7919,21 @@ try {
         try { render(); } catch {}
       } catch (e) {
         console.warn('No se pudo cargar set de equipos WIP', e);
+      }
+    })();
+  }
+} catch {}
+
+// Bootstrap: cargar el set de equipos OFF/INACTIVO desde Firestore (equipos.edo in OFF/INACTIVO).
+try {
+  if (!window._plOffEquiposBootstrapped) {
+    window._plOffEquiposBootstrapped = true;
+    (async () => {
+      try {
+        await plLoadEquiposOffSet();
+        try { render(); } catch {}
+      } catch (e) {
+        console.warn('No se pudo cargar set de equipos OFF/INACTIVO', e);
       }
     })();
   }
@@ -8027,6 +8098,23 @@ function plInitDetalleTablaAnual() {
   const can = !!(window.isAdmin || window.isDirector || window.isSupervisor || window.isSgi || (window.currentUserEmail && String(window.currentUserEmail).toLowerCase() === 'sgi@pc-t.com.mx'));
   if (!can) return false;
 
+  const bucketFromDueMs = (dueMs) => {
+    try {
+      const hoy = hoySinHora();
+      const d = new Date(Number(dueMs || 0));
+      if (!d || isNaN(d.getTime())) return '';
+      const diffMs = d.getTime() - hoy.getTime();
+      const dias = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (dias < 0) return 'vencidas';
+      if (dias === 0) return 'vencidas';
+      if (dias >= 1 && dias <= 15) return '15_0';
+      if (dias >= 16 && dias <= 30) return '30_15';
+      if (dias >= 31 && dias <= 60) return '60_30';
+      if (dias > 60) return 'otras';
+      return '';
+    } catch { return ''; }
+  };
+
   const cells = [
     ['LT', 'lt'],
     ['VT/PT/MT', 'vpm'],
@@ -8052,12 +8140,51 @@ function plInitDetalleTablaAnual() {
           const fbBucket = plBucketToFirestore(bucketKey);
           const all = await plLoadResumenesEquiposCache();
           const rows = [];
+          const useLatest = (() => {
+            try {
+              const c = window._pctFullSnapshotCounters;
+              const at = Number(c && c.at ? c.at : 0);
+              const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+              return !!(isFresh && c && c.latestDueByKey);
+            } catch { return false; }
+          })();
+          const offSet = (() => {
+            try {
+              const c = window._plOffEquiposSet;
+              return (c && c.items instanceof Set) ? c.items : null;
+            } catch { return null; }
+          })();
           all.forEach(it => {
-            const pr = it && it.pruebas && it.pruebas[tipoKey] ? it.pruebas[tipoKey] : null;
-            const b = pr && pr.bucket ? String(pr.bucket) : '';
-            if (!b || b !== fbBucket) return;
             const equipo = String(it.equipoKey || it.id || '').trim();
             if (!equipo) return;
+            const eqK = (typeof normEquipoKey === 'function') ? normEquipoKey(equipo) : equipo;
+            if (offSet && offSet.has(eqK)) return;
+            // Alinear con resumen global: excluir equipos NO operativos (OFF/INACTIVO)
+            try {
+              const edoRaw = (() => {
+                try { if (it && it.edo != null) return String(it.edo); } catch {}
+                try {
+                  if (typeof edoPorEquipoInv !== 'undefined' && edoPorEquipoInv && eqK && edoPorEquipoInv[eqK]) return String(edoPorEquipoInv[eqK]);
+                } catch {}
+                return '';
+              })();
+              const e = String(edoRaw || '').trim().toUpperCase();
+              if (e && !(e === 'ON' || e === 'ACTIVO' || e === 'WIP')) return;
+            } catch {}
+            let b = '';
+            if (useLatest) {
+              try {
+                const tipoK = String(tipoKey || '').toUpperCase().trim();
+                const keyK = `${normEquipoKey(eqK || '')}__${tipoK}`;
+                const dueMsLatest = window._pctFullSnapshotCounters.latestDueByKey[keyK];
+                b = bucketFromDueMs(dueMsLatest);
+              } catch { b = ''; }
+            }
+            if (!b) {
+              const pr = it && it.pruebas && it.pruebas[tipoKey] ? it.pruebas[tipoKey] : null;
+              b = pr && pr.bucket ? String(pr.bucket) : '';
+            }
+            if (!b || b !== fbBucket) return;
             const serial = (it && it.serial) ? String(it.serial) : plGetSerialFromEquipoKey(equipo);
             rows.push({ equipo, serial, detalle: tipoKey });
           });
