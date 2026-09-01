@@ -5145,6 +5145,8 @@
 
             const chkSelectTodos = document.getElementById('pruebas-select-todos');
 
+            try { if (chkSelectTodos) chkSelectTodos.disabled = false; } catch {}
+
             // Tabla informativa "Resumen de estado Pruebas Anuales"
             const inf = {
                 lt: {
@@ -5407,9 +5409,35 @@
                 const lblParMissVpm = document.getElementById('pruebas-equipos-parcial-miss-vpm');
                 const lblParMissUtt = document.getElementById('pruebas-equipos-parcial-miss-utt');
 
+                const offSet = (() => {
+                    try {
+                        const c = window._plOffEquiposSet;
+                        return (c && c.items instanceof Set) ? c.items : null;
+                    } catch { return null; }
+                })();
+
+                const hasPruebaValida = (p) => {
+                    try {
+                        if (!p || typeof p !== 'object') return false;
+                        if (p.proxima) return true;
+                        if (p.fechaReal) return true;
+                        if (p.bucket) return true;
+                        if (p.vigente) return true;
+                        return false;
+                    } catch {
+                        return false;
+                    }
+                };
+
                 let equiposBase = (equiposInventario && equiposInventario.size)
                     ? Array.from(equiposInventario)
                     : Array.from(new Set([...(pruebas || []).map(r => normEquipoKey(r && r.equipo ? String(r.equipo) : '')).filter(Boolean)]));
+
+                try {
+                    if (offSet && Array.isArray(equiposBase) && equiposBase.length) {
+                        equiposBase = equiposBase.map(k => normEquipoKey(k)).filter(k => k && !offSet.has(k));
+                    }
+                } catch {}
 
                 const equiposConAlgo = new Set();
                 const equiposConLt = new Set();
@@ -5425,16 +5453,24 @@
                     if (items && items.length) {
                         // Base: todos los equipos del resumen materializado.
                         equiposBase = Array.from(new Set(items.map(it => normEquipoKey(String(it.equipoKey || it.id || ''))).filter(Boolean)));
+                        try {
+                            if (offSet && equiposBase.length) equiposBase = equiposBase.filter(eqK => !offSet.has(eqK));
+                        } catch {}
                         byEq = new Map();
                         items.forEach(it => {
                             const eq = normEquipoKey(String(it.equipoKey || it.id || ''));
                             if (!eq) return;
+                            try { if (offSet && offSet.has(eq)) return; } catch {}
                             if (byEq) byEq.set(eq, it);
-                            const hasPruebas = !!(it.pruebas && (it.pruebas.LT || it.pruebas.UTT || it.pruebas['VT/PT/MT']));
+                            const hasPruebas = !!(it.pruebas && (
+                                hasPruebaValida(it.pruebas.LT) ||
+                                hasPruebaValida(it.pruebas.UTT) ||
+                                hasPruebaValida(it.pruebas['VT/PT/MT'])
+                            ));
                             if (hasPruebas) equiposConAlgo.add(eq);
-                            if (it.pruebas && it.pruebas.LT) { equiposConLt.add(eq); equiposConAnual.add(eq); }
-                            if (it.pruebas && it.pruebas['VT/PT/MT']) { equiposConVpm.add(eq); equiposConAnual.add(eq); }
-                            if (it.pruebas && it.pruebas.UTT) { equiposConUtt.add(eq); equiposConAnual.add(eq); }
+                            if (it.pruebas && hasPruebaValida(it.pruebas.LT)) { equiposConLt.add(eq); equiposConAnual.add(eq); }
+                            if (it.pruebas && hasPruebaValida(it.pruebas['VT/PT/MT'])) { equiposConVpm.add(eq); equiposConAnual.add(eq); }
+                            if (it.pruebas && hasPruebaValida(it.pruebas.UTT)) { equiposConUtt.add(eq); equiposConAnual.add(eq); }
                         });
                     }
                 } catch {}
@@ -5455,6 +5491,10 @@
                             }
                         })();
                         if (eq) equiposConAlgo.add(eq);
+
+                        try {
+                            if (offSet && offSet.has(eq)) return;
+                        } catch {}
 
                         const periodo = (r && r.periodo) ? String(r.periodo).trim().toUpperCase() : '';
                         const esHistorico = (periodo === 'POST-TRABAJO' || periodo === 'REPARACION');
@@ -5504,7 +5544,7 @@
                         return (serialPorEquipoInv && eq && serialPorEquipoInv[eq]) ? String(serialPorEquipoInv[eq]) : '';
                     })();
                     const isNoUtt = !!(window.isNoUttEquipo && window.isNoUttEquipo(eq, serialInv));
-                    const is100 = !!(hasAnual && hasVpm && (hasUtt || isNoUtt));
+                    const is100 = !!(hasAnual && hasLt && hasVpm && (hasUtt || isNoUtt));
                     const edo = (() => {
                         try {
                             if (byEq && byEq.get(eq) && byEq.get(eq).edo) return String(byEq.get(eq).edo).toUpperCase();
@@ -6860,6 +6900,19 @@
         if (inputBuscarEl3) {
             inputBuscarEl3.addEventListener('input', () => {
                 render();
+                // Si no hay coincidencias en lo cargado (paginación), intentar búsqueda directa en servidor.
+                try {
+                    const raw = (inputBuscarEl3.value || '').toString().trim();
+                    if (!raw) return;
+                    const tb = document.getElementById('tbody-pruebas-listado');
+                    const visibles = (tb && Array.isArray(tb._filasVisibles)) ? tb._filasVisibles.length : 0;
+                    if (visibles > 0) return;
+                    // Debounce
+                    if (window._plSrvSearchTimer) clearTimeout(window._plSrvSearchTimer);
+                    window._plSrvSearchTimer = setTimeout(() => {
+                        try { if (typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto(); } catch {}
+                    }, 450);
+                } catch {}
             });
         }
 
@@ -6904,6 +6957,22 @@
             filtroRango = (filtroRango === r) ? null : r;
             try { window.filtroRango = filtroRango; } catch {}
 
+            try {
+                const rangoCritico = (filtroRango === '30' || filtroRango === '15' || filtroRango === '0');
+                if (!filtroRango || !rangoCritico) {
+                    window._plRangoOverrideActive = false;
+                    window._plRangoOverrideRows = [];
+                    window._plRangoOverrideAsPruebas = [];
+                    try {
+                        if (window._plPruebasBackup && Array.isArray(window._plPruebasBackup)) {
+                            pruebas = window._plPruebasBackup;
+                            try { window.pruebas = pruebas; } catch {}
+                        }
+                    } catch {}
+                    try { window._plPruebasBackup = null; } catch {}
+                }
+            } catch {}
+
             // Los rangos aplican únicamente a ANUAL. Forzar el periodo para que el listado refleje el conteo.
             try {
                 if (filtroRango) {
@@ -6911,6 +6980,69 @@
                     else filtroPeriodo = 'ANUAL';
                 }
             } catch {}
+
+            // Rangos críticos (30/15/0): cargar EXACTO desde server sin escanear todo.
+            // Estrategia: usar resumenes_equipos (bucket + docId) para obtener ids, luego traer solo esos docs de 'pruebas'.
+            try {
+                const rangoCritico = (filtroRango === '30' || filtroRango === '15' || filtroRango === '0');
+                if (filtroRango && rangoCritico) {
+                    (async () => {
+                        try {
+                            if (!window._plPruebasBackup) {
+                                try { window._plPruebasBackup = Array.isArray(pruebas) ? [...pruebas] : []; } catch { window._plPruebasBackup = []; }
+                            }
+
+                            const fbBucket = plBucketFromRango(filtroRango);
+                            const all = await plLoadResumenesEquiposCache();
+                            const offSet = (() => {
+                                try {
+                                    const c = window._plOffEquiposSet;
+                                    return (c && c.items instanceof Set) ? c.items : null;
+                                } catch { return null; }
+                            })();
+
+                            const tipos = ['LT', 'VT/PT/MT', 'UTT'];
+                            const ids = [];
+                            (Array.isArray(all) ? all : []).forEach(it => {
+                                const eqK = normEquipoKey(String(it.equipoKey || it.id || ''));
+                                if (!eqK) return;
+                                try { if (offSet && offSet.has(eqK)) return; } catch {}
+                                tipos.forEach(t => {
+                                    const pr = (it && it.pruebas && it.pruebas[t]) ? it.pruebas[t] : null;
+                                    const b = pr && pr.bucket ? String(pr.bucket) : '';
+                                    const id = pr && pr.docId ? String(pr.docId) : '';
+                                    if (!id) return;
+                                    if (b !== fbBucket) return;
+                                    ids.push(id);
+                                });
+                            });
+
+                            // Fetch docs por documentId in-chunks
+                            const { getFirestore, collection, getDocs, query, where, documentId } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                            const db = (window.db || getFirestore());
+                            const colRef = collection(db, 'pruebas');
+                            const uniq = Array.from(new Set(ids));
+                            const out = [];
+                            const chunkSize = 30;
+                            for (let i = 0; i < uniq.length; i += chunkSize) {
+                                const chunk = uniq.slice(i, i + chunkSize);
+                                const q = query(colRef, where(documentId(), 'in', chunk));
+                                const snap = await getDocs(q);
+                                snap.forEach(d => out.push({ id: d.id, ...(d.data() || {}) }));
+                            }
+                            pruebas = out;
+                            try { window.pruebas = out; } catch {}
+                            try { _lastDoc = null; } catch {}
+                            try { window._plRangoOverrideActive = true; } catch {}
+                            try { render(); } catch {}
+                        } catch (e) {
+                            console.error('No se pudo cargar listado por rango desde server', e);
+                            try { render(); } catch {}
+                        }
+                    })();
+                }
+            } catch {}
+
             try {
                 viewMode = 'historico';
                 if (typeof applyViewMode === 'function') applyViewMode();
@@ -7798,9 +7930,11 @@ async function plLoadResumenesEquiposCache() {
   if (!db0) throw new Error('db_not_ready');
   const snap = await getDocs(collection(db0, 'resumenes_equipos'));
   const items = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
-  try { window._plResumenesEquiposCache = { at: Date.now(), items }; } catch {}
+  try { window._plResumenesEquiposCache = { at: Date.now(), items: items }; } catch {}
   return items;
 }
+
+try { window.plLoadResumenesEquiposCache = plLoadResumenesEquiposCache; } catch {}
 
 async function plLoadInventarioEstados() {
   const claveEstadoOverride = 'pct_invre_estado_override';

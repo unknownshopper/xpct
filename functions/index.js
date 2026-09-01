@@ -624,6 +624,13 @@ async function buildResumenesEquiposAll() {
         proxima,
         creadoEn,
         resultado: String(data.resultado || '').trim().toUpperCase(),
+        noReporte: String(data.noReporte || data.certificado || '').trim(),
+        producto: String(data.producto || '').trim(),
+        descripcion: String(data.descripcion || data.desc || '').trim(),
+        area: String(data.area || '').trim(),
+        emisor: String(data.emisor || '').trim(),
+        tecnico: String(data.tecnico || '').trim(),
+        presionLt: (data.presionLt != null) ? String(data.presionLt).trim() : (data.presion != null ? String(data.presion).trim() : ''),
       };
 
       const key = `${equipoCanon}__${pruebaKey}`;
@@ -697,7 +704,7 @@ async function buildResumenesEquiposAll() {
     }
 
     const payload = {
-      version: 1,
+      version: 2,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       equipoKey,
       serial: String((lt && lt.serial) || (utt && utt.serial) || (vpm && vpm.serial) || (serialPorEquipoInv && serialPorEquipoInv[equipoKey]) || '').trim(),
@@ -710,6 +717,13 @@ async function buildResumenesEquiposAll() {
           vigente: ltVig,
           bucket: lt.proxima ? clasificarDias(lt.proxima).bucket : null,
           resultado: lt.resultado || '',
+          noReporte: lt.noReporte || '',
+          producto: lt.producto || '',
+          descripcion: lt.descripcion || '',
+          area: lt.area || '',
+          emisor: lt.emisor || '',
+          tecnico: lt.tecnico || '',
+          presionLt: lt.presionLt || '',
         } : null,
         UTT: utt ? {
           docId: utt.docId,
@@ -718,6 +732,13 @@ async function buildResumenesEquiposAll() {
           vigente: uttVig,
           bucket: utt.proxima ? clasificarDias(utt.proxima).bucket : null,
           resultado: utt.resultado || '',
+          noReporte: utt.noReporte || '',
+          producto: utt.producto || '',
+          descripcion: utt.descripcion || '',
+          area: utt.area || '',
+          emisor: utt.emisor || '',
+          tecnico: utt.tecnico || '',
+          presionLt: utt.presionLt || '',
         } : null,
         'VT/PT/MT': vpm ? {
           docId: vpm.docId,
@@ -726,6 +747,13 @@ async function buildResumenesEquiposAll() {
           vigente: vpmVig,
           bucket: vpm.proxima ? clasificarDias(vpm.proxima).bucket : null,
           resultado: vpm.resultado || '',
+          noReporte: vpm.noReporte || '',
+          producto: vpm.producto || '',
+          descripcion: vpm.descripcion || '',
+          area: vpm.area || '',
+          emisor: vpm.emisor || '',
+          tecnico: vpm.tecnico || '',
+          presionLt: vpm.presionLt || '',
         } : null,
         ltVigenteEfectivo: ltVigEfectivo,
         ltOverride,
