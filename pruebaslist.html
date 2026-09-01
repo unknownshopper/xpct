@@ -7820,10 +7820,26 @@
                 const db = (window.db || getFirestore());
                 const colRef = collection(db, 'pruebas');
 
+                const normEq = (v) => {
+                    try { return (typeof normEquipoKey === 'function') ? normEquipoKey(v) : String(v || '').trim().toUpperCase(); } catch { return String(v || '').trim().toUpperCase(); }
+                };
+                const rawU = raw.toUpperCase();
+                const rawL = raw.toLowerCase();
+                const rawNoSpaces = raw.replace(/\s+/g, '');
+                const rawNoHyphen = raw.replace(/-/g, '');
+                const withPct = rawU.startsWith('PCT-') ? rawU : (`PCT-${rawU}`);
+                const withPct2 = rawU.startsWith('PCT') ? rawU : (`PCT${rawU.startsWith('-') ? '' : '-'}${rawU}`);
+
                 const candidates = new Set([
                     raw,
-                    raw.toUpperCase(),
-                    raw.toLowerCase(),
+                    rawU,
+                    rawL,
+                    rawNoSpaces,
+                    rawNoHyphen,
+                    withPct,
+                    withPct2,
+                    normEq(raw),
+                    normEq(withPct),
                 ].map(s => String(s || '').trim()).filter(Boolean));
 
                 const out = new Map();
@@ -7839,7 +7855,24 @@
                     await runQ('serial', v);
                     await runQ('numeroSerie', v);
                     await runQ('equipo', v);
+                    // Algunos registros tienen el equipo ya normalizado (sin espacios). Intentar por equipoKey si existe.
+                    await runQ('equipoKey', v);
                 }
+
+                // Al mostrar resultados del servidor, evitar que filtros activos (rango/periodo) oculten filas.
+                try {
+                    if (typeof window.filtroRango !== 'undefined') window.filtroRango = null;
+                } catch {}
+                try {
+                    if (typeof filtroRango !== 'undefined') filtroRango = null;
+                } catch {}
+                try {
+                    if (typeof window.filtroPeriodo !== 'undefined') window.filtroPeriodo = '';
+                } catch {}
+                try {
+                    if (typeof filtroPeriodo !== 'undefined') filtroPeriodo = '';
+                } catch {}
+                try { if (typeof actualizarChipsUI === 'function') actualizarChipsUI(); } catch {}
 
                 pruebas = Array.from(out.values());
                 try {
