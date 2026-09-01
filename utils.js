@@ -77,30 +77,37 @@ async function loadNoUttExclusions(opts = {}) {
             let activos = new Set();
             let seriales = new Set();
             try {
-                const resp = await fetch('docs/noutt.csv', { cache: 'no-store' });
-                if (!resp.ok) throw new Error('no-utt-csv-not-ok');
-                const txt = await resp.text();
-                const lines = String(txt || '').split(/\r?\n/);
-                let idxActivo = -1;
-                let idxSerial = -1;
-                for (let i = 0; i < lines.length; i++) {
-                    const cols = parseCSVLine(lines[i] || '');
-                    const up = cols.map(c => _normNoUttKey(c));
-                    if (idxActivo < 0 || idxSerial < 0) {
-                        const a = up.indexOf('ACTIVO');
-                        const s = up.indexOf('SERIAL');
-                        if (a >= 0 && s >= 0) {
-                            idxActivo = a;
-                            idxSerial = s;
-                            continue;
+                // 1) Preferir Firestore (source of truth)
+                try {
+                    const mod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+                    const db = (window.db || (mod.getFirestore ? mod.getFirestore() : null));
+                    if (db && mod.doc && mod.getDoc) {
+                        const ref = mod.doc(db, 'config', 'no_utt');
+                        const snap = await mod.getDoc(ref);
+                        if (snap && snap.exists && snap.exists()) {
+                            const data = snap.data() || {};
+                            const a = Array.isArray(data.activos) ? data.activos : [];
+                            const s = Array.isArray(data.seriales) ? data.seriales : [];
+                            activos = new Set(a.map(_normNoUttKey).filter(Boolean));
+                            seriales = new Set(s.map(_normNoUttKey).filter(Boolean));
+                            // Guardar cache local
+                            try {
+                                localStorage.setItem(storageKey, JSON.stringify({
+                                    activos: Array.from(activos),
+                                    seriales: Array.from(seriales),
+                                }));
+                            } catch {}
+                            // Marcar y retornar
+                            window.__noUtt.activos = activos;
+                            window.__noUtt.seriales = seriales;
+                            window.__noUtt.loaded = true;
+                            window.__noUtt.loading = null;
+                            return window.__noUtt;
                         }
-                        continue;
+                        try { if (force) console.warn('[no_utt] Firestore doc config/no_utt no existe o está vacío'); } catch {}
                     }
-                    if (!cols || !cols.length) continue;
-                    const activo = _normNoUttKey(idxActivo >= 0 ? cols[idxActivo] : '');
-                    const serial = _normNoUttKey(idxSerial >= 0 ? cols[idxSerial] : '');
-                    if (activo) activos.add(activo);
-                    if (serial) seriales.add(serial);
+                } catch (e) {
+                    try { if (force) console.warn('[no_utt] Error leyendo Firestore config/no_utt', e); } catch {}
                 }
             } catch {
                 activos = new Set();
@@ -134,6 +141,81 @@ async function loadNoUttExclusions(opts = {}) {
     }
 }
 
+// Migración: guardar exclusions en Firestore para dejar de depender del CSV.
+// Usa los sets ya cargados en window.__noUtt.
+async function syncNoUttToFirestore() {
+    const st = (typeof window !== 'undefined' && window.__noUtt) ? window.__noUtt : null;
+    const activos = st && st.activos ? Array.from(st.activos) : [];
+    const seriales = st && st.seriales ? Array.from(st.seriales) : [];
+    const mod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const db = (window.db || (mod.getFirestore ? mod.getFirestore() : null));
+    if (!db) throw new Error('db_not_ready');
+    if (!mod.doc || !mod.setDoc) throw new Error('firestore_sdk_missing');
+    const ref = mod.doc(db, 'config', 'no_utt');
+    await mod.setDoc(ref, { activos, seriales, updatedAt: mod.serverTimestamp ? mod.serverTimestamp() : undefined }, { merge: true });
+    return { ok: true, activos: activos.length, seriales: seriales.length };
+}
+
+// Migración (one-shot): leer docs/noutt.csv y sembrar Firestore config/no_utt.
+// Esto NO se ejecuta automáticamente: invócalo manualmente desde consola.
+async function seedNoUttFromCsvToFirestore() {
+    const storageKey = 'pct_no_utt_v1';
+    const resp = await fetch('docs/noutt.csv', { cache: 'no-store' });
+    if (!resp.ok) throw new Error('no-utt-csv-not-ok');
+    const txt = await resp.text();
+    const lines = String(txt || '').split(/\r?\n/);
+    let idxActivo = -1;
+    let idxSerial = -1;
+    const activos = new Set();
+    const seriales = new Set();
+    for (let i = 0; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i] || '');
+        const up = cols.map(c => _normNoUttKey(c));
+        if (idxActivo < 0 || idxSerial < 0) {
+            const a = up.indexOf('ACTIVO');
+            const s = up.indexOf('SERIAL');
+            if (a >= 0 && s >= 0) {
+                idxActivo = a;
+                idxSerial = s;
+                continue;
+            }
+            continue;
+        }
+        const activo = _normNoUttKey(idxActivo >= 0 ? cols[idxActivo] : '');
+        const serial = _normNoUttKey(idxSerial >= 0 ? cols[idxSerial] : '');
+        if (activo) activos.add(activo);
+        if (serial) seriales.add(serial);
+    }
+
+    const mod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const db = (window.db || (mod.getFirestore ? mod.getFirestore() : null));
+    if (!db) throw new Error('db_not_ready');
+    const ref = mod.doc(db, 'config', 'no_utt');
+    await mod.setDoc(ref, {
+        activos: Array.from(activos),
+        seriales: Array.from(seriales),
+        updatedAt: mod.serverTimestamp ? mod.serverTimestamp() : undefined,
+        source: 'docs/noutt.csv'
+    }, { merge: true });
+
+    // Warm caches
+    try {
+        localStorage.setItem(storageKey, JSON.stringify({
+            activos: Array.from(activos),
+            seriales: Array.from(seriales),
+        }));
+    } catch {}
+    try {
+        window.__noUtt = window.__noUtt || { activos: new Set(), seriales: new Set(), loaded: false, loading: null };
+        window.__noUtt.activos = new Set(Array.from(activos));
+        window.__noUtt.seriales = new Set(Array.from(seriales));
+        window.__noUtt.loaded = true;
+        window.__noUtt.loading = null;
+    } catch {}
+
+    return { ok: true, activos: activos.size, seriales: seriales.size };
+}
+
 function isNoUttEquipo(activo, serial) {
     try {
         const a = _normNoUttKey(activo);
@@ -141,9 +223,15 @@ function isNoUttEquipo(activo, serial) {
         const st = (typeof window !== 'undefined' && window.__noUtt) ? window.__noUtt : null;
         const setA = st && st.activos ? st.activos : null;
         const setS = st && st.seriales ? st.seriales : null;
-        const okA = !!(a && setA && typeof setA.has === 'function' && setA.has(a));
-        const okS = !!(s && setS && typeof setS.has === 'function' && setS.has(s));
-        return okA || okS;
+        const hasA = (set, v) => !!(v && set && typeof set.has === 'function' && set.has(v));
+        // Algunos callers pasan (equipoKey, serialInventario) y el CSV puede listar el equipoKey en "SERIAL".
+        // Para evitar falsos negativos, evaluar ambos inputs contra ambos sets.
+        return (
+            hasA(setA, a) ||
+            hasA(setS, a) ||
+            hasA(setA, s) ||
+            hasA(setS, s)
+        );
     } catch {
         return false;
     }
@@ -152,5 +240,7 @@ function isNoUttEquipo(activo, serial) {
 if (typeof window !== 'undefined') {
     window.loadNoUttExclusions = window.loadNoUttExclusions || loadNoUttExclusions;
     window.isNoUttEquipo = window.isNoUttEquipo || isNoUttEquipo;
+    window.syncNoUttToFirestore = window.syncNoUttToFirestore || syncNoUttToFirestore;
+    window.seedNoUttFromCsvToFirestore = window.seedNoUttFromCsvToFirestore || seedNoUttFromCsvToFirestore;
     try { window.loadNoUttExclusions().catch(() => {}); } catch {}
 }

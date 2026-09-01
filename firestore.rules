@@ -109,6 +109,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /config/{docId} {
+      allow read: if canReadCatalogs();
+      allow write: if isRoleAny(['admin', 'sgi']);
+    }
+
     match /actividades/{docId} {
       allow read: if canReadOperativo();
       allow write: if false;
