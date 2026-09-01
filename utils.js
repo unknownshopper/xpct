@@ -41,8 +41,13 @@ function _normNoUttKey(v) {
     try {
         return String(v || '')
             .trim()
-            .toUpperCase()
-            .replace(/\s+/g, ' ');
+            // Normalizar guiones unicode a guión ASCII
+            .replace(/[‐‑‒–—―]/g, '-')
+            // Normalizar espacios alrededor de guiones
+            .replace(/\s*-\s*/g, '-')
+            // Colapsar whitespace restante
+            .replace(/\s+/g, ' ')
+            .toUpperCase();
     } catch {
         return '';
     }

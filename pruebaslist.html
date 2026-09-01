@@ -5545,7 +5545,8 @@
                         return (serialPorEquipoInv && eq && serialPorEquipoInv[eq]) ? String(serialPorEquipoInv[eq]) : '';
                     })();
                     const isNoUtt = !!(window.isNoUttEquipo && window.isNoUttEquipo(eq, serialInv));
-                    const is100 = !!(hasAnual && hasLt && hasVpm && (hasUtt || isNoUtt));
+                    const hasUttEff = !!(hasUtt || isNoUtt);
+                    const is100 = !!(hasAnual && hasLt && hasVpm && hasUttEff);
                     const edo = (() => {
                         try {
                             if (byEq && byEq.get(eq) && byEq.get(eq).edo) return String(byEq.get(eq).edo).toUpperCase();
@@ -5555,7 +5556,8 @@
                     const isWip = (String(edo || '').trim().toUpperCase() === 'WIP') || (!!(wipSet && wipSet.has(eq)));
                     // "Sin pruebas" = sin registros en historial (no depende de WIP).
                     const cat = (!hasAny) ? 'sin' : (is100 ? '100' : 'parcial');
-                    window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasLt, hasVpm, hasUtt };
+                    // Nota: para fines de cobertura, UTT se considera "cumplida" si el equipo está excluido.
+                    window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasLt, hasVpm, hasUtt: hasUttEff };
                     if (cat === '100') c100 += 1;
                     else if (cat === 'parcial') cPar += 1;
                     else {
@@ -5565,12 +5567,12 @@
 
                     if (!hasLt) missLt += 1;
                     if (!hasVpm) missVpm += 1;
-                    if (!isNoUtt && !hasUtt) missUtt += 1;
+                    if (!hasUttEff) missUtt += 1;
 
                     if (cat === 'parcial') {
                         if (!hasLt) missLtPar += 1;
                         if (!hasVpm) missVpmPar += 1;
-                        if (!isNoUtt && !hasUtt) missUttPar += 1;
+                        if (!hasUttEff) missUttPar += 1;
                     }
                 });
 
