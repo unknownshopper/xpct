@@ -1681,7 +1681,10 @@
                         if (lblPend) lblPend.textContent = `${porRealizar} por realizar`;
                         if (lblVenc) lblVenc.textContent = `${Number(pa.vencidas || 0)} vencida${Number(pa.vencidas || 0) === 1 ? '' : 's'}`;
                     }
-                    if (pt && lblHist) lblHist.textContent = `${Number(pt.totalDocs || 0)} en histórico`;
+                    if (pt && lblHist) {
+                        const hist = Number(pt.postTrabajoDocs || 0) + Number(pt.reparacionDocs || 0);
+                        lblHist.textContent = `${hist} en histórico`;
+                    }
                 } catch {}
 
                 // window._pctResumenGlobal se expone arriba para diagnóstico.
@@ -5509,7 +5512,8 @@
                         return (edoPorEquipoInv && edoPorEquipoInv[eq]) ? String(edoPorEquipoInv[eq]).toUpperCase() : '';
                     })();
                     const isWip = (String(edo || '').trim().toUpperCase() === 'WIP') || (!!(wipSet && wipSet.has(eq)));
-                    const cat = (!hasAny || isWip) ? 'sin' : (is100 ? '100' : 'parcial');
+                    // "Sin pruebas" = sin registros en historial (no depende de WIP).
+                    const cat = (!hasAny) ? 'sin' : (is100 ? '100' : 'parcial');
                     window._equiposCobertura[eq] = { cat, hasAny, hasAnual, hasLt, hasVpm, hasUtt };
                     if (cat === '100') c100 += 1;
                     else if (cat === 'parcial') cPar += 1;
@@ -6208,7 +6212,13 @@
                     if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
                     if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
                     if (lblHist) {
-                        if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
+                        let fromGlobal = null;
+                        try {
+                            const pt = window._pctResumenGlobal && window._pctResumenGlobal.data ? window._pctResumenGlobal.data.pruebasTotals : null;
+                            if (pt) fromGlobal = Number(pt.postTrabajoDocs || 0) + Number(pt.reparacionDocs || 0);
+                        } catch {}
+                        if (typeof fromGlobal === 'number' && isFinite(fromGlobal)) lblHist.textContent = `${fromGlobal} en histórico`;
+                        else if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
                         else lblHist.textContent = `${totalHistorico} en histórico`;
                     }
                 }
@@ -6679,7 +6689,13 @@
                 if (lblPend) lblPend.textContent = `${cntPend} por realizar`;
                 if (lblVenc) lblVenc.textContent = `${cntVenc} vencida${cntVenc === 1 ? '' : 's'}`;
                 if (lblHist) {
-                    if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
+                    let fromGlobal = null;
+                    try {
+                        const pt = window._pctResumenGlobal && window._pctResumenGlobal.data ? window._pctResumenGlobal.data.pruebasTotals : null;
+                        if (pt) fromGlobal = Number(pt.postTrabajoDocs || 0) + Number(pt.reparacionDocs || 0);
+                    } catch {}
+                    if (typeof fromGlobal === 'number' && isFinite(fromGlobal)) lblHist.textContent = `${fromGlobal} en histórico`;
+                    else if (typeof _totalServer === 'number') lblHist.textContent = `Mostrando ${totalHistorico} de ${_totalServer}`;
                     else lblHist.textContent = `${totalHistorico} en histórico`;
                 }
             }
