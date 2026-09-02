@@ -1965,17 +1965,45 @@
         try { window.setProcessingGuard = window.setProcessingGuard || setProcessingGuard; } catch {}
 
         const readFileAsText = async (file) => {
-            if (file && typeof file.text === 'function') return await file.text();
-            return await new Promise((resolve, reject) => {
+            try {
+                // Prefer ArrayBuffer + TextDecoder to support Windows-1252 CSVs (acentos/ñ)
+                const buf = await new Promise((resolve, reject) => {
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(reader.error || new Error('file_read_error'));
+                        reader.readAsArrayBuffer(file);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+                const bytes = buf instanceof ArrayBuffer ? buf : new ArrayBuffer(0);
+                let text = '';
+                try { text = new TextDecoder('utf-8', { fatal: false }).decode(bytes); } catch { text = ''; }
+                // Si hay muchos caracteres de reemplazo, intentar windows-1252
                 try {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(String(reader.result || ''));
-                    reader.onerror = () => reject(reader.error || new Error('file_read_error'));
-                    reader.readAsText(file);
-                } catch (e) {
-                    reject(e);
-                }
-            });
+                    const bad = (text.match(/\uFFFD/g) || []).length;
+                    if (bad > 0) {
+                        const t2 = new TextDecoder('windows-1252', { fatal: false }).decode(bytes);
+                        const bad2 = (t2.match(/\uFFFD/g) || []).length;
+                        if (bad2 < bad) text = t2;
+                    }
+                } catch {}
+                return String(text || '');
+            } catch {
+                // Fallback clásico
+                if (file && typeof file.text === 'function') return await file.text();
+                return await new Promise((resolve, reject) => {
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(String(reader.result || ''));
+                        reader.onerror = () => reject(reader.error || new Error('file_read_error'));
+                        reader.readAsText(file);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            }
         };
 
         // Eliminar por CSV: flujo independiente que no activa auto-import (ubicado tras inicialización de variables)
@@ -3286,6 +3314,17 @@
         function parseCsv(text) {
             const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
             if (!lines.length) return { headers: [], rows: [] };
+            const detectSep = (line) => {
+                try {
+                    const stripped = String(line || '').replace(/"(?:[^"]|"")*"/g, '');
+                    const cComma = (stripped.match(/,/g) || []).length;
+                    const cSemi = (stripped.match(/;/g) || []).length;
+                    return (cSemi > cComma) ? ';' : ',';
+                } catch {
+                    return ',';
+                }
+            };
+            const sep = detectSep(lines[0]);
             const parseLine = (line) => {
                 const out = [];
                 let cur = '';
@@ -3295,7 +3334,7 @@
                     if (ch === '"') {
                         if (inside && line[i+1] === '"') { cur += '"'; i++; }
                         else inside = !inside;
-                    } else if (ch === ',' && !inside) {
+                    } else if (ch === sep && !inside) {
                         out.push(cur); cur = '';
                     } else {
                         cur += ch;
@@ -4195,6 +4234,8 @@
                         resultado: rec.resultado,
                         ejecucion: normalizaEjecucion(rec.ejecucion || ''),
                         emisor,
+                        producto: producto || '',
+                        descripcion: descripcion || '',
                         pruebaDetalle: pruebaDetalleNorm || '',
                         observaciones: rec.observaciones || '',
                         ubicacion: rec.ubicacion || '',
@@ -4439,17 +4480,42 @@
             btnImportCsvEl.addEventListener('click', () => inputImportCsvEl.click());
 
             const readFileAsText = async (file) => {
-                if (file && typeof file.text === 'function') return await file.text();
-                return await new Promise((resolve, reject) => {
+                try {
+                    const buf = await new Promise((resolve, reject) => {
+                        try {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = () => reject(reader.error || new Error('file_read_error'));
+                            reader.readAsArrayBuffer(file);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                    const bytes = buf instanceof ArrayBuffer ? buf : new ArrayBuffer(0);
+                    let text = '';
+                    try { text = new TextDecoder('utf-8', { fatal: false }).decode(bytes); } catch { text = ''; }
                     try {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(String(reader.result || ''));
-                        reader.onerror = () => reject(reader.error || new Error('file_read_error'));
-                        reader.readAsText(file);
-                    } catch (e) {
-                        reject(e);
-                    }
-                });
+                        const bad = (text.match(/\uFFFD/g) || []).length;
+                        if (bad > 0) {
+                            const t2 = new TextDecoder('windows-1252', { fatal: false }).decode(bytes);
+                            const bad2 = (t2.match(/\uFFFD/g) || []).length;
+                            if (bad2 < bad) text = t2;
+                        }
+                    } catch {}
+                    return String(text || '');
+                } catch {
+                    if (file && typeof file.text === 'function') return await file.text();
+                    return await new Promise((resolve, reject) => {
+                        try {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(String(reader.result || ''));
+                            reader.onerror = () => reject(reader.error || new Error('file_read_error'));
+                            reader.readAsText(file);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                }
             };
 
             inputImportCsvEl.addEventListener('change', async (ev) => {
