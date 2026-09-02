@@ -1962,6 +1962,22 @@
             } catch {}
         }
 
+        try { window.setProcessingGuard = window.setProcessingGuard || setProcessingGuard; } catch {}
+
+        const readFileAsText = async (file) => {
+            if (file && typeof file.text === 'function') return await file.text();
+            return await new Promise((resolve, reject) => {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || ''));
+                    reader.onerror = () => reject(reader.error || new Error('file_read_error'));
+                    reader.readAsText(file);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        };
+
         // Eliminar por CSV: flujo independiente que no activa auto-import (ubicado tras inicialización de variables)
         if (btnDeleteCsv && inputDeleteCsv) {
             btnDeleteCsv.addEventListener('click', () => inputDeleteCsv.click());
@@ -1971,7 +1987,7 @@
                 const file = ev.target.files && ev.target.files[0];
                 if (!file) return;
                 try {
-                    const text = await file.text();
+                    const text = await readFileAsText(file);
                     const res = validateCsv(text);
                     const rowsToDelete = res.valids || [];
                     if (!rowsToDelete.length) { alert('El CSV no contiene filas válidas para eliminar.'); return; }
@@ -1981,24 +1997,28 @@
                     if (importWarnings) importWarnings.innerHTML = '';
                     if (importErrors) importErrors.innerHTML = '';
                     if (importSummary) importSummary.innerHTML = `Eliminando... <strong>0</strong> / ${rowsToDelete.length}`;
-                    setProcessingGuard(true);
-                    const delRes = await deleteExistingFromCsv(rowsToDelete);
-                    if (importSummary) importSummary.innerHTML = `Eliminados: <strong>${delRes.delOk}</strong>, No encontrados: ${delRes.delMiss}, Fallidos: ${delRes.delFail}`;
-                    // Recargar listado
-                    const desdeFs2 = await leerFirestore();
-                    if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
-                    buildExistingKeys();
-                    render();
+                    try { if (typeof setProcessingGuard === 'function') setProcessingGuard(true); else if (window.setProcessingGuard) window.setProcessingGuard(true); } catch {}
+                    try {
+                        const delRes = await deleteExistingFromCsv(rowsToDelete);
+                        if (importSummary) importSummary.innerHTML = `Eliminados: <strong>${delRes.delOk}</strong>, No encontrados: ${delRes.delMiss}, Fallidos: ${delRes.delFail}`;
+                        // Recargar listado
+                        const desdeFs2 = await leerFirestore();
+                        if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
+                        try { buildExistingKeys(); } catch {}
+                        try { render(); } catch {}
+                    } catch (e) {
+                        console.error('Error al eliminar por CSV', e);
+                        alert('No se pudo procesar el CSV para eliminar.');
+                    } finally {
+                        if (inputDeleteCsv) inputDeleteCsv.value = '';
+                        try { if (typeof setProcessingGuard === 'function') setProcessingGuard(false); else if (window.setProcessingGuard) window.setProcessingGuard(false); } catch {}
+                    }
                 } catch (e) {
-                    alert('No se pudo procesar el CSV para eliminar.');
-                } finally {
-                    if (inputDeleteCsv) inputDeleteCsv.value = '';
-                    setProcessingGuard(false);
+                    console.error('Error al procesar CSV', e);
+                    alert('No se pudo procesar el CSV.');
                 }
             });
         }
-
-        // Fijar listener de eliminación tan pronto como el botón exista
         if (btnImportDeleteExisting) {
             btnImportDeleteExisting.addEventListener('click', async () => {
                 if (!importRowsReady || !importRowsReady.length) { alert('No hay filas para procesar.'); return; }
@@ -4363,7 +4383,7 @@
                 } catch (e) {
                     try { console.error('CSV read failed', e); } catch {}
                     alert('No se pudo leer el archivo CSV');
-                    setProcessingGuard(false);
+                    try { if (typeof setProcessingGuard === 'function') setProcessingGuard(false); else if (window.setProcessingGuard) window.setProcessingGuard(false); } catch {}
                 }
             });
         }
