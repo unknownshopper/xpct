@@ -3184,9 +3184,13 @@
         }
 
         function composeKey(r) {
-            const resolved = resolverEquipoYSerialCanon(r.equipo, (r.numeroSerie||r.serial||''));
-            const equipo = (resolved.equipoCanon||'').trim().toUpperCase();
-            const numeroSerie = (resolved.serialCanon||'').trim().toUpperCase();
+            const equipo = (() => {
+                try { return (typeof normEquipoKey === 'function') ? normEquipoKey(r.equipo) : String(r.equipo || '').trim().toUpperCase(); } catch { return String(r.equipo || '').trim().toUpperCase(); }
+            })();
+            const numeroSerie = (() => {
+                const v = (r.numeroSerie || r.serial || '');
+                try { return (typeof normSerialKey === 'function') ? normSerialKey(v) : String(v || '').trim().toUpperCase(); } catch { return String(v || '').trim().toUpperCase(); }
+            })();
             const periodo = (r.periodo||'').trim().toUpperCase();
             const prueba = (r.prueba||'').trim().toUpperCase();
             const fechaRealizacion = coerceFechaKey(r.fechaRealizacion);
@@ -3207,9 +3211,13 @@
         }
 
         function composeKeyRelaxed(r) {
-            const resolved = resolverEquipoYSerialCanon(r.equipo, (r.numeroSerie||r.serial||''));
-            const equipo = (resolved.equipoCanon||'').trim().toUpperCase();
-            const numeroSerie = (resolved.serialCanon||'').trim().toUpperCase();
+            const equipo = (() => {
+                try { return (typeof normEquipoKey === 'function') ? normEquipoKey(r.equipo) : String(r.equipo || '').trim().toUpperCase(); } catch { return String(r.equipo || '').trim().toUpperCase(); }
+            })();
+            const numeroSerie = (() => {
+                const v = (r.numeroSerie || r.serial || '');
+                try { return (typeof normSerialKey === 'function') ? normSerialKey(v) : String(v || '').trim().toUpperCase(); } catch { return String(v || '').trim().toUpperCase(); }
+            })();
             const periodo = (r.periodo||'').trim().toUpperCase();
             const prueba = (r.prueba||'').trim().toUpperCase();
             const fechaRealizacion = coerceFechaKey(r.fechaRealizacion);
@@ -4304,6 +4312,10 @@
                     prueba: r.prueba,
                     fechaRealizacion: r.fechaRealizacion,
                     noReporte: r.noReporte,
+                    noReporteKey: (() => {
+                        try { return (typeof normalizeNoReporte === 'function') ? normalizeNoReporte(r.noReporte || '') : ''; } catch { return ''; }
+                    })(),
+                    presionLt: (r && (r.presionLt || r.presion || r.presionPrueba)) ? String(r.presionLt || r.presion || r.presionPrueba).trim() : '',
                     resultado: r.resultado,
                     ejecucion: r.ejecucion,
                     emisor: r.emisor,
@@ -4505,6 +4517,17 @@
 
                     const res = await doImportToFirestore(importRowsReady||[]);
                     if (importSummaryEl) importSummaryEl.innerHTML += ` - Importados: <strong>${res.ok}</strong>, Actualizados: <strong>${res.updated}</strong>, Omitidos (duplicados): ${res.skipped}, Fallidos: ${res.failed}`;
+                    try {
+                        const okN = Number(res && res.ok ? res.ok : 0);
+                        const updN = Number(res && res.updated ? res.updated : 0);
+                        const skipN = Number(res && res.skipped ? res.skipped : 0);
+                        const failN = Number(res && res.failed ? res.failed : 0);
+                        if (failN > 0) {
+                            alert(`Importación completada con errores. Importados: ${okN}, Actualizados: ${updN}, Omitidos: ${skipN}, Fallidos: ${failN}. Revisa la consola para más detalle.`);
+                        } else {
+                            if (typeof showToast === 'function') showToast(`Importación exitosa. Importados: ${okN}, Actualizados: ${updN}, Omitidos: ${skipN}.`);
+                        }
+                    } catch {}
                     try {
                         if (res && Array.isArray(res.skippedSamples) && res.skippedSamples.length) {
                             const html = res.skippedSamples.map(s => `<li>${escapeHtml(s)}</li>`).join('');
@@ -7908,7 +7931,7 @@
                 const raw = (inputBuscarEl9 && inputBuscarEl9.value ? inputBuscarEl9.value : '').toString().trim();
                 if (!raw) return;
 
-                const { getFirestore, collection, getDocs, query, where } = await import(
+                const { getFirestore, collection, getDocs, query, where, orderBy, startAt, endAt, limit } = await import(
                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                 );
                 const db = (window.db || getFirestore());
@@ -7921,6 +7944,8 @@
                 const rawL = raw.toLowerCase();
                 const rawNoSpaces = raw.replace(/\s+/g, '');
                 const rawNoHyphen = raw.replace(/-/g, '');
+                const rawHyphenAscii = raw.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-');
+                const rawHyphenNb = raw.replace(/-/g, '\u2011');
                 const withPct = rawU.startsWith('PCT-') ? rawU : (`PCT-${rawU}`);
                 const withPct2 = rawU.startsWith('PCT') ? rawU : (`PCT${rawU.startsWith('-') ? '' : '-'}${rawU}`);
 
@@ -7935,6 +7960,8 @@
                     rawL,
                     rawNoSpaces,
                     rawNoHyphen,
+                    rawHyphenAscii,
+                    rawHyphenNb,
                     withPct,
                     withPct2,
                     noRepNorm,
@@ -7948,7 +7975,9 @@
                         const q = query(colRef, where(field, '==', val));
                         const snap = await getDocs(q);
                         snap.forEach(d => out.set(d.id, { id: d.id, ...d.data() }));
-                    } catch {}
+                    } catch (e) {
+                        try { console.error('[pruebaslist] buscar servidor falló', { field, val, code: e && e.code ? e.code : '', message: e && e.message ? e.message : String(e || '') }); } catch {}
+                    }
                 };
 
                 for (const v of candidates) {
@@ -7958,6 +7987,73 @@
                     // Algunos registros tienen el equipo ya normalizado (sin espacios). Intentar por equipoKey si existe.
                     await runQ('equipoKey', v);
                     await runQ('noReporte', v);
+                    await runQ('noReporteKey', v);
+                }
+
+                // Fallback: búsqueda por prefijo (para caracteres invisibles/guiones raros/espacios)
+                if (!out.size) {
+                    const runPrefix = async (field, prefix) => {
+                        try {
+                            const p = String(prefix || '').trim();
+                            if (!p) return;
+                            const q = query(colRef, orderBy(field), startAt(p), endAt(p + '\uf8ff'), limit(40));
+                            const snap = await getDocs(q);
+                            snap.forEach(d => out.set(d.id, { id: d.id, ...d.data() }));
+                        } catch (e) {
+                            try { console.error('[pruebaslist] buscar servidor prefix falló', { field, prefix, code: e && e.code ? e.code : '', message: e && e.message ? e.message : String(e || '') }); } catch {}
+                        }
+                    };
+                    // Probar con el texto tal cual y con normalizado
+                    await runPrefix('noReporte', rawU);
+                    if (noRepNorm) await runPrefix('noReporteKey', noRepNorm);
+                }
+
+                // Fallback diagnóstico: buscar por la última importación (batch) para confirmar si sí se guardó
+                if (!out.size) {
+                    try {
+                        const lastBatchId = String(localStorage.getItem('pct_pruebas_last_import_batch_id') || '').trim();
+                        if (lastBatchId) {
+                            const qBatch = query(colRef, where('importBatchId', '==', lastBatchId), limit(80));
+                            const snapB = await getDocs(qBatch);
+                            const token = (typeof normalizeNoReporte === 'function') ? normalizeNoReporte(rawU) : rawU.replace(/\s+/g, '').toUpperCase();
+                            snapB.forEach(d => {
+                                const data = d.data() || {};
+                                const nr = (data.noReporte || '').toString();
+                                let nrK = '';
+                                try { nrK = (typeof normalizeNoReporte === 'function') ? normalizeNoReporte(nr) : nr.replace(/\s+/g, '').toUpperCase(); } catch {}
+                                if (!token || !nrK) return;
+                                if (nrK.includes(token)) out.set(d.id, { id: d.id, ...data });
+                            });
+                        }
+                    } catch (e) {
+                        try { console.error('[pruebaslist] buscar servidor importBatchId falló', { code: e && e.code ? e.code : '', message: e && e.message ? e.message : String(e || '') }); } catch {}
+                    }
+                }
+
+                // Fallback diagnóstico universal: revisar importaciones recientes y filtrar por noReporte normalizado.
+                // Útil cuando el batchId no está disponible (localStorage null / import previo a esta versión).
+                if (!out.size) {
+                    try {
+                        const token = (typeof normalizeNoReporte === 'function') ? normalizeNoReporte(rawU) : rawU.replace(/\s+/g, '').toUpperCase();
+                        if (token) {
+                            const qRecent = query(colRef, orderBy('importedAt', 'desc'), limit(200));
+                            const snapR = await getDocs(qRecent);
+                            snapR.forEach(d => {
+                                const data = d.data() || {};
+                                const nr = (data.noReporte || '').toString();
+                                let nrK = '';
+                                try { nrK = (typeof normalizeNoReporte === 'function') ? normalizeNoReporte(nr) : nr.replace(/\s+/g, '').toUpperCase(); } catch {}
+                                if (!nrK) return;
+                                if (nrK.includes(token)) out.set(d.id, { id: d.id, ...data });
+                            });
+                        }
+                    } catch (e) {
+                        try { console.error('[pruebaslist] buscar servidor recent importedAt falló', { code: e && e.code ? e.code : '', message: e && e.message ? e.message : String(e || '') }); } catch {}
+                    }
+                }
+
+                if (!out.size) {
+                    alert(`Sin resultados en servidor para: ${raw} (candidatos: ${candidates.size}).`);
                 }
 
                 // Al mostrar resultados del servidor, evitar que filtros activos (rango/periodo) oculten filas.
