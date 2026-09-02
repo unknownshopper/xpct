@@ -4696,7 +4696,13 @@
             const detalleTr = document.createElement('tr');
             detalleTr.className = 'pl-detalle-row';
             const detalleTd = document.createElement('td');
-            detalleTd.colSpan = permitirEliminar ? 15 : 14; // ajustar si no hay columna de selección
+            // Ajustar al número real de columnas para evitar que el detalle quede oculto o roto
+            try {
+                const n = (fila && fila.children && fila.children.length) ? fila.children.length : 0;
+                detalleTd.colSpan = n || (permitirEliminar ? 15 : 14);
+            } catch {
+                detalleTd.colSpan = permitirEliminar ? 15 : 14;
+            }
             detalleTd.innerHTML = construirDetalleHTML(reg);
             detalleTr.appendChild(detalleTd);
             fila.insertAdjacentElement('afterend', detalleTr);
