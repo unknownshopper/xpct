@@ -4114,16 +4114,20 @@
                     // Producto/Descripción desde inventario por equipo
                     const eqKey = (rec.equipo || '').toString().trim().toUpperCase();
                     const serialKey = (rec.numeroSerie || '').toString().trim().toUpperCase();
-                    const producto = (productoPorEquipoInv && productoPorEquipoInv[eqKey])
-                        ? productoPorEquipoInv[eqKey]
-                        : (productoPorSerialInv && productoPorSerialInv[serialKey])
-                            ? productoPorSerialInv[serialKey]
-                            : (rec.producto || '');
-                    const descripcion = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqKey])
-                        ? descripcionPorEquipoInv[eqKey]
-                        : (descripcionPorSerialInv && descripcionPorSerialInv[serialKey])
-                            ? descripcionPorSerialInv[serialKey]
-                            : (rec.descripcion || '');
+                    const pEq = (typeof productoPorEquipoInv !== 'undefined') ? productoPorEquipoInv : null;
+                    const pSn = (typeof productoPorSerialInv !== 'undefined') ? productoPorSerialInv : null;
+                    const dEq = (typeof descripcionPorEquipoInv !== 'undefined') ? descripcionPorEquipoInv : null;
+                    const dSn = (typeof descripcionPorSerialInv !== 'undefined') ? descripcionPorSerialInv : null;
+                    const producto = (pEq && pEq[eqKey])
+                        ? pEq[eqKey]
+                        : (pSn && pSn[serialKey])
+                            ? pSn[serialKey]
+                            : '';
+                    const descripcion = (dEq && dEq[eqKey])
+                        ? dEq[eqKey]
+                        : (dSn && dSn[serialKey])
+                            ? dSn[serialKey]
+                            : '';
 
                     // Resolver área: CSV -> inventario (invre2) por equipo/serial+tipo -> previo por equipo -> previo por serial
                     let tipoKey = normalizaPrueba(rec.prueba || '');
@@ -4131,10 +4135,12 @@
                     if (tipoKey === 'VT' || tipoKey === 'PT' || tipoKey === 'MT' || tipoKey === 'VT/PT/MT') {
                         tipoKey = 'VT / PT / MT';
                     }
-                    const areaInv = (areaPorEquipoPruebaInv && areaPorEquipoPruebaInv[`${eqKey}::${tipoKey}`])
-                        ? areaPorEquipoPruebaInv[`${eqKey}::${tipoKey}`]
-                        : (areaPorSerialPruebaInv && areaPorSerialPruebaInv[`${serialKey}::${tipoKey}`])
-                            ? areaPorSerialPruebaInv[`${serialKey}::${tipoKey}`]
+                    const areaEqMap = (typeof areaPorEquipoPruebaInv !== 'undefined') ? areaPorEquipoPruebaInv : null;
+                    const areaSnMap = (typeof areaPorSerialPruebaInv !== 'undefined') ? areaPorSerialPruebaInv : null;
+                    const areaInv = (areaEqMap && areaEqMap[`${eqKey}::${tipoKey}`])
+                        ? areaEqMap[`${eqKey}::${tipoKey}`]
+                        : (areaSnMap && areaSnMap[`${serialKey}::${tipoKey}`])
+                            ? areaSnMap[`${serialKey}::${tipoKey}`]
                             : '';
                     const areaResolved = rec.areaPrueba || areaInv || areaPorEquipoPrev[eqKey] || areaPorSerialPrev[serialKey] || '';
                     if (!areaResolved) {
