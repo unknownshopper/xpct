@@ -4188,6 +4188,7 @@
             const importErrors = document.getElementById('import-errors');
             const btnImportConfirm = document.getElementById('btn-import-confirm');
             const btnImportDeleteExisting = document.getElementById('btn-import-delete-existing');
+            const btnImportCancel = document.getElementById('btn-import-cancel');
             if (!importPreview || !importSummary || !importWarnings || !importErrors) return;
             const total = (res.valids?.length||0) + (res.errors?.filter(e=>/^L\d+:/.test(e)).length||0);
             importSummary.innerHTML = `Registros válidos: <strong>${res.valids.length}</strong> de ${total}`;
