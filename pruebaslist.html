@@ -7924,6 +7924,11 @@
                 const withPct = rawU.startsWith('PCT-') ? rawU : (`PCT-${rawU}`);
                 const withPct2 = rawU.startsWith('PCT') ? rawU : (`PCT${rawU.startsWith('-') ? '' : '-'}${rawU}`);
 
+                let noRepNorm = '';
+                try {
+                    if (typeof normalizeNoReporte === 'function') noRepNorm = normalizeNoReporte(rawU);
+                } catch {}
+
                 const candidates = new Set([
                     raw,
                     rawU,
@@ -7932,6 +7937,7 @@
                     rawNoHyphen,
                     withPct,
                     withPct2,
+                    noRepNorm,
                     normEq(raw),
                     normEq(withPct),
                 ].map(s => String(s || '').trim()).filter(Boolean));
@@ -7951,6 +7957,7 @@
                     await runQ('equipo', v);
                     // Algunos registros tienen el equipo ya normalizado (sin espacios). Intentar por equipoKey si existe.
                     await runQ('equipoKey', v);
+                    await runQ('noReporte', v);
                 }
 
                 // Al mostrar resultados del servidor, evitar que filtros activos (rango/periodo) oculten filas.
