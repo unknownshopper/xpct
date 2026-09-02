@@ -4334,11 +4334,26 @@
         const inputImportCsvEl = document.getElementById('input-import-csv');
         if (btnImportCsvEl && inputImportCsvEl) {
             btnImportCsvEl.addEventListener('click', () => inputImportCsvEl.click());
+
+            const readFileAsText = async (file) => {
+                if (file && typeof file.text === 'function') return await file.text();
+                return await new Promise((resolve, reject) => {
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(String(reader.result || ''));
+                        reader.onerror = () => reject(reader.error || new Error('file_read_error'));
+                        reader.readAsText(file);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            };
+
             inputImportCsvEl.addEventListener('change', async (ev) => {
                 const file = ev.target.files && ev.target.files[0];
                 if (!file) return;
                 try {
-                    const text = await file.text();
+                    const text = await readFileAsText(file);
                     lastCsvText = text;
                     const res = validateCsv(text);
                     importRowsReady = res.valids;
@@ -4346,6 +4361,7 @@
                     renderImportPreview(res);
                     try { aplicarConteosDesdeCsvPreview(importRowsReady || []); } catch {}
                 } catch (e) {
+                    try { console.error('CSV read failed', e); } catch {}
                     alert('No se pudo leer el archivo CSV');
                     setProcessingGuard(false);
                 }

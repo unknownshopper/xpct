@@ -1,6 +1,7 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2/options';
 import { onRequest } from 'firebase-functions/v2/https';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { DateTime } from 'luxon';
@@ -228,6 +229,110 @@ export const importEquipos = onRequest(
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e && e.message ? e.message : e) });
     }
+  }
+);
+
+export const onPruebaWriteUpdateResumenEquipo = onDocumentWritten(
+  {
+    document: 'pruebas/{pruebaId}',
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (event) => {
+    const afterSnap = event.data && event.data.after ? event.data.after : null;
+    const beforeSnap = event.data && event.data.before ? event.data.before : null;
+    const after = afterSnap && afterSnap.exists ? afterSnap.data() : null;
+    const before = beforeSnap && beforeSnap.exists ? beforeSnap.data() : null;
+
+    // Solo incremental para ANUAL (porque es lo que define rangos/cobertura)
+    const periodo = String((after && after.periodo) || (before && before.periodo) || '').trim().toUpperCase();
+    if (periodo && periodo !== 'ANUAL') return;
+
+    // En deletes, marcar como stale (rebuild nocturno lo arregla)
+    if (!after) {
+      try {
+        const db = admin.firestore();
+        const equipoRaw = (before && (before.equipo || before.equipoId || before.activo || '')) ? String(before.equipo || before.equipoId || before.activo) : '';
+        const serialRaw = (before && (before.numeroSerie || before.serial)) ? String(before.numeroSerie || before.serial) : '';
+        const { aliasMap, serialPorEquipoInv } = await getCanonicalMaps();
+        const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+        const eqK = resolved.equipoCanon;
+        if (!eqK) return;
+        await db.collection('resumenes_equipos').doc(eqK).set({
+          needsRebuild: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch {}
+      return;
+    }
+
+    const docId = afterSnap.id;
+    const pruebaKey = normPruebaKey((after.prueba || after.pruebaTipo || '') || 'ANUAL');
+    const tipoTarget = (pruebaKey === 'LT' || pruebaKey === 'UTT' || pruebaKey === 'VT/PT/MT') ? pruebaKey : null;
+    if (!tipoTarget) return;
+
+    const { aliasMap, serialPorEquipoInv } = await getCanonicalMaps();
+    const equipoRaw = (after.equipo || after.equipoId || after.activo || '').toString().trim();
+    const serialRaw = (after.numeroSerie || after.serial || '').toString().trim();
+    const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+    const equipoCanon = resolved.equipoCanon;
+    if (!equipoCanon) return;
+
+    const fechaReal = parseFecha(after.fechaRealizacion || after.fechaPrueba || after.fecha || '');
+    let proxima = parseFecha(after.proxima || '');
+    if (!proxima && fechaReal) {
+      const d = new Date(fechaReal);
+      d.setFullYear(d.getFullYear() + 1);
+      d.setHours(0, 0, 0, 0);
+      if (!isNaN(d.getTime())) proxima = d;
+    }
+    const creadoEn = parseFecha(after.creadoEn || after.createdAt || after.importedAt || after.fechaRegistro || after.created_on || '');
+    const candidate = {
+      docId,
+      equipoKey: equipoCanon,
+      serial: resolved.serialCanon || '',
+      prueba: tipoTarget,
+      fechaReal,
+      proxima,
+      creadoEn,
+      resultado: String(after.resultado || '').trim().toUpperCase(),
+      noReporte: String(after.noReporte || after.certificado || '').trim(),
+      producto: String(after.producto || '').trim(),
+      descripcion: String(after.descripcion || after.desc || '').trim(),
+      area: String(after.area || '').trim(),
+      emisor: String(after.emisor || '').trim(),
+      tecnico: String(after.tecnico || '').trim(),
+      presionLt: (after.presionLt != null) ? String(after.presionLt).trim() : (after.presion != null ? String(after.presion).trim() : ''),
+    };
+
+    const db = admin.firestore();
+    const ref = db.collection('resumenes_equipos').doc(String(equipoCanon));
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const pruebas = (data && data.pruebas && typeof data.pruebas === 'object') ? data.pruebas : {};
+      const currentRaw = pruebas && pruebas[tipoTarget] ? pruebas[tipoTarget] : null;
+      const current = pruebaResumenToCandidate(currentRaw);
+      const winner = pickWinnerPrueba(current, candidate);
+
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const hoyMs = hoy.getTime();
+      const isVig = (d) => !!(d && !isNaN(d.getTime()) && d.getTime() > hoyMs);
+
+      const winnerVig = isVig(winner ? winner.proxima : null);
+
+      const patch = {
+        version: 2,
+        equipoKey: equipoCanon,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        needsRebuild: false,
+        // Mantener serial top-level actualizado si viene en el candidate
+        serial: String((resolved.serialCanon || data.serial || '')).trim(),
+      };
+      patch[`pruebas.${tipoTarget}`] = candidateToResumenPayload(winner, winnerVig);
+      tx.set(ref, patch, { merge: true });
+    });
   }
 );
 
@@ -545,6 +650,54 @@ function pickWinnerPrueba(current, candidate) {
   const bC = candidate.creadoEn || null;
   if (bC && (!aC || bC.getTime() > aC.getTime())) return candidate;
   return current;
+}
+
+function pruebaResumenToCandidate(obj) {
+  if (!obj) return null;
+  const out = {
+    docId: String(obj.docId || '').trim(),
+    equipoKey: String(obj.equipoKey || '').trim(),
+    serial: String(obj.serial || '').trim(),
+    prueba: normPruebaKey(obj.prueba || ''),
+    fechaReal: obj.fechaReal ? parseFecha(obj.fechaReal) : null,
+    proxima: obj.proxima ? parseFecha(obj.proxima) : null,
+    creadoEn: obj.creadoEn ? parseFecha(obj.creadoEn) : null,
+    resultado: String(obj.resultado || '').trim().toUpperCase(),
+    noReporte: String(obj.noReporte || '').trim(),
+    producto: String(obj.producto || '').trim(),
+    descripcion: String(obj.descripcion || '').trim(),
+    area: String(obj.area || '').trim(),
+    emisor: String(obj.emisor || '').trim(),
+    tecnico: String(obj.tecnico || '').trim(),
+    presionLt: (obj.presionLt != null) ? String(obj.presionLt).trim() : '',
+  };
+  if (!out.docId || !out.equipoKey) return null;
+  return out;
+}
+
+function candidateToResumenPayload(candidate, vigente) {
+  if (!candidate) return null;
+  const prox = candidate.proxima ? admin.firestore.Timestamp.fromDate(candidate.proxima) : null;
+  const fr = candidate.fechaReal ? admin.firestore.Timestamp.fromDate(candidate.fechaReal) : null;
+  const bucket = candidate.proxima ? clasificarDias(candidate.proxima).bucket : null;
+  return {
+    docId: candidate.docId,
+    proxima: prox,
+    fechaReal: fr,
+    vigente: !!vigente,
+    bucket,
+    resultado: candidate.resultado || '',
+    noReporte: candidate.noReporte || '',
+    producto: candidate.producto || '',
+    descripcion: candidate.descripcion || '',
+    area: candidate.area || '',
+    emisor: candidate.emisor || '',
+    tecnico: candidate.tecnico || '',
+    presionLt: candidate.presionLt || '',
+    serial: candidate.serial || '',
+    equipoKey: candidate.equipoKey || '',
+    prueba: candidate.prueba || '',
+  };
 }
 
 function pickWinnerInspeccion(current, candidate) {
