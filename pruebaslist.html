@@ -3200,6 +3200,7 @@
                     }
                 } catch {}
 
+                // Actualizar variables legacy (si existen) y, sobre todo, el estado global para el render.
                 try {
                     if (typeof equiposInventario !== 'undefined') equiposInventario = setEq;
                     if (typeof descripcionPorEquipoInv !== 'undefined') descripcionPorEquipoInv = mapaDesc;
@@ -3211,20 +3212,19 @@
                 } catch {}
 
                 try {
-                    window._plInvState = {
-                        equiposInventario,
-                        descripcionPorEquipoInv,
-                        productoPorEquipoInv,
-                        descripcionPorSerialInv,
-                        productoPorSerialInv,
-                        serialPorEquipoInv,
-                        edoPorEquipoInv,
-                        aliasEquipoMalAEquipoCorrecto,
-                        areaPorEquipoPruebaInv,
-                        areaPorSerialPruebaInv,
-                        tiposPorEquipoPruebaInv,
-                        tiposPorSerialPruebaInv,
-                    };
+                    if (!window._plInvState || typeof window._plInvState !== 'object') window._plInvState = {};
+                    window._plInvState.equiposInventario = setEq;
+                    window._plInvState.descripcionPorEquipoInv = mapaDesc;
+                    window._plInvState.productoPorEquipoInv = mapaProd;
+                    window._plInvState.descripcionPorSerialInv = mapaDescSerial;
+                    window._plInvState.productoPorSerialInv = mapaProdSerial;
+                    window._plInvState.serialPorEquipoInv = mapaSerialPorEquipo;
+                    window._plInvState.edoPorEquipoInv = mapaEdo;
+                    window._plInvState.aliasEquipoMalAEquipoCorrecto = aliasEquipoMalAEquipoCorrecto;
+                    window._plInvState.areaPorEquipoPruebaInv = areaPorEquipoPruebaInv;
+                    window._plInvState.areaPorSerialPruebaInv = areaPorSerialPruebaInv;
+                    window._plInvState.tiposPorEquipoPruebaInv = tiposPorEquipoPruebaInv;
+                    window._plInvState.tiposPorSerialPruebaInv = tiposPorSerialPruebaInv;
                 } catch {}
 
                 const summary = (() => {
