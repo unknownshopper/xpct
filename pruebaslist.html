@@ -4152,7 +4152,13 @@
         }
 
         function renderImportPreview(res) {
-            if (!importPreview) return;
+            const importPreview = document.getElementById('import-preview');
+            const importSummary = document.getElementById('import-summary');
+            const importWarnings = document.getElementById('import-warnings');
+            const importErrors = document.getElementById('import-errors');
+            const btnImportConfirm = document.getElementById('btn-import-confirm');
+            const btnImportDeleteExisting = document.getElementById('btn-import-delete-existing');
+            if (!importPreview || !importSummary || !importWarnings || !importErrors) return;
             const total = (res.valids?.length||0) + (res.errors?.filter(e=>/^L\d+:/.test(e)).length||0);
             importSummary.innerHTML = `Registros válidos: <strong>${res.valids.length}</strong> de ${total}`;
             importWarnings.innerHTML = res.warnings.length ? (`<ul>` + res.warnings.slice(0,50).map(w=>`<li>${w}</li>`).join('') + (res.warnings.length>50?`<li>... (${res.warnings.length-50} más)</li>`:'') + `</ul>`) : '';
