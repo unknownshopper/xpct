@@ -2997,6 +2997,9 @@
 
         async function cargarInventarioDesdeCsv() {
             try {
+                const invDebug = (() => {
+                    try { return (new URLSearchParams(window.location.search || '')).get('invdebug') === '1'; } catch { return false; }
+                })();
                 // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage.
                 const claveEstadoOverride = 'pct_invre_estado_override';
                 let mapaEstadoOverride = {};
@@ -3009,19 +3012,58 @@
                 }
 
                 const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' });
-                if (!resp.ok) return;
+                if (!resp.ok) {
+                    try { console.warn('No se pudo cargar INVENTARIOTOTAL04-202602.csv', resp.status); } catch {}
+                    return;
+                }
                 const texto = await resp.text();
-                const parsed = parseCsv(texto);
+                let parsed = null;
+                try {
+                    parsed = (typeof parseCsv === 'function') ? parseCsv(texto) : null;
+                } catch (eParse) {
+                    console.warn('Error parseando inventario CSV', eParse);
+                    return;
+                }
                 const headers = parsed.headers || [];
                 const rows = parsed.rows || [];
-                if (!headers.length || !rows.length) return;
+                if (!headers.length || !rows.length) {
+                    try { console.warn('Inventario CSV vacío o no parseable', { headers: headers.length, rows: rows.length }); } catch {}
+                    return;
+                }
 
-                const idxEquipo = headers.indexOf('EQUIPO / ACTIVO');
-                const idxSerial = headers.indexOf('SERIAL');
-                const idxDesc = headers.indexOf('DESCRIPCION');
-                const idxProd = headers.indexOf('PRODUCTO');
-                const idxEdo = headers.indexOf('EDO');
-                if (idxEquipo < 0) return;
+                try {
+                    if (invDebug) {
+                        console.debug('[inv] parsed', {
+                            headersLen: headers.length,
+                            rowsLen: rows.length,
+                            headers0: headers.slice(0, 8),
+                            row0: Array.isArray(rows[0]) ? rows[0].slice(0, 8) : rows[0]
+                        });
+                    }
+                } catch {}
+
+                const normHdr = (h) => String(h || '').replace(/^\uFEFF/, '').trim().toUpperCase();
+                const headerMap = {};
+                try {
+                    (headers || []).forEach((h, i) => {
+                        const k = normHdr(h);
+                        if (k && headerMap[k] == null) headerMap[k] = i;
+                    });
+                } catch {}
+
+                const idxEquipo = (headerMap['EQUIPO / ACTIVO'] != null) ? headerMap['EQUIPO / ACTIVO'] : headers.indexOf('EQUIPO / ACTIVO');
+                const idxSerial = (headerMap['SERIAL'] != null) ? headerMap['SERIAL'] : headers.indexOf('SERIAL');
+                const idxDesc = (headerMap['DESCRIPCION'] != null) ? headerMap['DESCRIPCION'] : headers.indexOf('DESCRIPCION');
+                const idxProd = (headerMap['PRODUCTO'] != null) ? headerMap['PRODUCTO'] : headers.indexOf('PRODUCTO');
+                const idxEdo = (headerMap['EDO'] != null) ? headerMap['EDO'] : headers.indexOf('EDO');
+                if (idxEquipo < 0) {
+                    try { console.warn('Encabezado EQUIPO / ACTIVO no encontrado en inventario', headers.slice(0, 12)); } catch {}
+                    return;
+                }
+
+                try {
+                    if (invDebug) console.debug('[inv] idx', { idxEquipo, idxSerial, idxDesc, idxProd, idxEdo });
+                } catch {}
 
                 const setEq = new Set();
                 const mapaDesc = {};
@@ -3031,37 +3073,56 @@
                 const mapaSerialPorEquipo = {};
                 const mapaEdo = {};
 
-                rows.forEach(cols => {
-                    const eq = normEquipoKey((cols[idxEquipo] || '').toString());
-                    const serial = normSerialKey(((idxSerial >= 0 ? cols[idxSerial] : '') || ''));
-                    if (!eq) return;
-                    setEq.add(eq);
-                    if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
-                    if (idxEdo >= 0) {
-                        let edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
-                        if (!edo) edo = 'ON';
-                        // Normalizar variantes comunes
-                        try {
-                            const edoRaw = edo;
-                            if (edoRaw.includes('WIP') || edoRaw.includes('WORK IN PROGRESS') || edoRaw.includes('EN PROCESO') || edoRaw.includes('PROCESO')) edo = 'WIP';
-                            else if (edoRaw.includes('OFF') || edoRaw.includes('FUERA') || edoRaw.includes('BAJA')) edo = 'OFF';
-                            else if (edoRaw.includes('ON') || edoRaw.includes('ACTIVO') || edoRaw.includes('OPERATIVO')) edo = 'ON';
-                        } catch {}
-                        const override = (mapaEstadoOverride && mapaEstadoOverride[eq]) ? String(mapaEstadoOverride[eq]).trim().toUpperCase() : '';
-                        const edoEf = override || edo;
-                        if (edoEf && !mapaEdo[eq]) mapaEdo[eq] = edoEf;
+                try {
+                    rows.forEach(cols => {
+                        const eq = normEquipoKey((cols[idxEquipo] || '').toString());
+                        const serial = normSerialKey(((idxSerial >= 0 ? cols[idxSerial] : '') || ''));
+                        if (!eq) return;
+                        setEq.add(eq);
+                        if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
+                        if (idxEdo >= 0) {
+                            let edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
+                            if (!edo) edo = 'ON';
+                            // Normalizar variantes comunes
+                            try {
+                                const edoRaw = edo;
+                                if (edoRaw.includes('WIP') || edoRaw.includes('WORK IN PROGRESS') || edoRaw.includes('EN PROCESO') || edoRaw.includes('PROCESO')) edo = 'WIP';
+                                else if (edoRaw.includes('OFF') || edoRaw.includes('FUERA') || edoRaw.includes('BAJA')) edo = 'OFF';
+                                else if (edoRaw.includes('ON') || edoRaw.includes('ACTIVO') || edoRaw.includes('OPERATIVO')) edo = 'ON';
+                            } catch {}
+                            const override = (mapaEstadoOverride && mapaEstadoOverride[eq]) ? String(mapaEstadoOverride[eq]).trim().toUpperCase() : '';
+                            const edoEf = override || edo;
+                            if (edoEf && !mapaEdo[eq]) mapaEdo[eq] = edoEf;
+                        }
+                        if (idxDesc >= 0) {
+                            const desc = (cols[idxDesc] || '').toString().trim();
+                            if (desc && !mapaDesc[eq]) mapaDesc[eq] = desc;
+                            if (serial && desc && !mapaDescSerial[serial]) mapaDescSerial[serial] = desc;
+                        }
+                        if (idxProd >= 0) {
+                            const prod = (cols[idxProd] || '').toString().trim();
+                            if (prod && !mapaProd[eq]) mapaProd[eq] = prod;
+                            if (serial && prod && !mapaProdSerial[serial]) mapaProdSerial[serial] = prod;
+                        }
+                    });
+                } catch (eLoop) {
+                    console.warn('Error construyendo mapas de inventario', eLoop);
+                    return;
+                }
+
+                try {
+                    if ((Object.keys(mapaProd).length === 0 || Object.keys(mapaDesc).length === 0)) {
+                        const r0 = Array.isArray(rows[0]) ? rows[0] : [];
+                        console.warn('Inventario cargó pero producto/descripcion quedaron vacíos', {
+                            idxEquipo, idxSerial, idxProd, idxDesc,
+                            header0: headers.slice(0, 10),
+                            row0: r0.slice(0, 10),
+                            row0Eq: r0[idxEquipo],
+                            row0Prod: r0[idxProd],
+                            row0Desc: r0[idxDesc]
+                        });
                     }
-                    if (idxDesc >= 0) {
-                        const desc = (cols[idxDesc] || '').toString().trim();
-                        if (desc && !mapaDesc[eq]) mapaDesc[eq] = desc;
-                        if (serial && desc && !mapaDescSerial[serial]) mapaDescSerial[serial] = desc;
-                    }
-                    if (idxProd >= 0) {
-                        const prod = (cols[idxProd] || '').toString().trim();
-                        if (prod && !mapaProd[eq]) mapaProd[eq] = prod;
-                        if (serial && prod && !mapaProdSerial[serial]) mapaProdSerial[serial] = prod;
-                    }
-                });
+                } catch {}
 
                 try {
                     const resp2 = await fetch('docs/invre2.csv');
@@ -3167,9 +3228,11 @@
 
                 try { render(); } catch {}
             } catch (e) {
-                console.warn('No se pudo cargar invre.csv para resumen de pruebas', e);
+                console.warn('No se pudo cargar inventario CSV', e);
             }
         }
+
+        try { window.cargarInventarioDesdeCsv = cargarInventarioDesdeCsv; } catch {}
 
         async function cargarAliasesMalescritos() {
             try {
@@ -3347,6 +3410,7 @@
             const rows = lines.slice(1).map(l => parseLine(l));
             return { headers, rows };
         }
+        try { window.parseCsv = window.parseCsv || parseCsv; } catch {}
 
         function req(val) { return val !== undefined && val !== null && String(val).trim() !== ''; }
         function isValidPeriodo(p) { const v = String(p||'').toUpperCase(); return v==='ANUAL' || v==='POST-TRABAJO' || v==='REPARACION'; }
@@ -6273,11 +6337,10 @@
                 });
             } else if (sortListado.key === 'prueba') {
                 const desc = sortListado.dir === 'desc';
-                const kPr = (reg) => {
+                const kPr = (r) => {
                     try {
-                        const raw = (reg && (reg.prueba || reg.pruebaTipo)) ? String(reg.prueba || reg.pruebaTipo) : '';
-                        const canon = (typeof normalizaPrueba === 'function') ? normalizaPrueba(raw) : raw.toUpperCase().trim();
-                        return String(canon || '').toUpperCase().trim();
+                        const raw = (r && (r.prueba || r.pruebaTipo)) ? String(r.prueba || r.pruebaTipo) : '';
+                        return normalizaPrueba(raw);
                     } catch {
                         return '';
                     }
