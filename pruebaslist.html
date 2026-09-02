@@ -4083,13 +4083,19 @@
                 const requiereDetalleVpm = (pruebaNormTmp === 'VT' || pruebaNormTmp === 'PT' || pruebaNormTmp === 'MT' || pruebaNormTmp === 'VT/PT/MT');
 
                 // Inventario
-                if (equiposInventario && equiposInventario.size && !equiposInventario.has(rec.equipo)) {
-                    warnings.push(`L${n}: equipo no encontrado en inventario (se permitirá la carga)`);
-                }
+                try {
+                    const invSet = (typeof equiposInventario !== 'undefined') ? equiposInventario : null;
+                    if (invSet && invSet.size && !invSet.has(rec.equipo)) {
+                        warnings.push(`L${n}: equipo no encontrado en inventario (se permitirá la carga)`);
+                    }
+                } catch {}
 
                 // Duplicados
-                const k = composeKey(rec);
-                if (existingKeys.has(k)) warnings.push(`L${n}: duplicado detectado (se omitirá en la importación)`);
+                try {
+                    const k = composeKey(rec);
+                    const exSet = (typeof existingKeys !== 'undefined') ? existingKeys : null;
+                    if (exSet && k && exSet.has(k)) warnings.push(`L${n}: duplicado detectado (se omitirá en la importación)`);
+                } catch {}
 
                 const hasRowError = errors.some(e => e.startsWith(`L${n}:`));
                 if (!hasRowError) {
