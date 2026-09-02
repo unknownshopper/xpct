@@ -3000,6 +3000,19 @@
                 const invDebug = (() => {
                     try { return (new URLSearchParams(window.location.search || '')).get('invdebug') === '1'; } catch { return false; }
                 })();
+                const initInvState = () => {
+                    try {
+                        if (!window._plInvState || typeof window._plInvState !== 'object') window._plInvState = {};
+                        if (!window._plInvState.productoPorEquipoInv) window._plInvState.productoPorEquipoInv = {};
+                        if (!window._plInvState.descripcionPorEquipoInv) window._plInvState.descripcionPorEquipoInv = {};
+                        if (!window._plInvState.productoPorSerialInv) window._plInvState.productoPorSerialInv = {};
+                        if (!window._plInvState.descripcionPorSerialInv) window._plInvState.descripcionPorSerialInv = {};
+                        if (!window._plInvState.serialPorEquipoInv) window._plInvState.serialPorEquipoInv = {};
+                        if (!window._plInvState.edoPorEquipoInv) window._plInvState.edoPorEquipoInv = window._plInvState.edoPorEquipoInv || {};
+                        if (!window._plInvState.equiposInventario) window._plInvState.equiposInventario = window._plInvState.equiposInventario || new Set();
+                    } catch {}
+                };
+                initInvState();
                 // Overrides de estado por equipo (ON/OFF/WIP) guardados en localStorage.
                 const claveEstadoOverride = 'pct_invre_estado_override';
                 let mapaEstadoOverride = {};
@@ -3014,21 +3027,28 @@
                 const resp = await fetch('docs/INVENTARIOTOTAL04-202602.csv', { cache: 'no-store' });
                 if (!resp.ok) {
                     try { console.warn('No se pudo cargar INVENTARIOTOTAL04-202602.csv', resp.status); } catch {}
-                    return;
+                    return { ok: false, reason: 'fetch_failed', status: resp.status };
                 }
                 const texto = await resp.text();
                 let parsed = null;
                 try {
-                    parsed = (typeof parseCsv === 'function') ? parseCsv(texto) : null;
+                    const parser = (typeof parseCsv === 'function')
+                        ? parseCsv
+                        : ((window && typeof window.parseCsv === 'function') ? window.parseCsv : null);
+                    if (!parser) {
+                        console.warn('parseCsv no disponible; no se puede cargar inventario');
+                        return { ok: false, reason: 'parseCsv_missing' };
+                    }
+                    parsed = parser(texto);
                 } catch (eParse) {
                     console.warn('Error parseando inventario CSV', eParse);
-                    return;
+                    return { ok: false, reason: 'parse_error' };
                 }
                 const headers = parsed.headers || [];
                 const rows = parsed.rows || [];
                 if (!headers.length || !rows.length) {
                     try { console.warn('Inventario CSV vacío o no parseable', { headers: headers.length, rows: rows.length }); } catch {}
-                    return;
+                    return { ok: false, reason: 'empty', headers: headers.length, rows: rows.length };
                 }
 
                 try {
@@ -3058,7 +3078,7 @@
                 const idxEdo = (headerMap['EDO'] != null) ? headerMap['EDO'] : headers.indexOf('EDO');
                 if (idxEquipo < 0) {
                     try { console.warn('Encabezado EQUIPO / ACTIVO no encontrado en inventario', headers.slice(0, 12)); } catch {}
-                    return;
+                    return { ok: false, reason: 'missing_header_equipo' };
                 }
 
                 try {
@@ -3107,7 +3127,7 @@
                     });
                 } catch (eLoop) {
                     console.warn('Error construyendo mapas de inventario', eLoop);
-                    return;
+                    return { ok: false, reason: 'build_maps_error' };
                 }
 
                 try {
@@ -3207,6 +3227,21 @@
                     };
                 } catch {}
 
+                const summary = (() => {
+                    try {
+                        return {
+                            ok: true,
+                            equipos: (setEq && typeof setEq.size === 'number') ? setEq.size : 0,
+                            prodEq: Object.keys(mapaProd || {}).length,
+                            descEq: Object.keys(mapaDesc || {}).length,
+                            prodSn: Object.keys(mapaProdSerial || {}).length,
+                            descSn: Object.keys(mapaDescSerial || {}).length,
+                        };
+                    } catch {
+                        return { ok: true };
+                    }
+                })();
+
                 // Estados ON/WIP/OFF: source of truth inventarioEstados (Firestore). Mergearlos aquí para chips/modales.
                 try {
                     const estados = await plLoadInventarioEstados();
@@ -3227,8 +3262,11 @@
                 } catch {}
 
                 try { render(); } catch {}
+
+                return summary;
             } catch (e) {
                 console.warn('No se pudo cargar inventario CSV', e);
+                try { return { ok: false, reason: 'unexpected_error' }; } catch { return { ok: false }; }
             }
         }
 
