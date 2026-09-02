@@ -2027,7 +2027,7 @@
                 try {
                     const res = await deleteExistingFromCsv(importRowsReady||[]);
                     importSummary.innerHTML += ` - Eliminados: <strong>${res.delOk}</strong>, No encontrados: ${res.delMiss}, Fallidos: ${res.delFail}`;
-                    const desdeFs2 = await leerFirestore();
+                    const desdeFs2 = await ((window && window.leerFirestore) ? window.leerFirestore() : leerFirestore());
                     if (desdeFs2 && Array.isArray(desdeFs2)) pruebas = desdeFs2;
                     buildExistingKeys();
                     render();
@@ -2197,6 +2197,7 @@
                 return null;
             }
         }
+        try { window.leerFirestore = leerFirestore; } catch {}
 
         async function leerTotalServidor() {
             try {
@@ -4333,17 +4334,24 @@
                     resultado: r.resultado,
                     ejecucion: r.ejecucion,
                     emisor: r.emisor,
-                    producto: r.producto,
-                    descripcion: r.descripcion,
+                    producto: (r && r.producto != null) ? r.producto : '',
+                    descripcion: (r && r.descripcion != null) ? r.descripcion : '',
                     pruebaDetalle: r.pruebaDetalle,
-                    observaciones: r.observaciones,
-                    ubicacion: r.ubicacion,
+                    observaciones: (r && r.observaciones != null) ? r.observaciones : '',
+                    ubicacion: (r && r.ubicacion != null) ? r.ubicacion : '',
                     area: r.area || '',
-                    tecnico: r.tecnico,
+                    tecnico: (r && r.tecnico != null) ? r.tecnico : '',
                     creadoEn: serverTimestamp(),
                     importBatchId,
                     importedAt: serverTimestamp(),
                 };
+                // Firestore no acepta undefined; normalizar a strings cuando aplique
+                try {
+                    ['cliente','equipo','serial','periodo','prueba','fechaRealizacion','noReporte','resultado','ejecucion','emisor','producto','descripcion','pruebaDetalle','observaciones','ubicacion','area','tecnico','presionLt','noReporteKey','importBatchId'].forEach(k => {
+                        if (payload[k] === undefined || payload[k] === null) payload[k] = '';
+                        if (typeof payload[k] !== 'string' && (k !== 'creadoEn' && k !== 'importedAt')) payload[k] = String(payload[k]);
+                    });
+                } catch {}
                 if (r.periodo === 'ANUAL' && r.proxima) payload.proxima = r.proxima;
                 try {
                     await addDoc(collection(db, 'pruebas'), payload);
