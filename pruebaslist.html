@@ -4001,13 +4001,19 @@
         function validateCsv(text) {
             const expectHeaders = ['cliente','equipo','numeroSerie','periodo','prueba','fechaRealizacion','noReporte','resultado','ejecucion','emisor','pruebaDetalle','observaciones','ubicacion','areaPrueba','tecnico','proxima'];
             const { headers, rows } = parseCsv(text);
-            const hdrStr = headers.join(',');
-            const okHeaders = expectHeaders.join(',') === hdrStr;
+            const normH = (h) => String(h || '').trim().toLowerCase();
+            const headerIndex = {};
+            (headers || []).forEach((h, i) => {
+                const k = normH(h);
+                if (k && headerIndex[k] == null) headerIndex[k] = i;
+            });
+            const okHeaders = expectHeaders.every(h => headerIndex[normH(h)] != null);
             const errors = [];
             const warnings = [];
             const valids = [];
             if (!okHeaders) {
-                errors.push(`Encabezados inválidos. Se esperaba: ${expectHeaders.join(',')}. Se obtuvo: ${hdrStr}`);
+                const hdrStr = (headers || []).join(',');
+                errors.push(`Encabezados inválidos. Se esperaba (mínimo): ${expectHeaders.join(',')}. Se obtuvo: ${hdrStr}`);
                 return { valids, errors, warnings };
             }
 
@@ -4029,9 +4035,34 @@
                 }
             });
 
+            const pick = (cols, name) => {
+                const i = headerIndex[normH(name)];
+                if (i == null) return '';
+                return (cols && cols[i] !== undefined && cols[i] !== null) ? String(cols[i]).trim() : '';
+            };
+
             rows.forEach((cols, idx) => {
                 const n = idx + 2; // línea real
-                const rec = Object.fromEntries(headers.map((h,i)=>[h, cols[i]!==undefined? String(cols[i]).trim() : '']));
+                const rec = {
+                    cliente: pick(cols, 'cliente'),
+                    equipo: pick(cols, 'equipo'),
+                    numeroSerie: pick(cols, 'numeroSerie'),
+                    periodo: pick(cols, 'periodo'),
+                    prueba: pick(cols, 'prueba'),
+                    fechaRealizacion: pick(cols, 'fechaRealizacion'),
+                    noReporte: pick(cols, 'noReporte'),
+                    resultado: pick(cols, 'resultado'),
+                    ejecucion: pick(cols, 'ejecucion'),
+                    emisor: pick(cols, 'emisor'),
+                    pruebaDetalle: pick(cols, 'pruebaDetalle'),
+                    observaciones: pick(cols, 'observaciones'),
+                    ubicacion: pick(cols, 'ubicacion'),
+                    areaPrueba: pick(cols, 'areaPrueba'),
+                    tecnico: pick(cols, 'tecnico'),
+                    proxima: pick(cols, 'proxima'),
+                    // Opcional: PresionLt (CSV nuevos)
+                    presionLt: pick(cols, 'presionlt') || pick(cols, 'presionLt') || pick(cols, 'PresionLt'),
+                };
                 // Omitir filas totalmente vacías (todas las columnas en blanco)
                 const allEmpty = Object.values(rec).every(v => !req(v));
                 if (allEmpty) { warnings.push(`L${n}: fila vacía (omitida)`); return; }
@@ -4117,25 +4148,24 @@
                             if (vpmDetalleSinAreaEj.length < 6) vpmDetalleSinAreaEj.push(`L${n}`);
                         }
                     }
-
                     valids.push({
                         cliente: rec.cliente,
                         equipo: rec.equipo,
                         serial: rec.numeroSerie,
+                        numeroSerie: rec.numeroSerie,
                         periodo,
-                        prueba: normalizaPrueba(rec.prueba || ''),
+                        prueba: normalizaPrueba(rec.prueba),
                         fechaRealizacion: formatDDMMAAAA(f),
                         noReporte: rec.noReporte,
-                        resultado: normalizaResultado(rec.resultado),
-                        ejecucion: normalizaEjecucion(rec.ejecucion||''),
+                        resultado: rec.resultado,
+                        ejecucion: normalizaEjecucion(rec.ejecucion || ''),
                         emisor,
-                        producto,
-                        descripcion,
                         pruebaDetalle: pruebaDetalleNorm || '',
                         observaciones: rec.observaciones || '',
                         ubicacion: rec.ubicacion || '',
-                        area: areaResolved,
+                        area: areaResolved || '',
                         tecnico: rec.tecnico || '',
+                        presionLt: (rec.presionLt || '').toString().trim(),
                         proxima
                     });
                 }
