@@ -7206,13 +7206,33 @@
         if (inputBuscarEl3) {
             inputBuscarEl3.addEventListener('input', () => {
                 render();
-                // Si no hay coincidencias en lo cargado (paginación), intentar búsqueda directa en servidor.
+                // Para términos tipo serial/equipo/noReporte, la búsqueda local puede mostrar solo una fracción
+                // por paginación. En esos casos, disparar búsqueda en servidor automáticamente.
                 try {
                     const raw = (inputBuscarEl3.value || '').toString().trim();
                     if (!raw) return;
+
+                    const rawU = raw.toUpperCase();
+                    const looksLikeStructured = (() => {
+                        try {
+                            // Heurística: PCT-*, PCT*, contiene varios guiones/dígitos, o noReporte tipo PCT-NDT-...
+                            if (rawU.startsWith('PCT-') || rawU.startsWith('PCT')) return true;
+                            if (rawU.includes('PCT-NDT') || rawU.includes('NDT')) return true;
+                            const d = (rawU.match(/\d/g) || []).length;
+                            const h = (rawU.match(/-/g) || []).length;
+                            if (h >= 2 && d >= 4) return true;
+                            // Serial numérico largo
+                            if (/^\d{6,}$/.test(rawU)) return true;
+                            return false;
+                        } catch {
+                            return false;
+                        }
+                    })();
+
                     const tb = document.getElementById('tbody-pruebas-listado');
                     const visibles = (tb && Array.isArray(tb._filasVisibles)) ? tb._filasVisibles.length : 0;
-                    if (visibles > 0) return;
+                    // Si parece structured, siempre consultar servidor (correctitud). Si no, solo cuando no hay visibles.
+                    if (!looksLikeStructured && visibles > 0) return;
                     // Debounce
                     if (window._plSrvSearchTimer) clearTimeout(window._plSrvSearchTimer);
                     window._plSrvSearchTimer = setTimeout(() => {
