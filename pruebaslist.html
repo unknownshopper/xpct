@@ -2156,6 +2156,20 @@
             return { equipoCanon: eqCanon, serialCanon: srCanon };
         }
 
+        try {
+            if (!window.resolverEquipoYSerialCanon || typeof window.resolverEquipoYSerialCanon !== 'function') {
+                window.resolverEquipoYSerialCanon = (equipoRaw, serialRaw) => {
+                    const eq0 = (() => {
+                        try { return (typeof normEquipoKey === 'function') ? normEquipoKey(String(equipoRaw || '')) : String(equipoRaw || '').trim().toUpperCase(); } catch { return String(equipoRaw || '').trim().toUpperCase(); }
+                    })();
+                    const sr0 = (() => {
+                        try { return (typeof normSerialKey === 'function') ? normSerialKey(String(serialRaw || '')) : String(serialRaw || '').trim().toUpperCase(); } catch { return String(serialRaw || '').trim().toUpperCase(); }
+                    })();
+                    return { equipoCanon: eq0, serialCanon: sr0 };
+                };
+            }
+        } catch {}
+
         function equipoOperativoDesdeInv(equipoRaw) {
             try {
                 const eqK = normEquipoKey(String(equipoRaw || ''));
