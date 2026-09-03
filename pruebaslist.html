@@ -298,6 +298,11 @@
                     <div style="font-size:0.8rem; color:#4b5563; margin-top:0.25rem; line-height:1.2;">Sin registros en historial</div>
                     <div style="font-size:0.8rem; color:#6b7280; margin-top:0.15rem; line-height:1.2;">WIP: <strong id="pruebas-equipos-sin-wip">0</strong></div>
                 </div>
+                <div class="dash-card" id="card-rechazados" style="cursor:pointer;">
+                    <div class="dash-card-label">Rechazados</div>
+                    <div class="dash-card-value" id="pruebas-equipos-rechazados">0</div>
+                    <div style="font-size:0.8rem; color:#b91c1c; margin-top:0.25rem; line-height:1.2;">Resultado: RECHAZADA</div>
+                </div>
             </section>
             <div style="font-size:0.85rem; color:#6b7280; margin-top:-0.25rem; margin-bottom:0.75rem;">
                 Total equipos base (inventario): <strong id="pruebas-equipos-total">0</strong>
@@ -1883,6 +1888,7 @@
             const n100 = cardEq100 ? cardEq100.closest('.dash-card') : null;
             const npar = cardEqPar ? cardEqPar.closest('.dash-card') : null;
             const nsin = cardEqSin ? cardEqSin.closest('.dash-card') : null;
+            const nrej = document.getElementById('card-rechazados');
             if (n100) n100.addEventListener('click', () => {
                 const next = (filtroCobertura === '100') ? null : '100';
                 setFiltroCobertura(next);
@@ -1898,6 +1904,12 @@
                 setFiltroCobertura(next);
                 if (next) { try { plOpenCoberturaModal(next); } catch {} }
             });
+            if (nrej && !nrej.dataset.bound) {
+                nrej.dataset.bound = '1';
+                nrej.addEventListener('click', () => {
+                    try { plOpenRechazadosModal(); } catch {}
+                });
+            }
         } catch {}
 
         const detallePanel = document.getElementById('detalle-prueba');
@@ -5464,6 +5476,8 @@
             const lblResPorCad = document.getElementById('pruebas-resumen-porcaducar');
             const lblResCaducadas = document.getElementById('pruebas-resumen-caducadas');
 
+            const lblRechazados = document.getElementById('pruebas-equipos-rechazados');
+
             const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
             const lblAlert60 = document.getElementById('pruebas-alert-60');
             const lblAlert30 = document.getElementById('pruebas-alert-30');
@@ -6439,7 +6453,11 @@
             let cntChip60 = 0;   // 60-31
             let cntChip30 = 0;   // 30-16
             let cntChip15 = 0;   // 15-1
-            let cntChip0 = 0;    // 0 (vencidas)
+            let cntChip0 = 0;    // vencidas
+
+            // Rechazados: contar EQUIPOS únicos (para tarjeta)
+            const rechazadosEq = new Set();
+            const rechazadosByEq = new Map();
 
             // Alinear chips con backend/Rangos: usar solo la última ANUAL por equipo+tipo
             const latestIndic = new Map();
@@ -6918,6 +6936,17 @@
                 const resultadoStr = (reg.resultado || '').toString().trim().toUpperCase();
                 let badgeEstado;
 
+                const isRechazada = (resultadoStr === 'RECHAZADA');
+                if (isRechazada && eqK) {
+                    try { rechazadosEq.add(eqK); } catch {}
+                    try {
+                        if (!rechazadosByEq.has(eqK)) {
+                            const sn0 = String(reg.serial || reg.numeroSerie || '').trim();
+                            rechazadosByEq.set(eqK, sn0);
+                        }
+                    } catch {}
+                }
+
                 if (estado === 'HISTORICO') {
                     badgeEstado = '<span title="Registro histórico (Post-trabajo/Reparación): no define próxima prueba" style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Histórico</span>';
                 // Prioridad visual: resultado RECHAZADA => Inoperable
@@ -7027,6 +7056,15 @@
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaTecnico}</td>
                 `;
 
+                // RECHAZADA: fila en rojo (prioridad sobre otros estilos)
+                try {
+                    if (isRechazada) {
+                        fila.style.background = '#fef2f2';
+                        fila.style.color = '#b91c1c';
+                        fila.style.borderLeft = '6px solid #dc2626';
+                    }
+                } catch {}
+
                 fila.style.cursor = 'pointer';
                 // Evitar que interacciones con controles activen el toggle de fila
                 fila.querySelectorAll('input, select, button, a, label').forEach(el => {
@@ -7076,6 +7114,19 @@
 
             try {
                 if (lblResultados && filtro) lblResultados.textContent = `Coincidencias: ${cntCoincidencias}`;
+            } catch {}
+            try { window._plLastFilterCount = cntCoincidencias; } catch {}
+
+            try {
+                const serverRows = Array.isArray(window._plRechazadosRowsServer) ? window._plRechazadosRowsServer : [];
+                const serverCnt = serverRows.length;
+                const localCnt = rechazadosEq.size;
+                const cnt = Math.max(localCnt, serverCnt);
+                if (lblRechazados) lblRechazados.textContent = String(cnt);
+                try { window._plRechazadosEq = Array.from(rechazadosEq); } catch {}
+                try {
+                    window._plRechazadosRows = Array.from(rechazadosByEq.entries()).map(([eq, sn]) => ({ equipo: eq, serial: sn || '' }));
+                } catch {}
             } catch {}
 
             try {
@@ -8406,6 +8457,36 @@
             btnBuscarServidorEl9.addEventListener('click', () => buscarEnServidorExacto({ silent: false }));
         }
 
+        // Buscador: filtrar en vivo al teclear (si no se ejecuta render, parece que "no responde")
+        if (inputBuscarEl9 && !inputBuscarEl9.dataset.bound) {
+            inputBuscarEl9.dataset.bound = '1';
+            inputBuscarEl9.addEventListener('input', () => {
+                try {
+                    // Al buscar manualmente, salir de override de rango (si estaba activo)
+                    window._plRangoOverrideActive = false;
+                } catch {}
+                try { render(); } catch {}
+            });
+            inputBuscarEl9.addEventListener('blur', () => {
+                try { render(); } catch {}
+                try {
+                    const raw = (inputBuscarEl9 && inputBuscarEl9.value ? inputBuscarEl9.value : '').toString().trim();
+                    const n = Number(window._plLastFilterCount || 0);
+                    if (raw && n === 0 && typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: false });
+                } catch {}
+            });
+            inputBuscarEl9.addEventListener('keydown', (e) => {
+                if (!e || e.key !== 'Enter') return;
+                try { e.preventDefault(); } catch {}
+                try { render(); } catch {}
+                try {
+                    const raw = (inputBuscarEl9 && inputBuscarEl9.value ? inputBuscarEl9.value : '').toString().trim();
+                    const n = Number(window._plLastFilterCount || 0);
+                    if (raw && n === 0 && typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: false });
+                } catch {}
+            });
+        }
+
         if (btnRegistrarEl9) {
             btnRegistrarEl9.addEventListener('click', abrirRegistroPruebasParaSeleccionadas);
         }
@@ -8697,6 +8778,102 @@ function plDownloadCsv(filename, rows) {
   a.remove();
   setTimeout(() => { try { URL.revokeObjectURL(url); } catch {} }, 500);
 }
+
+async function plOpenRechazadosModal() {
+  try {
+    const cached = (Array.isArray(window._plRechazadosRowsServer) && window._plRechazadosRowsServer.length)
+      ? window._plRechazadosRowsServer
+      : (Array.isArray(window._plRechazadosRows) ? window._plRechazadosRows : null);
+    const arr = (typeof window.pctGetPruebas === 'function')
+      ? window.pctGetPruebas()
+      : (Array.isArray(window.pruebas) ? window.pruebas : []);
+    const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : {};
+    const serialPorEquipoInv = (inv.serialPorEquipoInv && typeof inv.serialPorEquipoInv === 'object') ? inv.serialPorEquipoInv : {};
+
+    const eqToSerial = (eqK) => {
+      try {
+        const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(eqK || '')) : String(eqK || '').trim().toUpperCase();
+        if (!k) return '';
+        const sn = serialPorEquipoInv && serialPorEquipoInv[k] ? String(serialPorEquipoInv[k]) : '';
+        return sn;
+      } catch { return ''; }
+    };
+
+    const rows = [];
+    if (cached && cached.length) {
+      cached.forEach(r => {
+        const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r.equipo || '')) : String(r.equipo || '').trim().toUpperCase();
+        if (!eq) return;
+        const sn = String(r.serial || '').trim() || eqToSerial(eq);
+        rows.push({ equipo: eq, serial: sn });
+      });
+    } else {
+      const seen = new Set();
+      (Array.isArray(arr) ? arr : []).forEach(r => {
+        const res = (r && r.resultado != null) ? String(r.resultado).trim().toUpperCase() : '';
+        if (res !== 'RECHAZADA') return;
+        const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r.equipo || '')) : String(r.equipo || '').trim().toUpperCase();
+        if (!eq) return;
+        if (seen.has(eq)) return;
+        seen.add(eq);
+        const sn = String(r.serial || r.numeroSerie || '').trim() || eqToSerial(eq);
+        rows.push({ equipo: eq, serial: sn });
+      });
+    }
+
+    rows.sort((a, b) => String(a.equipo || '').localeCompare(String(b.equipo || '')));
+    const out = rows.map((r, i) => ({ _n: i + 1, equipo: r.equipo, serial: r.serial || '' }));
+    plOpenModalAnual(`Rechazados (${out.length})`, out);
+  } catch (e) {
+    console.error('No se pudo abrir modal de rechazados', e);
+    alert('No se pudo abrir el modal de rechazados. Revisa la consola.');
+  }
+}
+
+try { window.plOpenRechazadosModal = plOpenRechazadosModal; } catch {}
+
+// Bootstrap: cargar rechazados desde Firestore para que la tarjeta NO dependa de paginación/búsqueda.
+try {
+  if (!window._plRechazadosBootstrapped) {
+    window._plRechazadosBootstrapped = true;
+    (async () => {
+      try {
+        const { getFirestore, collection, getDocs, getDocsFromCache, query, where, limit } = await import(
+          'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+        );
+        const db = getFirestore();
+        const colRef = collection(db, 'pruebas');
+        const q = query(colRef, where('resultado', '==', 'RECHAZADA'), limit(5000));
+
+        let snap = null;
+        try { snap = await getDocsFromCache(q); } catch {}
+        if (!snap || snap.empty) snap = await getDocs(q);
+
+        const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : {};
+        const serialPorEquipoInv = (inv.serialPorEquipoInv && typeof inv.serialPorEquipoInv === 'object') ? inv.serialPorEquipoInv : {};
+
+        const seen = new Set();
+        const rows = [];
+        snap.forEach(d => {
+          const data = d.data() || {};
+          const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(data.equipo || '')) : String(data.equipo || '').trim().toUpperCase();
+          if (!eq) return;
+          if (seen.has(eq)) return;
+          seen.add(eq);
+          const sn0 = String(data.serial || data.numeroSerie || '').trim();
+          const sn = sn0 || (serialPorEquipoInv && serialPorEquipoInv[eq] ? String(serialPorEquipoInv[eq]) : '');
+          rows.push({ equipo: eq, serial: sn || '' });
+        });
+
+        rows.sort((a, b) => String(a.equipo || '').localeCompare(String(b.equipo || '')));
+        try { window._plRechazadosRowsServer = rows; } catch {}
+        try { render(); } catch {}
+      } catch (e) {
+        console.warn('No se pudo cargar rechazados desde Firestore', e);
+      }
+    })();
+  }
+} catch {}
 
 function plBucketFromRango(r) {
   if (r === 'gt60') return 'otras';
