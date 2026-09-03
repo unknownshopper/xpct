@@ -1119,7 +1119,7 @@
             }
         }
 
-        try { window.leerPagina = leerPagina; } catch {}
+        // try { window.leerPagina = leerPagina; } catch {}
 
         try { window.aplicarPeriodoMasivo = aplicarPeriodoMasivo; } catch {}
 
@@ -2406,6 +2406,8 @@
                     }
                 }
 
+                
+
                 // Heurística: si creadoEnMs devuelve muy pocos resultados en la primera página (dataset legacy), preferir creadoEn.
                 try {
                     const esPrimerPagina = !!(reset && !_lastDoc);
@@ -2475,6 +2477,8 @@
                 return 0;
             }
         }
+
+        try { window.leerPagina = leerPagina; } catch {}
 
         setProgressState('loading');
         try {
@@ -7165,6 +7169,78 @@
                         }
                     }
                 } catch {}
+
+                // Mejor fuente para chips cuando hay cambios recientes (sin cargar 7k+ docs): resumenes_equipos.
+                // Este cache se llena al entrar y se refresca periódicamente; contar buckets directamente aquí.
+                try {
+                    if (!_csvPreviewActive) {
+                        const cached = window._plResumenesEquiposCache;
+                        const items = (cached && Array.isArray(cached.items)) ? cached.items : null;
+                        const at = Number(cached && cached.at ? cached.at : 0);
+                        const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+                        if (items && items.length && isFresh) {
+                            const offSet = (() => {
+                                try {
+                                    const c = window._plOffEquiposSet;
+                                    return (c && c.items instanceof Set) ? c.items : null;
+                                } catch { return null; }
+                            })();
+
+                            const mapBucketToChip = (b) => {
+                                const s = String(b || '').trim();
+                                if (!s) return '';
+                                if (s === 'otras') return 'gt60';
+                                if (s === '60_30') return 'd60';
+                                if (s === '30_15') return 'd30';
+                                if (s === '15_0') return 'd15';
+                                if (s === 'vencidas') return 'd0';
+                                return '';
+                            };
+
+                            const isOperativo = (it, eqK) => {
+                                try {
+                                    const edoRaw = (() => {
+                                        try { if (it && it.edo != null) return String(it.edo); } catch {}
+                                        try {
+                                            if (typeof edoPorEquipoInv !== 'undefined' && edoPorEquipoInv && eqK && edoPorEquipoInv[eqK]) return String(edoPorEquipoInv[eqK]);
+                                        } catch {}
+                                        return '';
+                                    })();
+                                    const e = String(edoRaw || '').trim().toUpperCase();
+                                    if (!e) return true;
+                                    return (e === 'ON' || e === 'ACTIVO' || e === 'WIP');
+                                } catch { return true; }
+                            };
+
+                            let gt60 = 0, d60 = 0, d30 = 0, d15 = 0, d0 = 0;
+                            const tipos = ['LT', 'VT/PT/MT', 'UTT'];
+                            items.forEach(it => {
+                                const eqK = (typeof normEquipoKey === 'function')
+                                    ? normEquipoKey(String(it && (it.equipoKey || it.id || '') || ''))
+                                    : String(it && (it.equipoKey || it.id || '') || '').trim().toUpperCase();
+                                if (!eqK) return;
+                                if (offSet && offSet.has(eqK)) return;
+                                if (!isOperativo(it, eqK)) return;
+                                tipos.forEach(t => {
+                                    const pr = (it && it.pruebas && it.pruebas[t]) ? it.pruebas[t] : null;
+                                    const chipB = mapBucketToChip(pr && pr.bucket ? pr.bucket : '');
+                                    if (!chipB) return;
+                                    if (chipB === 'gt60') gt60 += 1;
+                                    else if (chipB === 'd60') d60 += 1;
+                                    else if (chipB === 'd30') d30 += 1;
+                                    else if (chipB === 'd15') d15 += 1;
+                                    else if (chipB === 'd0') d0 += 1;
+                                });
+                            });
+
+                            cntChipGT60 = gt60;
+                            cntChip60 = d60;
+                            cntChip30 = d30;
+                            cntChip15 = d15;
+                            cntChip0 = d0;
+                        }
+                    }
+                } catch {}
             } catch {}
 
             try {
@@ -7192,6 +7268,9 @@
             // Guardar referencia a filasVisibles en el tbody para exportación
             tbodyListado._filasVisibles = filasVisibles;
         }
+
+        try { window.render = render; } catch {}
+
 
         function refrescarPruebaslistUI() {
             try { _csvPreviewActive = false; } catch {}
