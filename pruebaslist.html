@@ -37,26 +37,46 @@
         max-height: calc(100vh - 280px);
       }
 
-      #tabla-pruebas-listado td:nth-child(2) {
+      #tabla-pruebas-listado td:nth-child(3) {
         white-space: normal;
         overflow-wrap: anywhere;
         word-break: break-word;
       }
 
-      #tabla-pruebas-listado td:nth-child(2) .pl-norep-static {
+      #tabla-pruebas-listado td:nth-child(3) .pl-norep-static {
         display: block;
         white-space: normal;
         overflow-wrap: anywhere;
         word-break: break-word;
       }
 
-      #tabla-pruebas-listado td:nth-child(2) input.pl-norep {
+      #tabla-pruebas-listado td:nth-child(3) input.pl-norep {
         width: 100%;
         min-width: 0;
         box-sizing: border-box;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      /* Rango activo: mucho más notorio */
+      #panel-pruebas-rangos .dash-card[data-active="1"] {
+        border: 3px solid #2563eb !important;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.25), 0 12px 22px rgba(15,23,42,0.18) !important;
+        background: linear-gradient(180deg, #eff6ff 0%, #ffffff 55%);
+        transform: translateY(-1px);
+      }
+      #panel-pruebas-rangos .dash-card[data-active="1"] .dash-card-value {
+        color: #1d4ed8;
+        font-weight: 800;
+      }
+
+      #seccion-chips-alertas .chip[data-active="1"] {
+        outline: 4px solid #111827;
+        outline-offset: 2px;
+        box-shadow: 0 12px 22px rgba(15,23,42,0.22) !important;
+        transform: translateY(-1px);
+        font-weight: 800;
       }
 
       /* Chips de período (arriba del Resumen) con estilo neutro gris y efecto activo */
@@ -490,6 +510,7 @@
                 <div class="tabla-inspecciones-wrapper listado-scroll" style="overflow-x:auto;">
                     <table id="tabla-pruebas-listado" style="width:100%; border-collapse:collapse; font-size:0.9rem; min-width:1460px; table-layout:fixed;">
                         <colgroup>
+                            <col style="width:44px;">
                             <col style="width:34px;">
                             <col style="width:220px;">
                             <col style="width:110px;">
@@ -510,6 +531,7 @@
                         </colgroup>
                         <thead>
                             <tr style="background:#f3f4f6;">
+                                <th style="text-align:center; padding:0.35rem;">#</th>
                                 <th style="text-align:center; padding:0.35rem;"><input type="checkbox" id="pruebas-select-todos" style="display:block; margin:0 auto;"></th>
                                 <th style="text-align:left; padding:0.4rem;">No. reporte / cert.</th>
                                 <th style="text-align:left; padding:0.4rem;">Presión (LT)</th>
@@ -1646,20 +1668,13 @@
 
                 try {
                     if (pa) {
-                        if (lblAlert60 && pa.bucket60_30 != null) lblAlert60.textContent = String(pa.bucket60_30);
-                        if (lblAlert30 && pa.bucket30_15 != null) lblAlert30.textContent = String(pa.bucket30_15);
-                        if (lblAlert15 && pa.bucket15_0 != null) lblAlert15.textContent = String(pa.bucket15_0);
-                        const lblAlert0 = document.getElementById('pruebas-alert-0');
-                        if (lblAlert0 && pa.vencidas != null) lblAlert0.textContent = String(pa.vencidas);
+                        // No pintar aquí: render() recalcula chips con fuentes más frescas (resumenes_equipos + verificación).
                     }
                 } catch {}
 
                 try {
                     if (pa) {
-                        if (cardR60Val && pa.bucket60_30 != null) cardR60Val.textContent = String(pa.bucket60_30);
-                        if (cardR30Val && pa.bucket30_15 != null) cardR30Val.textContent = String(pa.bucket30_15);
-                        if (cardR15Val && pa.bucket15_0 != null) cardR15Val.textContent = String(pa.bucket15_0);
-                        if (cardR0Val && pa.vencidas != null) cardR0Val.textContent = String(pa.vencidas);
+                        // No pintar aquí: render() recalcula cards con fuentes más frescas (resumenes_equipos + verificación).
                     }
                 } catch {}
 
@@ -5414,11 +5429,17 @@
             // En algunos despliegues el dataset paginado vive en otro scope (window.pctGetPruebas/window.pruebas).
             // Si el arreglo local está vacío pero ya hay datos cargados, sincronizar para que el UI pinte.
             try {
+                // Si el rango está en modo override, NO resucitar el dataset desde otras fuentes.
+                // De lo contrario: al seleccionar un rango con 0 resultados, el listado se vuelve a llenar con registros anteriores.
+                if (window._plRangoOverrideActive) {
+                    // no-op
+                } else {
                 const p = (typeof window.pctGetPruebas === 'function')
                     ? window.pctGetPruebas()
                     : (Array.isArray(window.pruebas) ? window.pruebas : []);
                 if (Array.isArray(p) && p.length && (!Array.isArray(pruebas) || !pruebas.length)) {
                     pruebas = p;
+                }
                 }
             } catch {}
 
@@ -5833,7 +5854,7 @@
                 let missVpmPar = 0;
                 let missUttPar = 0;
 
-                window._equiposCobertura = window._equiposCobertura || {};
+                window._equiposCobertura = {};
 
                 const wipSet = (() => {
                     try {
@@ -6508,6 +6529,7 @@
                         });
 
                         const fila = document.createElement('tr');
+                        const tdNum = `<td style="padding:0.35rem; text-align:right; border-bottom:1px solid #e5e7eb; color:#6b7280;">${idx + 1}</td>`;
                         const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}" style="display:block; margin:0 auto;"></td>`;
                         const badgeSin = '<span style="padding:0.1rem 0.5rem; border-radius:999px; background:#e5e7eb; color:#374151; font-size:0.75rem;">Sin prueba</span>';
                         const badgeWip = isWip
@@ -6650,12 +6672,13 @@
                         });
 
                         const fila = document.createElement('tr');
+                        const tdNum = `<td style="padding:0.35rem; text-align:right; border-bottom:1px solid #e5e7eb; color:#6b7280;">${idx + 1}</td>`;
                         const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type="checkbox" class="prueba-select" data-idx="${idx}" style="display:block; margin:0 auto;"></td>`;
                         fila.innerHTML = `
+                            ${tdNum}
                             ${tdSelect}
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
-                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
-                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"></td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">ANUAL</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;"></td>
@@ -6866,12 +6889,6 @@
                     }
                 } catch {}
 
-                try {
-                    if (filtroRango && esAnualReg && !esHistoricoReg) {
-                        if (!esOperativoEqK(eqK)) return;
-                    }
-                } catch {}
-
                 // Aplicar filtro por rango si está activo (solo vigentes), rangos: 60-31, 30-16, 15-1
                 // Importante: SOLO filtra ANUAL; si el filtroPeriodo fuerza POST-TRABAJO o REPARACION, no aplica rangos
                 if (filtroRango && esAnualReg && (!filtroPeriodo || filtroPeriodo === 'ANUAL')) {
@@ -6983,12 +7000,17 @@
 
                 const presionLt = (reg && (reg.presionLt || reg.presion || reg.presionPrueba)) ? String(reg.presionLt || reg.presion || reg.presionPrueba).trim() : '';
                 
+                const tdNum = `<td style="padding:0.35rem; text-align:right; border-bottom:1px solid #e5e7eb; color:#6b7280;">${idx + 1}</td>`;
+
                 const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type=\"checkbox\" class=\"prueba-select\" data-idx=\"${idx}\" style=\"display:block; margin:0 auto;\"></td>`;
 
                 fila.innerHTML = `
+                    ${tdNum}
                     ${tdSelect}
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:normal; overflow-wrap:anywhere; word-break:break-word;">${celdaNoRep}</td>
-                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${presionLt}</td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">
+                        ${celdaNoRep}
+                    </td>
+                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${presionLt || ''}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtFechaRealizacion(reg.fechaRealizacion || reg.fechaPrueba || '')}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fmtProxima(proximaStr)}</td>
                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${celdaPeriodo}</td>
@@ -7158,14 +7180,8 @@
                         const at = Number(window._pctResumenGlobal.at || 0);
                         const isFresh = at && isFinite(at) && (Date.now() - at) < (24 * 60 * 60 * 1000);
                         if (isFresh) {
-                            const pa = window._plResumenGlobalAnuales;
-                            if (pa && typeof pa === 'object') {
-                                if (pa.otras != null) cntChipGT60 = Number(pa.otras) || 0;
-                                if (pa.bucket60_30 != null) cntChip60 = Number(pa.bucket60_30) || 0;
-                                if (pa.bucket30_15 != null) cntChip30 = Number(pa.bucket30_15) || 0;
-                                if (pa.bucket15_0 != null) cntChip15 = Number(pa.bucket15_0) || 0;
-                                if (pa.vencidas != null) cntChip0 = Number(pa.vencidas) || 0;
-                            }
+                            // No usar aquí: puede venir inconsistente (ej. bucket15_0 != suma por tipo).
+                            // Los chips se calculan con fuentes más frescas y verificables (resumenes_equipos + docId + server verify).
                         }
                     }
                 } catch {}
@@ -7197,6 +7213,26 @@
                                 return '';
                             };
 
+                            const chipFromDue = (pr) => {
+                                try {
+                                    const ms = (pr && typeof pr.dueMs === 'number' && isFinite(pr.dueMs)) ? pr.dueMs : 0;
+                                    let prox = ms ? parseProxima(ms) : null;
+                                    if (!prox) prox = parseProxima(pr && pr.proxima ? pr.proxima : '');
+                                    if (!prox) return '';
+                                    const hoy0 = hoySinHora();
+                                    const dias = Math.round((prox.getTime() - hoy0.getTime()) / (1000 * 60 * 60 * 24));
+                                    if (isNaN(dias)) return '';
+                                    if (dias <= 0) return 'd0';
+                                    if (dias > 60) return 'gt60';
+                                    if (dias >= 31) return 'd60';
+                                    if (dias >= 16) return 'd30';
+                                    if (dias >= 1) return 'd15';
+                                    return '';
+                                } catch {
+                                    return '';
+                                }
+                            };
+
                             const isOperativo = (it, eqK) => {
                                 try {
                                     const edoRaw = (() => {
@@ -7207,14 +7243,23 @@
                                         return '';
                                     })();
                                     const e = String(edoRaw || '').trim().toUpperCase();
-                                    if (!e) return true;
-                                    return (e === 'ON' || e === 'ACTIVO' || e === 'WIP');
-                                } catch { return true; }
+                                    if (e === 'OFF' || e === 'INACTIVO') return false;
+                                    return true;
+                                } catch {
+                                    return true;
+                                }
                             };
 
-                            let gt60 = 0, d60 = 0, d30 = 0, d15 = 0, d0 = 0;
+                            let gt60 = 0;
+                            let d60 = 0;
+                            let d30 = 0;
+                            let d15 = 0;
+                            let d0 = 0;
+                            const idsD30 = [];
+                            const idsD15 = [];
+
                             const tipos = ['LT', 'VT/PT/MT', 'UTT'];
-                            items.forEach(it => {
+                            (Array.isArray(items) ? items : []).forEach(it => {
                                 const eqK = (typeof normEquipoKey === 'function')
                                     ? normEquipoKey(String(it && (it.equipoKey || it.id || '') || ''))
                                     : String(it && (it.equipoKey || it.id || '') || '').trim().toUpperCase();
@@ -7223,12 +7268,14 @@
                                 if (!isOperativo(it, eqK)) return;
                                 tipos.forEach(t => {
                                     const pr = (it && it.pruebas && it.pruebas[t]) ? it.pruebas[t] : null;
-                                    const chipB = mapBucketToChip(pr && pr.bucket ? pr.bucket : '');
+                                    const id = pr && pr.docId ? String(pr.docId) : '';
+                                    if (!id) return;
+                                    const chipB = chipFromDue(pr) || mapBucketToChip(pr && pr.bucket ? pr.bucket : '');
                                     if (!chipB) return;
                                     if (chipB === 'gt60') gt60 += 1;
                                     else if (chipB === 'd60') d60 += 1;
-                                    else if (chipB === 'd30') d30 += 1;
-                                    else if (chipB === 'd15') d15 += 1;
+                                    else if (chipB === 'd30') { d30 += 1; idsD30.push(id); }
+                                    else if (chipB === 'd15') { d15 += 1; idsD15.push(id); }
                                     else if (chipB === 'd0') d0 += 1;
                                 });
                             });
@@ -7238,174 +7285,37 @@
                             cntChip30 = d30;
                             cntChip15 = d15;
                             cntChip0 = d0;
+
+                            try { window._plRangoIdsD30 = idsD30; } catch {}
+                            try { window._plRangoIdsD15 = idsD15; } catch {}
                         }
                     }
                 } catch {}
-            } catch {}
 
-            try {
-                const lblAlertGT60 = document.getElementById('pruebas-alert-gt60');
-                const lblAlert0 = document.getElementById('pruebas-alert-0');
-                if (!_csvPreviewActive) {
+                // Pintar chips/tarjetas con los contadores calculados
+                try {
                     if (lblAlertGT60) lblAlertGT60.textContent = String(cntChipGT60);
                     if (lblAlert60)   lblAlert60.textContent   = String(cntChip60);
                     if (lblAlert30)   lblAlert30.textContent   = String(cntChip30);
                     if (lblAlert15)   lblAlert15.textContent   = String(cntChip15);
                     if (lblAlert0)    lblAlert0.textContent    = String(cntChip0);
-                }
-            } catch {}
 
-            try {
-                if (cardR60Val) cardR60Val.textContent = String(cntChip60);
-                if (cardR30Val) cardR30Val.textContent = String(cntChip30);
-                if (cardR15Val) cardR15Val.textContent = String(cntChip15);
-                if (cardR0Val)  cardR0Val.textContent  = String(cntChip0);
-            } catch {}
-
-            // Reiniciar checkbox de selección global
-            if (chkSelectTodos) chkSelectTodos.checked = false;
-
-            // Guardar referencia a filasVisibles en el tbody para exportación
-            tbodyListado._filasVisibles = filasVisibles;
-        }
-
-        try { window.render = render; } catch {}
-
-
-        function refrescarPruebaslistUI() {
-            try { _csvPreviewActive = false; } catch {}
-            try { _csvPreviewRows = []; } catch {}
-            try { actualizarContadoresTiposLocal(pruebas); } catch {}
-            try { render(); } catch (e) { console.error('Error en render()', e); }
-        }
-
-        try { window.refrescarPruebaslistUI = refrescarPruebaslistUI; } catch {}
-
-        try { if (typeof cacheDashboardPruebasSnapshot === 'function') cacheDashboardPruebasSnapshot(pruebas); } catch {}
-
-        const inputBuscarEl3 = document.getElementById('pruebas-buscar');
-        if (inputBuscarEl3) {
-            inputBuscarEl3.addEventListener('input', () => {
-                render();
-                // Para términos tipo serial/equipo/noReporte, la búsqueda local puede mostrar solo una fracción
-                // por paginación. En esos casos, disparar búsqueda en servidor automáticamente.
-                try {
-                    const raw = (inputBuscarEl3.value || '').toString().trim();
-                    if (!raw) return;
-
-                    const rawU = raw.toUpperCase();
-                    const looksLikeStructured = (() => {
-                        try {
-                            // Heurística: PCT-*, PCT*, contiene varios guiones/dígitos, o noReporte tipo PCT-NDT-...
-                            if (rawU.startsWith('PCT-') || rawU.startsWith('PCT')) return true;
-                            if (rawU.includes('PCT-NDT') || rawU.includes('NDT')) return true;
-                            const d = (rawU.match(/\d/g) || []).length;
-                            const h = (rawU.match(/-/g) || []).length;
-                            if (h >= 2 && d >= 4) return true;
-                            // Serial numérico largo
-                            if (/^\d{6,}$/.test(rawU)) return true;
-                            return false;
-                        } catch {
-                            return false;
-                        }
-                    })();
-
-                    // Evitar búsquedas en servidor mientras el usuario aún está tecleando un identificador incompleto
-                    const canAutoServerSearch = (() => {
-                        try {
-                            if (!looksLikeStructured) return false;
-                            if (rawU.length < 8) return false;
-                            if (rawU.endsWith('-')) return false;
-                            // Para claves tipo PCT-XXX-000, exigir al menos 2 guiones y que el último segmento tenga >=2 chars
-                            const parts = rawU.split('-').filter(Boolean);
-                            if (parts.length >= 2) {
-                                const last = parts[parts.length - 1] || '';
-                                if (last.length < 2) return false;
-                            }
-                            return true;
-                        } catch {
-                            return false;
-                        }
-                    })();
-
-                    const tb = document.getElementById('tbody-pruebas-listado');
-                    const visibles = (tb && Array.isArray(tb._filasVisibles)) ? tb._filasVisibles.length : 0;
-                    // Si parece structured, siempre consultar servidor (correctitud). Si no, solo cuando no hay visibles.
-                    if (!looksLikeStructured && visibles > 0) return;
-                    if (looksLikeStructured && !canAutoServerSearch) return;
-                    // Debounce
-                    if (window._plSrvSearchTimer) clearTimeout(window._plSrvSearchTimer);
-                    window._plSrvSearchTimer = setTimeout(() => {
-                        try { if (typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: true }); } catch {}
-                    }, 750);
+                    if (cardR60Val) cardR60Val.textContent = String(cntChip60);
+                    if (cardR30Val) cardR30Val.textContent = String(cntChip30);
+                    if (cardR15Val) cardR15Val.textContent = String(cntChip15);
+                    if (cardR0Val)  cardR0Val.textContent  = String(cntChip0);
                 } catch {}
-            });
 
-            // Enter: búsqueda explícita en servidor (sin botón)
-            inputBuscarEl3.addEventListener('keydown', (ev) => {
-                try {
-                    if (ev.key !== 'Enter') return;
-                    const raw = (inputBuscarEl3.value || '').toString().trim();
-                    if (!raw) return;
-                    try { ev.preventDefault(); } catch {}
-                    try { if (typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: false }); } catch {}
-                } catch {}
-            });
+            } catch (e) {
+                try { window._plChipCalcLastError = { at: Date.now(), error: (e && (e.message || e.toString())) ? String(e.message || e.toString()) : String(e) }; } catch {}
+            }
 
-            // Blur: si parece identificador estructurado, completar con servidor sin alertas
-            inputBuscarEl3.addEventListener('blur', () => {
-                try {
-                    const raw = (inputBuscarEl3.value || '').toString().trim();
-                    if (!raw) return;
-                    const rawU = raw.toUpperCase();
-                    const d = (rawU.match(/\d/g) || []).length;
-                    const h = (rawU.match(/-/g) || []).length;
-                    const looksLikeStructured = rawU.startsWith('PCT') || (h >= 2 && d >= 4) || /^\d{6,}$/.test(rawU);
-                    if (!looksLikeStructured) return;
-                    try { if (typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: true }); } catch {}
-                } catch {}
-            });
-        }
-
-        const inputBuscarResumenEl3 = document.getElementById('pl-resumen-buscar');
-        if (inputBuscarResumenEl3) {
-            inputBuscarResumenEl3.addEventListener('input', () => {
-                render();
-            });
-        }
-
-        function actualizarChipsUI() {
-            const chipGT60 = document.getElementById('chip-gt60');
-            const chip60 = document.getElementById('chip-60');
-            const chip30 = document.getElementById('chip-30');
-            const chip15 = document.getElementById('chip-15');
-            const chip0 = document.getElementById('chip-0');
-            [chipGT60, chip60, chip30, chip15, chip0].forEach(ch => ch && ch.classList.remove('chip-active'));
-            if (filtroRango === 'gt60' && chipGT60) chipGT60.classList.add('chip-active');
-            if (filtroRango === '60' && chip60) chip60.classList.add('chip-active');
-            if (filtroRango === '30' && chip30) chip30.classList.add('chip-active');
-            if (filtroRango === '15' && chip15) chip15.classList.add('chip-active');
-            if (filtroRango === '0' && chip0) chip0.classList.add('chip-active');
-
-            try {
-                const cardR60 = document.getElementById('pruebas-card-r60');
-                const cardR30 = document.getElementById('pruebas-card-r30');
-                const cardR15 = document.getElementById('pruebas-card-r15');
-                const cardR0 = document.getElementById('pruebas-card-r0');
-                const mark = (el, active) => {
-                    if (!el) return;
-                    el.style.boxShadow = active ? '0 0 0 2px #2563eb inset' : '';
-                    el.style.fontWeight = active ? '700' : '';
-                };
-                mark(cardR60, filtroRango === '60');
-                mark(cardR30, filtroRango === '30');
-                mark(cardR15, filtroRango === '15');
-                mark(cardR0, filtroRango === '0');
-            } catch {}
         }
 
         function toggleFiltro(r) {
-            filtroRango = (filtroRango === r) ? null : r;
+            // Idempotente: hacer click en un rango siempre aplica ese rango.
+            // Evita que un segundo click lo desactive (causaba "marcaba 0 pero al dar click salían muchos").
+            filtroRango = r;
             try { window.filtroRango = filtroRango; } catch {}
 
             try {
@@ -7429,6 +7339,7 @@
                 if (filtroRango) {
                     if (typeof setFiltroPeriodo === 'function') setFiltroPeriodo('ANUAL');
                     else filtroPeriodo = 'ANUAL';
+                    try { window.filtroPeriodo = 'ANUAL'; } catch {}
                 }
             } catch {}
 
@@ -7439,6 +7350,8 @@
                 if (filtroRango && rangoCritico) {
                     (async () => {
                         try {
+                            const reqKey = String(filtroRango);
+                            try { window._plRangoOverrideReqKey = reqKey; } catch {}
                             if (!window._plPruebasBackup) {
                                 try { window._plPruebasBackup = Array.isArray(pruebas) ? [...pruebas] : []; } catch { window._plPruebasBackup = []; }
                             }
@@ -7460,10 +7373,22 @@
                                 try { if (offSet && offSet.has(eqK)) return; } catch {}
                                 tipos.forEach(t => {
                                     const pr = (it && it.pruebas && it.pruebas[t]) ? it.pruebas[t] : null;
-                                    const b = pr && pr.bucket ? String(pr.bucket) : '';
                                     const id = pr && pr.docId ? String(pr.docId) : '';
                                     if (!id) return;
-                                    if (b !== fbBucket) return;
+                                    try {
+                                        const ms = (pr && typeof pr.dueMs === 'number' && isFinite(pr.dueMs)) ? pr.dueMs : 0;
+                                        let prox = ms ? parseProxima(ms) : null;
+                                        if (!prox) prox = parseProxima(pr && pr.proxima ? pr.proxima : '');
+                                        if (!prox) return;
+                                        const hoy0 = hoySinHora();
+                                        const dias = Math.round((prox.getTime() - hoy0.getTime()) / (1000 * 60 * 60 * 24));
+                                        if (isNaN(dias)) return;
+                                        if (filtroRango === '0') { if (!(dias <= 0)) return; }
+                                        else if (filtroRango === '30') { if (!(dias >= 16 && dias <= 30)) return; }
+                                        else if (filtroRango === '15') { if (!(dias >= 1 && dias <= 15)) return; }
+                                        else if (filtroRango === '60') { if (!(dias >= 31 && dias <= 60)) return; }
+                                        else if (filtroRango === 'gt60') { if (!(dias > 60)) return; }
+                                    } catch { return; }
                                     ids.push(id);
                                 });
                             });
@@ -7473,18 +7398,53 @@
                             const db = (window.db || getFirestore());
                             const colRef = collection(db, 'pruebas');
                             const uniq = Array.from(new Set(ids));
+
+                            // Si no hay ids para el rango, limpiar listado inmediatamente (evita mostrar resultados del rango anterior).
+                            if (!uniq.length) {
+                                try {
+                                    if (window._plRangoOverrideReqKey && window._plRangoOverrideReqKey !== reqKey) return;
+                                } catch {}
+                                pruebas = [];
+                                try { window.pruebas = []; } catch {}
+                                try { _lastDoc = null; } catch {}
+                                try { window._plRangoOverrideActive = true; } catch {}
+                                try { render(); } catch {}
+                                return;
+                            }
                             const out = [];
-                            const chunkSize = 30;
+                            const chunkSize = 10;
                             for (let i = 0; i < uniq.length; i += chunkSize) {
                                 const chunk = uniq.slice(i, i + chunkSize);
                                 const q = query(colRef, where(documentId(), 'in', chunk));
                                 const snap = await getDocs(q);
                                 snap.forEach(d => out.push({ id: d.id, ...(d.data() || {}) }));
                             }
+
+                            // Evitar que una respuesta vieja pise el listado si el usuario cambió de rango rápido.
+                            try {
+                                if (window._plRangoOverrideReqKey && window._plRangoOverrideReqKey !== reqKey) return;
+                            } catch {}
                             pruebas = out;
                             try { window.pruebas = out; } catch {}
                             try { _lastDoc = null; } catch {}
                             try { window._plRangoOverrideActive = true; } catch {}
+                            try {
+                                // Evitar que filtros existentes oculten los resultados del rango.
+                                const inputBuscar = document.getElementById('pruebas-buscar');
+                                if (inputBuscar) inputBuscar.value = '';
+                            } catch {}
+                            try {
+                                if (typeof window.filtroCobertura !== 'undefined') window.filtroCobertura = null;
+                            } catch {}
+                            try {
+                                if (!(window.filtroTiposPrueba instanceof Set)) window.filtroTiposPrueba = new Set(['LT', 'VPM', 'UTT']);
+                                else {
+                                    window.filtroTiposPrueba.clear();
+                                    window.filtroTiposPrueba.add('LT');
+                                    window.filtroTiposPrueba.add('VPM');
+                                    window.filtroTiposPrueba.add('UTT');
+                                }
+                            } catch {}
                             try { render(); } catch {}
                         } catch (e) {
                             console.error('No se pudo cargar listado por rango desde server', e);
@@ -7534,6 +7494,27 @@
             const isOpen = panel.style.display !== 'none';
             const nextOpen = (forceOpen === null) ? !isOpen : !!forceOpen;
             panel.style.display = nextOpen ? 'block' : 'none';
+        }
+
+        function actualizarChipsUI() {
+            try {
+                const r = (typeof window.filtroRango !== 'undefined') ? window.filtroRango : filtroRango;
+                const mark = (el, active) => {
+                    if (!el) return;
+                    try { el.dataset.active = active ? '1' : '0'; } catch {}
+                };
+
+                mark(document.getElementById('chip-gt60'), r === 'gt60');
+                mark(document.getElementById('chip-60'), r === '60');
+                mark(document.getElementById('chip-30'), r === '30');
+                mark(document.getElementById('chip-15'), r === '15');
+                mark(document.getElementById('chip-0'), r === '0');
+
+                mark(document.getElementById('card-rango-60'), r === '60');
+                mark(document.getElementById('card-rango-30'), r === '30');
+                mark(document.getElementById('card-rango-15'), r === '15');
+                mark(document.getElementById('card-rango-0'), r === '0');
+            } catch {}
         }
 
         const btnRangosEl4 = document.getElementById('btn-pruebas-rangos');
@@ -8878,6 +8859,17 @@ async function plOpenCoberturaModal(cat) {
       return (c && c.items instanceof Set) ? c.items : null;
     } catch { return null; }
   })();
+  const offSet = await (async () => {
+    try {
+      const c = window._plOffEquiposSet;
+      const cached = (c && c.items instanceof Set) ? c.items : null;
+      if (cached) return cached;
+    } catch {}
+    try {
+      if (typeof plLoadEquiposOffSet === 'function') return await plLoadEquiposOffSet();
+    } catch {}
+    return null;
+  })();
   Object.keys(window._equiposCobertura || {}).forEach(eqK0 => {
     const rawKey = String(eqK0 || '').trim();
     const eqKNorm = normEquipoKey(rawKey);
@@ -8969,6 +8961,7 @@ async function plOpenCoberturaModal(cat) {
       : ((it && it.serial) ? String(it.serial) : plGetSerialFromEquipoKey(displayEquipo));
     const edo = (() => {
       try {
+        if (offSet && displayEquipo && offSet.has(displayEquipo)) return 'OFF';
         // Preferir inventarioEstados (inventario.html) como fuente de verdad para ON/WIP/OFF
         if (typeof edoPorEquipoInv !== 'undefined' && edoPorEquipoInv && edoPorEquipoInv[displayEquipo]) return String(edoPorEquipoInv[displayEquipo]);
       } catch {}
@@ -8979,7 +8972,7 @@ async function plOpenCoberturaModal(cat) {
     })();
     const edoNorm = String(edo || '').trim().toUpperCase();
     const isWip = (edoNorm === 'WIP') || (!!(wipSet && wipSet.has(displayEquipo)));
-    const isOff = (edoNorm === 'OFF');
+    const isOff = (edoNorm === 'OFF' || edoNorm === 'INACTIVO') || (!!(offSet && offSet.has(displayEquipo)));
     if (cat === 'sin' && isOff) return;
     if (isWip) wip += 1;
     else if (edoNorm === 'ON' || edoNorm === 'ACTIVO' || edoNorm === 'OPERATIVO' || !edoNorm) on += 1;
