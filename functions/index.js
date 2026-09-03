@@ -1378,8 +1378,9 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
     const includeMotivo = !!opts.includeMotivo;
     const rows = items
       .sort((a, b) => a.dias - b.dias)
-      .map(x => `
+      .map((x, idx) => `
         <tr>
+          <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap; color:#6b7280;">${idx + 1}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.equipo}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">${x.serial || '-'}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${x.prueba || '-'}</td>
@@ -1394,6 +1395,7 @@ function buildHtml({ lista60, lista30, lista15, lista0, listaFail }) {
       <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;font-size:13px;">
         <thead>
           <tr>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#6b7280;font-weight:600;">#</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Equipo</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Serial</th>
             <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;color:#374151;font-weight:600;">Prueba / Calib.</th>
