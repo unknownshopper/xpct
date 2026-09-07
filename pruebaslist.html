@@ -5799,6 +5799,29 @@
                     if (items && items.length) {
                         // Base: todos los equipos del resumen materializado.
                         equiposBase = Array.from(new Set(items.map(it => normEquipoKey(String(it.equipoKey || it.id || ''))).filter(Boolean)));
+                        // IMPORTANTE: algunos despliegues pueden tener resumenes_equipos incompleto (solo equipos con pruebas).
+                        // Para el modal de "sin pruebas" necesitamos usar el inventario como base.
+                        try {
+                            let invArr = [];
+                            try {
+                                if (equiposInventario && equiposInventario.size) {
+                                    invArr = Array.from(equiposInventario);
+                                }
+                            } catch {}
+                            // Completar usando keys de serialPorEquipoInv (fuente real del inventario).
+                            try {
+                                if (serialPorEquipoInv && typeof serialPorEquipoInv === 'object') {
+                                    invArr = [
+                                        ...(invArr || []),
+                                        ...Object.keys(serialPorEquipoInv)
+                                    ];
+                                }
+                            } catch {}
+                            invArr = (invArr || []).map(k => normEquipoKey(k)).filter(Boolean);
+                            if (invArr.length) {
+                                equiposBase = Array.from(new Set([...(equiposBase || []), ...invArr]));
+                            }
+                        } catch {}
                         try {
                             if (offSet && equiposBase.length) equiposBase = equiposBase.filter(eqK => !offSet.has(eqK));
                         } catch {}
@@ -8536,10 +8559,20 @@ function plGetSerialFromEquipoKey(eqK) {
   try {
     const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : null;
     const map = inv && inv.serialPorEquipoInv && typeof inv.serialPorEquipoInv === 'object' ? inv.serialPorEquipoInv : null;
-    const v = map && eqK && map[eqK] ? String(map[eqK]) : '';
+    if (!map) return '';
+    const raw = String(eqK || '').trim();
+    if (!raw) return '';
+    const rawFix = raw.replace(/[–—]/g, '-');
+    const k1 = rawFix;
+    const k2 = (typeof normEquipoKey === 'function') ? normEquipoKey(rawFix) : rawFix.toUpperCase();
+    const v = (map[k1] != null && map[k1] !== '')
+      ? String(map[k1])
+      : ((map[k2] != null && map[k2] !== '') ? String(map[k2]) : '');
     return v;
   } catch { return ''; }
 }
+
+try { window.plGetSerialFromEquipoKey = plGetSerialFromEquipoKey; } catch {}
 
 async function plLoadResumenesEquiposCache() {
   try {
@@ -8804,7 +8837,21 @@ async function plOpenRechazadosModal() {
       cached.forEach(r => {
         const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r.equipo || '')) : String(r.equipo || '').trim().toUpperCase();
         if (!eq) return;
-        const sn = String(r.serial || '').trim() || eqToSerial(eq);
+        let sn = String(r.serial || '').trim();
+        try {
+          const eqN = (typeof normEquipoKey === 'function') ? normEquipoKey(eq) : String(eq || '').trim().toUpperCase();
+          const snN = (typeof normSerialKey === 'function') ? normSerialKey(sn) : String(sn || '').trim().toUpperCase();
+          // Si el serial parece el nombre de OTRO equipo existente, es dato cruzado: ignorarlo y preferir inventario.
+          try {
+            const snK0 = String(snN || '').replace(/[–—]/g, '-');
+            const snK = (typeof normEquipoKey === 'function') ? normEquipoKey(snK0) : snK0;
+            const looksEq = /^PCT-/.test(snK);
+            if (looksEq && snK && eqN && snK !== eqN && serialPorEquipoInv && typeof serialPorEquipoInv === 'object') {
+              if (Object.prototype.hasOwnProperty.call(serialPorEquipoInv, snK)) sn = '';
+            }
+          } catch {}
+        } catch {}
+        sn = sn || eqToSerial(eq) || '-';
         rows.push({ equipo: eq, serial: sn });
       });
     } else {
@@ -8816,7 +8863,20 @@ async function plOpenRechazadosModal() {
         if (!eq) return;
         if (seen.has(eq)) return;
         seen.add(eq);
-        const sn = String(r.serial || r.numeroSerie || '').trim() || eqToSerial(eq);
+        let sn = String(r.serial || r.numeroSerie || '').trim();
+        try {
+          const eqN = (typeof normEquipoKey === 'function') ? normEquipoKey(eq) : String(eq || '').trim().toUpperCase();
+          const snN = (typeof normSerialKey === 'function') ? normSerialKey(sn) : String(sn || '').trim().toUpperCase();
+          try {
+            const snK0 = String(snN || '').replace(/[–—]/g, '-');
+            const snK = (typeof normEquipoKey === 'function') ? normEquipoKey(snK0) : snK0;
+            const looksEq = /^PCT-/.test(snK);
+            if (looksEq && snK && eqN && snK !== eqN && serialPorEquipoInv && typeof serialPorEquipoInv === 'object') {
+              if (Object.prototype.hasOwnProperty.call(serialPorEquipoInv, snK)) sn = '';
+            }
+          } catch {}
+        } catch {}
+        sn = sn || eqToSerial(eq) || '-';
         rows.push({ equipo: eq, serial: sn });
       });
     }
@@ -8861,8 +8921,21 @@ try {
           if (seen.has(eq)) return;
           seen.add(eq);
           const sn0 = String(data.serial || data.numeroSerie || '').trim();
-          const sn = sn0 || (serialPorEquipoInv && serialPorEquipoInv[eq] ? String(serialPorEquipoInv[eq]) : '');
-          rows.push({ equipo: eq, serial: sn || '' });
+          let sn = sn0 || (serialPorEquipoInv && serialPorEquipoInv[eq] ? String(serialPorEquipoInv[eq]) : '');
+          // Si Firestore trae un serial que es OTRO equipo, reemplazar por el del inventario del equipo actual.
+          try {
+            const eqN = (typeof normEquipoKey === 'function') ? normEquipoKey(eq) : String(eq || '').trim().toUpperCase();
+            const snN = (typeof normSerialKey === 'function') ? normSerialKey(sn) : String(sn || '').trim().toUpperCase();
+            const snK0 = String(snN || '').replace(/[–—]/g, '-');
+            const snK = (typeof normEquipoKey === 'function') ? normEquipoKey(snK0) : snK0;
+            const looksEq = /^PCT-/.test(snK);
+            if (looksEq && snK && eqN && snK !== eqN && serialPorEquipoInv && typeof serialPorEquipoInv === 'object') {
+              if (Object.prototype.hasOwnProperty.call(serialPorEquipoInv, snK)) {
+                sn = (serialPorEquipoInv && serialPorEquipoInv[eq]) ? String(serialPorEquipoInv[eq]) : sn;
+              }
+            }
+          } catch {}
+          rows.push({ equipo: eq, serial: (String(sn || '').trim() || '-') });
         });
 
         rows.sort((a, b) => String(a.equipo || '').localeCompare(String(b.equipo || '')));
@@ -8956,6 +9029,66 @@ async function plOpenCoberturaModal(cat) {
     }
   };
 
+  // Asegurar que _equiposCobertura tenga la base completa del inventario.
+  // En algunos casos resumenes_equipos puede estar incompleto (solo equipos con pruebas) o quedar desfasado por timing.
+  try {
+    if (cat === 'sin' && invSerialPorEq && typeof invSerialPorEq === 'object') {
+      const covObj = (window._equiposCobertura && typeof window._equiposCobertura === 'object') ? window._equiposCobertura : null;
+      if (covObj) {
+        const offSet0 = await (async () => {
+          try {
+            const c = window._plOffEquiposSet;
+            const cached = (c && c.items instanceof Set) ? c.items : null;
+            if (cached) return cached;
+          } catch {}
+          try {
+            if (typeof plLoadEquiposOffSet === 'function') return await plLoadEquiposOffSet();
+          } catch {}
+          return null;
+        })();
+
+        const hasPruebaValida = (p) => {
+          try {
+            if (!p || typeof p !== 'object') return false;
+            if (p.proxima) return true;
+            if (p.fechaReal) return true;
+            if (p.bucket) return true;
+            if (p.vigente) return true;
+            return false;
+          } catch {
+            return false;
+          }
+        };
+
+        Object.keys(invSerialPorEq || {}).forEach(eq0 => {
+          const eq = safeNormEquipoKey(eq0);
+          if (!eq) return;
+          try { if (offSet0 && offSet0.has(eq)) return; } catch {}
+          if (covObj[eq]) return;
+
+          const it0 = byEq.get(eq) || null;
+          const hasAny = (() => {
+            try {
+              if (!it0 || !it0.pruebas) return false;
+              return !!(
+                hasPruebaValida(it0.pruebas.LT) ||
+                hasPruebaValida(it0.pruebas.UTT) ||
+                hasPruebaValida(it0.pruebas['VT/PT/MT'])
+              );
+            } catch { return false; }
+          })();
+          const hasLt = (() => { try { return !!(it0 && it0.pruebas && hasPruebaValida(it0.pruebas.LT)); } catch { return false; } })();
+          const hasUtt = (() => { try { return !!(it0 && it0.pruebas && hasPruebaValida(it0.pruebas.UTT)); } catch { return false; } })();
+          const hasVpm = (() => { try { return !!(it0 && it0.pruebas && hasPruebaValida(it0.pruebas['VT/PT/MT'])); } catch { return false; } })();
+          const hasAnual = !!(hasLt || hasUtt || hasVpm);
+          const is100 = !!(hasAnual && hasLt && hasUtt && hasVpm);
+          const cat0 = (!hasAny) ? 'sin' : (is100 ? '100' : 'parcial');
+          covObj[eq] = { cat: cat0, hasAny, hasAnual, hasLt, hasVpm, hasUtt };
+        });
+      }
+    }
+  } catch {}
+
   const findEqBySerialExactRaw = (rawKey) => {
     try {
       if (!invSerialPorEq || !rawKey) return '';
@@ -9047,6 +9180,51 @@ async function plOpenCoberturaModal(cat) {
     } catch {}
     return null;
   })();
+
+  // Fuente adicional Firestore (equipos/{equipoKey}) para serial/producto/descripcion.
+  // Esto permite no depender del CSV cuando Firestore tiene los datos.
+  const equiposFsByEq = new Map();
+  try {
+    const keysToFetch = [];
+    try {
+      Object.keys(window._equiposCobertura || {}).forEach(eqK0 => {
+        const rawKey = String(eqK0 || '').trim();
+        const eqKNorm = normEquipoKey(rawKey);
+        const cov = (window._equiposCobertura && window._equiposCobertura[rawKey])
+          ? window._equiposCobertura[rawKey]
+          : (eqKNorm && window._equiposCobertura && window._equiposCobertura[eqKNorm] ? window._equiposCobertura[eqKNorm] : null);
+        if (!cov || cov.cat !== cat) return;
+        if (eqKNorm) keysToFetch.push(eqKNorm);
+      });
+    } catch {}
+
+    const uniq = Array.from(new Set(keysToFetch)).filter(Boolean).slice(0, 500);
+    if (uniq.length) {
+      const { collection, getDocs, query, where, documentId } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      let db0 = window.db;
+      if (!db0) {
+        for (let i = 0; i < 40; i += 1) {
+          await new Promise(r => setTimeout(r, 50));
+          db0 = window.db;
+          if (db0) break;
+        }
+      }
+      if (db0) {
+        const colRef = collection(db0, 'equipos');
+        const chunkSize = 10;
+        for (let i = 0; i < uniq.length; i += chunkSize) {
+          const chunk = uniq.slice(i, i + chunkSize);
+          if (!chunk.length) continue;
+          try {
+            const snap = await getDocs(query(colRef, where(documentId(), 'in', chunk)));
+            snap.forEach(d => {
+              try { equiposFsByEq.set(normEquipoKey(d.id), { id: d.id, ...(d.data() || {}) }); } catch {}
+            });
+          } catch {}
+        }
+      }
+    }
+  } catch {}
   Object.keys(window._equiposCobertura || {}).forEach(eqK0 => {
     const rawKey = String(eqK0 || '').trim();
     const eqKNorm = normEquipoKey(rawKey);
@@ -9061,11 +9239,14 @@ async function plOpenCoberturaModal(cat) {
     let it = (displayEquipo ? (byEq.get(displayEquipo) || null) : null);
 
     // Resolver primero por inventario usando comparación exacta (para keys puramente numéricas tipo serial).
+    // Si el key ya parece un equipo (PCT-...), NO intentar resolverlo como serial, para evitar mostrar otro equipo incorrecto.
     try {
       if (!it && rawKey) {
         // Intentar resolver si el key parece serial (solo dígitos) o si el equipo no existe en resumenes_equipos.
-        const looksLikeSerial = !!normSerialDigits(rawKey);
-        const shouldTry = looksLikeSerial || !displayEquipo || (displayEquipo === rawKey);
+        const rawTrim = String(rawKey || '').trim();
+        const looksLikeSerial = /^[0-9]+$/.test(rawTrim);
+        const looksLikeEquipo = /^PCT-/.test(String(eqKNorm || rawKey || '').trim().toUpperCase());
+        const shouldTry = looksLikeSerial || (!looksLikeEquipo && (!displayEquipo || (displayEquipo === rawKey)));
         const resolved = shouldTry ? findEqBySerialExactRaw(rawKey) : '';
         if (resolved) {
           displayEquipo = resolved;
@@ -9076,6 +9257,11 @@ async function plOpenCoberturaModal(cat) {
     } catch {}
     try {
       if (!it) {
+        const looksLikeEquipo2 = /^PCT-/.test(String(eqKNorm || rawKey || '').trim().toUpperCase());
+        // Si es un equipo válido tipo PCT-..., no intentar resolverlo como serial (evita PCT-PUP-0698 -> CE-07 por dígitos).
+        if (looksLikeEquipo2) {
+          // no-op
+        } else {
         const snK = (typeof normSerialKey === 'function') ? normSerialKey(rawKey) : rawKey.trim().toUpperCase();
         const snD = normSerialDigits(rawKey);
         let resolvedEq = snK ? (bySerial.get(snK) || bySerialInv.get(snK) || '') : '';
@@ -9104,6 +9290,7 @@ async function plOpenCoberturaModal(cat) {
           serialHint = rawKey;
           it = byEq.get(displayEquipo) || null;
         }
+        }
       }
     } catch {}
 
@@ -9112,8 +9299,10 @@ async function plOpenCoberturaModal(cat) {
 
     // Fallback duro: si aún estamos mostrando un serial como equipo (puro dígito), resolver directo desde inventario en tiempo real.
     try {
-      const rawDigits = normSerialDigits(rawKey);
-      const isSerialAsEquipo = rawDigits && (String(displayEquipo || '').trim() === rawKey);
+      const rawTrim2 = String(rawKey || '').trim();
+      const rawDigits = normSerialDigits(rawTrim2);
+      const isDigitsOnly = /^[0-9]+$/.test(rawTrim2);
+      const isSerialAsEquipo = isDigitsOnly && rawDigits && (String(displayEquipo || '').trim() === rawKey);
       if (isSerialAsEquipo) {
         const invNow = (() => {
           try { if (typeof serialPorEquipoInv !== 'undefined' && serialPorEquipoInv && typeof serialPorEquipoInv === 'object') return serialPorEquipoInv; } catch {}
@@ -9133,9 +9322,65 @@ async function plOpenCoberturaModal(cat) {
       }
     } catch {}
 
-    const serial = (serialHint)
-      ? serialHint
-      : ((it && it.serial) ? String(it.serial) : plGetSerialFromEquipoKey(displayEquipo));
+    // Normalizar clave final del equipo para evitar misses por caracteres raros al resolver serial.
+    const displayEqKey = safeNormEquipoKey(displayEquipo);
+    if (displayEqKey && displayEqKey !== displayEquipo) {
+      displayEquipo = displayEqKey;
+      try { it = byEq.get(displayEquipo) || null; } catch {}
+    }
+
+    const bestSerialForEq = (() => {
+      try {
+        if (it && it.serial != null) return String(it.serial);
+      } catch {}
+      try {
+        const fs = equiposFsByEq.get(displayEquipo);
+        if (fs && fs.serial != null) return String(fs.serial);
+      } catch {}
+      try {
+        return plGetSerialFromEquipoKey(displayEquipo);
+      } catch { return ''; }
+    })();
+
+    // Solo usar serialHint si NO tenemos serial real para el equipo (fallback de último recurso).
+    const serial0 = (() => {
+      const best = String(bestSerialForEq || '').trim();
+      if (best) return best;
+      const h = String(serialHint || '').trim();
+      return h;
+    })();
+
+    const serial = (() => {
+      try {
+        const eqN = (typeof normEquipoKey === 'function') ? normEquipoKey(String(displayEquipo || '')) : String(displayEquipo || '').trim().toUpperCase();
+        const snRaw = String(serial0 || '').trim();
+        if (!snRaw) return '-';
+        const snN = (typeof normSerialKey === 'function') ? normSerialKey(snRaw) : snRaw.trim().toUpperCase();
+
+        // Política: mostrar el serial siempre (aunque sea igual al equipo).
+        // Solo corregir si el serial corresponde a OTRO equipo existente.
+        try {
+          const snK0 = String(snN || '').replace(/[–—]/g, '-');
+          const snK = (typeof normEquipoKey === 'function') ? normEquipoKey(snK0) : snK0;
+          const looksEq = /^PCT-/.test(snK);
+          const isOtherEq = looksEq && snK && eqN && snK !== eqN && (
+            (byEq && byEq.has(snK)) ||
+            (equiposFsByEq && equiposFsByEq.has(snK)) ||
+            (invSerialPorEq && typeof invSerialPorEq === 'object' && Object.prototype.hasOwnProperty.call(invSerialPorEq, snK))
+          );
+          if (isOtherEq) {
+            const best = ((it && it.serial) ? String(it.serial)
+              : ((equiposFsByEq.get(displayEquipo) && equiposFsByEq.get(displayEquipo).serial != null) ? String(equiposFsByEq.get(displayEquipo).serial)
+                : plGetSerialFromEquipoKey(displayEquipo)));
+            return String(best || '').trim() || snRaw;
+          }
+        } catch {}
+
+        return snRaw;
+      } catch {
+        return (String(serial0 || '').trim() || '-');
+      }
+    })();
     const edo = (() => {
       try {
         if (offSet && displayEquipo && offSet.has(displayEquipo)) return 'OFF';
@@ -9177,6 +9422,8 @@ async function plOpenCoberturaModal(cat) {
   try { window._plModalAnualLastTitle = title; } catch {}
   plOpenModalAnual(title, rows);
 }
+
+try { window.plOpenCoberturaModal = plOpenCoberturaModal; } catch {}
 
 function plInitDetalleTablaAnual() {
   // Controles del modal: deben funcionar para cualquier rol que pueda ver el modal.
