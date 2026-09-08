@@ -2521,7 +2521,7 @@ export const backfillFolios = onRequest(
   {
     timeoutSeconds: 540,
     memory: '1GiB',
-    secrets: ['EQUIPOS_IMPORT_KEY'],
+    secrets: ['RESUMEN_BUILD_KEY'],
   },
   async (req, res) => {
     try {
@@ -2531,7 +2531,7 @@ export const backfillFolios = onRequest(
       }
 
       const key = (req.query.key || req.get('x-equipos-key') || '').toString();
-      const expected = (process.env.EQUIPOS_IMPORT_KEY || '').toString();
+      const expected = (process.env.EQUIPOS_IMPORT_KEY || process.env.RESUMEN_BUILD_KEY || '').toString();
       if (!expected || key !== expected) {
         res.status(401).json({ ok: false, error: 'Unauthorized' });
         return;
@@ -2545,10 +2545,7 @@ export const backfillFolios = onRequest(
       const yyFiltro = String(req.query.yy || '').trim();
       const batchSize = Math.min(parseInt(req.query.batchSize || '100', 10), 400);
 
-      let q = db.collection('inspecciones').where('folio', '==', null).limit(batchSize);
-      if (tipoFiltro) {
-        q = db.collection('inspecciones').where('folio', '==', null).where('tipoInspeccion', '==', tipoFiltro).limit(batchSize);
-      }
+      let q = db.collection('inspecciones').orderBy(admin.firestore.FieldPath.documentId()).limit(batchSize);
 
       let docsProcessed = 0;
       let foliosAsignados = 0;
@@ -2560,6 +2557,8 @@ export const backfillFolios = onRequest(
 
         for (const doc of snap.docs) {
           const data = doc.data() || {};
+          if (data.folio) continue;
+          if (tipoFiltro && String(data.tipoInspeccion || '').toUpperCase().trim() !== tipoFiltro) continue;
           const tipo = tipoToFolio(data.tipoInspeccion || '');
           if (!tipo) continue;
           const yy = yyFiltro || getFolioYY(data);
@@ -2595,6 +2594,7 @@ export const backfillFolios = onRequest(
         }
 
         if (snap.docs.length < batchSize) break;
+        q = q.startAfter(snap.docs[snap.docs.length - 1]);
       } while (docsProcessed < 20000);
 
       res.status(200).json({

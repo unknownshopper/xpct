@@ -243,6 +243,68 @@
             } catch { return String(ts); }
         }
 
+        function renderTabla(cont, rows) {
+            if (!cont) return;
+            const sortState = cont._plSort || { col: null, dir: 'asc' };
+            const cols = [
+                { key: 'numero', label: '#', sort: false },
+                { key: 'equipo', label: 'Equipo', sort: true },
+                { key: 'serial', label: 'Serial', sort: true },
+                { key: 'folio', label: 'Folio', sort: true },
+                { key: 'creado', label: 'Fecha', sort: true },
+                { key: 'usuario', label: 'Inspector', sort: true },
+            ];
+
+            let displayRows = [...rows];
+            if (sortState.col) {
+                displayRows.sort((a, b) => {
+                    const av = a[sortState.col] || '';
+                    const bv = b[sortState.col] || '';
+                    const c = String(av).localeCompare(String(bv));
+                    return sortState.dir === 'asc' ? c : -c;
+                });
+            }
+
+            let html = '<table id="inspectcat-table" class="inspectcat-table"><thead><tr>';
+            for (const c of cols) {
+                if (c.sort) {
+                    const arrow = sortState.col === c.key ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+                    html += `<th data-col="${c.key}" class="pl-sortable" style="cursor:pointer;user-select:none;">${c.label}${arrow}</th>`;
+                } else {
+                    html += `<th>${c.label}</th>`;
+                }
+            }
+            html += '</tr></thead><tbody>';
+            displayRows.forEach((r, i) => {
+                html += `<tr>
+                    <td>${i + 1}</td>
+                    <td>${String(r.equipo).replace(/</g, '&lt;')}</td>
+                    <td>${String(r.serial).replace(/</g, '&lt;')}</td>
+                    <td>${r.folio ? String(r.folio).replace(/</g, '&lt;') : '<span style="color:#94a3b8">—</span>'}</td>
+                    <td>${String(r.creado).replace(/</g, '&lt;')}</td>
+                    <td>${String(r.usuario).replace(/</g, '&lt;')}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+
+            if (rows.length >= 200) {
+                html += '<div class="inspectcat-empty">Se muestran las últimas 200. Usa filtros para ver más.</div>';
+            }
+
+            cont.innerHTML = html;
+
+            cont.querySelectorAll('th.pl-sortable').forEach(th => {
+                th.addEventListener('click', () => {
+                    const col = th.dataset.col;
+                    const same = sortState.col === col;
+                    sortState.col = col;
+                    sortState.dir = (same && sortState.dir === 'asc') ? 'desc' : 'asc';
+                    cont._plSort = sortState;
+                    renderTabla(cont, rows);
+                });
+            });
+        }
+
         async function cargarLista(tipo) {
             const tInfo = TIPOS.find(t => t.key === tipo);
             const titulo = document.getElementById('inspectcat-lista-titulo');
@@ -275,28 +337,14 @@
                     rows.push({
                         id: d.id,
                         equipo: data.equipo || '',
+                        serial: data.serial || data.numeroSerie || data.noSerie || '',
                         folio: data.folio || '',
                         creado: formatFecha(data.creadoEn || data.fecha),
                         usuario: data.usuarioInspeccion || '',
                     });
                 });
 
-                let html = '<table class="inspectcat-table"><thead><tr><th>Equipo</th><th>Folio</th><th>Fecha</th><th>Inspector</th></tr></thead><tbody>';
-                for (const r of rows) {
-                    html += `<tr>
-                        <td>${String(r.equipo).replace(/</g, '&lt;')}</td>
-                        <td>${r.folio ? String(r.folio).replace(/</g, '&lt;') : '<span style="color:#94a3b8">—</span>'}</td>
-                        <td>${String(r.creado).replace(/</g, '&lt;')}</td>
-                        <td>${String(r.usuario).replace(/</g, '&lt;')}</td>
-                    </tr>`;
-                }
-                html += '</tbody></table>';
-
-                if (rows.length >= 200) {
-                    html += '<div class="inspectcat-empty">Se muestran las últimas 200. Usa filtros para ver más.</div>';
-                }
-
-                if (cont) cont.innerHTML = html;
+                renderTabla(cont, rows);
             } catch (e) {
                 console.error('Error cargando lista', tipo, e);
                 if (cont) cont.innerHTML = `<div class="inspectcat-empty">Error al cargar: ${String(e?.message || e).replace(/</g, '&lt;')}</div>`;
