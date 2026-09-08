@@ -305,6 +305,7 @@ export const onPruebaWriteUpdateResumenEquipo = onDocumentWritten(
       presionLt: (after.presionLt != null) ? String(after.presionLt).trim() : (after.presion != null ? String(after.presion).trim() : ''),
     };
 
+    ensureAdmin();
     const db = admin.firestore();
     const ref = db.collection('resumenes_equipos').doc(String(equipoCanon));
     await db.runTransaction(async (tx) => {
@@ -2357,6 +2358,256 @@ export const scanMissingInspectionEvidence = onRequest(
     } catch (err) {
       console.error('scanMissingInspectionEvidence error:', err);
       res.status(500).send(err?.message || String(err));
+    }
+  }
+);
+
+// ====== FOLIOS PARA INSPECCIONES ======
+const FOLIO_TIPO_MAP = {
+  'PRE-TRABAJO': 'PRE',
+  'PRETRABAJO': 'PRE',
+  'PRE': 'PRE',
+  'POST-TRABAJO': 'P0S',
+  'POSTTRABAJO': 'P0S',
+  'POST': 'P0S',
+  'P0S': 'P0S',
+  'RECEPCION': 'REC',
+  'REC': 'REC',
+  'REINSPECCION': 'REI',
+  'REI': 'REI',
+};
+
+function tipoToFolio(tipo) {
+  const t = String(tipo || '').toUpperCase().trim();
+  return FOLIO_TIPO_MAP[t] || '';
+}
+
+function getFolioYY(data, overrideMs = null) {
+  let ms = overrideMs;
+  if (!ms) {
+    try {
+      const creado = data.creadoEn;
+      if (creado && creado.toDate) ms = creado.toDate().getTime();
+      else if (creado && typeof creado === 'object' && typeof creado.seconds === 'number') ms = creado.seconds * 1000;
+      else if (creado) ms = new Date(creado).getTime();
+    } catch {}
+  }
+  if (!ms) {
+    try {
+      const f = data.fecha;
+      if (f) ms = new Date(f).getTime();
+    } catch {}
+  }
+  if (!ms) {
+    try {
+      const createdAt = data.createdAt;
+      if (createdAt && createdAt.toDate) ms = createdAt.toDate().getTime();
+      else if (createdAt && typeof createdAt === 'object' && typeof createdAt.seconds === 'number') ms = createdAt.seconds * 1000;
+      else if (createdAt) ms = new Date(createdAt).getTime();
+    } catch {}
+  }
+  const d = ms ? new Date(ms) : new Date();
+  return String(d.getFullYear()).slice(-2);
+}
+
+function makeFolio({ tipo, yy, seq }) {
+  const s = String(seq || 0).padStart(4, '0');
+  return `PCT-${tipo}-${yy}-${s}`;
+}
+
+export const asignarFolio = onRequest(
+  {
+    timeoutSeconds: 60,
+    memory: '512MiB',
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+        return;
+      }
+
+      ensureAdmin();
+
+      const authHeader = String(req.get('authorization') || '').trim();
+      const m = authHeader.match(/^Bearer\s+(.+)$/i);
+      const token = m && m[1] ? m[1].trim() : '';
+      if (!token) {
+        res.status(401).json({ ok: false, error: 'Missing Bearer token' });
+        return;
+      }
+
+      let decoded = null;
+      try {
+        decoded = await admin.auth().verifyIdToken(token);
+      } catch {
+        res.status(401).json({ ok: false, error: 'Invalid token' });
+        return;
+      }
+
+      const body = req.body || {};
+      const inspeccionId = String(body.inspeccionId || '').trim();
+      const overrideFechaMs = body.fechaMs ? Number(body.fechaMs) : null;
+
+      if (!inspeccionId) {
+        res.status(400).json({ ok: false, error: 'Missing inspeccionId' });
+        return;
+      }
+
+      const db = admin.firestore();
+
+      const inspeccionRef = db.collection('inspecciones').doc(inspeccionId);
+
+      const result = await db.runTransaction(async (t) => {
+        const inspeccionSnap = await t.get(inspeccionRef);
+        if (!inspeccionSnap.exists) {
+          throw new Error('INSPECCION_NOT_FOUND');
+        }
+        const data = inspeccionSnap.data() || {};
+        if (data.folio) {
+          return { folio: data.folio, already: true };
+        }
+
+        const tipoRaw = String(data.tipoInspeccion || '').toUpperCase().trim();
+        const tipo = tipoToFolio(tipoRaw);
+        if (!tipo) {
+          throw new Error('INVALID_TIPO:' + (data.tipoInspeccion || 'empty'));
+        }
+
+        const yy = getFolioYY(data, overrideFechaMs);
+        const counterId = `PCT-${tipo}-${yy}`;
+        const counterRef = db.collection('folioCounters').doc(counterId);
+        const counterSnap = await t.get(counterRef);
+        const nextSeq = (counterSnap.exists ? ((counterSnap.data() || {}).next || 1) : 1);
+        const folio = makeFolio({ tipo, yy, seq: nextSeq });
+
+        const folioLockRef = db.collection('folios').doc(folio);
+        const folioLockSnap = await t.get(folioLockRef);
+        if (folioLockSnap.exists) {
+          throw new Error('FOLIO_COLLISION:' + folio);
+        }
+
+        t.set(counterRef, { next: nextSeq + 1, tipo, yy, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        t.set(folioLockRef, {
+          inspeccionId,
+          folio,
+          tipo,
+          yy,
+          seq: nextSeq,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        t.update(inspeccionRef, {
+          folio,
+          folioKey: folio.toUpperCase(),
+          folioTipo: tipo,
+          folioYY: yy,
+          folioSeq: nextSeq,
+          folioAsignadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { folio, already: false, tipo, yy, seq: nextSeq };
+      });
+
+      res.status(200).json({ ok: true, ...result });
+    } catch (err) {
+      const msg = err?.message || String(err);
+      console.error('asignarFolio error:', msg);
+      res.status(500).json({ ok: false, error: msg });
+    }
+  }
+);
+
+export const backfillFolios = onRequest(
+  {
+    timeoutSeconds: 540,
+    memory: '1GiB',
+    secrets: ['EQUIPOS_IMPORT_KEY'],
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+        return;
+      }
+
+      const key = (req.query.key || req.get('x-equipos-key') || '').toString();
+      const expected = (process.env.EQUIPOS_IMPORT_KEY || '').toString();
+      if (!expected || key !== expected) {
+        res.status(401).json({ ok: false, error: 'Unauthorized' });
+        return;
+      }
+
+      ensureAdmin();
+      const db = admin.firestore();
+
+      const dryRun = String(req.query.dryRun || '').trim() === '1';
+      const tipoFiltro = String(req.query.tipo || '').toUpperCase().trim();
+      const yyFiltro = String(req.query.yy || '').trim();
+      const batchSize = Math.min(parseInt(req.query.batchSize || '100', 10), 400);
+
+      let q = db.collection('inspecciones').where('folio', '==', null).limit(batchSize);
+      if (tipoFiltro) {
+        q = db.collection('inspecciones').where('folio', '==', null).where('tipoInspeccion', '==', tipoFiltro).limit(batchSize);
+      }
+
+      let docsProcessed = 0;
+      let foliosAsignados = 0;
+      const asignaciones = [];
+
+      do {
+        const snap = await q.get();
+        if (snap.empty) break;
+
+        for (const doc of snap.docs) {
+          const data = doc.data() || {};
+          const tipo = tipoToFolio(data.tipoInspeccion || '');
+          if (!tipo) continue;
+          const yy = yyFiltro || getFolioYY(data);
+          if (yyFiltro && yy !== yyFiltro) continue;
+
+          const counterId = `PCT-${tipo}-${yy}`;
+          const counterRef = db.collection('folioCounters').doc(counterId);
+          const counterSnap = await counterRef.get();
+          const nextSeq = (counterSnap.exists ? ((counterSnap.data() || {}).next || 1) : 1);
+          const folio = makeFolio({ tipo, yy, seq: nextSeq });
+
+          if (!dryRun) {
+            const folioLockRef = db.collection('folios').doc(folio);
+            await db.runTransaction(async (t) => {
+              const lockSnap = await t.get(folioLockRef);
+              if (lockSnap.exists) throw new Error('COLLISION:' + folio);
+              t.set(counterRef, { next: nextSeq + 1, tipo, yy, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+              t.set(folioLockRef, { inspeccionId: doc.id, folio, tipo, yy, seq: nextSeq, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+              t.update(doc.ref, {
+                folio,
+                folioKey: folio.toUpperCase(),
+                folioTipo: tipo,
+                folioYY: yy,
+                folioSeq: nextSeq,
+                folioAsignadoEn: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            });
+          }
+
+          asignaciones.push({ id: doc.id, folio, tipo, yy, seq: nextSeq });
+          foliosAsignados += 1;
+          docsProcessed += 1;
+        }
+
+        if (snap.docs.length < batchSize) break;
+      } while (docsProcessed < 20000);
+
+      res.status(200).json({
+        ok: true,
+        dryRun,
+        docsProcessed,
+        foliosAsignados,
+        asignaciones,
+      });
+    } catch (err) {
+      const msg = err?.message || String(err);
+      console.error('backfillFolios error:', msg);
+      res.status(500).json({ ok: false, error: msg });
     }
   }
 );

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'pruebasrangos.html',
         'inspeccion.html',
         'inspectlist.html',
+        'inspectcat.html',
         'catalogodanos.html',
         'invre.html',
         'servicio.html',
@@ -490,6 +491,46 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch {}
                     }
 
+                    function ensureInspectcatNavLink(visible) {
+                        try {
+                            const inspeccionesTop = Array.from(document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown > a'))
+                                .find(a => ((a.textContent || '').trim().toLowerCase() === 'inspecciones'));
+                            const inspeccionesLi = inspeccionesTop ? (inspeccionesTop.closest('li') || null) : null;
+                            const dd = inspeccionesLi ? inspeccionesLi.querySelector(':scope > ul.nav-dropdown') : null;
+                            if (!dd) return;
+
+                            const existing = dd.querySelector('a[href="inspectcat.html"]');
+                            if (visible) {
+                                if (existing) {
+                                    existing.textContent = 'Categorías';
+                                    const li = existing.closest('li') || existing;
+                                    li.style.display = '';
+                                    if (currentPage === 'inspectcat.html') existing.classList.add('active');
+                                    else existing.classList.remove('active');
+                                    return;
+                                }
+
+                                const li = document.createElement('li');
+                                const a = document.createElement('a');
+                                a.href = 'inspectcat.html';
+                                a.textContent = 'Categorías';
+                                a.className = 'nav-cat-inspecciones';
+                                if (currentPage === 'inspectcat.html') a.classList.add('active');
+                                li.appendChild(a);
+
+                                const listA = dd.querySelector('a[href="inspectlist.html"]');
+                                const listLi = listA ? (listA.closest('li') || null) : null;
+                                if (listLi && listLi.nextSibling) dd.insertBefore(li, listLi.nextSibling);
+                                else if (listLi) dd.appendChild(li);
+                                else dd.appendChild(li);
+                            } else {
+                                if (!existing) return;
+                                const li = existing.closest('li') || existing;
+                                li.style.display = 'none';
+                            }
+                        } catch {}
+                    }
+
                     // Navbar: admin/director lo ven en todas las páginas.
                     // Supervisor: lo ve en todas las páginas.
                     // Otros roles: solo en páginas permitidas.
@@ -513,6 +554,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Inventario (invre.html): admin/director/supervisor/auxger/capturista
                     ensureInvreNavLink(isAdmin || isDirector || isSupervisor || isSgi || isAuxger || isCapturista);
+
+                    // Categorías de inspecciones: admin/director/sgi/auxger
+                    ensureInspectcatNavLink(isAdmin || isDirector || isSgi || isAuxger);
 
                     // Inspecciones: Catálogo de daños (visible para quien ya tiene acceso a Inspecciones)
                     try {

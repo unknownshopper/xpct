@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categorías de inspecciones</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .inspectcat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .inspectcat-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 1.25rem;
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(15,23,42,0.06);
+            text-align: center;
+        }
+        .inspectcat-card-label {
+            font-size: 0.92rem;
+            color: #475569;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .inspectcat-card-value {
+            font-size: 2.25rem;
+            font-weight: 900;
+            color: #0f172a;
+        }
+        .inspectcat-card {
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        .inspectcat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(15,23,42,0.10);
+        }
+        .inspectcat-card.active {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+        }
+        .inspectcat-lista {
+            margin-top: 1.25rem;
+            display: none;
+        }
+        .inspectcat-lista.visible {
+            display: block;
+        }
+        .inspectcat-lista h3 {
+            margin: 0 0 0.5rem;
+            font-size: 1.05rem;
+        }
+        .inspectcat-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .inspectcat-table th, .inspectcat-table td {
+            padding: 0.55rem 0.7rem;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.9rem;
+        }
+        .inspectcat-table th {
+            background: #f8fafc;
+            font-weight: 700;
+            color: #475569;
+        }
+        .inspectcat-table tr:last-child td {
+            border-bottom: none;
+        }
+        .inspectcat-empty {
+            color: #6b7280;
+            padding: 1rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body style="margin:0;">
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">&#9776;</button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                        <li><a href="pruebasrangos.html">Rangos</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item-has-dropdown">
+                    <a href="#" class="active">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                        <li><a href="inspectcat.html" class="active">Categorías</a></li>
+                        <li><a href="catalogodanos.html">Catálogo de daños</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="inspeccion-page" style="max-width: 100%; margin: 0; padding: 0;">
+        <section class="inspectlist-wrap" style="padding: 0.75rem 0.75rem 1rem;">
+            <div style="display:flex; align-items:center; justify-content:flex-start; margin:0 0 0.5rem;">
+                <a href="index.html" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; color:#111827; font-weight:800; font-size:0.95rem; padding:0.25rem 0.5rem; border-radius:999px; border:1px solid #e5e7eb; background:#ffffff;">
+                    <span aria-hidden="true">←</span>
+                    <span>Inicio</span>
+                </a>
+            </div>
+            <h2>Categorías de inspecciones</h2>
+            <p style="font-size:0.9rem; color:#6b7280; margin-bottom:0.75rem;">
+                Conteo de inspecciones por tipo.
+            </p>
+
+            <div class="inspectcat-grid" id="inspectcat-grid">
+                <div class="inspectcat-card" id="card-pre" data-tipo="PRE-TRABAJO">
+                    <div class="inspectcat-card-label">Pre-trabajo</div>
+                    <div class="inspectcat-card-value" id="value-pre">—</div>
+                </div>
+                <div class="inspectcat-card" id="card-pos" data-tipo="POST-TRABAJO">
+                    <div class="inspectcat-card-label">Post-trabajo</div>
+                    <div class="inspectcat-card-value" id="value-pos">—</div>
+                </div>
+                <div class="inspectcat-card" id="card-rec" data-tipo="RECEPCION">
+                    <div class="inspectcat-card-label">Recepción</div>
+                    <div class="inspectcat-card-value" id="value-rec">—</div>
+                </div>
+                <div class="inspectcat-card" id="card-rei" data-tipo="REINSPECCION">
+                    <div class="inspectcat-card-label">Reinspección</div>
+                    <div class="inspectcat-card-value" id="value-rei">—</div>
+                </div>
+            </div>
+
+            <div class="inspectcat-lista" id="inspectcat-lista">
+                <h3 id="inspectcat-lista-titulo">Inspecciones</h3>
+                <div id="inspectcat-lista-contenido" class="inspectcat-empty">Selecciona una categoría para ver sus inspecciones.</div>
+            </div>
+        </section>
+    </main>
+
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+        const TIPOS = [
+            { key: 'PRE-TRABAJO', valueId: 'value-pre', label: 'Pre-trabajo', folio: 'PRE' },
+            { key: 'POST-TRABAJO', valueId: 'value-pos', label: 'Post-trabajo', folio: 'P0S' },
+            { key: 'RECEPCION', valueId: 'value-rec', label: 'Recepción', folio: 'REC' },
+            { key: 'REINSPECCION', valueId: 'value-rei', label: 'Reinspección', folio: 'REI' },
+        ];
+
+        let firestoreMod = null;
+        async function getFs() {
+            if (!firestoreMod) {
+                firestoreMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            }
+            return firestoreMod;
+        }
+
+        async function getDb() {
+            if (window.db) return window.db;
+            const m = await getFs();
+            return m.getFirestore();
+        }
+
+        async function waitDb() {
+            for (let i = 0; i < 60; i += 1) {
+                if (window.db) return window.db;
+                await new Promise(r => setTimeout(r, 150));
+            }
+            return getDb();
+        }
+
+        async function contarTipo(key) {
+            try {
+                const m = await getFs();
+                const db = await waitDb();
+                const col = m.collection(db, 'inspecciones');
+                const q = m.query(col, m.where('tipoInspeccion', '==', key));
+
+                if (typeof m.getCountFromServer === 'function') {
+                    try {
+                        const snap = await m.getCountFromServer(q);
+                        return (snap && snap.data && typeof snap.data().count === 'number') ? snap.data().count : 0;
+                    } catch (countErr) {
+                        console.warn('getCountFromServer falló, usando getDocs', countErr);
+                    }
+                }
+
+                const snap = await m.getDocs(q);
+                return (snap && typeof snap.size === 'number') ? snap.size : 0;
+            } catch (e) {
+                console.error('Error contando', key, e);
+                return '—';
+            }
+        }
+
+        async function cargarConteos() {
+            for (const t of TIPOS) {
+                const n = await contarTipo(t.key);
+                const el = document.getElementById(t.valueId);
+                if (el) el.textContent = String(n);
+            }
+        }
+
+        function formatFecha(ts) {
+            if (!ts) return '';
+            try {
+                if (ts && typeof ts.toDate === 'function') return ts.toDate().toLocaleString('es-MX');
+                if (ts && typeof ts === 'object' && typeof ts.seconds === 'number') {
+                    return new Date(ts.seconds * 1000).toLocaleString('es-MX');
+                }
+                return new Date(ts).toLocaleString('es-MX');
+            } catch { return String(ts); }
+        }
+
+        async function cargarLista(tipo) {
+            const tInfo = TIPOS.find(t => t.key === tipo);
+            const titulo = document.getElementById('inspectcat-lista-titulo');
+            const cont = document.getElementById('inspectcat-lista-contenido');
+            const wrap = document.getElementById('inspectcat-lista');
+
+            if (titulo) titulo.textContent = `Inspecciones - ${tInfo ? tInfo.label : tipo}`;
+            if (cont) cont.innerHTML = '<div class="inspectcat-empty">Cargando…</div>';
+            if (wrap) wrap.classList.add('visible');
+
+            try {
+                const m = await getFs();
+                const db = await waitDb();
+                const q = m.query(
+                    m.collection(db, 'inspecciones'),
+                    m.where('tipoInspeccion', '==', tipo),
+                    m.orderBy('creadoEn', 'desc'),
+                    m.limit(200)
+                );
+                const snap = await m.getDocs(q);
+
+                if (snap.empty) {
+                    if (cont) cont.innerHTML = '<div class="inspectcat-empty">Sin inspecciones para esta categoría.</div>';
+                    return;
+                }
+
+                const rows = [];
+                snap.forEach(d => {
+                    const data = d.data() || {};
+                    rows.push({
+                        id: d.id,
+                        equipo: data.equipo || '',
+                        folio: data.folio || '',
+                        creado: formatFecha(data.creadoEn || data.fecha),
+                        usuario: data.usuarioInspeccion || '',
+                    });
+                });
+
+                let html = '<table class="inspectcat-table"><thead><tr><th>Equipo</th><th>Folio</th><th>Fecha</th><th>Inspector</th></tr></thead><tbody>';
+                for (const r of rows) {
+                    html += `<tr>
+                        <td>${String(r.equipo).replace(/</g, '&lt;')}</td>
+                        <td>${r.folio ? String(r.folio).replace(/</g, '&lt;') : '<span style="color:#94a3b8">—</span>'}</td>
+                        <td>${String(r.creado).replace(/</g, '&lt;')}</td>
+                        <td>${String(r.usuario).replace(/</g, '&lt;')}</td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+
+                if (rows.length >= 200) {
+                    html += '<div class="inspectcat-empty">Se muestran las últimas 200. Usa filtros para ver más.</div>';
+                }
+
+                if (cont) cont.innerHTML = html;
+            } catch (e) {
+                console.error('Error cargando lista', tipo, e);
+                if (cont) cont.innerHTML = `<div class="inspectcat-empty">Error al cargar: ${String(e?.message || e).replace(/</g, '&lt;')}</div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await waitDb();
+            cargarConteos();
+
+            TIPOS.forEach(t => {
+                const card = document.getElementById(`card-${t.folio.toLowerCase()}`);
+                if (card) {
+                    card.addEventListener('click', () => {
+                        document.querySelectorAll('.inspectcat-card').forEach(c => c.classList.remove('active'));
+                        card.classList.add('active');
+                        cargarLista(t.key);
+                    });
+                }
+            });
+        });
+    </script>
+    <script type="module" src="nav.js"></script>
+</body>
+</html>

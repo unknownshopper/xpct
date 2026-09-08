@@ -927,7 +927,13 @@
             const btnBulkPeriodoEl = document.getElementById('btn-pruebas-bulk-periodo');
             const chkBulkFechaEl = document.getElementById('chk-bulk-fecha');
             const inputBulkFechaEl = document.getElementById('input-bulk-fecha');
-            const filas = (typeof window.obtenerSeleccionadas === 'function') ? window.obtenerSeleccionadas() : [];
+            const tbodyAplicar = document.getElementById('tbody-pruebas-listado');
+            const checksAplicar = tbodyAplicar ? tbodyAplicar.querySelectorAll('.prueba-select:checked') : [];
+            const filas = [];
+            checksAplicar.forEach(chk => {
+                const id = (chk && chk.dataset && chk.dataset.id) ? String(chk.dataset.id).trim() : '';
+                if (id) filas.push({ id });
+            });
             const periodo = (selBulkPeriodoEl && selBulkPeriodoEl.value) ? String(selBulkPeriodoEl.value).trim().toUpperCase() : '';
             if (!periodo) {
                 alert('Selecciona el período a aplicar (Anual, Post-trabajo o Reparación).');
@@ -2102,6 +2108,9 @@
         // Botones de control de carga para limitar lecturas
         if (btnRefresh) {
             btnRefresh.addEventListener('click', async () => {
+                try { window._plResumenesEquiposCache = null; } catch {}
+                try { window._pctResumenGlobal = null; } catch {}
+                try { await plLoadResumenGlobalCache(); } catch {}
                 await leerPagina({ reset: true, forceNetwork: true });
                 render();
                 try { setTimeout(() => { try { autoCompletarResumen(); } catch {} }, 50); } catch {}
@@ -7054,7 +7063,7 @@
                 
                 const tdNum = `<td style="padding:0.35rem; text-align:right; border-bottom:1px solid #e5e7eb; color:#6b7280;">${idx + 1}</td>`;
 
-                const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type=\"checkbox\" class=\"prueba-select\" data-idx=\"${idx}\" style=\"display:block; margin:0 auto;\"></td>`;
+                const tdSelect = `<td style="padding:0.35rem; text-align:center; border-bottom:1px solid #e5e7eb;"><input type=\"checkbox\" class=\"prueba-select\" data-idx=\"${idx}\" data-id=\"${reg.id || ''}\" style=\"display:block; margin:0 auto;\"></td>`;
 
                 fila.innerHTML = `
                     ${tdNum}
@@ -7250,12 +7259,17 @@
 
                 // Si hay resumen global materializado, preferirlo (source-of-truth para chips ANUALES).
                 try {
-                    if (!_csvPreviewActive && window._plResumenGlobalAnuales && window._pctResumenGlobal && window._pctResumenGlobal.at) {
-                        const at = Number(window._pctResumenGlobal.at || 0);
+                    if (!_csvPreviewActive) {
+                        const rg = window._pctResumenGlobal;
+                        const at = Number(rg && rg.at ? rg.at : 0);
                         const isFresh = at && isFinite(at) && (Date.now() - at) < (24 * 60 * 60 * 1000);
-                        if (isFresh) {
-                            // No usar aquí: puede venir inconsistente (ej. bucket15_0 != suma por tipo).
-                            // Los chips se calculan con fuentes más frescas y verificables (resumenes_equipos + docId + server verify).
+                        if (isFresh && rg && rg.data && rg.data.pruebasAnuales) {
+                            const pa = rg.data.pruebasAnuales;
+                            if (typeof pa.vencidas === 'number')     cntChip0    = pa.vencidas;
+                            if (typeof pa.bucket15_0 === 'number')   cntChip15   = pa.bucket15_0;
+                            if (typeof pa.bucket30_15 === 'number')  cntChip30   = pa.bucket30_15;
+                            if (typeof pa.bucket60_30 === 'number')  cntChip60   = pa.bucket60_30;
+                            if (typeof pa.otras === 'number')        cntChipGT60 = pa.otras;
                         }
                     }
                 } catch {}
@@ -7618,10 +7632,10 @@
         const cardR30El5 = document.getElementById('card-rango-30');
         const cardR15El5 = document.getElementById('card-rango-15');
         const cardR0El5 = document.getElementById('card-rango-0');
-        if (cardR60El5) cardR60El5.addEventListener('click', () => { toggleFiltro('60'); togglePanelRangos(false); });
-        if (cardR30El5) cardR30El5.addEventListener('click', () => { toggleFiltro('30'); togglePanelRangos(false); });
-        if (cardR15El5) cardR15El5.addEventListener('click', () => { toggleFiltro('15'); togglePanelRangos(false); });
-        if (cardR0El5)  cardR0El5.addEventListener('click', () => { toggleFiltro('0');  togglePanelRangos(false); });
+        if (cardR60El5) cardR60El5.addEventListener('click', (e) => { if (e) e.stopPropagation(); toggleFiltro('60'); togglePanelRangos(false); });
+        if (cardR30El5) cardR30El5.addEventListener('click', (e) => { if (e) e.stopPropagation(); toggleFiltro('30'); togglePanelRangos(false); });
+        if (cardR15El5) cardR15El5.addEventListener('click', (e) => { if (e) e.stopPropagation(); toggleFiltro('15'); togglePanelRangos(false); });
+        if (cardR0El5)  cardR0El5.addEventListener('click',  (e) => { if (e) e.stopPropagation(); toggleFiltro('0');  togglePanelRangos(false); });
 
         try {
             const sp = new URLSearchParams(window.location.search || '');
@@ -7636,11 +7650,11 @@
         const chip30El5 = document.getElementById('chip-30');
         const chip15El5 = document.getElementById('chip-15');
         const chip0El5 = document.getElementById('chip-0');
-        if (chipGT60El5) chipGT60El5.addEventListener('click', () => { toggleFiltro('gt60'); });
-        if (chip60El5)  chip60El5.addEventListener('click', () => { toggleFiltro('60'); });
-        if (chip30El5) chip30El5.addEventListener('click', () => { toggleFiltro('30'); });
-        if (chip15El5) chip15El5.addEventListener('click', () => { toggleFiltro('15'); });
-        if (chip0El5)  chip0El5.addEventListener('click', () => { toggleFiltro('0'); });
+        if (chipGT60El5) chipGT60El5.addEventListener('click', (e) => { if (e) e.stopPropagation(); toggleFiltro('gt60'); });
+        if (chip60El5)  chip60El5.addEventListener('click',  (e) => { if (e) e.stopPropagation(); toggleFiltro('60'); });
+        if (chip30El5) chip30El5.addEventListener('click',  (e) => { if (e) e.stopPropagation(); toggleFiltro('30'); });
+        if (chip15El5) chip15El5.addEventListener('click',  (e) => { if (e) e.stopPropagation(); toggleFiltro('15'); });
+        if (chip0El5)  chip0El5.addEventListener('click',   (e) => { if (e) e.stopPropagation(); toggleFiltro('0'); });
 
         try { if (typeof actualizarChipsUI === 'function') actualizarChipsUI(); } catch {}
         try { render(); } catch {}
@@ -7715,13 +7729,22 @@
         }
 
         function obtenerSeleccionadas() {
-            const filas = (tbodyListadoEl6 && tbodyListadoEl6._filasVisibles) ? tbodyListadoEl6._filasVisibles : [];
+            const filas = (tbodyListadoEl6 && Array.isArray(tbodyListadoEl6._filasVisibles)) ? tbodyListadoEl6._filasVisibles : [];
             const checks = tbodyListadoEl6 ? tbodyListadoEl6.querySelectorAll('.prueba-select:checked') : [];
             const seleccionadas = [];
+            const arr = (typeof window.pctGetPruebas === 'function')
+                ? window.pctGetPruebas()
+                : (Array.isArray(window.pruebas) ? window.pruebas : []);
             checks.forEach(chk => {
                 const idx = parseInt(chk.getAttribute('data-idx'), 10);
-                if (isNaN(idx)) return;
-                const reg = filas[idx];
+                const id = (chk.getAttribute('data-id') || '').trim();
+                let reg = null;
+                if (!isNaN(idx) && filas[idx]) {
+                    reg = filas[idx];
+                }
+                if (!reg && id) {
+                    reg = arr.find(r => !!(r && r.id === id));
+                }
                 if (!reg) return;
                 seleccionadas.push(reg);
             });
@@ -8544,16 +8567,55 @@ if (tbodyListadoEl9) tbodyListadoEl9.addEventListener('change', (ev) => {
   }
 });
 
-// Guardar ediciones al presionar Enter (sin depender de blur)
+// Guardar ediciones al presionar Enter (sin depender de blur) o cambiar select inline
+async function guardarCampoFila(select, campo) {
+  const id = (select && select.dataset && select.dataset.id) ? String(select.dataset.id).trim() : '';
+  if (!id) return;
+  const arr = (typeof window.pctGetPruebas === 'function')
+    ? window.pctGetPruebas()
+    : (Array.isArray(window.pruebas) ? window.pruebas : []);
+  const reg = arr.find(r => !!(r && r.id === id));
+  if (!reg) return;
+  const val = (select.value || '').toString().trim().toUpperCase();
+  if (val === (reg[campo] || '').toString().trim().toUpperCase()) return;
+  try {
+    const { getFirestore, doc, updateDoc, serverTimestamp } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+    );
+    const db = (window.db || getFirestore());
+    const patch = { [campo]: val };
+    patch.updatedAt = serverTimestamp();
+    await updateDoc(doc(db, 'pruebas', id), patch);
+    try { reg[campo] = val; } catch {}
+    try { window.pruebas = arr; } catch {}
+    showToast(`${campo} guardado`);
+  } catch (e) {
+    console.error('Error guardando', campo, e);
+    alert('No se pudo guardar: ' + (e.message || e));
+    try { select.value = reg[campo] || ''; } catch {}
+  }
+}
+
 const tbodyListadoEl10 = document.getElementById('tbody-pruebas-listado');
-if (tbodyListadoEl10) tbodyListadoEl10.addEventListener('keydown', (ev) => {
-  const target = ev.target;
-  if (!(target instanceof HTMLInputElement)) return;
-  if (!target.classList.contains('pl-norep') && !target.classList.contains('pl-prueba') && !target.classList.contains('pl-emisor') && !target.classList.contains('pl-tecnico')) return;
-  if (ev.key !== 'Enter') return;
-  try { ev.preventDefault(); } catch {}
-  try { target.blur(); } catch {}
-});
+if (tbodyListadoEl10) {
+  tbodyListadoEl10.addEventListener('keydown', (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (!target.classList.contains('pl-norep') && !target.classList.contains('pl-prueba') && !target.classList.contains('pl-emisor') && !target.classList.contains('pl-tecnico')) return;
+    if (ev.key !== 'Enter') return;
+    try { ev.preventDefault(); } catch {}
+    try { target.blur(); } catch {}
+  });
+  tbodyListadoEl10.addEventListener('change', (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLSelectElement)) return;
+    if (target.classList.contains('pl-periodo')) {
+      guardarCampoFila(target, 'periodo');
+    } else if (target.classList.contains('pl-resultado')) {
+      guardarCampoFila(target, 'resultado');
+    }
+  });
+}
 
 function plGetSerialFromEquipoKey(eqK) {
   try {
@@ -8574,6 +8636,87 @@ function plGetSerialFromEquipoKey(eqK) {
 
 try { window.plGetSerialFromEquipoKey = plGetSerialFromEquipoKey; } catch {}
 
+async function plLoadResumenGlobalCache() {
+  try {
+    const cached = window._pctResumenGlobal;
+    if (cached && cached.at && (Date.now() - cached.at) < (24 * 60 * 60 * 1000)) {
+      return cached.data;
+    }
+  } catch {}
+  try {
+    const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    let db0 = window.db;
+    if (!db0) {
+      for (let i = 0; i < 40; i += 1) {
+        await new Promise(r => setTimeout(r, 50));
+        db0 = window.db;
+        if (db0) break;
+      }
+    }
+    if (!db0) return null;
+    const snap = await getDoc(doc(db0, 'resumenes', 'global'));
+    const data = (snap && snap.exists && snap.data) ? (snap.data() || null) : null;
+    window._pctResumenGlobal = { at: Date.now(), data };
+    return data;
+  } catch (e) {
+    console.error('plLoadResumenGlobalCache', e);
+    return null;
+  }
+}
+
+function plMergeResumenesEquipos(rawItems) {
+  function plProximaMs(p) {
+    if (!p) return 0;
+    try { if (typeof p.toMillis === 'function') return p.toMillis(); } catch {}
+    try { if (p instanceof Date) return p.getTime(); } catch {}
+    try { return Number(p); } catch {}
+    return 0;
+  }
+  const canonKey = (v) => {
+    const k = (typeof normEquipoKey === 'function') ? normEquipoKey(v) : String(v || '').trim().toUpperCase();
+    try {
+      const m = k.match(/^(.*-)(\d{1,3})$/);
+      if (m && m[1] && m[2] && m[2].length < 3) {
+        return `${m[1]}${String(m[2]).padStart(3, '0')}`;
+      }
+    } catch {}
+    return k;
+  };
+  const map = new Map();
+  (rawItems || []).forEach(it => {
+    const k = canonKey(it.equipoKey || it.id || '');
+    if (!k) return;
+    let target = map.get(k);
+    if (!target) {
+      target = { ...it, id: k, equipoKey: k };
+      map.set(k, target);
+    }
+    const tipos = ['LT', 'VT/PT/MT', 'UTT'];
+    tipos.forEach(t => {
+      const a = (target.pruebas && target.pruebas[t]) ? target.pruebas[t] : null;
+      const b = (it.pruebas && it.pruebas[t]) ? it.pruebas[t] : null;
+      if (!b) return;
+      if (!a) {
+        if (!target.pruebas) target.pruebas = {};
+        target.pruebas[t] = b;
+        return;
+      }
+      const aMs = plProximaMs(a.proxima);
+      const bMs = plProximaMs(b.proxima);
+      if (bMs > aMs) {
+        if (!target.pruebas) target.pruebas = {};
+        target.pruebas[t] = b;
+      }
+    });
+    try {
+      const aUp = target.updatedAt;
+      const bUp = it.updatedAt;
+      if (bUp && (!aUp || bUp > aUp)) target.updatedAt = bUp;
+    } catch {}
+  });
+  return Array.from(map.values());
+}
+
 async function plLoadResumenesEquiposCache() {
   try {
     const cached = window._plResumenesEquiposCache;
@@ -8592,7 +8735,8 @@ async function plLoadResumenesEquiposCache() {
   }
   if (!db0) throw new Error('db_not_ready');
   const snap = await getDocs(collection(db0, 'resumenes_equipos'));
-  const items = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+  const rawItems = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+  const items = plMergeResumenesEquipos(rawItems);
   try { window._plResumenesEquiposCache = { at: Date.now(), items: items }; } catch {}
   return items;
 }
@@ -9600,6 +9744,7 @@ try {
 try {
   (async () => {
     try {
+      await plLoadResumenGlobalCache();
       await plLoadResumenesEquiposCache();
       try { render(); } catch {}
     } catch {}

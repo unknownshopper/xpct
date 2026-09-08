@@ -1,4 +1,26 @@
 // Lógica principal para inspeccion.html (selector de equipo, detalle y guardado de inspecciones)
+function formatearFechaHora(v) {
+    try {
+        let d = null;
+        if (v && typeof v.toDate === 'function') d = v.toDate();
+        else if (v && typeof v === 'object' && typeof v.seconds === 'number') d = new Date(v.seconds * 1000);
+        else if (v) d = new Date(v);
+        if (!d || isNaN(d.getTime())) return String(v || '');
+        return d.toLocaleString('es-MX', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+            timeZoneName: 'short',
+        });
+    } catch {
+        return String(v || '');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const inputEquipo = document.getElementById('equipo-input');
     const datalistEquipos = document.getElementById('lista-equipos');
@@ -1584,7 +1606,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const ubicacionGps = (data.ubicacionGps || '').toString();
                     const usuario = (data.usuarioInspeccion || '').toString();
                     const tipo = (data.tipoInspeccion || '').toString();
-                    const fecha = (data.fecha || data.creadoEn || '').toString();
+                    const fecha = formatearFechaHora(data.fecha || data.creadoEn);
 
                     const params = Array.isArray(data.parametros) ? data.parametros : [];
                     const ok = (v) => (v == null ? '' : String(v));
