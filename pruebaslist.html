@@ -418,7 +418,7 @@
                 <div class="actividad-toolbar-left" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                     <input type="search" id="pruebas-buscar" placeholder="Buscar por equipo, producto, técnico, reporte..." style="min-width: 260px;">
                     <span id="pruebas-buscar-resultados" style="font-size:0.85rem; color:#6b7280; white-space:nowrap;">Resultados: 0</span>
-                    <button id="btn-pruebas-buscar-servidor" type="button" title="Buscar coincidencias exactas en Firestore (serial/equipo)" style="padding:0.35rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; font-size:0.85rem; display:none;">Buscar servidor</button>
+                    <button id="btn-pruebas-buscar-servidor" type="button" title="Buscar coincidencias exactas en Firestore (serial/equipo)" style="padding:0.35rem 0.6rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; font-size:0.85rem; display:inline-block;">Buscar servidor</button>
                     <div style="position:relative;">
                         <button id="btn-pruebas-rangos" type="button" style="padding:0.45rem 0.75rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff;">Rangos</button>
                         <div id="panel-pruebas-rangos" style="display:none; position:absolute; left:0; top:calc(100% + 6px); z-index:30; min-width:360px; max-width:520px; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,0.18); padding:0.75rem;">
@@ -5246,6 +5246,12 @@
             t = t.replace(/\u00A0/g, ' ');
             t = t.replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
             t = t.trim().toUpperCase();
+            try {
+                const m = t.match(/^(.*-)(\d{1,3})$/);
+                if (m && m[1] && m[2] && m[2].length < 3) {
+                    t = `${m[1]}${String(m[2]).padStart(3, '0')}`;
+                }
+            } catch {}
             return t;
         }
 
@@ -7368,11 +7374,22 @@
                                 });
                             });
 
-                            cntChipGT60 = gt60;
-                            cntChip60 = d60;
-                            cntChip30 = d30;
-                            cntChip15 = d15;
-                            cntChip0 = d0;
+                            // resumenes/global es source-of-truth para chips; resumenes_equipos solo rellena ids D30/D15.
+                            const paGlobal = (() => {
+                                try {
+                                    const rg = window._pctResumenGlobal;
+                                    const at = Number(rg && rg.at ? rg.at : 0);
+                                    const isFresh = at && isFinite(at) && (Date.now() - at) < (24 * 60 * 60 * 1000);
+                                    return (isFresh && rg && rg.data && rg.data.pruebasAnuales) ? rg.data.pruebasAnuales : null;
+                                } catch { return null; }
+                            })();
+                            if (!paGlobal) {
+                                cntChipGT60 = gt60;
+                                cntChip60 = d60;
+                                cntChip30 = d30;
+                                cntChip15 = d15;
+                                cntChip0 = d0;
+                            }
 
                             try { window._plRangoIdsD30 = idsD30; } catch {}
                             try { window._plRangoIdsD15 = idsD15; } catch {}
@@ -8518,7 +8535,7 @@
                 try {
                     const raw = (inputBuscarEl9 && inputBuscarEl9.value ? inputBuscarEl9.value : '').toString().trim();
                     const n = Number(window._plLastFilterCount || 0);
-                    if (raw && n === 0 && typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: false });
+                    if (raw && n < 5 && typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: false });
                 } catch {}
             });
             inputBuscarEl9.addEventListener('keydown', (e) => {
@@ -8527,8 +8544,7 @@
                 try { render(); } catch {}
                 try {
                     const raw = (inputBuscarEl9 && inputBuscarEl9.value ? inputBuscarEl9.value : '').toString().trim();
-                    const n = Number(window._plLastFilterCount || 0);
-                    if (raw && n === 0 && typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: false });
+                    if (raw && typeof buscarEnServidorExacto === 'function') buscarEnServidorExacto({ silent: false });
                 } catch {}
             });
         }
@@ -8644,7 +8660,7 @@ async function plLoadResumenGlobalCache() {
     }
   } catch {}
   try {
-    const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { doc, getDoc, getDocFromServer } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     let db0 = window.db;
     if (!db0) {
       for (let i = 0; i < 40; i += 1) {
@@ -8654,7 +8670,8 @@ async function plLoadResumenGlobalCache() {
       }
     }
     if (!db0) return null;
-    const snap = await getDoc(doc(db0, 'resumenes', 'global'));
+    let snap = null;
+    try { snap = await getDocFromServer(doc(db0, 'resumenes', 'global')); } catch { snap = await getDoc(doc(db0, 'resumenes', 'global')); }
     const data = (snap && snap.exists && snap.data) ? (snap.data() || null) : null;
     window._pctResumenGlobal = { at: Date.now(), data };
     return data;
@@ -8724,7 +8741,7 @@ async function plLoadResumenesEquiposCache() {
       return cached.items;
     }
   } catch {}
-  const { collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const { collection, getDocs, getDocsFromServer } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
   let db0 = window.db;
   if (!db0) {
     for (let i = 0; i < 40; i += 1) {
@@ -8734,7 +8751,9 @@ async function plLoadResumenesEquiposCache() {
     }
   }
   if (!db0) throw new Error('db_not_ready');
-  const snap = await getDocs(collection(db0, 'resumenes_equipos'));
+  const colRef = collection(db0, 'resumenes_equipos');
+  let snap = null;
+  try { snap = await getDocsFromServer(colRef); } catch { snap = await getDocs(colRef); }
   const rawItems = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
   const items = plMergeResumenesEquipos(rawItems);
   try { window._plResumenesEquiposCache = { at: Date.now(), items: items }; } catch {}
