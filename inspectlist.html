@@ -3674,6 +3674,7 @@
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(usuarioNoAt)}</td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(obs)}${thumbMalo}</td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                                    <a class="btn" href="inspeccion.html?equipo=${encodeURIComponent(equipoRender)}&tipo=RECEPCION&prevInspId=${encodeURIComponent(inspId)}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; text-decoration:none; margin-right:0.25rem;">Recepción</a>
                                     <a class="btn" href="inspeccion.html?equipo=${encodeURIComponent(equipoRender)}&tipo=REINSPECCION" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; text-decoration:none; margin-right:0.25rem;">Reinspección</a>
                                     ${inspId ? `<a class="btn" href="inspeccion.html?view=1&inspId=${encodeURIComponent(inspId)}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827; text-decoration:none;">Ver última</a>` : ''}
                                 </td>

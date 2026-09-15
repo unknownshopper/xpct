@@ -2111,6 +2111,7 @@
                 try { window._plResumenesEquiposCache = null; } catch {}
                 try { window._pctResumenGlobal = null; } catch {}
                 try { await plLoadResumenGlobalCache(); } catch {}
+                try { await plLoadResumenesEquiposCache(); } catch {}
                 await leerPagina({ reset: true, forceNetwork: true });
                 render();
                 try { setTimeout(() => { try { autoCompletarResumen(); } catch {} }, 50); } catch {}
@@ -8699,10 +8700,34 @@ function plMergeResumenesEquipos(rawItems) {
     } catch {}
     return k;
   };
+  const looksLikeSerial = (v) => /^[0-9]+$/.test(String(v || ''));
+  const normSerial = (v) => (typeof normSerialKey === 'function') ? normSerialKey(v) : String(v || '').trim().toUpperCase();
+
+  // 1) Resolver serial -> equipo real. Algunos resumenes_equipos quedaron con la clave del serial en lugar del equipo.
+  const serialToEquipo = new Map();
+  (rawItems || []).forEach(it => {
+    try {
+      const eq = String(it.equipoKey || it.id || '').trim();
+      const sr = normSerial(it.serial);
+      if (!eq || !sr || looksLikeSerial(eq)) return;
+      const k = canonKey(eq);
+      if (!k || !sr) return;
+      if (!serialToEquipo.has(sr)) serialToEquipo.set(sr, k);
+    } catch {}
+  });
+
   const map = new Map();
   (rawItems || []).forEach(it => {
-    const k = canonKey(it.equipoKey || it.id || '');
+    let k = canonKey(it.equipoKey || it.id || '');
     if (!k) return;
+    // Si la clave es solo el serial, intentar asociarla al equipo real con ese serial.
+    try {
+      if (looksLikeSerial(k)) {
+        const sr = normSerial(it.serial || it.id);
+        const mapped = sr && serialToEquipo.get(sr);
+        if (mapped) k = mapped;
+      }
+    } catch {}
     let target = map.get(k);
     if (!target) {
       target = { ...it, id: k, equipoKey: k };
@@ -8752,8 +8777,7 @@ async function plLoadResumenesEquiposCache() {
   }
   if (!db0) throw new Error('db_not_ready');
   const colRef = collection(db0, 'resumenes_equipos');
-  let snap = null;
-  try { snap = await getDocsFromServer(colRef); } catch { snap = await getDocs(colRef); }
+  const snap = await getDocsFromServer(colRef);
   const rawItems = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
   const items = plMergeResumenesEquipos(rawItems);
   try { window._plResumenesEquiposCache = { at: Date.now(), items: items }; } catch {}
@@ -8761,6 +8785,7 @@ async function plLoadResumenesEquiposCache() {
 }
 
 try { window.plLoadResumenesEquiposCache = plLoadResumenesEquiposCache; } catch {}
+try { window.plMergeResumenesEquipos = plMergeResumenesEquipos; } catch {}
 
 async function plLoadInventarioEstados() {
   const claveEstadoOverride = 'pct_invre_estado_override';

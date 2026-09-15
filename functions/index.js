@@ -337,6 +337,115 @@ export const onPruebaWriteUpdateResumenEquipo = onDocumentWritten(
   }
 );
 
+export const onInspeccionWriteUpdateResumenEquipo = onDocumentWritten(
+  {
+    document: 'inspecciones/{inspId}',
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (event) => {
+    const afterSnap = event.data && event.data.after ? event.data.after : null;
+    const beforeSnap = event.data && event.data.before ? event.data.before : null;
+    const after = afterSnap && afterSnap.exists ? afterSnap.data() : null;
+    const before = beforeSnap && beforeSnap.exists ? beforeSnap.data() : null;
+
+    // En deletes, marcar como stale (rebuild nocturno lo arregla)
+    if (!after) {
+      try {
+        const db = admin.firestore();
+        const equipoRaw = (before && (before.equipo || before.equipoId || before.activo || '')) ? String(before.equipo || before.equipoId || before.activo) : '';
+        const serialRaw = (before && (before.numeroSerie || before.serial)) ? String(before.numeroSerie || before.serial) : '';
+        const { aliasMap, serialPorEquipoInv } = await getCanonicalMaps();
+        const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+        const eqK = resolved.equipoCanon;
+        if (!eqK) return;
+        await db.collection('resumenes_equipos').doc(eqK).set({
+          needsRebuild: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch {}
+      return;
+    }
+
+    const docId = afterSnap.id;
+    const { aliasMap, serialPorEquipoInv } = await getCanonicalMaps();
+    const equipoRaw = (after.equipo || after.equipoId || after.activo || '').toString().trim();
+    const serialRaw = (after.numeroSerie || after.serial || '').toString().trim();
+    const resolved = resolveEquipoYSerialCanon({ equipoRaw, serialRaw, aliasMap, serialPorEquipoInv });
+    const equipoCanon = resolved.equipoCanon;
+    if (!equipoCanon) return;
+
+    const fecha = parseFecha(after.fecha || after.creadoEn || after.createdAt || after.fechaRegistro || '');
+    const fechaMs = fecha ? fecha.getTime() : 0;
+    const candidate = {
+      docId,
+      equipoKey: equipoCanon,
+      fechaMs,
+      estadoGeneral: inspeccionEstadoGeneral(after),
+      actividadId: String(after.actividadId || '').trim(),
+    };
+
+    ensureAdmin();
+    const db = admin.firestore();
+    const ref = db.collection('resumenes_equipos').doc(String(equipoCanon));
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const data = snap.exists ? (snap.data() || {}) : {};
+
+      const currentRaw = data && data.inspeccion && typeof data.inspeccion === 'object' ? data.inspeccion : null;
+      const current = inspeccionResumenToCandidate(currentRaw);
+      const winner = pickWinnerInspeccion(current, candidate);
+
+      // Si la nueva inspección no es la más reciente, no actualizamos.
+      if (winner.docId !== docId) return;
+
+      let edo = String(data.edo || '').trim().toUpperCase();
+      if (!edo) {
+        try {
+          const edoSnap = await tx.get(db.collection('inventarioEstados').doc(String(equipoCanon)));
+          if (edoSnap.exists) {
+            const edoData = edoSnap.data() || {};
+            edo = String(edoData.edo || edoData.estado || edoData.estadoEquipo || '').trim().toUpperCase();
+          }
+        } catch {}
+      }
+      if (!edo) edo = 'ON';
+
+      let aptoOperacion = true;
+      let motivoBloqueo = '';
+      if (edo === 'WIP') {
+        aptoOperacion = false;
+        motivoBloqueo = 'WIP';
+      } else if (!equipoOperativoFromEdo(edo)) {
+        aptoOperacion = false;
+        motivoBloqueo = 'EDO';
+      } else if (winner.estadoGeneral === 'MALO') {
+        aptoOperacion = false;
+        motivoBloqueo = 'INSPECCION_MALO';
+      }
+
+      const patch = {
+        version: 2,
+        equipoKey: equipoCanon,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        needsRebuild: false,
+        serial: String((resolved.serialCanon || data.serial || after.serial || '')).trim(),
+        edo: edo || 'ON',
+        inspeccion: {
+          docId: winner.docId,
+          fechaMs: winner.fechaMs,
+          estadoGeneral: winner.estadoGeneral,
+          actividadId: winner.actividadId,
+        },
+        aptoOperacion,
+        motivoBloqueo,
+      };
+
+      tx.set(ref, patch, { merge: true });
+    });
+  }
+);
+
 export const importFormatosInspeccion = onRequest(
   {
     secrets: ['FORMATOS_IMPORT_KEY'],
@@ -709,6 +818,17 @@ function pickWinnerInspeccion(current, candidate) {
   return current;
 }
 
+function inspeccionResumenToCandidate(obj) {
+  if (!obj) return null;
+  return {
+    docId: String(obj.docId || '').trim(),
+    equipoKey: String(obj.equipoKey || '').trim(),
+    fechaMs: typeof obj.fechaMs === 'number' ? obj.fechaMs : 0,
+    estadoGeneral: String(obj.estadoGeneral || 'BUENO').trim().toUpperCase(),
+    actividadId: String(obj.actividadId || '').trim(),
+  };
+}
+
 async function buildResumenesEquiposAll() {
   ensureAdmin();
   const db = admin.firestore();
@@ -1025,9 +1145,9 @@ function normPruebaKey(v) {
   const t = (v || '').toString().toUpperCase().trim();
   if (!t) return 'ANUAL';
   const compact = t.replace(/\s+/g, '');
-  if (compact.includes('VT') && compact.includes('PT') && compact.includes('MT') && !compact.includes('UTT') && !compact.includes('LT')) return 'VT/PT/MT';
   if (compact.includes('UTT')) return 'UTT';
   if (compact.includes('LT')) return 'LT';
+  if ((compact.includes('VT') || compact.includes('PT') || compact.includes('MT')) && !compact.includes('UTT')) return 'VT/PT/MT';
   return t;
 }
 
@@ -2545,7 +2665,7 @@ export const backfillFolios = onRequest(
       const yyFiltro = String(req.query.yy || '').trim();
       const batchSize = Math.min(parseInt(req.query.batchSize || '100', 10), 400);
 
-      let q = db.collection('inspecciones').orderBy(admin.firestore.FieldPath.documentId()).limit(batchSize);
+      let q = db.collection('inspecciones').orderBy('creadoEn', 'asc').limit(batchSize);
 
       let docsProcessed = 0;
       let foliosAsignados = 0;
