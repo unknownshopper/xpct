@@ -6210,25 +6210,76 @@
                 }
             } catch {}
 
-            // Si hay resumen global materializado por tipo, preferirlo para la tabla informativa.
+            // Preferir resumenes_equipos (misma fuente y filtros que las tarjetas) para la tabla informativa.
             try {
-                if (!_csvPreviewActive && window._plResumenGlobalAnualesByTipo && window._pctResumenGlobal && window._pctResumenGlobal.at) {
-                    const at = Number(window._pctResumenGlobal.at || 0);
-                    const isFresh = at && isFinite(at) && (Date.now() - at) < (24 * 60 * 60 * 1000);
-                    if (isFresh) {
-                        const by = window._plResumenGlobalAnualesByTipo;
-                        const apply = (cat, key) => {
-                            const src = (by && by[key]) ? by[key] : null;
-                            if (!src) return;
-                            if (inf[cat].gt60) inf[cat].gt60.textContent = String(Number(src.gt60 || 0));
-                            if (inf[cat].d60)  inf[cat].d60.textContent  = String(Number(src.d60 || 0));
-                            if (inf[cat].d30)  inf[cat].d30.textContent  = String(Number(src.d30 || 0));
-                            if (inf[cat].d15)  inf[cat].d15.textContent  = String(Number(src.d15 || 0));
-                            if (inf[cat].d0)   inf[cat].d0.textContent   = String(Number(src.d0 || 0));
+                if (!_csvPreviewActive) {
+                    const cached = window._plResumenesEquiposCache;
+                    const items = (cached && Array.isArray(cached.items)) ? cached.items : null;
+                    const at = Number(cached && cached.at ? cached.at : 0);
+                    const isFresh = at && isFinite(at) && (Date.now() - at) < (10 * 60 * 1000);
+                    if (items && items.length && isFresh) {
+                        const offSet = (() => {
+                            try {
+                                const c = window._plOffEquiposSet;
+                                return (c && c.items instanceof Set) ? c.items : null;
+                            } catch { return null; }
+                        })();
+                        const bucketKey = (b) => {
+                            const s = String(b || '').trim();
+                            if (s === 'otras') return 'gt60';
+                            if (s === '60_30') return 'd60';
+                            if (s === '30_15') return 'd30';
+                            if (s === '15_0') return 'd15';
+                            if (s === 'vencidas') return 'd0';
+                            return '';
                         };
-                        apply('lt', 'LT');
-                        apply('utt', 'UTT');
-                        apply('vpm', 'VT/PT/MT');
+                        const tcont = {
+                            lt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                            vpm: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                            utt: { gt60: 0, d60: 0, d30: 0, d15: 0, d0: 0 },
+                        };
+                        const catOf = { 'LT': 'lt', 'VT/PT/MT': 'vpm', 'UTT': 'utt' };
+                        items.forEach(it => {
+                            const eqK = (typeof normEquipoKey === 'function')
+                                ? normEquipoKey(String(it && (it.equipoKey || it.id || '') || ''))
+                                : String(it && (it.equipoKey || it.id || '') || '').trim().toUpperCase();
+                            if (!eqK) return;
+                            if (offSet && offSet.has(eqK)) return;
+                            const edoRaw = String((it && it.edo != null) ? it.edo : ((edoPorEquipoInv && edoPorEquipoInv[eqK]) || '')).trim().toUpperCase();
+                            if (edoRaw === 'OFF' || edoRaw === 'INACTIVO') return;
+                            ['LT', 'VT/PT/MT', 'UTT'].forEach(t => {
+                                const pr = (it && it.pruebas && it.pruebas[t]) ? it.pruebas[t] : null;
+                                if (!pr || !pr.docId) return;
+                                let bk = bucketKey(pr && pr.bucket ? pr.bucket : '');
+                                if (!bk) {
+                                    try {
+                                        const prox = parseProxima(pr && pr.proxima ? pr.proxima : '');
+                                        if (prox) {
+                                            const dias = Math.round((prox.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                                            if (!isNaN(dias)) {
+                                                if (dias <= 0) bk = 'd0';
+                                                else if (dias > 60) bk = 'gt60';
+                                                else if (dias >= 31) bk = 'd60';
+                                                else if (dias >= 16) bk = 'd30';
+                                                else if (dias >= 1) bk = 'd15';
+                                            }
+                                        }
+                                    } catch {}
+                                }
+                                if (!bk) return;
+                                tcont[catOf[t]][bk] += 1;
+                            });
+                        });
+                        const applyT = (cat) => {
+                            if (inf[cat].gt60) inf[cat].gt60.textContent = String(tcont[cat].gt60);
+                            if (inf[cat].d60)  inf[cat].d60.textContent  = String(tcont[cat].d60);
+                            if (inf[cat].d30)  inf[cat].d30.textContent  = String(tcont[cat].d30);
+                            if (inf[cat].d15)  inf[cat].d15.textContent  = String(tcont[cat].d15);
+                            if (inf[cat].d0)   inf[cat].d0.textContent   = String(tcont[cat].d0);
+                        };
+                        applyT('lt');
+                        applyT('vpm');
+                        applyT('utt');
                     }
                 }
             } catch {}
