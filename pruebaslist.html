@@ -7365,7 +7365,7 @@
                                     const pr = (it && it.pruebas && it.pruebas[t]) ? it.pruebas[t] : null;
                                     const id = pr && pr.docId ? String(pr.docId) : '';
                                     if (!id) return;
-                                    const chipB = chipFromDue(pr) || mapBucketToChip(pr && pr.bucket ? pr.bucket : '');
+                                    const chipB = mapBucketToChip(pr && pr.bucket ? pr.bucket : '') || chipFromDue(pr);
                                     if (!chipB) return;
                                     if (chipB === 'gt60') gt60 += 1;
                                     else if (chipB === 'd60') d60 += 1;
@@ -7375,22 +7375,13 @@
                                 });
                             });
 
-                            // resumenes/global es source-of-truth para chips; resumenes_equipos solo rellena ids D30/D15.
-                            const paGlobal = (() => {
-                                try {
-                                    const rg = window._pctResumenGlobal;
-                                    const at = Number(rg && rg.at ? rg.at : 0);
-                                    const isFresh = at && isFinite(at) && (Date.now() - at) < (24 * 60 * 60 * 1000);
-                                    return (isFresh && rg && rg.data && rg.data.pruebasAnuales) ? rg.data.pruebasAnuales : null;
-                                } catch { return null; }
-                            })();
-                            if (!paGlobal) {
-                                cntChipGT60 = gt60;
-                                cntChip60 = d60;
-                                cntChip30 = d30;
-                                cntChip15 = d15;
-                                cntChip0 = d0;
-                            }
+                            // resumenes_equipos es más fresco que resumenes/global; usarlo para los contadores de chips/tarjetas.
+                            // resumenes/global se usa solo como respaldo si resumenes_equipos no está cargado.
+                            cntChipGT60 = gt60;
+                            cntChip60 = d60;
+                            cntChip30 = d30;
+                            cntChip15 = d15;
+                            cntChip0 = d0;
 
                             try { window._plRangoIdsD30 = idsD30; } catch {}
                             try { window._plRangoIdsD15 = idsD15; } catch {}
@@ -9612,6 +9603,7 @@ async function plOpenCoberturaModal(cat) {
 }
 
 try { window.plOpenCoberturaModal = plOpenCoberturaModal; } catch {}
+try { window.plRender = render; } catch {}
 
 function plInitDetalleTablaAnual() {
   // Controles del modal: deben funcionar para cualquier rol que pueda ver el modal.
