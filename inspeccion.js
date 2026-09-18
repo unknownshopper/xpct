@@ -1311,6 +1311,31 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch {}
     }
 
+    async function solicitarFolioInspeccion(inspeccionId) {
+        try {
+            const inspId = String(inspeccionId || '').trim();
+            if (!inspId) return '';
+            const user = (window.auth && window.auth.currentUser) ? window.auth.currentUser : null;
+            if (!user || typeof user.getIdToken !== 'function') return '';
+            const idToken = await user.getIdToken();
+            const resp = await fetch('https://asignarfolio-m3bxry6fua-uc.a.run.app', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${idToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ inspeccionId: inspId }),
+            });
+            const jr = await resp.json().catch(() => null);
+            if (jr && jr.ok && jr.folio) return String(jr.folio);
+            console.warn('[inspeccion] asignarFolio sin folio', jr);
+            return '';
+        } catch (e) {
+            console.warn('[inspeccion] No se pudo asignar folio', e);
+            return '';
+        }
+    }
+
     async function intentarSyncInspeccionesPendientes() {
         try {
             if (!window.auth || !window.auth.currentUser) return;
@@ -1335,6 +1360,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     await setDoc(doc(db, 'inspecciones', localId), payload, { merge: true });
                     patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED' });
+                    const folioSync = await solicitarFolioInspeccion(localId);
+                    if (folioSync) patchInspeccionLocalPorId(localId, { folio: folioSync });
                 } catch (e) {
                     try { lastFirestoreError = e; } catch {}
                     console.warn('[inspeccion] Falló sync de inspección pendiente', { localId, error: e });
@@ -1607,6 +1634,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const usuario = (data.usuarioInspeccion || '').toString();
                     const tipo = (data.tipoInspeccion || '').toString();
                     const fecha = formatearFechaHora(data.fecha || data.creadoEn);
+                    const folio = (data.folio || '').toString();
 
                     const params = Array.isArray(data.parametros) ? data.parametros : [];
                     const ok = (v) => (v == null ? '' : String(v));
@@ -1793,6 +1821,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="text-align:right; font-size:12px; color:#334155;">
                                 <div><strong>Tipo:</strong> ${tipo}</div>
                                 <div><strong>Fecha:</strong> ${fecha}</div>
+                                ${folio ? `<div style="margin-top:2px;"><strong>Folio:</strong> <span style="font-weight:900; color:#0f172a;">${folio}</span></div>` : ''}
                             </div>
                         </div>
 
@@ -7333,6 +7362,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 guardadoFirestoreOk = true;
                 patchInspeccionLocalPorId(localId, { syncStatus: 'SYNCED', lastSyncError: '' });
 
+                const folioAsignado = await solicitarFolioInspeccion(localId);
+                if (folioAsignado) {
+                    try { registro.folio = folioAsignado; } catch {}
+                    try { patchInspeccionLocalPorId(localId, { folio: folioAsignado }); } catch {}
+                }
+
                 try {
                     // Subir evidencias (fotos) a Storage y luego persistir evidenciaUrl/evidenciaPath en Firestore
                     const storage = getStorage();
@@ -7669,16 +7704,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 } catch {}
 
+                const folioTxt = (registro && registro.folio) ? String(registro.folio) : '';
                 detalleContenedor.innerHTML = `
                     <div style="padding:0.9rem 1rem; border-radius:0.75rem; border:1px solid #22c55e; background:#ecfdf5; text-align:center; font-size:1rem; font-weight:600; color:#166534; margin-bottom:0.5rem;">
-                        Inspección guardada
+                        Inspección guardada${folioTxt ? ` — Folio ${escapeHtml(folioTxt)}` : ''}
                     </div>
                     <p style="font-size:0.85rem; color:#4b5563; text-align:center;">
                         Seleccione otro equipo para realizar una nueva inspección.
                     </p>
                 `;
 
-                try { alert('Inspección guardada'); } catch {}
+                try { alert('Inspección guardada' + (folioTxt ? ` — Folio ${folioTxt}` : '')); } catch {}
 
                 btnGuardar.textContent = 'Guardar inspección';
                 btnGuardar.disabled = true;

@@ -1,0 +1,26 @@
+import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const sa = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../serviceAccount.json'), 'utf8'));
+admin.initializeApp({ credential: admin.credential.cert(sa) });
+const db = admin.firestore();
+const snap = await db.collection('inspecciones').get();
+const byTipo = {}; const byMes = {};
+const counters = await db.collection('folioCounters').get();
+const cnt = {};
+counters.forEach(d => { cnt[d.id] = d.data().next; });
+snap.forEach(d => {
+  const x = d.data() || {};
+  if (x.folio) return;
+  const t = String(x.tipoInspeccion||'').toUpperCase()||'(vacio)';
+  byTipo[t] = (byTipo[t]||0)+1;
+  const ce = x.creadoEn && x.creadoEn.toDate ? x.creadoEn.toDate() : null;
+  const mes = ce ? ce.toISOString().slice(0,7) : '(sin fecha)';
+  byMes[mes] = (byMes[mes]||0)+1;
+});
+console.log('sinFolio byTipo:', byTipo);
+console.log('sinFolio byMes:', byMes);
+console.log('folioCounters:', cnt);
+process.exit(0);

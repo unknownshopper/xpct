@@ -339,6 +339,7 @@
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Serial</th>
                             <th style="text-align:left; padding:0.4rem;">Tipo de inspección</th>
+                            <th id="insp-th-folio" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Folio</th>
                             <th style="text-align:left; padding:0.4rem;">Lugar</th>
                             <th style="text-align:left; padding:0.4rem;">Evaluación</th>
                             <th style="text-align:left; padding:0.4rem;">Asignado a</th>
@@ -459,6 +460,7 @@
         const thEvaluacion = document.getElementById('insp-th-evaluacion');
         const thFechaReal = document.getElementById('insp-th-fecha-real');
         const thFechaRealHuerfana = document.getElementById('insp-th-fecha-real-huerfana');
+        const thFolio = document.getElementById('insp-th-folio');
 
         const loadingBanner = document.getElementById('insp-loading-banner');
         const loadingTitle = document.getElementById('insp-loading-title');
@@ -1465,13 +1467,14 @@
                 sortKey = nextKey;
                 sortDir = -1; // por defecto: más recientes primero
             }
-            cargarDatos();
+            cargarDatos({ useCache: true });
         }
 
         function actualizarIndicadoresSort() {
             const suf = sortDir === 1 ? ' ▲' : ' ▼';
             if (thFechaReal) thFechaReal.textContent = 'Fecha realización' + (sortKey === 'fecha_real' ? suf : '');
             if (thFechaRealHuerfana) thFechaRealHuerfana.textContent = 'Fecha realización' + (sortKey === 'fecha_real' ? suf : '');
+            if (thFolio) thFolio.textContent = 'Folio' + (sortKey === 'folio' ? suf : '');
         }
 
         if (thFechaReal && !thFechaReal.dataset.sortBound) {
@@ -1482,6 +1485,11 @@
         if (thFechaRealHuerfana && !thFechaRealHuerfana.dataset.sortBound) {
             thFechaRealHuerfana.dataset.sortBound = '1';
             thFechaRealHuerfana.addEventListener('click', () => toggleSort('fecha_real'));
+        }
+
+        if (thFolio && !thFolio.dataset.sortBound) {
+            thFolio.dataset.sortBound = '1';
+            thFolio.addEventListener('click', () => toggleSort('folio'));
         }
 
         // Filtro por encabezado de Evaluación: ciclo Todo -> Pendientes -> Realizadas -> Todo
@@ -2245,7 +2253,9 @@
 
         let cargarDatosRunId = 0;
 
-        async function cargarDatos() {
+        async function cargarDatos(opts) {
+            const useCache = !!(opts && opts.useCache);
+            const cacheTtlMs = 5 * 60 * 1000;
             const alreadyLoading = isLoadingDatos;
             isLoadingDatos = true;
             const runId = ++cargarDatosRunId;
@@ -2378,8 +2388,19 @@
                 if (msgSyncLocal) msgSyncLocal.style.display = '';
             }
 
-            // 1) Leer inspecciones desde Firestore
+            // 1) Leer inspecciones desde Firestore (o cache para re-renders como sort/filtros)
             let inspecciones = [];
+            const inspCache = (() => {
+                try {
+                    const c = window.__inspeccionesCache;
+                    const at = Number(window.__inspeccionesCacheAt || 0);
+                    if (useCache && Array.isArray(c) && c.length && at && (Date.now() - at) < cacheTtlMs) return c;
+                } catch {}
+                return null;
+            })();
+            if (inspCache) {
+                inspecciones = inspCache;
+            } else {
             try {
                 const { getFirestore, collection, getDocs, getDocsFromServer } = await getFirestoreMod();
 
@@ -2401,6 +2422,7 @@
                 } catch {
                     inspecciones = [];
                 }
+            }
             }
 
             if (stale()) return;
@@ -2430,7 +2452,7 @@
             } catch {}
 
             // Exponer cache global (debug/UI resiliente ante closures/bfcache)
-            try { window.__inspeccionesCache = Array.isArray(inspecciones) ? inspecciones : []; } catch {}
+            try { window.__inspeccionesCache = Array.isArray(inspecciones) ? inspecciones : []; window.__inspeccionesCacheAt = Date.now(); } catch {}
 
             // Mapa por actividadId para cruce rápido
             const inspeccionPorActividad = new Map();
@@ -2527,7 +2549,18 @@
             // Si las reglas lo permiten, supervisor también podrá ver pendientes.
             // Solo caemos al modo "solo inspecciones" cuando Firestore rechaza con permission-denied.
             let actividades = [];
+            const actCache = (() => {
+                try {
+                    const c = window.__actividadesCache;
+                    const at = Number(window.__actividadesCacheAt || 0);
+                    if (useCache && Array.isArray(c) && c.length && at && (Date.now() - at) < cacheTtlMs) return c;
+                } catch {}
+                return null;
+            })();
             try {
+                if (actCache) {
+                    actividades = actCache;
+                } else {
                 const { getFirestore, collection, getDocs, getDocsFromServer } = await getFirestoreMod();
 
                 const db = window.db ? window.db : getFirestore();
@@ -2540,6 +2573,7 @@
                 }
 
                 actividades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                }
 
                 // Filtrar actividades legacy/incompletas (solo equipo, sin datos mínimos)
                 const esActividadValida = (a) => {
@@ -2747,7 +2781,7 @@
             }
 
             // Exponer cache global (debug/UI resiliente ante closures/bfcache)
-            try { window.__actividadesCache = Array.isArray(actividades) ? actividades : []; } catch {}
+            try { window.__actividadesCache = Array.isArray(actividades) ? actividades : []; window.__actividadesCacheAt = Date.now(); } catch {}
 
             // Contadores de tarjetas
             try {
@@ -3118,7 +3152,7 @@
                 let areaActual = '';
                 let lugarActual = '';
 
-                const groupColSpan = 13;
+                const groupColSpan = esRealizadas ? 14 : 13;
 
                 const tbodyLocal = tbodyTarget;
                 if (!tbodyLocal) return;
@@ -3205,6 +3239,14 @@
                     subset.sort((a, b) => {
                         const inspA = a && a.insp ? a.insp : null;
                         const inspB = b && b.insp ? b.insp : null;
+                        if (sortKey === 'folio') {
+                            const fA = inspA ? String(inspA.folio || '') : '';
+                            const fB = inspB ? String(inspB.folio || '') : '';
+                            if (!fA && !fB) return 0;
+                            if (!fA) return 1;
+                            if (!fB) return -1;
+                            return fA.localeCompare(fB, undefined, { numeric: true }) * sortDir;
+                        }
                         const msA = toMs(inspA ? (inspA.fecha || inspA.creadoEn) : null);
                         const msB = toMs(inspB ? (inspB.fecha || inspB.creadoEn) : null);
                         if (msA == null && msB == null) return 0;
@@ -3317,7 +3359,7 @@
 
                     const thumbMalo = insp ? buildThumbMalo(insp) : '';
 
-                    const textoBuscar = normFiltro(`${cliente} ${area} ${equipoRender} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp} ${fechaBuscar}`);
+                    const textoBuscar = normFiltro(`${cliente} ${area} ${equipoRender} ${equipo} ${lugar} ${usuario} ${observaciones} ${tipoInsp} ${fechaBuscar} ${insp?.folio || ''}`);
                     const fUse = esRealizadas ? (filtroRealizadas || filtro) : filtro;
                     const fDiaUseMs = esRealizadas ? (filtroRealizadasDiaMs != null ? filtroRealizadasDiaMs : filtroDiaMs) : filtroDiaMs;
                     // Si el filtro es una fecha dd/mm/aa, hacer match estricto por día.
@@ -3450,6 +3492,7 @@
                     const ultimaRecepcion = formatearUltimaRecepcion(act);
                     const fechaRealCol = esRealizadas ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${fechaRealizadaTexto}</td>` : '';
                     const ultimaRecepCol = esRealizadas ? '' : `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${ultimaRecepcion}</td>`;
+                    const folioCol = esRealizadas ? `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${(insp && insp.folio) ? escapeHtml(String(insp.folio)) : ''}</td>` : '';
                     const evaluacionPend = bloqueado
                         ? `Pendiente - BLOQUEADO${motivoBloqueo ? ` (${motivoBloqueo})` : ''}`
                         : (!ltOk ? 'Pendiente - LT/ANUAL VENCIDA' : 'Pendiente');
@@ -3463,6 +3506,7 @@
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoDisplay}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${tipoInspHtml}</td>
+                        ${folioCol}
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${lugar}</td>
                         ${ultimaRecepCol}
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${insp ? (evaluacion ? `${estadoTexto} - ${evaluacion}` : estadoTexto) : evaluacionPend}</td>
@@ -3516,6 +3560,7 @@
                                 equipo: equipoRender,
                                 serial,
                                 tipo: tipoInsp,
+                                folio: (insp && insp.folio ? String(insp.folio) : '').trim(),
                                 usuario: (insp?.usuarioInspeccionEmail || insp?.usuarioInspeccion || usuario || '').toString().trim(),
                                 evaluacion: evaluacion || '',
                                 lugar: (lugar || '').toString().trim(),
@@ -4463,8 +4508,9 @@
                     fecha: margin,
                     equipo: 140,
                     serial: 250,
-                    tipo: 330,
-                    usuario: 410,
+                    tipo: 325,
+                    folio: 385,
+                    usuario: 475,
                 };
 
                 const title = rawFecha ? `Inspecciones del día ${rawFecha}` : 'Inspecciones (lista)';
@@ -4486,6 +4532,7 @@
                     page.drawText('Equipo', { x: col.equipo, y: yHead, size: 9, font: fontBold });
                     page.drawText('Serial', { x: col.serial, y: yHead, size: 9, font: fontBold });
                     page.drawText('Tipo', { x: col.tipo, y: yHead, size: 9, font: fontBold });
+                    page.drawText('Folio', { x: col.folio, y: yHead, size: 9, font: fontBold });
                     page.drawText('Usuario', { x: col.usuario, y: yHead, size: 9, font: fontBold });
                     y = yHead - 10;
                 };
@@ -4506,8 +4553,9 @@
                     page.drawText(safe(it.fecha, 18), { x: col.fecha, y, size: 8, font });
                     page.drawText(safe(it.equipo, 16), { x: col.equipo, y, size: 8, font });
                     page.drawText(safe(it.serial, 12), { x: col.serial, y, size: 8, font });
-                    page.drawText(safe(it.tipo, 14), { x: col.tipo, y, size: 8, font });
-                    page.drawText(safe(it.usuario, 22), { x: col.usuario, y, size: 8, font });
+                    page.drawText(safe(it.tipo, 12), { x: col.tipo, y, size: 8, font });
+                    page.drawText(safe(it.folio, 17), { x: col.folio, y, size: 8, font });
+                    page.drawText(safe(it.usuario, 20), { x: col.usuario, y, size: 8, font });
                     y -= lineH;
                 }
 
