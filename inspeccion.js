@@ -1398,33 +1398,57 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const getPosition = () => new Promise(resolve => {
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        geoDenied = false;
-                        const txt = toStr(pos);
+                let done = false;
+                let best = null;
+                let watchId = null;
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    try { if (watchId != null) navigator.geolocation.clearWatch(watchId); } catch {}
+                    const txt = best ? toStr(best) : '';
+                    if (txt && txt.toUpperCase() !== 'SIN GPS') {
                         // Cachear último GPS válido
                         try {
-                            if (txt && txt.toUpperCase() !== 'SIN GPS') {
-                                localStorage.setItem(LS_KEY, txt);
-                                localStorage.setItem(LS_TS_KEY, String(Date.now()));
-                            }
+                            localStorage.setItem(LS_KEY, txt);
+                            localStorage.setItem(LS_TS_KEY, String(Date.now()));
                         } catch {}
                         resolve(txt);
-                    },
-                    (err) => {
-                        try {
-                            console.warn('Geolocalización falló', { code: err && err.code, message: err && err.message });
-                        } catch {}
-                        try {
-                            // 1 = PERMISSION_DENIED
-                            if (err && Number(err.code) === 1) geoDenied = true;
-                        } catch {}
-                        const cached = getCached();
-                        resolve(cached || 'Sin GPS');
-                    },
-                    // iPad/campo: permitir valores cacheados y dar más tiempo
-                    { enableHighAccuracy: true, timeout: 60000, maximumAge: 5 * 60 * 1000 }
-                );
+                    } else {
+                        resolve(getCached() || 'Sin GPS');
+                    }
+                };
+                const onErr = (err) => {
+                    try {
+                        console.warn('Geolocalización falló', { code: err && err.code, message: err && err.message });
+                    } catch {}
+                    try {
+                        // 1 = PERMISSION_DENIED
+                        if (err && Number(err.code) === 1) geoDenied = true;
+                    } catch {}
+                    finish();
+                };
+                try {
+                    // watchPosition: el primer fix suele ser grueso (celda/wifi, ±miles de m).
+                    // Recolectamos hasta ~12s y nos quedamos con el de mejor precisión;
+                    // resolvemos antes si llega a ±50m.
+                    watchId = navigator.geolocation.watchPosition(
+                        (pos) => {
+                            geoDenied = false;
+                            const acc = pos && pos.coords ? pos.coords.accuracy : null;
+                            const bestAcc = best && best.coords ? best.coords.accuracy : null;
+                            if (!best || (acc != null && (bestAcc == null || acc < bestAcc))) {
+                                best = pos;
+                            }
+                            if (acc != null && acc <= 50) finish();
+                        },
+                        onErr,
+                        { enableHighAccuracy: true, timeout: 45000, maximumAge: 30000 }
+                    );
+                } catch {
+                    finish();
+                    return;
+                }
+                setTimeout(finish, 12000);
             });
             try {
                 if (navigator.permissions && navigator.permissions.query) {
@@ -1440,6 +1464,41 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch {
             return 'Sin GPS';
         }
+    }
+
+    // Cliente en inspección directa (sin actividad): POST-TRABAJO lo requiere en adelante.
+    let clientesSugeridosCargados = false;
+    async function cargarClientesSugeridos() {
+        if (clientesSugeridosCargados) return;
+        clientesSugeridosCargados = true;
+        try {
+            const dl = document.getElementById('lista-clientes');
+            if (!dl) return;
+            const { getFirestore, collection, query, limit, getDocs } = await import(
+                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+            );
+            const db = getFirestore();
+            const snap = await getDocs(query(collection(db, 'actividades'), limit(300)));
+            const set = new Set();
+            snap.forEach(d => {
+                const c = (d.data() && d.data().cliente ? String(d.data().cliente) : '').trim();
+                if (c) set.add(c.toUpperCase());
+            });
+            dl.innerHTML = Array.from(set).sort().map(c => `<option value="${c}"></option>`).join('');
+        } catch {}
+    }
+
+    function syncClienteDirectoVisible() {
+        try {
+            const wrap = document.getElementById('cliente-directo-wrap');
+            if (!wrap) return;
+            const paramsUrl = new URLSearchParams(window.location.search || '');
+            const tieneActividadUrl = !!((paramsUrl.get('actividadId') || '').trim());
+            const tipo = (document.getElementById('inspeccion-tipo')?.value || '').toString().trim().toUpperCase();
+            const mostrar = !isViewMode && !tieneActividadUrl && tipo === 'POST-TRABAJO';
+            wrap.style.display = mostrar ? '' : 'none';
+            if (mostrar) cargarClientesSugeridos();
+        } catch {}
     }
 
     async function aplicarInspeccionExistenteSoloLectura() {
@@ -6279,7 +6338,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         tipoInspeccionSelect.addEventListener('change', actualizarSeleccionTipo);
+        tipoInspeccionSelect.addEventListener('change', syncClienteDirectoVisible);
         actualizarSeleccionTipo();
+        syncClienteDirectoVisible();
         setTimeout(() => {
             try { tipoInspeccionSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
         }, 0);
@@ -7217,6 +7278,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('No se pudieron leer fechas de actividad para la inspección', e);
             }
 
+            // Cliente manual (inspección directa): solo aplica si la resolución por
+            // actividad no aportó cliente — la actividad siempre tiene prioridad.
+            try {
+                const clienteManual = (document.getElementById('cliente-directo-input')?.value || '').toString().trim();
+                if (!cliente && clienteManual) {
+                    cliente = clienteManual.toUpperCase();
+                }
+            } catch {}
+
+            // POST-TRABAJO requiere cliente en adelante (inspección directa o actividad sin cliente).
+            if (tipoInspeccion === 'POST-TRABAJO' && !cliente) {
+                alert('La inspección Post-trabajo requiere indicar el CLIENTE del servicio.');
+                try {
+                    const wrap = document.getElementById('cliente-directo-wrap');
+                    if (wrap) wrap.style.display = '';
+                    const inp = document.getElementById('cliente-directo-input');
+                    if (inp) inp.focus();
+                } catch {}
+                try {
+                    btnGuardar.innerHTML = prevBtnHtml;
+                    btnGuardar.disabled = prevBtnDisabled;
+                } catch {}
+                guardandoInspeccion = false;
+                return;
+            }
+
             // Capturar GPS para persistir locación (tablets suelen no tener ubicacion en actividad)
             try {
                 ubicacionGps = await capturarGpsTexto();
@@ -7336,6 +7423,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const docRef = doc(db, 'inspecciones', localId);
                 const payload = {
                     ...registro,
+                    // Fecha autoritativa del servidor: evita registros con fecha
+                    // futura/pasada si el reloj del dispositivo está mal.
+                    fecha: serverTimestamp(),
                     creadoEn: serverTimestamp(),
                     syncStatus: 'SYNCED',
                 };

@@ -254,7 +254,7 @@
                             <th style="text-align:center; padding:0.4rem; width:32px;">
                                 <input type="checkbox" id="insp-select-todos" title="Seleccionar / deseleccionar todos">
                             </th>
-                            <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem;">Cliente</th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Serial</th>
@@ -334,7 +334,11 @@
                                 <input type="checkbox" id="insp-select-todos-realizadas" title="Seleccionar / deseleccionar todos">
                             </th>
                             <th id="insp-th-fecha-real" style="text-align:left; padding:0.4rem; cursor:pointer;" title="Clic para ordenar asc/desc">Fecha realización</th>
-                            <th style="text-align:left; padding:0.4rem; display:none;">Cliente</th>
+                            <th style="text-align:left; padding:0.4rem;">Cliente
+                                <select id="insp-filtro-cliente" title="Filtrar por cliente" style="display:block; margin-top:2px; font-size:0.72rem; font-weight:400; padding:0.1rem 0.25rem; border:1px solid #d1d5db; border-radius:0.4rem; background:#ffffff; color:#374151; max-width:150px;">
+                                    <option value="">(Todos)</option>
+                                </select>
+                            </th>
                             <th style="text-align:left; padding:0.4rem; display:none;">Área</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
                             <th style="text-align:left; padding:0.4rem;">Serial</th>
@@ -436,6 +440,7 @@
         const msgNoAtendidas = document.getElementById('mensaje-sin-no-atendidas');
         const inputBuscar = document.getElementById('insp-buscar');
         const inputBuscarRealizadas = document.getElementById('insp-buscar-realizadas');
+        const selFiltroCliente = document.getElementById('insp-filtro-cliente');
         const lblCont = document.getElementById('insp-contador');
         const chkTodos = document.getElementById('insp-select-todos');
         const chkTodosHuerfanas = document.getElementById('insp-select-todos-huerfanas');
@@ -480,6 +485,9 @@
         let pendientesRenderizadasUltimaCarga = 0;
 
         let datosCargados = false;
+        let vistaReintentada = null; // última vista auto-re-renderizada por tbody vacío
+        const RESUMEN_CACHE_TTL_MS = 5 * 60 * 1000;
+        const resumenEquipoCache = new Map(); // eqId -> { data, ts }
 
         let vistaActiva = null; // 'pendientes' | 'realizadas' | 'sin_insp' | 'no_atendidas' | null
 
@@ -760,9 +768,6 @@
                 await waitForDbReady();
             } catch {}
             try {
-                filtroCardsSnapshot = null;
-            } catch {}
-            try {
                 setLoadingUi(true, 'Cargando inspecciones…', 'Leyendo Firestore…');
                 await cargarDatos();
             } finally {
@@ -771,18 +776,6 @@
                     if (!isLoadingDatos) setLoadingUi(false);
                 } catch {}
             }
-        }
-
-        async function asegurarRenderVista() {
-            if (isLoadingDatos) return;
-            try {
-                if (!datosCargados) {
-                    await asegurarDatosCargados();
-                    return;
-                }
-            } catch {}
-            // Datos ya cargados: re-render para reflejar la vista seleccionada (ej. No atendidas)
-            try { await cargarDatos({ useCache: true }); } catch {}
         }
 
         function ocultarTodasLasSecciones() {
@@ -836,9 +829,11 @@
                     if (secHuerfanas) secHuerfanas.style.display = '';
                     if (secAccionesPdf) secAccionesPdf.style.display = 'flex';
                 } catch {}
+                try { resolverThumbsMalo(); } catch {}
             } else if (vistaActiva === 'no_atendidas') {
                 filtroEstado = null;
                 try { if (secNoAtendidas) secNoAtendidas.style.display = ''; } catch {}
+                try { resolverThumbsMalo(); } catch {}
             } else if (vistaActiva === 'sin_insp') {
                 filtroEstado = null;
                 try { activarModoEquiposSinInspeccion(); } catch {}
@@ -856,6 +851,23 @@
             }
 
             try { actualizarFiltroCards(); } catch {}
+
+            // Garantía: si la vista revelada quedó sin filas (p.ej. nunca se renderizó
+            // porque una carga previa corrió con otra vista activa), re-renderizarla
+            // desde caché. Se reintenta una sola vez por vista para evitar bucles
+            // cuando la lista está legítimamente vacía.
+            try {
+                const tbodyActivo = (vistaActiva === 'pendientes') ? tbody
+                    : (vistaActiva === 'realizadas') ? tbodyRealizadas
+                    : (vistaActiva === 'no_atendidas') ? tbodyNoAtendidas
+                    : null;
+                if (tbodyActivo && datosCargados && !isLoadingDatos
+                    && !tbodyActivo.querySelector('tr')
+                    && vistaReintentada !== vistaActiva) {
+                    vistaReintentada = vistaActiva;
+                    cargarDatos({ useCache: true });
+                }
+            } catch {}
         }
 
         function bindTarjetasLazyLoad() {
@@ -889,7 +901,7 @@
                     cardWrapNoAtendidas.addEventListener('click', async () => {
                         setVista(vistaActiva === 'no_atendidas' ? null : 'no_atendidas');
                         try {
-                            await asegurarRenderVista();
+                            await asegurarDatosCargados();
                         } catch {}
                     });
                 }
@@ -939,52 +951,18 @@
         }
 
         const secPendientes = document.getElementById('insp-seccion-pendientes');
-        let filtroCardsSnapshot = null;
 
-        function aplicarFiltroCardsSinRecargar() {
+        let sinInspCountCache = null; // { n, ts }
+        async function contarEquiposSinInspeccion() {
             try {
-                if (!filtroCardsSnapshot) {
-                    filtroCardsSnapshot = {
-                        pend: secPendientes ? secPendientes.style.display : null,
-                        real: secRealizadas ? secRealizadas.style.display : null,
-                        huer: secHuerfanas ? secHuerfanas.style.display : null,
-                        pdf: secAccionesPdf ? secAccionesPdf.style.display : null,
-                    };
-                }
-
-                // Si estaba activo el modo "equipos sin inspección", salir de ese modo al tocar tarjetas.
-                if (secSinInsp) secSinInsp.style.display = 'none';
-                mostrarEquiposSinInspeccion = false;
-
-                // Al navegar entre tarjetas, ocultar siempre bloques no relacionados para evitar estados "atascados"
-                try {
-                    if (secSyncLocal) secSyncLocal.style.display = 'none';
-                    if (secNoAtendidas) secNoAtendidas.style.display = 'none';
-                } catch {}
-
-                if (filtroEstado === 'PENDIENTE') {
-                    if (secPendientes) secPendientes.style.display = '';
-                    if (secRealizadas) secRealizadas.style.display = 'none';
-                    if (secHuerfanas) secHuerfanas.style.display = 'none';
-                    if (secAccionesPdf) secAccionesPdf.style.display = 'none';
-                } else if (filtroEstado === 'REALIZADA') {
-                    if (secPendientes) secPendientes.style.display = 'none';
-                    if (secRealizadas) secRealizadas.style.display = '';
-                    if (secHuerfanas) secHuerfanas.style.display = '';
-                    if (secAccionesPdf) secAccionesPdf.style.display = 'flex';
-                } else {
-                    if (secPendientes && filtroCardsSnapshot && filtroCardsSnapshot.pend != null) secPendientes.style.display = filtroCardsSnapshot.pend;
-                    if (secRealizadas && filtroCardsSnapshot && filtroCardsSnapshot.real != null) secRealizadas.style.display = filtroCardsSnapshot.real;
-                    if (secHuerfanas && filtroCardsSnapshot && filtroCardsSnapshot.huer != null) secHuerfanas.style.display = filtroCardsSnapshot.huer;
-                    if (secAccionesPdf && filtroCardsSnapshot && filtroCardsSnapshot.pdf != null) secAccionesPdf.style.display = filtroCardsSnapshot.pdf;
-                }
-
-                try { actualizarFiltroCards(); } catch {}
-                try { renderNoResultadosConStatus(); } catch {}
+                if (sinInspCountCache && (Date.now() - sinInspCountCache.ts) < 60000) return sinInspCountCache.n;
             } catch {}
+            const n = await contarEquiposSinInspeccionImpl();
+            sinInspCountCache = { n, ts: Date.now() };
+            return n;
         }
 
-        async function contarEquiposSinInspeccion() {
+        async function contarEquiposSinInspeccionImpl() {
             let m = null;
             try {
                 m = await getFirestoreMod();
@@ -1187,7 +1165,8 @@
                 btnResetFiltro.dataset.boundReset = '1';
                 btnResetFiltro.addEventListener('click', () => {
                     filtroEstado = null;
-                    cargarDatos();
+                    try { if (selFiltroCliente) selFiltroCliente.value = ''; } catch {}
+                    cargarDatos({ useCache: true });
                 });
             }
 
@@ -1514,7 +1493,7 @@
                 if (filtroEstado === null) filtroEstado = 'PENDIENTE';
                 else if (filtroEstado === 'PENDIENTE') filtroEstado = 'REALIZADA';
                 else filtroEstado = null;
-                cargarDatos();
+                cargarDatos({ useCache: true });
             });
         }
 
@@ -2283,12 +2262,19 @@
                 setLoadingUi(true, 'Cargando inspecciones…', vistaLabel ? `Vista: ${vistaLabel}` : 'Construyendo listado…');
             } catch {}
 
-            try { filtroCardsSnapshot = null; } catch {}
-            tbody.innerHTML = '';
+            // Qué bloques se van a renderizar en esta pasada (según la vista activa)
+            const quierePendientes = (vistaActiva === 'pendientes');
+            const quiereRealizadas = (vistaActiva === 'realizadas');
+            const quiereNoAtendidas = (vistaActiva === 'no_atendidas');
+            const quiereTodo = (vistaActiva == null);
+
+            // Limpiar solo los tbodys que se re-renderizan: los de otras vistas conservan
+            // sus filas (ya cargadas) para mostrarse al instante al cambiar de tarjeta.
+            if (quiereTodo || quierePendientes) tbody.innerHTML = '';
             msg.style.display = 'none';
-            if (tbodyRealizadas) tbodyRealizadas.innerHTML = '';
+            if ((quiereTodo || quiereRealizadas) && tbodyRealizadas) tbodyRealizadas.innerHTML = '';
             if (msgRealizadas) msgRealizadas.style.display = 'none';
-            if (tbodyHuerfanas) tbodyHuerfanas.innerHTML = '';
+            if ((quiereTodo || quiereRealizadas) && tbodyHuerfanas) tbodyHuerfanas.innerHTML = '';
             if (msgHuerfanas) msgHuerfanas.style.display = 'none';
             if (tbodySyncLocal) tbodySyncLocal.innerHTML = '';
             if (msgSyncLocal) msgSyncLocal.style.display = 'none';
@@ -2304,16 +2290,20 @@
                 if (cardNoAtendidas) cardNoAtendidas.textContent = '0';
             }
 
-            if (secNoAtendidas) secNoAtendidas.style.display = 'none';
-            if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
+            if (vistaActiva !== 'no_atendidas') {
+                if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+            }
+            if ((quiereTodo || quiereNoAtendidas) && tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
             if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
             // Mantener siempre visibles las tarjetas; solo ocultar contenido
 
-            if (secSinInsp) secSinInsp.style.display = 'none';
-            if (tbodySinInsp) tbodySinInsp.innerHTML = '';
-            if (msgSinInsp) msgSinInsp.style.display = 'none';
+            if (vistaActiva !== 'sin_insp') {
+                if (secSinInsp) secSinInsp.style.display = 'none';
+                if (tbodySinInsp) tbodySinInsp.innerHTML = '';
+                if (msgSinInsp) msgSinInsp.style.display = 'none';
+                mostrarEquiposSinInspeccion = false;
+            }
             // Mantener siempre visibles las tarjetas; solo ocultar contenido
-            mostrarEquiposSinInspeccion = false;
 
             actualizarIndicadoresSort();
 
@@ -2328,6 +2318,7 @@
             const rawFiltroRealizadas = (inputBuscarRealizadas?.value || '').toString().trim();
             let filtro = normFiltro(rawFiltro);
             let filtroRealizadas = normFiltro(rawFiltroRealizadas);
+            const filtroClienteSel = (selFiltroCliente?.value || '').toString().trim();
 
             // Lista de inspecciones visibles en "Realizadas" (ya filtradas) para exportar PDF resumen.
             const realizadasVisibles = [];
@@ -2798,6 +2789,31 @@
             // Exponer cache global (debug/UI resiliente ante closures/bfcache)
             try { window.__actividadesCache = Array.isArray(actividades) ? actividades : []; window.__actividadesCacheAt = Date.now(); } catch {}
 
+            // Poblar selector de clientes (realizadas): unión de cliente en inspección y en su actividad
+            try {
+                if (selFiltroCliente) {
+                    const setCli = new Set();
+                    (Array.isArray(inspecciones) ? inspecciones : []).forEach(i => {
+                        const c = canonCliente(i && i.cliente ? i.cliente : '');
+                        if (c) setCli.add(c);
+                    });
+                    (Array.isArray(actividades) ? actividades : []).forEach(a => {
+                        const c = canonCliente(a && a.cliente ? a.cliente : '');
+                        if (c) setCli.add(c);
+                    });
+                    const listaCli = Array.from(setCli).sort((a, b) => a.localeCompare(b));
+                    const firma = listaCli.join('|');
+                    if (selFiltroCliente.dataset.firma !== firma) {
+                        selFiltroCliente.dataset.firma = firma;
+                        const selPrev = selFiltroCliente.value;
+                        selFiltroCliente.innerHTML = '<option value="">(Todos)</option>'
+                            + listaCli.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')
+                            + '<option value="__SIN_CLIENTE__">(Sin cliente)</option>';
+                        if (selPrev && listaCli.includes(selPrev)) selFiltroCliente.value = selPrev;
+                    }
+                }
+            } catch {}
+
             // Contadores de tarjetas
             try {
                 if (cardRealizadas) {
@@ -3137,11 +3153,11 @@
                 } catch {}
             }
 
-            const resumenEquipoCache = new Map();
             async function getResumenEquipo(eqId) {
                 const k = String(eqId || '').trim();
                 if (!k) return null;
-                if (resumenEquipoCache.has(k)) return resumenEquipoCache.get(k);
+                const hit = resumenEquipoCache.get(k);
+                if (hit && (Date.now() - hit.ts) < RESUMEN_CACHE_TTL_MS) return hit.data;
                 try {
                     const { getFirestore, doc, getDoc } = await import(
                         'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
@@ -3150,10 +3166,10 @@
                     const ref = doc(db, 'resumenes_equipos', k);
                     const snap = await getDoc(ref);
                     const data = (snap && snap.exists && snap.exists()) ? (snap.data() || null) : null;
-                    resumenEquipoCache.set(k, data);
+                    resumenEquipoCache.set(k, { data, ts: Date.now() });
                     return data;
                 } catch {
-                    resumenEquipoCache.set(k, null);
+                    resumenEquipoCache.set(k, { data: null, ts: Date.now() });
                     return null;
                 }
             }
@@ -3162,13 +3178,6 @@
                 if (!esRealizadas) {
                     pendientesRenderizadasUltimaCarga = 0;
                 }
-                let clienteActualKey = '';
-                let clienteActualLabel = '';
-                let areaActual = '';
-                let lugarActual = '';
-
-                const groupColSpan = esRealizadas ? 14 : 13;
-
                 const tbodyLocal = tbodyTarget;
                 if (!tbodyLocal) return;
 
@@ -3317,7 +3326,7 @@
                     let lugar = insp?.ubicacionGps || insp?.ubicacion || (act ? act.ubicacion : '') || '';
                     if (String(lugar || '').trim().toUpperCase() === 'SIN GPS') lugar = '';
                     const equipo = insp?.equipo || (act ? act.equipo : '') || '';
-                    const resumenEq = resumenEquipoCache.get(String(equipo || '').trim()) || null;
+                    const resumenEq = (resumenEquipoCache.get(String(equipo || '').trim()) || {}).data || null;
                     const bloqueado = !!(resumenEq && resumenEq.aptoOperacion === false);
                     const motivoBloqueo = bloqueado ? String(resumenEq.motivoBloqueo || '').trim() : '';
                     const ltOk = !!(resumenEq && resumenEq.pruebas && resumenEq.pruebas.ltVigenteEfectivo === true);
@@ -3391,6 +3400,15 @@
                         }
                     }
 
+                    // Filtro por cliente (selector en encabezado de realizadas)
+                    if (esRealizadas && filtroClienteSel) {
+                        if (filtroClienteSel === '__SIN_CLIENTE__') {
+                            if (cliente) return;
+                        } else if (cliente !== filtroClienteSel) {
+                            return;
+                        }
+                    }
+
                     let asignadoHtml = asignado || (window.isInspector ? '(Sin asignar)' : '');
                     if (window.isAdmin || window.isSupervisor) {
                         const asgNorm = normInspectorEmail(asignado);
@@ -3430,49 +3448,6 @@
                                 ? `<button type="button" class="insp-btn-eliminar-actividad" data-actividad-id="${act && act.id ? act.id : ''}" style="font-size:0.75rem; padding:0.15rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar actividad</button>`
                                 : ''
                         );
-
-                    // Insertar encabezados de agrupación por cliente y área cuando cambien
-                    const clienteKey = normalizarTextoClave(cliente);
-                    if (cliente && clienteKey !== clienteActualKey) {
-                        clienteActualKey = clienteKey;
-                        clienteActualLabel = cliente;
-                        areaActual = '';
-                        lugarActual = '';
-                        const trGrupoCliente = document.createElement('tr');
-                        trGrupoCliente.className = 'insp-group-cliente';
-                        trGrupoCliente.innerHTML = `
-                            <td colspan="${groupColSpan}" style="padding:0.45rem 0.6rem; background:#e5e7eb; font-weight:600; font-size:0.9rem; color:#111827; border-bottom:1px solid #d1d5db; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer;">
-                                Cliente: ${clienteActualLabel}
-                            </td>
-                        `;
-                        tbodyLocal.appendChild(trGrupoCliente);
-                    }
-
-                    if (area && area !== areaActual) {
-                        areaActual = area;
-                        lugarActual = '';
-                        const trGrupoArea = document.createElement('tr');
-                        trGrupoArea.className = 'insp-group-area';
-                        trGrupoArea.innerHTML = `
-                            <td colspan="${groupColSpan}" style="padding:0.35rem 0.6rem; background:#f3f4f6; font-weight:500; font-size:0.85rem; color:#374151; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:0.5rem;">
-                                <input type="checkbox" class="insp-select-area" data-cliente="${cliente}" data-area="${areaActual}" title="Seleccionar área completa">
-                                <span>Área: ${areaActual}</span>
-                            </td>
-                        `;
-                        tbodyLocal.appendChild(trGrupoArea);
-                    }
-
-                    if (lugar && lugar !== lugarActual) {
-                        lugarActual = lugar;
-                        const trGrupoUbic = document.createElement('tr');
-                        trGrupoUbic.className = 'insp-group-ubic';
-                        trGrupoUbic.innerHTML = `
-                            <td colspan="${groupColSpan}" style="padding:0.3rem 0.9rem; background:#f9fafb; font-weight:500; font-size:0.8rem; color:#4b5563; border-bottom:1px solid #e5e7eb; border-left:4px solid #9ca3af; cursor:pointer;">
-                                Ubicación: ${lugarActual}
-                            </td>
-                        `;
-                        tbodyLocal.appendChild(trGrupoUbic);
-                    }
 
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-actividad-id', act && act.id ? act.id : '');
@@ -3516,7 +3491,7 @@
                             <input type="checkbox" class="insp-select-fila" data-actividad-id="${act && act.id ? act.id : ''}" data-cliente="${cliente}" data-area="${area}">
                         </td>
                         ${fechaRealCol}
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${cliente}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600; color:#374151;">${cliente || '—'}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; display:none;">${area}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${equipoDisplay}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial}</td>
@@ -3600,20 +3575,16 @@
                             });
                         });
                     } catch {}
-                    // Solo resolver thumbs cuando el bloque incluye inspecciones (realizadas/no atendidas).
+                    // Solo resolver thumbs cuando la sección está visible (listas ocultas no gastan ancho de banda).
                     try {
-                        if (esRealizadas && (vistaActiva === null || vistaActiva === 'realizadas' || vistaActiva === 'no_atendidas')) {
+                        if (esRealizadas && (vistaActiva === 'realizadas' || vistaActiva === 'no_atendidas')) {
                             resolverThumbsMalo();
                         }
                     } catch {}
                 }, 0);
             }
 
-            // Renderizar según vistaActiva (lazy-load)
-            const quierePendientes = (vistaActiva === 'pendientes');
-            const quiereRealizadas = (vistaActiva === 'realizadas');
-            const quiereNoAtendidas = (vistaActiva === 'no_atendidas');
-            const quiereTodo = (vistaActiva == null);
+            // Renderizar según vistaActiva (lazy-load); los flags quiere* ya se calcularon arriba
 
             // Pendientes
             // Nota: al entrar a "Realizadas" no es necesario renderizar pendientes (más pesado y causa sensación de bloqueo).
@@ -3756,7 +3727,7 @@
                                 });
                             } catch {}
                             try {
-                                if (vistaActiva === null || vistaActiva === 'no_atendidas') {
+                                if (vistaActiva === 'no_atendidas') {
                                     resolverThumbsMalo();
                                 }
                             } catch {}
@@ -4372,10 +4343,6 @@
                     filasChk.forEach(chk => {
                         chk.checked = marcado;
                     });
-                    // sincronizar áreas
-                    tbody.querySelectorAll('.insp-select-area').forEach(chkArea => {
-                        chkArea.checked = marcado;
-                    });
                 };
             }
 
@@ -4776,62 +4743,13 @@
                 });
             }
 
-            // Selección por área
-            tbody.querySelectorAll('.insp-select-area').forEach(chkArea => {
-                chkArea.addEventListener('change', () => {
-                    const area = chkArea.getAttribute('data-area') || '';
-                    const cliente = chkArea.getAttribute('data-cliente') || '';
-                    const filasArea = tbody.querySelectorAll(`.insp-select-fila[data-area="${area}"][data-cliente="${cliente}"]`);
-                    filasArea.forEach(chkFila => {
-                        chkFila.checked = chkArea.checked;
-                    });
-
-                    const todasFilas = tbody.querySelectorAll('.insp-select-fila');
-                    const todasMarcadas = todasFilas.length > 0 && Array.from(todasFilas).every(chk => chk.checked);
-                    if (chkTodos) chkTodos.checked = todasMarcadas;
-                });
-            });
-
             // Actualizar maestro cuando se hace clic individualmente
             filasChk.forEach(chkFila => {
                 chkFila.addEventListener('change', () => {
                     const todasFilas = tbody.querySelectorAll('.insp-select-fila');
                     const todasMarcadas = todasFilas.length > 0 && Array.from(todasFilas).every(c => c.checked);
                     if (chkTodos) chkTodos.checked = todasMarcadas;
-
-                    // Actualizar cada área
-                    tbody.querySelectorAll('.insp-select-area').forEach(chkArea => {
-                        const area = chkArea.getAttribute('data-area') || '';
-                        const cliente = chkArea.getAttribute('data-cliente') || '';
-                        const filasArea = tbody.querySelectorAll(`.insp-select-fila[data-area="${area}"][data-cliente="${cliente}"]`);
-                        const todasAreaMarcadas = filasArea.length > 0 && Array.from(filasArea).every(c => c.checked);
-                        chkArea.checked = todasAreaMarcadas;
-                    });
                 });
-            });
-
-            // 10) Colapsado básico por cliente, área y ubicación
-            const colapsarDesde = (tr, nivel) => {
-                const colapsado = tr.dataset.colapsado === '1';
-                tr.dataset.colapsado = colapsado ? '0' : '1';
-                let fila = tr.nextElementSibling;
-                while (fila) {
-                    if (fila.classList.contains('insp-group-cliente')) break;
-                    if (nivel === 'area' && fila.classList.contains('insp-group-area')) break;
-                    if (nivel === 'ubic' && (fila.classList.contains('insp-group-area') || fila.classList.contains('insp-group-ubic'))) break;
-                    fila.style.display = colapsado ? '' : 'none';
-                    fila = fila.nextElementSibling;
-                }
-            };
-
-            tbody.querySelectorAll('.insp-group-cliente').forEach(tr => {
-                tr.addEventListener('click', () => colapsarDesde(tr, 'cliente'));
-            });
-            tbody.querySelectorAll('.insp-group-area').forEach(tr => {
-                tr.addEventListener('click', () => colapsarDesde(tr, 'area'));
-            });
-            tbody.querySelectorAll('.insp-group-ubic').forEach(tr => {
-                tr.addEventListener('click', () => colapsarDesde(tr, 'ubic'));
             });
 
             datosCargados = true;
@@ -4869,6 +4787,13 @@
             });
         }
 
+        if (selFiltroCliente) {
+            selFiltroCliente.addEventListener('change', () => {
+                if (!datosCargados) return;
+                cargarDatos({ useCache: true });
+            });
+        }
+
         // En móviles, al volver a esta página puede usarse bfcache y no re-ejecutar DOMContentLoaded.
         // Forzar recarga de datos al mostrar la página o volver a enfocarla.
         try {
@@ -4876,7 +4801,7 @@
                 try {
                     if (isLoadingDatos) return;
                     if (vistaActiva) return;
-                    if (datosCargados) cargarDatos();
+                    if (datosCargados) cargarDatos({ useCache: true });
                     else cargarContadoresIniciales();
                 } catch {}
             });
@@ -4888,7 +4813,7 @@
                     if (document.hidden) return;
                     if (isLoadingDatos) return;
                     if (vistaActiva) return;
-                    if (datosCargados) cargarDatos();
+                    if (datosCargados) cargarDatos({ useCache: true });
                     else cargarContadoresIniciales();
                 } catch {}
             });
