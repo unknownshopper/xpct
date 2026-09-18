@@ -782,7 +782,7 @@
                 }
             } catch {}
             // Datos ya cargados: re-render para reflejar la vista seleccionada (ej. No atendidas)
-            try { await cargarDatos(); } catch {}
+            try { await cargarDatos({ useCache: true }); } catch {}
         }
 
         function ocultarTodasLasSecciones() {
@@ -3792,13 +3792,13 @@
             const hayRealizadas = (Array.isArray(inspecciones) ? inspecciones.length : 0) > 0;
             // Respetar la vista seleccionada: no mostrar Realizadas cuando el usuario está en No atendidas / Sin inspección.
             if (secRealizadas) {
-                const permitir = (vistaActiva == null || vistaActiva === 'realizadas');
+                const permitir = (vistaActiva === 'realizadas');
                 const mostrarRealizadas = permitir && hayRealizadas;
                 secRealizadas.style.display = mostrarRealizadas ? 'block' : 'none';
             }
             try {
                 if (msgRealizadas) {
-                    const permitir = (vistaActiva == null || vistaActiva === 'realizadas');
+                    const permitir = (vistaActiva === 'realizadas');
                     const mostrar = permitir && !hayRealizadas;
                     msgRealizadas.style.display = mostrar ? 'block' : 'none';
                 }
@@ -4855,14 +4855,14 @@
         if (inputBuscar) {
             inputBuscar.addEventListener('input', () => {
                 if (!datosCargados) return;
-                cargarDatos();
+                cargarDatos({ useCache: true });
             });
         }
 
         if (inputBuscarRealizadas) {
             inputBuscarRealizadas.addEventListener('input', () => {
                 if (!datosCargados) return;
-                cargarDatos();
+                cargarDatos({ useCache: true });
             });
         }
 
