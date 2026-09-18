@@ -799,6 +799,21 @@
             } catch {}
         }
 
+        function actualizarFiltroCards() {
+            const marcas = [
+                [cardWrapPend, vistaActiva === 'pendientes' || filtroEstado === 'PENDIENTE'],
+                [cardWrapReal, vistaActiva === 'realizadas' || filtroEstado === 'REALIZADA'],
+                [cardWrapSinInsp, vistaActiva === 'sin_insp'],
+                [cardWrapNoAtendidas, vistaActiva === 'no_atendidas'],
+            ];
+            marcas.forEach(([el, activo]) => {
+                if (!el) return;
+                if (activo) el.dataset.active = '1';
+                else delete el.dataset.active;
+                el.style.cursor = 'pointer';
+            });
+        }
+
         function setVista(nextVista) {
             vistaActiva = nextVista || null;
             ocultarTodasLasSecciones();
@@ -1163,7 +1178,7 @@
         if (cardWrapSinInsp && !cardWrapSinInsp.dataset.boundClick) {
             cardWrapSinInsp.dataset.boundClick = '1';
             cardWrapSinInsp.addEventListener('click', () => {
-                activarModoEquiposSinInspeccion();
+                setVista(vistaActiva === 'sin_insp' ? null : 'sin_insp');
             });
         }
 
@@ -3666,12 +3681,13 @@
                     // Mantener siempre visible la tarjeta (UX: el usuario debe ver 4 tarjetas siempre)
                     if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = '';
 
+                    const mostrarSecNoAt = (vistaActiva === 'no_atendidas');
                     if (!noAt.length) {
-                        secNoAtendidas.style.display = '';
+                        secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
                         if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
-                        if (msgNoAtendidas) msgNoAtendidas.style.display = '';
+                        if (msgNoAtendidas) msgNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
                     } else {
-                        secNoAtendidas.style.display = '';
+                        secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
                         if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
                         tbodyNoAtendidas.innerHTML = '';
                         noAt.forEach(insp => {
@@ -3804,20 +3820,7 @@
                 }
             } catch {}
 
-            // Hacer tarjetas clicables como filtro rápido
-            function actualizarFiltroCards() {
-                if (cardWrapPend) {
-                    cardWrapPend.style.outline = (filtroEstado === 'PENDIENTE') ? '2px solid #2563eb' : '';
-                    cardWrapPend.style.outlineOffset = (filtroEstado === 'PENDIENTE') ? '2px' : '';
-                    cardWrapPend.style.cursor = 'pointer';
-                }
-                if (cardWrapReal) {
-                    cardWrapReal.style.outline = (filtroEstado === 'REALIZADA') ? '2px solid #2563eb' : '';
-                    cardWrapReal.style.outlineOffset = (filtroEstado === 'REALIZADA') ? '2px' : '';
-                    cardWrapReal.style.cursor = 'pointer';
-                }
-            }
-
+            // Marcar visualmente la tarjeta de la vista activa
             actualizarFiltroCards();
 
             try {

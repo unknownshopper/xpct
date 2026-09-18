@@ -776,6 +776,19 @@ main {
     color: #0f172a;
 }
 
+/* Tarjeta seleccionada (vista activa) */
+.dash-card[data-active="1"] {
+    border: 3px solid #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25), 0 12px 22px rgba(15, 23, 42, 0.18);
+    background: linear-gradient(180deg, #eff6ff 0%, #ffffff 55%);
+    transform: translateY(-1px);
+}
+
+.dash-card[data-active="1"] .dash-card-value {
+    color: #1d4ed8;
+    font-weight: 800;
+}
+
 /* Dashboard stats inside cards */
 .dash-stats {
     display: flex;
