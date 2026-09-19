@@ -1501,6 +1501,116 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch {}
     }
 
+    // Flujo de reparación: en RECEPCION/REINSPECCION, los parámetros que venían
+    // dañados en la inspección previa requieren foto al marcarse BUENO.
+    const prevInspIdUrl = (new URLSearchParams(window.location.search || '').get('prevInspId') || '').trim();
+    let prevDanadosState = { key: '', promise: null, map: new Map(), inspId: '', folio: '' };
+
+    function normParamNombre(s) {
+        return String(s || '')
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async function asegurarPrevDanados() {
+        const tipo = (document.getElementById('inspeccion-tipo')?.value || '').toString().trim().toUpperCase();
+        const equipo = (inputEquipo?.value || '').toString().trim();
+        const inspIdUrlModo = (new URLSearchParams(window.location.search || '').get('inspId') || '').trim();
+        const aplica = (tipo === 'RECEPCION' || tipo === 'REINSPECCION') && !isViewMode && !inspIdUrlModo;
+        const key = aplica ? `${tipo}|${equipo}|${prevInspIdUrl}` : '';
+        if (prevDanadosState.key === key && prevDanadosState.promise) return prevDanadosState.promise;
+        prevDanadosState = { key, promise: null, map: new Map(), inspId: '', folio: '' };
+        if (!key) return Promise.resolve(prevDanadosState);
+        const st = prevDanadosState;
+        st.promise = (async () => {
+            try {
+                const { getFirestore, doc, getDoc, collection, query, where, getDocs } = await import(
+                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                );
+                const db = getFirestore();
+                let insp = null;
+                if (prevInspIdUrl) {
+                    try {
+                        const snap = await getDoc(doc(db, 'inspecciones', prevInspIdUrl));
+                        if (snap.exists()) insp = { id: snap.id, ...snap.data() };
+                    } catch {}
+                }
+                if (!insp && equipo) {
+                    // Respaldo: última inspección del equipo (por si se abrió recepción sin prevInspId)
+                    try {
+                        const eqBase = equipo.toUpperCase().replace(/\s+/g, '');
+                        const variants = [equipo];
+                        const m = eqBase.match(/^(?:PCT[- ]?)?([A-Z]{2,5})[- ]?(\d{1,4})$/);
+                        if (m) {
+                            const n = String(parseInt(m[2], 10));
+                            variants.push(`PCT-${m[1]}-${n}`, `${m[1]}-${n}`, `PCT-${m[1]}-${n.padStart(3, '0')}`);
+                        }
+                        const toMsL = (v) => {
+                            try { if (v && typeof v.toDate === 'function') return v.toDate().getTime(); } catch {}
+                            try { if (v && typeof v === 'object' && typeof v.seconds === 'number') return v.seconds * 1000; } catch {}
+                            const d = new Date(v); return isNaN(d.getTime()) ? null : d.getTime();
+                        };
+                        for (const eqTry of Array.from(new Set(variants.filter(Boolean)))) {
+                            if (insp) break;
+                            const snap = await getDocs(query(collection(db, 'inspecciones'), where('equipo', '==', eqTry)));
+                            if (snap.empty) continue;
+                            let best = null, bestMs = null;
+                            snap.forEach(d => {
+                                const x = d.data() || {};
+                                const ms = toMsL(x.fecha || x.creadoEn);
+                                if (bestMs == null || (ms != null && ms > bestMs)) { bestMs = ms; best = { id: d.id, ...x }; }
+                            });
+                            if (best) insp = best;
+                        }
+                    } catch {}
+                }
+                if (insp && Array.isArray(insp.parametros)) {
+                    insp.parametros.forEach(p => {
+                        const est = String(p && p.estado ? p.estado : '').trim().toUpperCase();
+                        if (est !== 'MALO' && est !== 'NO LEGIBLE') return;
+                        const nom = normParamNombre(p && p.nombre ? p.nombre : '');
+                        if (nom) st.map.set(nom, p);
+                    });
+                    if (st.map.size) {
+                        st.inspId = insp.id || '';
+                        st.folio = String(insp.folio || '');
+                    }
+                }
+            } catch {}
+            return st;
+        })();
+        return st.promise;
+    }
+
+    async function marcarParamsDanadosPrevios() {
+        try {
+            const st = await asegurarPrevDanados();
+            const filas = detalleContenedor ? detalleContenedor.querySelectorAll('.parametros-fila') : [];
+            filas.forEach((filaHtml) => {
+                const colNom = filaHtml.querySelector('.col-nombre');
+                const nombre = colNom ? (colNom.textContent || '').trim() : '';
+                const marcado = !!(nombre && st.map.has(normParamNombre(nombre)));
+                filaHtml.classList.toggle('param-prev-malo', marcado);
+                filaHtml.dataset.prevMalo = marcado ? '1' : '';
+                if (colNom) {
+                    let badge = colNom.querySelector('.badge-prev-malo');
+                    if (marcado && !badge) {
+                        badge = document.createElement('div');
+                        badge.className = 'badge-prev-malo';
+                        badge.style.cssText = 'margin-top:3px; font-size:0.68rem; font-weight:700; color:#92400e; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; padding:2px 6px; display:inline-block;';
+                        badge.textContent = 'Daño previo — foto requerida al marcar BUENO';
+                        colNom.appendChild(badge);
+                    } else if (!marcado && badge) {
+                        badge.remove();
+                    }
+                }
+            });
+        } catch {}
+    }
+
     async function aplicarInspeccionExistenteSoloLectura() {
         try {
             if (!isViewMode) return;
@@ -5226,6 +5336,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try { actualizarSeleccionChips(); } catch {}
         });
 
+        // Marcar parámetros que venían dañados en la inspección previa (recepción/reinspección)
+        try { marcarParamsDanadosPrevios(); } catch {}
+
         // Función para abrir la cámara y capturar una foto
         async function abrirCamaraParaIndice(idx, onCapture) {
             const isIOS = (() => {
@@ -6339,6 +6452,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tipoInspeccionSelect.addEventListener('change', actualizarSeleccionTipo);
         tipoInspeccionSelect.addEventListener('change', syncClienteDirectoVisible);
+        tipoInspeccionSelect.addEventListener('change', () => { try { marcarParamsDanadosPrevios(); } catch {} });
         actualizarSeleccionTipo();
         syncClienteDirectoVisible();
         setTimeout(() => {
@@ -6817,6 +6931,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     evidenciasPorDano,
                 });
             });
+
+            // Flujo de reparación: en RECEPCION/REINSPECCION, un parámetro que venía
+            // MALO en la inspección previa y ahora se marca BUENO exige foto nueva.
+            try {
+                const prevDanSt = await asegurarPrevDanados();
+                if (prevDanSt && prevDanSt.map && prevDanSt.map.size) {
+                    const faltantes = [];
+                    parametrosCapturados.forEach((p, idxP) => {
+                        if (!p || String(p.estado || '').toUpperCase() !== 'BUENO') return;
+                        if (!prevDanSt.map.has(normParamNombre(p.nombre))) return;
+                        const tieneFotoNueva = fotosParaSubir.some(f => f && f.idx === idxP);
+                        if (!tieneFotoNueva) faltantes.push(String(p.nombre || '').trim() || `Parámetro ${idxP + 1}`);
+                    });
+                    if (faltantes.length) {
+                        const folioPrev = prevDanSt.folio ? ` (folio ${prevDanSt.folio})` : '';
+                        alert(
+                            'Estos parámetros estaban dañados en la inspección previa' + folioPrev +
+                            '.\nPara marcarlos BUENO en recepción/reinspección debes adjuntar foto de evidencia:\n\n- ' +
+                            faltantes.join('\n- ')
+                        );
+                        try {
+                            btnGuardar.innerHTML = prevBtnHtml;
+                            btnGuardar.disabled = prevBtnDisabled;
+                        } catch {}
+                        guardandoInspeccion = false;
+                        return;
+                    }
+                }
+            } catch {}
 
             try {
                 if (isEditingExisting && Array.isArray(prevParams) && prevParams.length && Array.isArray(parametrosCapturados)) {
@@ -7384,6 +7527,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 usuarioInspeccion,
                 usuarioInspeccionEmail,
                 actividadId,
+                prevInspId: (prevDanadosState.inspId || prevInspIdUrl || ''),
+                prevInspFolio: (prevDanadosState.folio || ''),
                 observaciones: observacionesResumen,
                 observacionesManual: obsTextoManual,
                 observacionesFotoNombre: obsFotoNombre,
