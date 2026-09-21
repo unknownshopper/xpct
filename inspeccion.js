@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 if (geoWarmupDone) return;
                 geoWarmupDone = true;
+                iniciarGpsWatchSesion();
                 capturarGpsTexto().catch(() => {});
             } catch {}
         }, { once: true });
@@ -283,6 +284,33 @@ document.addEventListener('DOMContentLoaded', () => {
     let guardandoInspeccion = false; // evita doble guardado
     let geoDenied = false;
     let geoDeniedAlerted = false;
+    let geoImprecisoAlerted = false;
+    // Watch de sesión: el GPS converge durante el llenado del formulario en vez
+    // de arrancar en frío al guardar (donde antes solo había ~12s de margen).
+    let gpsSessionBest = null; // { pos, acc, ts }
+    let gpsSessionWatchId = null;
+
+    function registrarFixGps(pos) {
+        try {
+            const acc = pos && pos.coords ? pos.coords.accuracy : null;
+            if (acc == null) return;
+            if (!gpsSessionBest || acc < gpsSessionBest.acc) {
+                gpsSessionBest = { pos, acc, ts: Date.now() };
+            }
+        } catch {}
+    }
+
+    function iniciarGpsWatchSesion() {
+        try {
+            if (gpsSessionWatchId != null) return;
+            if (!navigator.geolocation) return;
+            gpsSessionWatchId = navigator.geolocation.watchPosition(
+                (pos) => { geoDenied = false; registrarFixGps(pos); },
+                (err) => { try { if (err && Number(err.code) === 1) geoDenied = true; } catch {} },
+                { enableHighAccuracy: true, maximumAge: 15000 }
+            );
+        } catch {}
+    }
     let geoWarmupDone = false;
     const fotosTomadas = {}; // idx -> { blob } o { danos: { [DANO]: { blob1, blob2, del1, del2 } } }
     let fotoObs = null; // { blob }
@@ -1401,10 +1429,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 let done = false;
                 let best = null;
                 let watchId = null;
+                // Fix fresco y bueno acumulado por el watch de sesión: resolver de inmediato
+                try {
+                    if (gpsSessionBest && gpsSessionBest.acc <= 50 && (Date.now() - gpsSessionBest.ts) < 3 * 60 * 1000) {
+                        const txt = toStr(gpsSessionBest.pos);
+                        if (txt && txt.toUpperCase() !== 'SIN GPS') {
+                            try {
+                                localStorage.setItem(LS_KEY, txt);
+                                localStorage.setItem(LS_TS_KEY, String(Date.now()));
+                            } catch {}
+                            resolve(txt);
+                            return;
+                        }
+                    }
+                } catch {}
                 const finish = () => {
                     if (done) return;
                     done = true;
                     try { if (watchId != null) navigator.geolocation.clearWatch(watchId); } catch {}
+                    // Considerar también el mejor fix de la sesión (<10 min)
+                    try {
+                        if (gpsSessionBest && (Date.now() - gpsSessionBest.ts) < 10 * 60 * 1000) {
+                            const bestAcc = best && best.coords ? best.coords.accuracy : null;
+                            if (!best || gpsSessionBest.acc < (bestAcc == null ? Infinity : bestAcc)) {
+                                best = gpsSessionBest.pos;
+                            }
+                        }
+                    } catch {}
                     const txt = best ? toStr(best) : '';
                     if (txt && txt.toUpperCase() !== 'SIN GPS') {
                         // Cachear último GPS válido
@@ -1434,6 +1485,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     watchId = navigator.geolocation.watchPosition(
                         (pos) => {
                             geoDenied = false;
+                            registrarFixGps(pos);
                             const acc = pos && pos.coords ? pos.coords.accuracy : null;
                             const bestAcc = best && best.coords ? best.coords.accuracy : null;
                             if (!best || (acc != null && (bestAcc == null || acc < bestAcc))) {
@@ -7466,6 +7518,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         '2) iOS Ajustes > Chrome > Localización (o Permisos) > Permitir\n' +
                         '3) En Chrome: Permitir ubicación para este sitio\n\n' +
                         'Luego vuelve a intentar guardar.'
+                    );
+                }
+            } catch {}
+
+            // Aviso no bloqueante: fix demasiado grueso (típico de "ubicación
+            // aproximada" en Android 12+ o modo ahorro de batería).
+            try {
+                const mAcc = String(ubicacionGps || '').match(/±\s*(\d+)\s*m/i);
+                const accM = mAcc ? Number(mAcc[1]) : null;
+                if (!geoDenied && accM != null && accM > 300 && !geoImprecisoAlerted) {
+                    geoImprecisoAlerted = true;
+                    alert(
+                        `La ubicación capturada es imprecisa (±${accM} m).\n\n` +
+                        'Causa probable: el navegador tiene solo permiso de "ubicación aproximada" o el GPS está en modo ahorro.\n\n' +
+                        'Android: Ajustes > Ubicación > Permisos de apps > Chrome > activar "Usar ubicación precisa".\n' +
+                        'También ayuda salir a cielo abierto unos segundos.\n\n' +
+                        'La inspección se guardará con esta ubicación.'
                     );
                 }
             } catch {}
