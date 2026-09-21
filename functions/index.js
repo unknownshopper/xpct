@@ -2535,6 +2535,87 @@ function makeFolio({ tipo, yy, seq }) {
   return `PCT-${tipo}-${yy}-${s}`;
 }
 
+async function asignarFolioTx(db, inspeccionId, overrideFechaMs = null) {
+  const inspeccionRef = db.collection('inspecciones').doc(inspeccionId);
+  return db.runTransaction(async (t) => {
+    const inspeccionSnap = await t.get(inspeccionRef);
+    if (!inspeccionSnap.exists) {
+      throw new Error('INSPECCION_NOT_FOUND');
+    }
+    const data = inspeccionSnap.data() || {};
+    if (data.folio) {
+      return { folio: data.folio, already: true };
+    }
+
+    const tipoRaw = String(data.tipoInspeccion || '').toUpperCase().trim();
+    const tipo = tipoToFolio(tipoRaw);
+    if (!tipo) {
+      throw new Error('INVALID_TIPO:' + (data.tipoInspeccion || 'empty'));
+    }
+
+    const yy = getFolioYY(data, overrideFechaMs);
+    const counterId = `PCT-${tipo}-${yy}`;
+    const counterRef = db.collection('folioCounters').doc(counterId);
+    const counterSnap = await t.get(counterRef);
+    const nextSeq = (counterSnap.exists ? ((counterSnap.data() || {}).next || 1) : 1);
+    const folio = makeFolio({ tipo, yy, seq: nextSeq });
+
+    const folioLockRef = db.collection('folios').doc(folio);
+    const folioLockSnap = await t.get(folioLockRef);
+    if (folioLockSnap.exists) {
+      throw new Error('FOLIO_COLLISION:' + folio);
+    }
+
+    t.set(counterRef, { next: nextSeq + 1, tipo, yy, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    t.set(folioLockRef, {
+      inspeccionId,
+      folio,
+      tipo,
+      yy,
+      seq: nextSeq,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    t.update(inspeccionRef, {
+      folio,
+      folioKey: folio.toUpperCase(),
+      folioTipo: tipo,
+      folioYY: yy,
+      folioSeq: nextSeq,
+      folioAsignadoEn: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { folio, already: false, tipo, yy, seq: nextSeq };
+  });
+}
+
+// Red de seguridad server-side: si una inspección queda sin folio (la llamada
+// del cliente a asignarFolio falló por red/cierre de página), este trigger la
+// folia de todas formas. Idempotente: sale temprano cuando after.folio existe.
+export const onInspeccionWriteAsignarFolio = onDocumentWritten(
+  {
+    document: 'inspecciones/{inspId}',
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (event) => {
+    try {
+      const afterSnap = event.data && event.data.after ? event.data.after : null;
+      if (!afterSnap || !afterSnap.exists) return;
+      const after = afterSnap.data() || {};
+      if (after.folio) return;
+      const tipo = tipoToFolio(after.tipoInspeccion || '');
+      if (!tipo) return;
+      ensureAdmin();
+      const res = await asignarFolioTx(admin.firestore(), afterSnap.id);
+      if (res && res.folio && !res.already) {
+        console.log('onInspeccionWriteAsignarFolio: folio asignado', { inspId: afterSnap.id, folio: res.folio });
+      }
+    } catch (e) {
+      console.error('onInspeccionWriteAsignarFolio error:', e && e.message ? e.message : e);
+    }
+  }
+);
+
 export const asignarFolio = onRequest(
   {
     timeoutSeconds: 60,
@@ -2576,57 +2657,7 @@ export const asignarFolio = onRequest(
 
       const db = admin.firestore();
 
-      const inspeccionRef = db.collection('inspecciones').doc(inspeccionId);
-
-      const result = await db.runTransaction(async (t) => {
-        const inspeccionSnap = await t.get(inspeccionRef);
-        if (!inspeccionSnap.exists) {
-          throw new Error('INSPECCION_NOT_FOUND');
-        }
-        const data = inspeccionSnap.data() || {};
-        if (data.folio) {
-          return { folio: data.folio, already: true };
-        }
-
-        const tipoRaw = String(data.tipoInspeccion || '').toUpperCase().trim();
-        const tipo = tipoToFolio(tipoRaw);
-        if (!tipo) {
-          throw new Error('INVALID_TIPO:' + (data.tipoInspeccion || 'empty'));
-        }
-
-        const yy = getFolioYY(data, overrideFechaMs);
-        const counterId = `PCT-${tipo}-${yy}`;
-        const counterRef = db.collection('folioCounters').doc(counterId);
-        const counterSnap = await t.get(counterRef);
-        const nextSeq = (counterSnap.exists ? ((counterSnap.data() || {}).next || 1) : 1);
-        const folio = makeFolio({ tipo, yy, seq: nextSeq });
-
-        const folioLockRef = db.collection('folios').doc(folio);
-        const folioLockSnap = await t.get(folioLockRef);
-        if (folioLockSnap.exists) {
-          throw new Error('FOLIO_COLLISION:' + folio);
-        }
-
-        t.set(counterRef, { next: nextSeq + 1, tipo, yy, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        t.set(folioLockRef, {
-          inspeccionId,
-          folio,
-          tipo,
-          yy,
-          seq: nextSeq,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        t.update(inspeccionRef, {
-          folio,
-          folioKey: folio.toUpperCase(),
-          folioTipo: tipo,
-          folioYY: yy,
-          folioSeq: nextSeq,
-          folioAsignadoEn: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        return { folio, already: false, tipo, yy, seq: nextSeq };
-      });
+      const result = await asignarFolioTx(db, inspeccionId, overrideFechaMs);
 
       res.status(200).json({ ok: true, ...result });
     } catch (err) {
