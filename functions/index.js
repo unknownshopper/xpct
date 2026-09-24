@@ -11,6 +11,12 @@ import path from 'path';
 
 setGlobalOptions({ region: 'us-central1' });
 
+// Init eager del app default: el SDK de functions v5 puede crear un app
+// nombrada interna en triggers eventarc, lo que deja admin.apps.length > 0
+// SIN app default (ensureAdmin viejo se saltaba el init y todo tronaba con
+// "The default Firebase app does not exist" en los triggers).
+try { admin.initializeApp(); } catch {}
+
 export const importEquipos = onRequest(
   {
     secrets: ['EQUIPOS_IMPORT_KEY'],
@@ -1384,8 +1390,11 @@ function fmtYYYYMMDD(d) {
 }
 
 function ensureAdmin() {
-  if (admin.apps && admin.apps.length) return;
-  admin.initializeApp();
+  try {
+    admin.app(); // lanza si no existe el app [DEFAULT] (apps nombradas no cuentan)
+    return;
+  } catch {}
+  try { admin.initializeApp(); } catch {}
 }
 
 async function queryUltimasAnuales() {
