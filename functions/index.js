@@ -337,7 +337,9 @@ export const onPruebaWriteUpdateResumenEquipo = onDocumentWritten(
         // Mantener serial top-level actualizado si viene en el candidate
         serial: String((resolved.serialCanon || data.serial || '')).trim(),
       };
-      patch[`pruebas.${tipoTarget}`] = candidateToResumenPayload(winner, winnerVig);
+      // set(merge) no expande llaves con punto: usar objeto anidado para no
+      // crear un campo literal "pruebas.LT" junto al mapa `pruebas`.
+      patch.pruebas = { [tipoTarget]: candidateToResumenPayload(winner, winnerVig) };
       tx.set(ref, patch, { merge: true });
     });
   }

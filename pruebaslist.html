@@ -3051,6 +3051,7 @@
                         if (!window._plInvState.productoPorSerialInv) window._plInvState.productoPorSerialInv = {};
                         if (!window._plInvState.descripcionPorSerialInv) window._plInvState.descripcionPorSerialInv = {};
                         if (!window._plInvState.serialPorEquipoInv) window._plInvState.serialPorEquipoInv = {};
+                        if (!window._plInvState.equipoDisplayPorEquipoInv) window._plInvState.equipoDisplayPorEquipoInv = {};
                         if (!window._plInvState.edoPorEquipoInv) window._plInvState.edoPorEquipoInv = window._plInvState.edoPorEquipoInv || {};
                         if (!window._plInvState.equiposInventario) window._plInvState.equiposInventario = window._plInvState.equiposInventario || new Set();
                     } catch {}
@@ -3135,13 +3136,19 @@
                 const mapaProdSerial = {};
                 const mapaSerialPorEquipo = {};
                 const mapaEdo = {};
+                const mapaEquipoDisplay = {};
 
                 try {
                     rows.forEach(cols => {
-                        const eq = normEquipoKey((cols[idxEquipo] || '').toString());
+                        const eqRaw = (cols[idxEquipo] || '').toString().trim();
+                        const eq = normEquipoKey(eqRaw);
                         const serial = normSerialKey(((idxSerial >= 0 ? cols[idxSerial] : '') || ''));
                         if (!eq) return;
                         setEq.add(eq);
+                        // Nombre real del inventario para mostrar (la key va rellenada a 3 dígitos)
+                        if (eqRaw && (!mapaEquipoDisplay[eq] || (normEquipoKey(mapaEquipoDisplay[eq]) === mapaEquipoDisplay[eq] && normEquipoKey(eqRaw) !== eqRaw))) {
+                            mapaEquipoDisplay[eq] = eqRaw;
+                        }
                         if (serial && !mapaSerialPorEquipo[eq]) mapaSerialPorEquipo[eq] = serial;
                         if (idxEdo >= 0) {
                             let edo = (cols[idxEdo] || '').toString().trim().toUpperCase();
@@ -3203,10 +3210,14 @@
                         const idxArea2 = (idxAcero2 >= 0) ? (idxAcero2 + 3) : -1;
                         if (idxEquipo2 >= 0 && rows2.length) {
                             rows2.forEach(cols2 => {
-                                const eq2 = normEquipoKey((cols2[idxEquipo2] || '').toString());
+                                const eqRaw2 = (cols2[idxEquipo2] || '').toString().trim();
+                                const eq2 = normEquipoKey(eqRaw2);
                                 const serial2 = normSerialKey(((idxSerial2 >= 0 ? cols2[idxSerial2] : '') || ''));
                                 if (!eq2) return;
                                 setEq.add(eq2);
+                                if (eqRaw2 && (!mapaEquipoDisplay[eq2] || (normEquipoKey(mapaEquipoDisplay[eq2]) === mapaEquipoDisplay[eq2] && normEquipoKey(eqRaw2) !== eqRaw2))) {
+                                    mapaEquipoDisplay[eq2] = eqRaw2;
+                                }
                                 if (serial2 && !mapaSerialPorEquipo[eq2]) mapaSerialPorEquipo[eq2] = serial2;
                                 if (idxDesc2 >= 0) {
                                     const desc2 = (cols2[idxDesc2] || '').toString().trim();
@@ -3263,6 +3274,7 @@
                     window._plInvState.productoPorSerialInv = mapaProdSerial;
                     window._plInvState.serialPorEquipoInv = mapaSerialPorEquipo;
                     window._plInvState.edoPorEquipoInv = mapaEdo;
+                    window._plInvState.equipoDisplayPorEquipoInv = mapaEquipoDisplay;
                     window._plInvState.aliasEquipoMalAEquipoCorrecto = aliasEquipoMalAEquipoCorrecto;
                     window._plInvState.areaPorEquipoPruebaInv = areaPorEquipoPruebaInv;
                     window._plInvState.areaPorSerialPruebaInv = areaPorSerialPruebaInv;
@@ -5562,6 +5574,7 @@
             const productoPorSerialInv = (_inv.productoPorSerialInv && typeof _inv.productoPorSerialInv === 'object') ? _inv.productoPorSerialInv : {};
             const serialPorEquipoInv = (_inv.serialPorEquipoInv && typeof _inv.serialPorEquipoInv === 'object') ? _inv.serialPorEquipoInv : {};
             const edoPorEquipoInv = (_inv.edoPorEquipoInv && typeof _inv.edoPorEquipoInv === 'object') ? _inv.edoPorEquipoInv : {};
+            const equipoDisplayPorEquipoInv = (_inv.equipoDisplayPorEquipoInv && typeof _inv.equipoDisplayPorEquipoInv === 'object') ? _inv.equipoDisplayPorEquipoInv : {};
             const aliasEquipoMalAEquipoCorrecto = (_inv.aliasEquipoMalAEquipoCorrecto && typeof _inv.aliasEquipoMalAEquipoCorrecto === 'object') ? _inv.aliasEquipoMalAEquipoCorrecto : {};
             const areaPorEquipoPruebaInv = (_inv.areaPorEquipoPruebaInv && typeof _inv.areaPorEquipoPruebaInv === 'object') ? _inv.areaPorEquipoPruebaInv : {};
             const areaPorSerialPruebaInv = (_inv.areaPorSerialPruebaInv && typeof _inv.areaPorSerialPruebaInv === 'object') ? _inv.areaPorSerialPruebaInv : {};
@@ -6397,9 +6410,12 @@
 
                     const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : ((productoPorSerialInv && srK && productoPorSerialInv[srK]) ? String(productoPorSerialInv[srK]) : '');
                     const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : ((descripcionPorSerialInv && srK && descripcionPorSerialInv[srK]) ? String(descripcionPorSerialInv[srK]) : '');
+                    // Nombre real del equipo tal como está en inventario (la key puede venir rellenada a 3 dígitos)
+                    const eqDisp = (equipoDisplayPorEquipoInv && equipoDisplayPorEquipoInv[eqK]) ? String(equipoDisplayPorEquipoInv[eqK]) : eqK;
 
                     return {
                         eqK,
+                        eqDisp,
                         srK,
                         prod,
                         desc,
@@ -6424,7 +6440,8 @@
                 let cntResultadosResumen = 0;
                 rows.forEach(r => {
                     if (filtroResumen) {
-                        const t = `${r.eqK} ${r.srK} ${r.prod} ${r.desc}`.toLowerCase();
+                        // Haystack incluye key rellenada + nombre real: "PCT-CA-13" y "PCT-CA-013" deben encontrar lo mismo
+                        const t = `${r.eqK} ${r.eqDisp} ${r.srK} ${r.prod} ${r.desc}`.toLowerCase();
                         if (!t.includes(filtroResumen)) return;
                     }
 
@@ -6441,7 +6458,7 @@
 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${r.eqK}</td>
+                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${r.eqDisp || r.eqK}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${r.srK || ''}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${r.prod || ''}</td>
                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${r.desc || ''}</td>
@@ -6604,7 +6621,10 @@
                         const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : '';
                         const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : '';
                         const serial = (serialPorEquipoInv && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
-                        const textoBuscarEq = `${eqK} ${serial} ${prod} ${desc}`.toLowerCase();
+                        const eqDisp = (equipoDisplayPorEquipoInv && equipoDisplayPorEquipoInv[eqK])
+                            ? String(equipoDisplayPorEquipoInv[eqK])
+                            : eqK;
+                        const textoBuscarEq = `${eqK} ${eqDisp} ${serial} ${prod} ${desc}`.toLowerCase();
                         if (filtro) {
                             if (!textoBuscarEq.includes(filtro)) return;
                             cntCoincidencias += 1;
@@ -6618,7 +6638,7 @@
                         const idx = filasVisibles.length;
                         filasVisibles.push({
                             id: '',
-                            equipo: eqK,
+                            equipo: eqDisp,
                             producto: prod,
                             descripcion: desc,
                             periodo: '',
@@ -6658,7 +6678,7 @@
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>
-                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqDisp}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial ? normSerialKey(serial) : '-'}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
@@ -6741,7 +6761,10 @@
                         const desc = (descripcionPorEquipoInv && descripcionPorEquipoInv[eqK]) ? String(descripcionPorEquipoInv[eqK]) : '';
                         const prod = (productoPorEquipoInv && productoPorEquipoInv[eqK]) ? String(productoPorEquipoInv[eqK]) : '';
                         const serial = (serialPorEquipoInv && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
-                        const textoBuscarEq = `${eqK} ${serial} ${prod} ${desc}`.toLowerCase();
+                        const eqDisp = (equipoDisplayPorEquipoInv && equipoDisplayPorEquipoInv[eqK])
+                            ? String(equipoDisplayPorEquipoInv[eqK])
+                            : eqK;
+                        const textoBuscarEq = `${eqK} ${eqDisp} ${serial} ${prod} ${desc}`.toLowerCase();
                         if (filtro) {
                             if (!textoBuscarEq.includes(filtro)) return;
                             cntCoincidencias += 1;
@@ -6763,7 +6786,7 @@
                         const idx = filasVisibles.length;
                         filasVisibles.push({
                             id: '',
-                            equipo: eqK,
+                            equipo: eqDisp,
                             producto: prod,
                             descripcion: desc,
                             periodo: 'ANUAL',
@@ -6790,7 +6813,7 @@
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">ANUAL</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEstado}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;"></td>
-                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqK}</td>
+                            <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${eqDisp}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${serial ? normSerialKey(serial) : '-'}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${prod}</td>
                             <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${desc}</td>
@@ -6859,7 +6882,8 @@
                 const prod = (reg && reg.producto) ? String(reg.producto) : prodDerivado;
                 const desc = (reg && reg.descripcion) ? String(reg.descripcion) : descDerivado;
 
-                const textoBuscar = `${eqK || ''} ${serialCelda || ''} ${prod || ''} ${desc || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
+                const eqRaw = String(reg.equipo || '').trim();
+                const textoBuscar = `${eqK || ''} ${eqRaw} ${serialCelda || ''} ${prod || ''} ${desc || ''} ${reg.tecnico || ''} ${reg.noReporte || ''}`.toLowerCase();
                 if (filtro) {
                     if (!textoBuscar.includes(filtro)) return;
                     cntCoincidencias += 1;

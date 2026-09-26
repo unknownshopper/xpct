@@ -1,0 +1,11 @@
+import admin from 'firebase-admin';
+import fs from 'fs'; import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const sa = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../serviceAccount.json'), 'utf8'));
+admin.initializeApp({ credential: admin.credential.cert(sa) });
+const db = admin.firestore();
+const d = await db.collection('resumenes_equipos').doc('PCT-CA-13').get();
+const x = d.data() || {};
+console.log(JSON.stringify(x, null, 1).slice(0, 2000));
+process.exit(0);

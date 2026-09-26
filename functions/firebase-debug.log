@@ -1,0 +1,73 @@
+[debug] [2026-09-26T16:27:02.782Z] ----------------------------------------------------------------------
+[debug] [2026-09-26T16:27:02.784Z] Command:       /Users/albertogarcia/.nvm/versions/node/v24.12.0/bin/node /Users/albertogarcia/.nvm/versions/node/v24.12.0/bin/firebase deploy --only functions:onPruebaWriteUpdateResumenEquipo
+[debug] [2026-09-26T16:27:02.785Z] CLI Version:   15.22.3
+[debug] [2026-09-26T16:27:02.785Z] Platform:      darwin
+[debug] [2026-09-26T16:27:02.785Z] Node Version:  v24.12.0
+[debug] [2026-09-26T16:27:02.785Z] Detected Agent: unknown
+[debug] [2026-09-26T16:27:02.785Z] Time:          Sat Sep 26 2026 10:27:02 GMT-0600 (Central Standard Time)
+[debug] [2026-09-26T16:27:02.785Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-26T16:27:03.881Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-09-26T16:27:03.881Z] > authorizing via signed-in user (tipograficoweb@gmail.com)
+[debug] [2026-09-26T16:27:03.881Z] [iam] checking project xpct-tab for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-09-26T16:27:03.882Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:03.883Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:03.883Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab:testIamPermissions [none]
+[debug] [2026-09-26T16:27:03.883Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab:testIamPermissions  x-goog-user-project=xpct-tab
+[debug] [2026-09-26T16:27:03.884Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-09-26T16:27:04.338Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab:testIamPermissions 200
+[debug] [2026-09-26T16:27:04.338Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-09-26T16:27:04.338Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:04.338Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:04.338Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/xpct-tab/serviceAccounts/xpct-tab@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-09-26T16:27:04.338Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/xpct-tab/serviceAccounts/xpct-tab@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-09-26T16:27:04.827Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/xpct-tab/serviceAccounts/xpct-tab@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-09-26T16:27:04.828Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/xpct-tab/serviceAccounts/xpct-tab@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'xpct-tab'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-09-26T16:27:04.830Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:04.830Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:04.830Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab [none]
+[debug] [2026-09-26T16:27:04.980Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab 200
+[debug] [2026-09-26T16:27:04.980Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/xpct-tab {"projectNumber":"614589989974","projectId":"xpct-tab","lifecycleState":"ACTIVE","name":"xpct-tab","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-12-13T19:18:37.867284Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-09-26T16:27:04.982Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:04.983Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:04.983Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/xpct-tab/adminSdkConfig [none]
+[debug] [2026-09-26T16:27:05.865Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/xpct-tab/adminSdkConfig 200
+[debug] [2026-09-26T16:27:05.866Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/xpct-tab/adminSdkConfig {"projectId":"xpct-tab","storageBucket":"xpct-tab.firebasestorage.app"}
+[debug] [2026-09-26T16:27:05.866Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:05.866Z] Checked if tokens are valid: true, expires at: 1790442074535
+[debug] [2026-09-26T16:27:05.866Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/xpct-tab/configs [none]
+[debug] [2026-09-26T16:27:06.199Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/xpct-tab/configs 200
+[debug] [2026-09-26T16:27:06.199Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/xpct-tab/configs {}
+[debug] [2026-09-26T16:27:06.200Z] Validating nodejs source
+[warn] ⚠  functions: Runtime Node.js 20 was deprecated on 2026-04-30 and will be decommissioned on 2026-10-30, after which you will not be able to deploy without upgrading. Consider upgrading now to avoid disruption. See https://cloud.google.com/functions/docs/runtime-support for full details on the lifecycle policy 
+[warn] ⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] ⚠  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-09-26T16:27:06.898Z] > [functions] package.json contents: {
+  "name": "functions",
+  "type": "module",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.1.0",
+    "firebase-functions": "^5.0.1",
+    "luxon": "^3.5.0",
+    "nodemailer": "^6.10.0"
+  }
+}
+[debug] [2026-09-26T16:27:06.898Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2026-09-26T16:27:06.899Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-09-26T16:27:06.908Z] Found firebase-functions binary at '/Users/albertogarcia/Sista/xpct/functions/node_modules/.bin/firebase-functions'
+[info] Serving at port 8359
+
+[debug] [2026-09-26T16:27:07.277Z] Got response from /__/functions.yaml {"endpoints":{"asignarFolio":{"availableMemoryMb":512,"timeoutSeconds":60,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"httpsTrigger":{},"entryPoint":"asignarFolio"},"backfillFolios":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESUMEN_BUILD_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"backfillFolios"},"importEquipos":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"EQUIPOS_IMPORT_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"importEquipos"},"importFormatosInspeccion":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"FORMATOS_IMPORT_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"importFormatosInspeccion"},"importPanual1":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"PANUAL_IMPORT_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"importPanual1"},"normalizePruebasEquipos":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"NORMALIZE_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"normalizePruebasEquipos"},"onInspeccionWriteAsignarFolio":{"availableMemoryMb":256,"timeoutSeconds":60,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"eventTrigger":{"eventType":"google.cloud.firestore.document.v1.written","eventFilters":{"database":"(default)","namespace":"(default)"},"eventFilterPathPatterns":{"document":"inspecciones/{inspId}"},"retry":false},"entryPoint":"onInspeccionWriteAsignarFolio"},"onInspeccionWriteUpdateResumenEquipo":{"availableMemoryMb":256,"timeoutSeconds":60,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"eventTrigger":{"eventType":"google.cloud.firestore.document.v1.written","eventFilters":{"database":"(default)","namespace":"(default)"},"eventFilterPathPatterns":{"document":"inspecciones/{inspId}"},"retry":false},"entryPoint":"onInspeccionWriteUpdateResumenEquipo"},"onPruebaWriteUpdateResumenEquipo":{"availableMemoryMb":256,"timeoutSeconds":60,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"eventTrigger":{"eventType":"google.cloud.firestore.document.v1.written","eventFilters":{"database":"(default)","namespace":"(default)"},"eventFilterPathPatterns":{"document":"pruebas/{pruebaId}"},"retry":false},"entryPoint":"onPruebaWriteUpdateResumenEquipo"},"rebuildResumenGlobal":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESUMEN_BUILD_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"rebuildResumenGlobal"},"rebuildResumenGlobalDaily":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"scheduleTrigger":{"schedule":"every day 05:15","retryConfig":{},"timeZone":"America/Mexico_City"},"entryPoint":"rebuildResumenGlobalDaily"},"rebuildResumenesEquipos":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"RESUMEN_BUILD_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"rebuildResumenesEquipos"},"rebuildResumenesEquiposDaily":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"scheduleTrigger":{"schedule":"every day 05:35","retryConfig":{},"timeZone":"America/Mexico_City"},"entryPoint":"rebuildResumenesEquiposDaily"},"scanMissingInspectionEvidence":{"availableMemoryMb":1024,"timeoutSeconds":540,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"EVID_SCAN_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"scanMissingInspectionEvidence"},"sendAlertsDaily":{"availableMemoryMb":512,"timeoutSeconds":120,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"SMTP_PASS"},{"key":"SMTP_USER"}],"labels":{},"scheduleTrigger":{"schedule":"0 7 * * *","retryConfig":{"retryCount":2},"timeZone":"America/Mexico_City"},"entryPoint":"sendAlertsDaily"},"sendAlertsManual":{"availableMemoryMb":512,"timeoutSeconds":120,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"secretEnvironmentVariables":[{"key":"SMTP_PASS"},{"key":"SMTP_USER"},{"key":"ALERTS_RUN_KEY"}],"labels":{},"httpsTrigger":{},"entryPoint":"sendAlertsManual"},"sendNoAtendidasEmail":{"availableMemoryMb":512,"timeoutSeconds":120,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"httpsTrigger":{},"entryPoint":"sendNoAtendidasEmail"}},"specVersion":"v1alpha1","requiredAPIs":[{"api":"cloudscheduler.googleapis.com","reason":"Needed for scheduled functions."}],"extensions":{}}
