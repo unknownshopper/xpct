@@ -8719,6 +8719,20 @@ function plGetSerialFromEquipoKey(eqK) {
 
 try { window.plGetSerialFromEquipoKey = plGetSerialFromEquipoKey; } catch {}
 
+// Nombre real del equipo para mostrar (la clave canónica puede venir rellenada a 3 dígitos).
+function plEquipoDisplayName(eqKey) {
+  try {
+    const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : null;
+    const map = inv && inv.equipoDisplayPorEquipoInv && typeof inv.equipoDisplayPorEquipoInv === 'object' ? inv.equipoDisplayPorEquipoInv : null;
+    const raw = String(eqKey || '').trim();
+    if (!map || !raw) return raw;
+    const k2 = (typeof normEquipoKey === 'function') ? normEquipoKey(raw) : raw.toUpperCase();
+    return String(map[raw] || map[k2] || raw);
+  } catch { return String(eqKey || '').trim(); }
+}
+
+try { window.plEquipoDisplayName = plEquipoDisplayName; } catch {}
+
 async function plLoadResumenGlobalCache() {
   try {
     const cached = window._pctResumenGlobal;
@@ -9106,7 +9120,7 @@ async function plOpenRechazadosModal() {
           } catch {}
         } catch {}
         sn = sn || eqToSerial(eq) || '-';
-        rows.push({ equipo: eq, serial: sn });
+        rows.push({ equipo: plEquipoDisplayName(eq), serial: sn });
       });
     } else {
       const seen = new Set();
@@ -9131,7 +9145,7 @@ async function plOpenRechazadosModal() {
           } catch {}
         } catch {}
         sn = sn || eqToSerial(eq) || '-';
-        rows.push({ equipo: eq, serial: sn });
+        rows.push({ equipo: plEquipoDisplayName(eq), serial: sn });
       });
     }
 
@@ -9189,7 +9203,7 @@ try {
               }
             }
           } catch {}
-          rows.push({ equipo: eq, serial: (String(sn || '').trim() || '-') });
+          rows.push({ equipo: plEquipoDisplayName(eq), serial: (String(sn || '').trim() || '-') });
         });
 
         rows.sort((a, b) => String(a.equipo || '').localeCompare(String(b.equipo || '')));
@@ -9225,7 +9239,7 @@ async function plOpenRangoModal(rangoKey) {
       const pr = it && it.pruebas && it.pruebas[t] ? it.pruebas[t] : null;
       const b = pr && pr.bucket ? String(pr.bucket) : '';
       if (b !== fbBucket) return;
-      rows.push({ equipo, serial, detalle: t });
+      rows.push({ equipo: plEquipoDisplayName(equipo), serial, detalle: t });
     });
   });
   rows.sort((a, b) => {
@@ -9582,6 +9596,13 @@ async function plOpenCoberturaModal(cat) {
       displayEquipo = displayEqKey;
       try { it = byEq.get(displayEquipo) || null; } catch {}
     }
+    // La clave canónica puede estar rellenada (PCT-BC-002): recuperar el nombre real del inventario solo para mostrar.
+    let equipoDisp = displayEquipo;
+    try {
+      const dispMap = (window._plInvState && window._plInvState.equipoDisplayPorEquipoInv) || {};
+      const real = dispMap[displayEquipo] || dispMap[displayEqKey] || '';
+      if (real) equipoDisp = real;
+    } catch {}
 
     const bestSerialForEq = (() => {
       try {
@@ -9661,7 +9682,7 @@ async function plOpenCoberturaModal(cat) {
       : (cat === 'parcial'
         ? `Faltan: ${miss.join(' / ')}`
         : `${isWip ? 'WIP' : (edoNorm || 'ON')} sin pruebas`);
-    rows.push({ equipo: displayEquipo, serial, detalle });
+    rows.push({ equipo: equipoDisp, serial, detalle });
   });
   rows.sort((a, b) => String(a.equipo).localeCompare(String(b.equipo)));
   const baseTitle = (cat === '100')
@@ -9809,7 +9830,7 @@ function plInitDetalleTablaAnual() {
             }
             if (!b || b !== fbBucket) return;
             const serial = (it && it.serial) ? String(it.serial) : plGetSerialFromEquipoKey(equipo);
-            rows.push({ equipo, serial, detalle: tipoKey });
+            rows.push({ equipo: plEquipoDisplayName(equipo), serial, detalle: tipoKey });
           });
           rows.sort((a, b) => String(a.equipo).localeCompare(String(b.equipo)));
           const title = `${tipoKey} - ${suffix === 'gt60' ? '>60' : (suffix === '0' ? '0 (vencidas)' : suffix)} días (${rows.length})`;
