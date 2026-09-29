@@ -2,7 +2,7 @@
   "name": "functions",
   "type": "module",
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "main": "index.js",
   "dependencies": {
