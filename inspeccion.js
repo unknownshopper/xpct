@@ -7482,22 +7482,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch {}
 
-            // POST-TRABAJO requiere cliente en adelante (inspección directa o actividad sin cliente).
-            if (tipoInspeccion === 'POST-TRABAJO' && !cliente) {
-                alert('La inspección Post-trabajo requiere indicar el CLIENTE del servicio.');
-                try {
-                    const wrap = document.getElementById('cliente-directo-wrap');
-                    if (wrap) wrap.style.display = '';
-                    const inp = document.getElementById('cliente-directo-input');
-                    if (inp) inp.focus();
-                } catch {}
-                try {
-                    btnGuardar.innerHTML = prevBtnHtml;
-                    btnGuardar.disabled = prevBtnDisabled;
-                } catch {}
-                guardandoInspeccion = false;
-                return;
-            }
+            // POST-TRABAJO: cliente opcional — se toma de la actividad o del campo manual si se capturó.
 
             // Capturar GPS para persistir locación (tablets suelen no tener ubicacion en actividad)
             try {
