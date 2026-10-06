@@ -7055,8 +7055,8 @@
                 let badgeEstado;
 
                 const isRechazada = (resultadoStr === 'RECHAZADA');
-                const edoRech = (eqK && edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).trim().toUpperCase() : '';
-                if (isRechazada && eqK && edoRech !== 'OFF' && edoRech !== 'INACTIVO') {
+                const isOffRech = !!(eqK && window.plEsEquipoOff && window.plEsEquipoOff(eqK));
+                if (isRechazada && eqK && !isOffRech) {
                     try { rechazadosEq.add(eqK); } catch {}
                     try {
                         if (!rechazadosByEq.has(eqK)) {
@@ -7240,9 +7240,8 @@
                 const serverRowsRaw = Array.isArray(window._plRechazadosRowsServer) ? window._plRechazadosRowsServer : [];
                 const serverRows = serverRowsRaw.filter(r => {
                     try {
-                        const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r && r.equipo || '')) : String(r && r.equipo || '').trim().toUpperCase();
-                        const edo = (k && edoPorEquipoInv && edoPorEquipoInv[k]) ? String(edoPorEquipoInv[k]).trim().toUpperCase() : '';
-                        return (edo !== 'OFF' && edo !== 'INACTIVO');
+                        if (window.plEsEquipoOff && window.plEsEquipoOff(r && r.equipo)) return false;
+                        return true;
                     } catch { return true; }
                 });
                 const serverCnt = serverRows.length;
@@ -8755,6 +8754,27 @@ function plEquipoDisplayName(eqKey) {
 
 try { window.plEquipoDisplayName = plEquipoDisplayName; } catch {}
 
+// OFF/INACTIVO combinando ambas fuentes: equipos.edo (offSet) + inventarioEstados (edoPorEquipoInv).
+function plEsEquipoOff(eqKey) {
+  try {
+    const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(eqKey || '')) : String(eqKey || '').trim().toUpperCase();
+    if (!k) return false;
+    try {
+      const c = window._plOffEquiposSet;
+      if (c && c.items instanceof Set && c.items.has(k)) return true;
+    } catch {}
+    try {
+      const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : {};
+      const m = (inv.edoPorEquipoInv && typeof inv.edoPorEquipoInv === 'object') ? inv.edoPorEquipoInv : {};
+      const e = m[k] ? String(m[k]).trim().toUpperCase() : '';
+      if (e === 'OFF' || e === 'INACTIVO') return true;
+    } catch {}
+    return false;
+  } catch { return false; }
+}
+
+try { window.plEsEquipoOff = plEsEquipoOff; } catch {}
+
 async function plLoadResumenGlobalCache() {
   try {
     const cached = window._pctResumenGlobal;
@@ -9112,13 +9132,9 @@ async function plOpenRechazadosModal() {
       : (Array.isArray(window.pruebas) ? window.pruebas : []);
     const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : {};
     const serialPorEquipoInv = (inv.serialPorEquipoInv && typeof inv.serialPorEquipoInv === 'object') ? inv.serialPorEquipoInv : {};
-    const edoPorEquipoInvRech = (inv.edoPorEquipoInv && typeof inv.edoPorEquipoInv === 'object') ? inv.edoPorEquipoInv : {};
     const isOffEq = (eqKey) => {
-      try {
-        const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(eqKey || '')) : String(eqKey || '').trim().toUpperCase();
-        const e = (k && edoPorEquipoInvRech[k]) ? String(edoPorEquipoInvRech[k]).trim().toUpperCase() : '';
-        return (e === 'OFF' || e === 'INACTIVO');
-      } catch { return false; }
+      try { return !!(window.plEsEquipoOff && window.plEsEquipoOff(eqKey)); }
+      catch { return false; }
     };
 
     const eqToSerial = (eqK) => {
