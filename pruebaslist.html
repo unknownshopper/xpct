@@ -5299,6 +5299,7 @@
                 if (parts.length) filtroTiposPrueba = new Set(parts);
             }
         } catch {}
+        try { window.filtroTiposPrueba = filtroTiposPrueba; } catch {}
 
         function persistFiltroTiposPrueba() {
             try { localStorage.setItem('pct_pruebaslist_tipo_filter', Array.from(filtroTiposPrueba).join(',')); } catch {}
@@ -5434,6 +5435,7 @@
                 if (chkPruebaVPM && chkPruebaVPM.checked) next.add('VPM');
                 if (chkPruebaUTT && chkPruebaUTT.checked) next.add('UTT');
                 filtroTiposPrueba = next;
+                try { window.filtroTiposPrueba = filtroTiposPrueba; } catch {}
                 persistFiltroTiposPrueba();
                 applyPruebaFilterHeaderBadge();
                 try { render(); } catch {}
@@ -5448,6 +5450,7 @@
             btnPruebaAll.addEventListener('click', (e) => {
                 try { e.preventDefault(); e.stopPropagation(); } catch {}
                 filtroTiposPrueba = new Set(['LT', 'VPM', 'UTT']);
+                try { window.filtroTiposPrueba = filtroTiposPrueba; } catch {}
                 syncFiltroTiposPruebaUI();
                 persistFiltroTiposPrueba();
                 applyPruebaFilterHeaderBadge();
@@ -5458,6 +5461,7 @@
             btnPruebaNone.addEventListener('click', (e) => {
                 try { e.preventDefault(); e.stopPropagation(); } catch {}
                 filtroTiposPrueba = new Set();
+                try { window.filtroTiposPrueba = filtroTiposPrueba; } catch {}
                 syncFiltroTiposPruebaUI();
                 persistFiltroTiposPrueba();
                 applyPruebaFilterHeaderBadge();
@@ -7616,6 +7620,13 @@
                                     window.filtroTiposPrueba.add('VPM');
                                     window.filtroTiposPrueba.add('UTT');
                                 }
+                                const _lt = document.getElementById('pl-prueba-filter-lt');
+                                const _vpm = document.getElementById('pl-prueba-filter-vpm');
+                                const _utt = document.getElementById('pl-prueba-filter-utt');
+                                if (_lt) _lt.checked = true;
+                                if (_vpm) _vpm.checked = true;
+                                if (_utt) _utt.checked = true;
+                                try { localStorage.setItem('pct_pruebaslist_tipo_filter', 'LT,VPM,UTT'); } catch {}
                             } catch {}
                             try { render(); } catch {}
                         } catch (e) {
@@ -8077,14 +8088,15 @@
 
             // Asegurar que el CSV respete el filtro por tipo (LT / VT-PT-MT / UTT)
             try {
-                if (typeof categoriaTipoPrueba === 'function' && filtroTiposPrueba instanceof Set) {
+                const _tiposCsv = (window.filtroTiposPrueba instanceof Set) ? window.filtroTiposPrueba : null;
+                if (typeof categoriaTipoPrueba === 'function' && _tiposCsv) {
                     const total = 3;
-                    const selected = filtroTiposPrueba.size;
+                    const selected = _tiposCsv.size;
                     const isPartial = selected > 0 && selected < total;
                     if (isPartial) {
                         filas = filas.filter(r => {
                             const cat = categoriaTipoPrueba(r);
-                            return !!(cat && filtroTiposPrueba.has(cat));
+                            return !!(cat && _tiposCsv.has(cat));
                         });
                     }
                 }
