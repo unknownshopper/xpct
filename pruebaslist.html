@@ -7055,7 +7055,8 @@
                 let badgeEstado;
 
                 const isRechazada = (resultadoStr === 'RECHAZADA');
-                if (isRechazada && eqK) {
+                const edoRech = (eqK && edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).trim().toUpperCase() : '';
+                if (isRechazada && eqK && edoRech !== 'OFF' && edoRech !== 'INACTIVO') {
                     try { rechazadosEq.add(eqK); } catch {}
                     try {
                         if (!rechazadosByEq.has(eqK)) {
@@ -7236,7 +7237,14 @@
             try { window._plLastFilterCount = cntCoincidencias; } catch {}
 
             try {
-                const serverRows = Array.isArray(window._plRechazadosRowsServer) ? window._plRechazadosRowsServer : [];
+                const serverRowsRaw = Array.isArray(window._plRechazadosRowsServer) ? window._plRechazadosRowsServer : [];
+                const serverRows = serverRowsRaw.filter(r => {
+                    try {
+                        const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r && r.equipo || '')) : String(r && r.equipo || '').trim().toUpperCase();
+                        const edo = (k && edoPorEquipoInv && edoPorEquipoInv[k]) ? String(edoPorEquipoInv[k]).trim().toUpperCase() : '';
+                        return (edo !== 'OFF' && edo !== 'INACTIVO');
+                    } catch { return true; }
+                });
                 const serverCnt = serverRows.length;
                 const localCnt = rechazadosEq.size;
                 const cnt = Math.max(localCnt, serverCnt);
@@ -9104,6 +9112,14 @@ async function plOpenRechazadosModal() {
       : (Array.isArray(window.pruebas) ? window.pruebas : []);
     const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : {};
     const serialPorEquipoInv = (inv.serialPorEquipoInv && typeof inv.serialPorEquipoInv === 'object') ? inv.serialPorEquipoInv : {};
+    const edoPorEquipoInvRech = (inv.edoPorEquipoInv && typeof inv.edoPorEquipoInv === 'object') ? inv.edoPorEquipoInv : {};
+    const isOffEq = (eqKey) => {
+      try {
+        const k = (typeof normEquipoKey === 'function') ? normEquipoKey(String(eqKey || '')) : String(eqKey || '').trim().toUpperCase();
+        const e = (k && edoPorEquipoInvRech[k]) ? String(edoPorEquipoInvRech[k]).trim().toUpperCase() : '';
+        return (e === 'OFF' || e === 'INACTIVO');
+      } catch { return false; }
+    };
 
     const eqToSerial = (eqK) => {
       try {
@@ -9119,6 +9135,7 @@ async function plOpenRechazadosModal() {
       cached.forEach(r => {
         const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r.equipo || '')) : String(r.equipo || '').trim().toUpperCase();
         if (!eq) return;
+        if (isOffEq(eq)) return;
         let sn = String(r.serial || '').trim();
         try {
           const eqN = (typeof normEquipoKey === 'function') ? normEquipoKey(eq) : String(eq || '').trim().toUpperCase();
@@ -9143,6 +9160,7 @@ async function plOpenRechazadosModal() {
         if (res !== 'RECHAZADA') return;
         const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r.equipo || '')) : String(r.equipo || '').trim().toUpperCase();
         if (!eq) return;
+        if (isOffEq(eq)) return;
         if (seen.has(eq)) return;
         seen.add(eq);
         let sn = String(r.serial || r.numeroSerie || '').trim();
