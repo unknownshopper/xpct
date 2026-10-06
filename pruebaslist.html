@@ -8069,6 +8069,7 @@
         }
 
         function exportarCsv() {
+            const serialPorEquipoInv = (window._plInvState && window._plInvState.serialPorEquipoInv && typeof window._plInvState.serialPorEquipoInv === 'object') ? window._plInvState.serialPorEquipoInv : {};
             const filasSeleccionadas = obtenerSeleccionadas();
             const tbodyListadoEl = document.getElementById('tbody-pruebas-listado');
             const filasVisibles = (tbodyListadoEl && Array.isArray(tbodyListadoEl._filasVisibles)) ? tbodyListadoEl._filasVisibles : [];
