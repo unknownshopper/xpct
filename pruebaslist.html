@@ -8194,6 +8194,7 @@
         }
 
         async function exportarEquiposSinPndCsv() {
+            const serialPorEquipoInv = (window._plInvState && window._plInvState.serialPorEquipoInv && typeof window._plInvState.serialPorEquipoInv === 'object') ? window._plInvState.serialPorEquipoInv : {};
             try {
                 // Advertir si el listado cargado está parcial (paginación / "cargar más")
                 try {
