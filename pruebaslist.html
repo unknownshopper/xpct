@@ -5292,13 +5292,6 @@
         const btnPruebaNone = document.getElementById('pl-prueba-filter-none');
 
         let filtroTiposPrueba = new Set(['LT', 'VPM', 'UTT']);
-        try {
-            const raw = String(localStorage.getItem('pct_pruebaslist_tipo_filter') || '');
-            if (raw) {
-                const parts = raw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-                if (parts.length) filtroTiposPrueba = new Set(parts);
-            }
-        } catch {}
         try { window.filtroTiposPrueba = filtroTiposPrueba; } catch {}
 
         function persistFiltroTiposPrueba() {
@@ -5962,8 +5955,8 @@
                     if (cat === '100') c100 += 1;
                     else if (cat === 'parcial') cPar += 1;
                     else {
-                        cSin += 1;
                         if (isWip) cSinWip += 1;
+                        else cSin += 1;
                     }
 
                     if (!hasLt) missLt += 1;
@@ -6606,7 +6599,16 @@
                         .filter(Boolean)
                         .filter(eqK => {
                             const cov = (window._equiposCobertura && eqK && window._equiposCobertura[eqK]) ? window._equiposCobertura[eqK] : null;
-                            return cov && cov.cat === 'sin';
+                            if (!(cov && cov.cat === 'sin')) return false;
+                            try {
+                                if (window.plEsEquipoOff && window.plEsEquipoOff(eqK)) return false;
+                                const edoK = (edoPorEquipoInv && edoPorEquipoInv[eqK]) ? String(edoPorEquipoInv[eqK]).trim().toUpperCase() : '';
+                                if (edoK === 'WIP') return false;
+                                const c = window._plWipEquiposSet;
+                                const wipSet = (c && c.items instanceof Set) ? c.items : null;
+                                if (wipSet && wipSet.has(eqK)) return false;
+                            } catch {}
+                            return true;
                         });
                 } catch { equiposSin = []; }
 
@@ -8320,7 +8322,22 @@
                 const headers = ['Equipo', 'Serial', 'LT', 'VTPTMT', 'UTT'];
                 const lines = [headers.join(',')];
 
+                const _wipSetCsv = (() => {
+                    try {
+                        const c = window._plWipEquiposSet;
+                        return (c && c.items instanceof Set) ? c.items : null;
+                    } catch { return null; }
+                })();
+
                 equiposBase.forEach(eqK => {
+                    // No contabilizar equipos en WIP ni OFF/INACTIVO para el listado "sin PND".
+                    try {
+                        if (window.plEsEquipoOff && window.plEsEquipoOff(eqK)) return;
+                        const _edoCsv = (window._plInvState && window._plInvState.edoPorEquipoInv && window._plInvState.edoPorEquipoInv[eqK]) ? String(window._plInvState.edoPorEquipoInv[eqK]).trim().toUpperCase() : '';
+                        if (_edoCsv === 'WIP') return;
+                        if (_wipSetCsv && _wipSetCsv.has(eqK)) return;
+                    } catch {}
+
                     const serialInv = (serialPorEquipoInv && eqK && serialPorEquipoInv[eqK]) ? String(serialPorEquipoInv[eqK]) : '';
                     const isNoUtt = !!(window.isNoUttEquipo && window.isNoUttEquipo(eqK, serialInv));
 
@@ -9718,9 +9735,9 @@ async function plOpenCoberturaModal(cat) {
     const edoNorm = String(edo || '').trim().toUpperCase();
     const isWip = (edoNorm === 'WIP') || (!!(wipSet && wipSet.has(displayEquipo)));
     const isOff = (edoNorm === 'OFF' || edoNorm === 'INACTIVO') || (!!(offSet && offSet.has(displayEquipo)));
-    if (cat === 'sin' && isOff) return;
     if (isWip) wip += 1;
     else if (edoNorm === 'ON' || edoNorm === 'ACTIVO' || edoNorm === 'OPERATIVO' || !edoNorm) on += 1;
+    if (cat === 'sin' && (isOff || isWip)) return;
     const miss = [];
     if (!cov.hasVpm) { miss.push('VT/PT/MT'); missVpm += 1; }
     if (!cov.hasUtt) { miss.push('UTT'); missUtt += 1; }

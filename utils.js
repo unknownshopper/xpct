@@ -221,10 +221,21 @@ async function seedNoUttFromCsvToFirestore() {
     return { ok: true, activos: activos.size, seriales: seriales.size };
 }
 
+// Familias completas excluidas de UTT (regla de negocio): no requieren prueba UTT.
+const NO_UTT_FAMILIAS = new Set(['BP', 'BC', 'PLG', 'CAP', 'DSA']);
+
 function isNoUttEquipo(activo, serial) {
     try {
         const a = _normNoUttKey(activo);
         const s = _normNoUttKey(serial);
+        // Exclusión por familia: PCT-<FAM>-NNN (cubre activo y serial/equipo canónico).
+        const fam = (v) => {
+            const m = String(v || '').match(/^PCT-([A-Z]+)-/);
+            return m && m[1] ? m[1] : '';
+        };
+        const fa = fam(a);
+        const fs = fam(s);
+        if ((fa && NO_UTT_FAMILIAS.has(fa)) || (fs && NO_UTT_FAMILIAS.has(fs))) return true;
         const st = (typeof window !== 'undefined' && window.__noUtt) ? window.__noUtt : null;
         const setA = st && st.activos ? st.activos : null;
         const setS = st && st.seriales ? st.seriales : null;
