@@ -393,10 +393,11 @@
             window.isAuxger = role === 'auxger';
             window.isSgi = (role === 'sgi') || (email === 'sgi@pc-t.com.mx');
             window.isCops = email === 'cops@pc-t.com.mx';
+            window.isVisor = role === 'visor';
             window.currentUserEmail = email;
 
-            // Acceso: admin, director, supervisor, inspector, capturista, auxger
-            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
+            // Acceso: admin, director, supervisor, inspector, capturista, auxger, sgi, cops, visor (solo lectura)
+            if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops || window.isVisor)) {
                 window.location.href = 'website.html';
                 return;
             }

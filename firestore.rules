@@ -17,12 +17,13 @@ service cloud.firestore {
     }
 
     function canReadCatalogs() {
-      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops']);
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops', 'visor']);
     }
 
     function canReadOperativo() {
       // Lectura de datos operativos (para dashboard/inspectlist): inspecciones + resúmenes.
-      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops']);
+      // 'visor' es solo lectura (supervisor operativo): no crear/modificar/borrar.
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops', 'visor']);
     }
 
     function canCreateInspecciones() {

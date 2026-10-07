@@ -156,6 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.isCops == null) window.isCops = (role === 'cops');
             if (window.isAuxndt == null) window.isAuxndt = (role === 'auxndt');
             if (window.isAux_ndt == null) window.isAux_ndt = (role === 'aux_ndt');
+            if (window.isVisor == null) window.isVisor = (role === 'visor');
         } catch {}
     })();
 

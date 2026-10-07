@@ -17,7 +17,7 @@ service firebase.storage {
     }
 
     function canReadOperativo() {
-      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops']);
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'inspector', 'capturista', 'auxger', 'auxndt', 'aux_ndt', 'cops', 'visor']);
     }
 
     function canWriteEvidencias() {

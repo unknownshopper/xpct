@@ -140,12 +140,13 @@
             window.isAuxger = role === 'auxger';
             window.isSgi = (role === 'sgi') || (email === 'sgi@pc-t.com.mx');
             window.isCops = (role === 'cops') || (email === 'cops@pc-t.com.mx');
+            window.isVisor = role === 'visor';
 
             // Acceso:
-            // - View mode (desde inspectlist): permitir lectura a roles operativos
+            // - View mode (desde inspectlist): permitir lectura a roles operativos + visor (solo lectura)
             // - Create/Edit: permitir a roles operativos (incluye inspector) y roles administrativos
             if (isViewMode) {
-                if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops)) {
+                if (!(window.isAdmin || window.isDirector || window.isSupervisor || window.isInspector || window.isCapturista || window.isAuxger || window.isSgi || window.isCops || window.isVisor)) {
                     try {
                         const next = `${window.location.pathname}${window.location.search || ''}${window.location.hash || ''}`;
                         window.location.href = `login.html?next=${encodeURIComponent(next)}`;
