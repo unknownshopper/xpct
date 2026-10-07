@@ -3203,28 +3203,7 @@
                                 return { act, insp, _kind: act ? 'act' : 'insp' };
                             });
 
-                        // Inspector/cops: solo ver inspecciones hechas por el usuario HOY
-                        try {
-                            const mail = (window.currentUserEmail || '').toString().trim().toLowerCase();
-                            if (mail && (window.isInspector || window.isCops)) {
-                                const hoy = new Date();
-                                hoy.setHours(0, 0, 0, 0);
-                                const hoyMs = hoy.getTime();
-                                subset = subset.filter(item => {
-                                    try {
-                                        const insp = item && item.insp ? item.insp : null;
-                                        if (!insp) return false;
-                                        const u = (insp.usuarioInspeccionEmail || insp.usuarioInspeccion || '').toString().trim().toLowerCase();
-                                        if (!u || u !== mail) return false;
-                                        const ms = toMs(insp.fecha || insp.creadoEn);
-                                        if (ms == null) return false;
-                                        return esMismoDiaLocal(ms, hoyMs);
-                                    } catch {
-                                        return false;
-                                    }
-                                });
-                            }
-                        } catch {}
+                        // Inspector/cops ven todas las inspecciones realizadas (solo lectura).
 
                         // Filtro estricto por equipo cuando el usuario escribe un código completo (ej. PCT-XO-017)
                         if (filtro && esFiltroEquipoExacto(filtro)) {
