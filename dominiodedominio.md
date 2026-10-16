@@ -1,5 +1,20 @@
 # Migración de `unknownshopper.github.io/xpct` a `www.pc-t.com.mx`
 
+> **ESTADO: ✅ COMPLETADO (oct 2026)** — Se implementó la **Opción B (GitHub Pages)** + Cloudflare como capa DNS/WAF. Resumen de lo realizado:
+>
+> - `www.pc-t.com.mx` → CNAME `unknownshopper.github.io` (proxied); apex `pc-t.com.mx` → 4×A GitHub IPs (proxied) + redirect 301 a `www`
+> - GitHub Pages: custom domain + Enforce HTTPS (cert Let's Encrypt)
+> - Firebase Auth: `www.pc-t.com.mx` y `pc-t.com.mx` en Authorized domains
+> - DNS delegado por completo a Cloudflare (`aaden`/`desiree.ns.cloudflare.com`); los 18 registros de IONOS se replicaron antes del cambio (MX, SPF, DKIM ×3, DMARC, MTA-STS, TLS-RPT, autodiscover, `_domainconnect`, google-verification)
+> - Registros de correo quedaron **DNS-only** (nube gris); solo `@` y `www` proxied
+> - Bucket Storage: CORS actualizado con los orígenes del dominio nuevo (`server/tools/fixCors.mjs`)
+> - SSL/TLS en Cloudflare: modo **Full (strict)**
+> - Transferencia del dominio IONOS → Cloudflare Registrar: en proceso (auth code + unlock)
+>
+> El resto del documento queda como referencia del procedimiento general.
+
+---
+
 Este documento describe un procedimiento **operativo** (sin código) para publicar la aplicación en el dominio oficial `www.pc-t.com.mx`, dejando atrás el uso directo de GitHub Pages.
 
 ---

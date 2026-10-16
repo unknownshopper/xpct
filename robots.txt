@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# El sistema interno requiere autenticación; los listados no se indexan de forma útil,
+# pero se permite el rastreo general (la protección real está en Firebase Auth + rules
+# y en las políticas de bots de Cloudflare).
+
+Sitemap: https://www.pc-t.com.mx/sitemap.xml

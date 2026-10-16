@@ -2,11 +2,31 @@
 
 Sistema interno para gestionar inventario de equipos, actividades de servicio, pruebas e inspecciones de PCT.
 
+## Producción, dominio e infraestructura (oct 2026)
+
+- **Dominio canónico**: `https://www.pc-t.com.mx` (apex `pc-t.com.mx` redirige 301 → `www`)
+- **Hosting**: GitHub Pages (repo `unknownshopper/xpct`, rama `main`) con custom domain + **Enforce HTTPS**; cert Let's Encrypt administrado por GitHub
+- **CDN / WAF**: Cloudflare (plan Free) — DNS y proxy naranja activos en `@` (A ×4 → GitHub) y `www` (CNAME → `unknownshopper.github.io`); SSL/TLS en modo **Full (strict)**
+- **Registro del dominio**: transferencia en curso IONOS → Cloudflare Registrar (auth code entregado por la agencia)
+- **Correo**: permanece en IONOS — MX `mx00/mx01.ionos.mx`, SPF, DKIM (s1/s2/s42582890), DMARC, autodiscover, MTA-STS y TLS-RPT replicados en Cloudflare como **DNS-only** (nube gris)
+- **Backend**: Firebase proyecto `xpct-tab` (Auth + Firestore + Storage + Cloud Functions `us-central1`)
+- **Dominios autorizados en Firebase Auth**: `www.pc-t.com.mx`, `pc-t.com.mx`, `localhost`, `unknownshopper.github.io`
+
+### Seguridad
+
+- **WAF/anti-bots**: todo el tráfico web pasa por el proxy de Cloudflare antes de llegar al origen; políticas de AI-crawlers (Agent/Training bloqueados, Search permitido)
+- **Autenticación**: Firebase Auth por correo+contraseña; roles vía custom claims (`role`)
+- **Roles**: `admin`, `director`, `sgi`, `supervisor`, `inspector`, `capturista`, `auxger`, `auxndt`/`aux_ndt`, `cops`, `visor` (solo lectura)
+- **Firestore/Storage rules**: acceso por rol; `visor` solo lectura operativa; inspectores leen historial completo
+- **Storage CORS**: orígenes permitidos `http://localhost:2200`, `https://unknownshopper.github.io`, `https://www.pc-t.com.mx`, `https://pc-t.com.mx` — si se agrega un dominio nuevo, actualizar con `server/tools/fixCors.mjs` o las evidencias no cargarán en el navegador (los `<img>` usan `crossorigin="anonymous"`)
+- **Secrets**: SMTP vía Firebase secrets (`SMTP_USER`/`SMTP_PASS`); `server/.env` y `serviceAccount.json` ignorados por Git
+- **Correo saliente**: SPF/DKIM/DMARC completos (`p=quarantine`), MTA-STS + TLS-RPT
+
 ## Estado actual
 
 - **Autenticación**:
-  - Login con Firebase Auth.
-  - Roles básicos: admin, inspector; los no autorizados son redirigidos.
+  - Login con Firebase Auth en `login.html` desde `www.pc-t.com.mx`.
+  - Roles por custom claims: admin, director, supervisor, inspector, capturista, auxger, visor (solo lectura); los no autorizados son redirigidos.
 
 - **Inventario (`invre.html`)**:
   - Carga `docs/invre.csv` y muestra todos los equipos.

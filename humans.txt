@@ -4,9 +4,9 @@ Contacto: logistica@pc-t.com.mx
 
 /* SITE */
 Nombre: PCT - Sitio público
-URL: https://unknownshopper.github.io/xpct/website.html
-Aviso: https://unknownshopper.github.io/xpct/aviso.html
-Sitemap: https://unknownshopper.github.io/xpct/sitemap.xml
+URL: https://www.pc-t.com.mx/website.html
+Aviso: https://www.pc-t.com.mx/aviso.html
+Sitemap: https://www.pc-t.com.mx/sitemap.xml
 Idioma: es-MX
 
 /* THANKS */
