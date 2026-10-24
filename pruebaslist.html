@@ -6563,6 +6563,18 @@
             const rechazadosEq = new Set();
             const rechazadosByEq = new Map();
 
+            // Solo cuenta como rechazado si la prueba MÁS RECIENTE del equipo sigue RECHAZADA;
+            // una prueba posterior aprobada (reparación/reinspección) lo saca de la lista.
+            const latestByEqRech = plLatestRegPorEquipo(pruebas, (r0) => {
+                try {
+                    const res0 = resolverEquipoYSerialCanon(
+                        (r0 && r0.equipo != null) ? r0.equipo : '',
+                        (r0 && (r0.numeroSerie || r0.serial) != null) ? (r0.numeroSerie || r0.serial) : ''
+                    );
+                    return res0.equipoCanon || '';
+                } catch { return ''; }
+            });
+
             // Alinear chips con backend/Rangos: usar solo la última ANUAL por equipo+tipo
             const latestIndic = new Map();
 
@@ -7058,7 +7070,9 @@
 
                 const isRechazada = (resultadoStr === 'RECHAZADA');
                 const isOffRech = !!(eqK && window.plEsEquipoOff && window.plEsEquipoOff(eqK));
-                if (isRechazada && eqK && !isOffRech) {
+                // Solo cuenta si ESTE registro es la prueba más reciente del equipo.
+                const esUltimaRegEq = !!(eqK && reg && reg.id && latestByEqRech.get(eqK) && latestByEqRech.get(eqK).id === reg.id);
+                if (isRechazada && eqK && !isOffRech && esUltimaRegEq) {
                     try { rechazadosEq.add(eqK); } catch {}
                     try {
                         if (!rechazadosByEq.has(eqK)) {
@@ -9139,6 +9153,54 @@ function plDownloadCsv(filename, rows) {
   setTimeout(() => { try { URL.revokeObjectURL(url); } catch {} }, 500);
 }
 
+function plFechaRealMs(v) {
+  try {
+    if (!v) return 0;
+    if (v && typeof v === 'object' && typeof v.toDate === 'function') { const d = v.toDate(); return isNaN(d) ? 0 : d.getTime(); }
+    if (v instanceof Date) return isNaN(v.getTime()) ? 0 : v.getTime();
+    if (typeof v === 'number' && isFinite(v)) return v;
+    const s = String(v).trim();
+    if (!s) return 0;
+    const p = s.split('/');
+    if (p.length === 3) {
+      const y = p[2].length <= 2 ? 2000 + parseInt(p[2], 10) : parseInt(p[2], 10);
+      const d = new Date(y, parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  } catch { return 0; }
+}
+
+function plCreadoEnMs(v) {
+  try {
+    if (!v) return 0;
+    if (typeof v === 'object' && typeof v.toDate === 'function') { const d = v.toDate(); return isNaN(d) ? 0 : d.getTime(); }
+    if (v instanceof Date) return isNaN(v.getTime()) ? 0 : v.getTime();
+    if (typeof v === 'number' && isFinite(v)) return v;
+    const d = new Date(String(v)); return isNaN(d.getTime()) ? 0 : d.getTime();
+  } catch { return 0; }
+}
+
+// Devuelve Map(eqKey -> registro más reciente del equipo, cualquier periodo).
+// Orden: fechaRealizacion desc; empate: creadoEn desc.
+function plLatestRegPorEquipo(arr, keyFn) {
+  const m = new Map();
+  (Array.isArray(arr) ? arr : []).forEach(r => {
+    try {
+      const k = keyFn(r);
+      if (!k) return;
+      const prev = m.get(k);
+      if (!prev) { m.set(k, r); return; }
+      const a = plFechaRealMs(prev.fechaRealizacion);
+      const b = plFechaRealMs(r.fechaRealizacion);
+      if (b !== a) { if (b > a) m.set(k, r); return; }
+      if (plCreadoEnMs(r.creadoEn) >= plCreadoEnMs(prev.creadoEn)) m.set(k, r);
+    } catch {}
+  });
+  return m;
+}
+
 async function plOpenRechazadosModal() {
   try {
     const cached = (Array.isArray(window._plRechazadosRowsServer) && window._plRechazadosRowsServer.length)
@@ -9188,12 +9250,19 @@ async function plOpenRechazadosModal() {
       });
     } else {
       const seen = new Set();
+      const latestByEq = plLatestRegPorEquipo(arr, (r2) => {
+        try { return (typeof normEquipoKey === 'function') ? normEquipoKey(String(r2.equipo || '')) : String(r2.equipo || '').trim().toUpperCase(); }
+        catch { return ''; }
+      });
       (Array.isArray(arr) ? arr : []).forEach(r => {
         const res = (r && r.resultado != null) ? String(r.resultado).trim().toUpperCase() : '';
         if (res !== 'RECHAZADA') return;
         const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(r.equipo || '')) : String(r.equipo || '').trim().toUpperCase();
         if (!eq) return;
         if (isOffEq(eq)) return;
+        // Solo si esta RECHAZADA es la prueba más reciente del equipo
+        const latest = latestByEq.get(eq);
+        if (latest && latest !== r) return;
         if (seen.has(eq)) return;
         seen.add(eq);
         let sn = String(r.serial || r.numeroSerie || '').trim();
@@ -9245,14 +9314,44 @@ try {
         const inv = (window._plInvState && typeof window._plInvState === 'object') ? window._plInvState : {};
         const serialPorEquipoInv = (inv.serialPorEquipoInv && typeof inv.serialPorEquipoInv === 'object') ? inv.serialPorEquipoInv : {};
 
-        const seen = new Set();
-        const rows = [];
+        // Candidatos: equipos con al menos una RECHAZADA
+        const cand = new Map(); // eqNorm -> equipoRaw
         snap.forEach(d => {
           const data = d.data() || {};
-          const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(String(data.equipo || '')) : String(data.equipo || '').trim().toUpperCase();
-          if (!eq) return;
-          if (seen.has(eq)) return;
-          seen.add(eq);
+          const eqRaw = String(data.equipo || '').trim();
+          const eq = (typeof normEquipoKey === 'function') ? normEquipoKey(eqRaw) : eqRaw.toUpperCase();
+          if (!eq || cand.has(eq)) return;
+          cand.set(eq, eqRaw);
+        });
+
+        const localArr = (typeof window.pctGetPruebas === 'function') ? window.pctGetPruebas() : [];
+        const rows = [];
+        for (const [eq, eqRaw] of cand) {
+          // Confirmar que la ÚLTIMA prueba del equipo siga RECHAZADA
+          // (si hubo reparación/reinspección posterior aprobada, ya no cuenta).
+          let latest = null;
+          const consider = (d2) => {
+            if (!d2) return;
+            const frMs = plFechaRealMs(d2.fechaRealizacion);
+            const ce = plCreadoEnMs(d2.creadoEn);
+            if (!latest || frMs > latest.frMs || (frMs === latest.frMs && ce >= latest.ce)) {
+              latest = { frMs, ce, reg: d2 };
+            }
+          };
+          (localArr || []).forEach(d2 => {
+            try {
+              const k2 = (typeof normEquipoKey === 'function') ? normEquipoKey(String(d2.equipo || '')) : String(d2.equipo || '').trim().toUpperCase();
+              if (k2 === eq) consider(d2);
+            } catch {}
+          });
+          try {
+            const s2 = await getDocs(query(colRef, where('equipo', '==', eqRaw), limit(200)));
+            s2.forEach(d2 => consider(d2.data() || {}));
+          } catch {}
+          const resUlt = latest && latest.reg ? String(latest.reg.resultado || '').trim().toUpperCase() : 'RECHAZADA';
+          if (resUlt !== 'RECHAZADA') continue;
+
+          const data = latest.reg;
           const sn0 = String(data.serial || data.numeroSerie || '').trim();
           let sn = sn0 || (serialPorEquipoInv && serialPorEquipoInv[eq] ? String(serialPorEquipoInv[eq]) : '');
           // Si Firestore trae un serial que es OTRO equipo, reemplazar por el del inventario del equipo actual.
@@ -9269,7 +9368,7 @@ try {
             }
           } catch {}
           rows.push({ equipo: plEquipoDisplayName(eq), serial: (String(sn || '').trim() || '-') });
-        });
+        }
 
         rows.sort((a, b) => String(a.equipo || '').localeCompare(String(b.equipo || '')));
         try { window._plRechazadosRowsServer = rows; } catch {}
