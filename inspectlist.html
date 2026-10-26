@@ -3787,6 +3787,45 @@
                                 const qAll = query(collection(db2, 'ordenes_salida'), orderBy('creadoEn', 'desc'), limit(50));
                                 const sAll = await getDocs(qAll);
                                 const ordenes = sAll.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                                // Cierre de ciclo: si TODOS los equipos de una orden ENVIADO ya tienen
+                                // una inspección posterior (REC/REI) sin parámetros MALO, marcar RECIBIDO.
+                                try {
+                                    const { doc: docFS, updateDoc, serverTimestamp } = await import(
+                                        'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                                    );
+                                    for (const o of ordenes) {
+                                        if (String(o.estado || '').toUpperCase() !== 'ENVIADO') continue;
+                                        const oMs = toMs(o.creadoEn) ?? 0;
+                                        const items = Array.isArray(o.items) ? o.items : [];
+                                        if (!items.length) continue;
+                                        const todosRecibidos = items.every(it => {
+                                            try {
+                                                const k = normEqCompact(it && it.equipo ? String(it.equipo) : '');
+                                                const latest = k ? ultimaPorEq.get(k) : null;
+                                                if (!latest) return false;
+                                                const lMs = toMs(latest.fecha || latest.creadoEn) ?? 0;
+                                                if (oMs && lMs && lMs < oMs) return false;
+                                                const ps = Array.isArray(latest.parametros) ? latest.parametros : [];
+                                                return !ps.some(p => {
+                                                    const est = String(p && p.estado || '').trim().toUpperCase();
+                                                    return est === 'MALO' || est === 'NO LEGIBLE';
+                                                });
+                                            } catch { return false; }
+                                        });
+                                        if (todosRecibidos) {
+                                            try {
+                                                await updateDoc(docFS(db2, 'ordenes_salida', o.id), {
+                                                    estado: 'RECIBIDO',
+                                                    recibidoPor: 'auto:recepcion-reinspeccion',
+                                                    recibidoEn: serverTimestamp()
+                                                });
+                                                o.estado = 'RECIBIDO';
+                                            } catch {}
+                                        }
+                                    }
+                                } catch {}
+
                                 window._ordenesSalidaById = new Map(ordenes.map(o => [o.id, o]));
                                 tbodyOS.innerHTML = '';
                                 wrapOS.style.display = ordenes.length ? '' : 'none';
