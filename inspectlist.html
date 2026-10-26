@@ -348,7 +348,7 @@
             <div id="osalida-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:70; align-items:center; justify-content:center;">
                 <div style="background:#ffffff; padding:1.1rem 1.25rem; border-radius:12px; width:min(440px,92vw); box-shadow:0 10px 30px rgba(0,0,0,0.25);">
                     <h3 id="osalida-titulo" style="margin:0 0 0.5rem; font-size:1.05rem;">Orden de salida</h3>
-                    <div id="osalida-resumen" style="font-size:0.85rem; color:#374151; margin-bottom:0.75rem; max-height:120px; overflow:auto;"></div>
+                    <div id="osalida-resumen" style="font-size:0.85rem; color:#374151; margin-bottom:0.75rem; max-height:240px; overflow:auto;"></div>
                     <div id="osalida-destino-wrap" style="display:none; margin-bottom:0.6rem;">
                         <label for="osalida-destino" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Proveedor / taller destino *</label>
                         <input id="osalida-destino" type="text" placeholder="Ej. Taller Hidráulica del Golfo" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem;">
@@ -1598,7 +1598,11 @@
                     <td>${esc(it.serial)}</td>
                     <td>${(it.danos || []).map(d => esc(d)).join('<br>')}</td>
                     <td>${it._img ? `<img src="${esc(it._img)}" ${paraPdf ? 'crossorigin="anonymous"' : ''} style="width:110px; max-height:90px; object-fit:cover; border:1px solid #ccc;" alt="">` : ''}</td>
-                </tr>`).join('');
+                </tr>${it.obs ? `
+                <tr>
+                    <td></td>
+                    <td colspan="4"><em style="color:#374151;">Observaciones: ${esc(it.obs)}</em></td>
+                </tr>` : ''}`).join('');
             return `
                 <div style="font-family:Arial,Helvetica,sans-serif;color:#111;">
                     <h1 style="font-size:18px;margin:0 0 4px;">PCT — Orden de salida ${orden.tipo === 'TERCERO' ? 'a tercero' : 'a mantenimiento interno'}</h1>
@@ -4176,7 +4180,16 @@
                         return insp ? String(insp.equipo || '') : '';
                     }).filter(Boolean);
                     const resumen = document.getElementById('osalida-resumen');
-                    if (resumen) resumen.innerHTML = `<strong>${eqs.length} equipo(s):</strong><br>${eqs.map(x => escAttr(x)).join('<br>')}`;
+                    if (resumen) {
+                        resumen.innerHTML = `<strong>${eqs.length} equipo(s):</strong>` + sel.map(c => {
+                            const insp = (window._noAtInspById && window._noAtInspById.get(c.dataset.inspId)) || null;
+                            const eq = insp ? String(insp.equipo || '') : '';
+                            return `<div style="display:flex; align-items:center; gap:6px; margin-top:6px;">
+                                <span style="min-width:112px; font-weight:600;">${escAttr(eq)}</span>
+                                <input type="text" class="osalida-obs" data-insp-id="${escAttr(c.dataset.inspId || '')}" placeholder="Observaciones del equipo (opcional)" style="flex:1; padding:0.28rem 0.45rem; border:1px solid #d1d5db; border-radius:6px; font-size:0.82rem;">
+                            </div>`;
+                        }).join('');
+                    }
                     const t = document.getElementById('osalida-titulo');
                     if (t) t.textContent = tipo === 'TERCERO' ? 'Orden de salida · Tercero' : 'Orden de salida · Mantenimiento interno';
                     const dw = document.getElementById('osalida-destino-wrap');
@@ -4246,6 +4259,11 @@
                         const fecha = String(document.getElementById('osalida-fecha')?.value || '').trim();
                         if (_osalidaTipo === 'TERCERO' && !destino) return osFail('Escribe el proveedor / taller destino.');
 
+                        const obsMap = new Map();
+                        document.querySelectorAll('#osalida-resumen .osalida-obs').forEach(inp => {
+                            const v = String(inp.value || '').trim();
+                            if (v) obsMap.set(String(inp.dataset.inspId || ''), v);
+                        });
                         const sel = Array.from(document.querySelectorAll('#tbody-inspecciones-no-atendidas input.noat-chk:checked'));
                         const items = sel.map(chk => {
                             const insp = (window._noAtInspById && window._noAtInspById.get(chk.dataset.inspId)) || null;
@@ -4277,6 +4295,7 @@
                                 inspId: String(chk.dataset.inspId || ''),
                                 tipoInspeccion: String(insp.tipoInspeccion || ''),
                                 fechaInspeccion: String(insp.fecha || ''),
+                                obs: obsMap.get(String(chk.dataset.inspId || '')) || '',
                                 evidenciaUrl, evidenciaPath, evidenciaNombre
                             };
                         }).filter(Boolean);
