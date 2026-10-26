@@ -253,8 +253,8 @@
                         <input id="osalida-destino" type="text" placeholder="Ej. Taller Hidráulica del Golfo" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem;">
                     </div>
                     <div style="margin-bottom:0.6rem;">
-                        <label for="osalida-folio" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">No. de salida / folio *</label>
-                        <input id="osalida-folio" type="text" placeholder="Número que genera quien despacha" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem;">
+                        <label for="osalida-folio" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">No. de salida / folio</label>
+                        <input id="osalida-folio" type="text" readonly placeholder="Se genera automáticamente (PCT-MIE-AAAA-####)" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; background:#f9fafb; color:#6b7280;">
                     </div>
                     <div style="margin-bottom:0.85rem;">
                         <label for="osalida-fecha" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Fecha de salida</label>
@@ -1436,59 +1436,110 @@
             }
         }
 
+        // Items de una orden de salida con URL de evidencia resuelta (para doc/PDF).
+        async function resolverItemsOrdenConImagen(orden) {
+            let st = null;
+            try {
+                const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+                st = { ref: m.ref, getDownloadURL: m.getDownloadURL, storage: m.getStorage() };
+            } catch {}
+            return Promise.all((orden.items || []).map(async it => {
+                let u = String(it.evidenciaUrl || '').trim();
+                if (!u && st) {
+                    const cands = [];
+                    if (it.evidenciaPath) cands.push(String(it.evidenciaPath));
+                    if (it.evidenciaNombre && it.inspId) cands.push(`inspecciones/${it.inspId}/${it.evidenciaNombre}`);
+                    for (const p of cands) {
+                        try { u = await st.getDownloadURL(st.ref(st.storage, p)); } catch { u = ''; }
+                        if (u) break;
+                    }
+                }
+                return { ...it, _img: u };
+            }));
+        }
+
+        function ordenSalidaHtml(orden, items, paraPdf) {
+            const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const filas = (items || []).map((it, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${esc(it.equipo)}</td>
+                    <td>${esc(it.serial)}</td>
+                    <td>${(it.danos || []).map(d => esc(d)).join('<br>')}</td>
+                    <td>${it._img ? `<img src="${esc(it._img)}" ${paraPdf ? 'crossorigin="anonymous"' : ''} style="width:110px; max-height:90px; object-fit:cover; border:1px solid #ccc;" alt="">` : ''}</td>
+                </tr>`).join('');
+            return `
+                <div style="font-family:Arial,Helvetica,sans-serif;color:#111;">
+                    <h1 style="font-size:18px;margin:0 0 4px;">PCT — Orden de salida ${orden.tipo === 'TERCERO' ? 'a tercero' : 'a mantenimiento interno'}</h1>
+                    <h2 style="font-size:12px;color:#555;margin:0 0 12px;font-weight:400;">Equipos con daño reportados en inspección</h2>
+                    <div style="margin:6px 0;font-size:13px;"><strong>Folio:</strong> ${esc(orden.folio)} &nbsp;·&nbsp; <strong>Fecha de salida:</strong> ${esc(orden.fechaSalida)}${orden.destino ? ` &nbsp;·&nbsp; <strong>Destino:</strong> ${esc(orden.destino)}` : ''} &nbsp;·&nbsp; <strong>Despacha:</strong> ${esc(orden.creadoPor || '')}</div>
+                    <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;">
+                        <thead><tr><th style="width:24px;border:1px solid #999;padding:5px;background:#f3f4f6;">#</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Equipo</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Serial</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Daño reportado</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Evidencia</th></tr></thead>
+                        <tbody>${filas.replace(/<td>/g, '<td style="border:1px solid #999;padding:5px;vertical-align:top;">')}</tbody>
+                    </table>
+                    <div style="display:flex;gap:60px;margin-top:64px;"><div style="flex:1;border-top:1px solid #000;padding-top:6px;font-size:12px;text-align:center;">Entrega</div><div style="flex:1;border-top:1px solid #000;padding-top:6px;font-size:12px;text-align:center;">Recibe</div></div>
+                </div>`;
+        }
+
         // Documento imprimible de la orden de salida (equipos + daños + evidencia).
         async function imprimirOrdenSalida(orden) {
             const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             try {
-                let st = null;
-                try {
-                    const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
-                    st = { ref: m.ref, getDownloadURL: m.getDownloadURL, storage: m.getStorage() };
-                } catch {}
-                const items = await Promise.all((orden.items || []).map(async it => {
-                    let u = String(it.evidenciaUrl || '').trim();
-                    if (!u && st) {
-                        const cands = [];
-                        if (it.evidenciaPath) cands.push(String(it.evidenciaPath));
-                        if (it.evidenciaNombre && it.inspId) cands.push(`inspecciones/${it.inspId}/${it.evidenciaNombre}`);
-                        for (const p of cands) {
-                            try { u = await st.getDownloadURL(st.ref(st.storage, p)); } catch { u = ''; }
-                            if (u) break;
-                        }
-                    }
-                    return { ...it, _img: u };
-                }));
+                const items = await resolverItemsOrdenConImagen(orden);
                 const w = window.open('', '_blank');
                 if (!w) { alert('Permite ventanas emergentes para imprimir la orden de salida.'); return; }
-                const filas = items.map((it, i) => `
-                    <tr>
-                        <td>${i + 1}</td>
-                        <td>${esc(it.equipo)}</td>
-                        <td>${esc(it.serial)}</td>
-                        <td>${(it.danos || []).map(d => esc(d)).join('<br>')}</td>
-                        <td>${it._img ? `<img src="${esc(it._img)}" style="width:110px; max-height:90px; object-fit:cover; border:1px solid #ccc;" alt="">` : ''}</td>
-                    </tr>`).join('');
-                w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Orden de salida ${esc(orden.folio)}</title>
-                    <style>
-                        body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111}
-                        h1{font-size:18px;margin:0 0 4px}h2{font-size:12px;color:#555;margin:0 0 12px;font-weight:400}
-                        table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
-                        td,th{border:1px solid #999;padding:5px;text-align:left;vertical-align:top}
-                        th{background:#f3f4f6}
-                        .meta{margin:6px 0;font-size:13px}
-                        .firmas{display:flex;gap:60px;margin-top:64px}
-                        .firma{flex:1;border-top:1px solid #000;padding-top:6px;font-size:12px;text-align:center}
-                    </style></head><body>
-                    <h1>PCT — Orden de salida ${orden.tipo === 'TERCERO' ? 'a tercero' : 'a mantenimiento interno'}</h1>
-                    <h2>Equipos con daño reportados en inspección</h2>
-                    <div class="meta"><strong>Folio:</strong> ${esc(orden.folio)} &nbsp;·&nbsp; <strong>Fecha de salida:</strong> ${esc(orden.fechaSalida)}${orden.destino ? ` &nbsp;·&nbsp; <strong>Destino:</strong> ${esc(orden.destino)}` : ''} &nbsp;·&nbsp; <strong>Despacha:</strong> ${esc(orden.creadoPor || '')}</div>
-                    <table><thead><tr><th style="width:24px">#</th><th>Equipo</th><th>Serial</th><th>Daño reportado</th><th>Evidencia</th></tr></thead><tbody>${filas}</tbody></table>
-                    <div class="firmas"><div class="firma">Entrega</div><div class="firma">Recibe</div></div>
+                w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Orden de salida ${esc(orden.folio)}</title></head><body style="margin:24px;">${ordenSalidaHtml(orden, items, false)}
                     <scr` + `ipt>window.addEventListener('load',()=>setTimeout(()=>window.print(),500))</scr` + `ipt>
                     </body></html>`);
                 w.document.close();
             } catch (e) {
                 console.warn('No se pudo imprimir la orden de salida', e);
+            }
+        }
+
+        // Descargar la orden de salida como PDF (misma composición del documento imprimible).
+        async function descargarOrdenSalidaPdf(orden) {
+            let wrapper = null;
+            try {
+                await ensureHtml2Canvas();
+                await ensureJsPDF();
+                const items = await resolverItemsOrdenConImagen(orden);
+                wrapper = document.createElement('div');
+                wrapper.style.position = 'fixed';
+                wrapper.style.left = '-9999px';
+                wrapper.style.top = '-9999px';
+                wrapper.style.width = '900px';
+                wrapper.style.background = '#ffffff';
+                wrapper.style.padding = '16px 18px 22px';
+                wrapper.innerHTML = ordenSalidaHtml(orden, items, true);
+                document.body.appendChild(wrapper);
+                const canvas = await html2canvas(wrapper, { useCORS: true, scale: 2, backgroundColor: '#ffffff' });
+                const img = canvas.toDataURL('image/jpeg', 0.92);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+                const pageW = pdf.internal.pageSize.getWidth();
+                const pageH = pdf.internal.pageSize.getHeight();
+                const imgH = (canvas.height * pageW) / canvas.width;
+                if (imgH <= pageH) {
+                    pdf.addImage(img, 'JPEG', 0, 0, pageW, imgH);
+                } else {
+                    let restante = imgH;
+                    let pos = 0;
+                    pdf.addImage(img, 'JPEG', 0, pos, pageW, imgH);
+                    restante -= pageH;
+                    while (restante > 0) {
+                        pos -= pageH;
+                        pdf.addPage();
+                        pdf.addImage(img, 'JPEG', 0, pos, pageW, imgH);
+                        restante -= pageH;
+                    }
+                }
+                pdf.save(`orden_salida_${String(orden.folio || 'pct').replace(/[^\w-]/g, '_')}.pdf`);
+            } catch (e) {
+                console.error('No se pudo generar el PDF de la orden', e);
+                alert('No se pudo generar el PDF. Revisa la consola.');
+            } finally {
+                try { if (wrapper) wrapper.remove(); } catch {}
             }
         }
 
@@ -3786,7 +3837,7 @@
                                 const db2 = getFirestore();
                                 const qAll = query(collection(db2, 'ordenes_salida'), orderBy('creadoEn', 'desc'), limit(50));
                                 const sAll = await getDocs(qAll);
-                                const ordenes = sAll.docs.map(d => ({ id: d.id, ...d.data() }));
+                                const ordenes = sAll.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.id !== '_control');
 
                                 // Cierre de ciclo: si TODOS los equipos de una orden ENVIADO ya tienen
                                 // una inspección posterior (REC/REI) sin parámetros MALO, marcar RECIBIDO.
@@ -3848,7 +3899,8 @@
                                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(o.creadoPor || '')}</td>
                                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEdo}</td>
                                         <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
-                                            <button type="button" class="os-btn-print" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Reimprimir</button>
+                                            <button type="button" class="os-btn-print" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Imprimir</button>
+                                            <button type="button" class="os-btn-pdf" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #c7d2fe; background:#eef2ff; color:#4338ca; margin-right:0.25rem;">PDF</button>
                                             ${estadoUp === 'ENVIADO' && puedeDespachar ? `<button type="button" class="os-btn-recibir" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; margin-right:0.25rem;">Marcar recibida</button>` : ''}
                                             ${window.isAdmin ? `<button type="button" class="os-btn-del" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
                                         </td>`;
@@ -4020,6 +4072,9 @@
                             const db = getFirestore();
                             if (btn.classList.contains('os-btn-print')) {
                                 imprimirOrdenSalida(orden);
+                            } else if (btn.classList.contains('os-btn-pdf')) {
+                                btn.disabled = true;
+                                try { await descargarOrdenSalidaPdf(orden); } finally { btn.disabled = false; }
                             } else if (btn.classList.contains('os-btn-recibir')) {
                                 btn.disabled = true;
                                 await updateDoc(doc(db, 'ordenes_salida', id), {
@@ -4050,10 +4105,8 @@
                     osBtnConf.dataset.bound = '1';
                     osBtnConf.addEventListener('click', async () => {
                         const destino = String(document.getElementById('osalida-destino')?.value || '').trim();
-                        const folio = String(document.getElementById('osalida-folio')?.value || '').trim();
                         const fecha = String(document.getElementById('osalida-fecha')?.value || '').trim();
                         if (_osalidaTipo === 'TERCERO' && !destino) return osFail('Escribe el proveedor / taller destino.');
-                        if (!folio) return osFail('Escribe el número de salida / folio.');
 
                         const sel = Array.from(document.querySelectorAll('#tbody-inspecciones-no-atendidas input.noat-chk:checked'));
                         const items = sel.map(chk => {
@@ -4093,11 +4146,24 @@
 
                         osBtnConf.disabled = true;
                         try {
-                            const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+                            const { getFirestore, collection, addDoc, doc: docFS2, runTransaction, serverTimestamp } = await import(
                                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                             );
                             const db = getFirestore();
                             const email = (window.currentUserEmail || '').toLowerCase();
+
+                            // Folio automático consecutivo: PCT-MIE-AAAA-#### (contador transaccional).
+                            let folio = '';
+                            const year = new Date().getFullYear();
+                            await runTransaction(db, async (tx) => {
+                                const refC = docFS2(db, 'ordenes_salida', '_control');
+                                const sC = await tx.get(refC);
+                                const dC = sC.exists() ? (sC.data() || {}) : {};
+                                const seq = (Number(dC.year) === year && Number.isFinite(Number(dC.seq))) ? Number(dC.seq) + 1 : 1;
+                                tx.set(refC, { year, seq }, { merge: true });
+                                folio = `PCT-MIE-${year}-${String(seq).padStart(4, '0')}`;
+                            });
+
                             const payload = {
                                 tipo: _osalidaTipo,
                                 destino: _osalidaTipo === 'TERCERO' ? destino : '',
