@@ -223,6 +223,24 @@
                 <p id="mensaje-sin-no-atendidas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay equipos con daño pendientes de atender.
                 </p>
+                <div id="osalida-lista-wrap" style="margin-top:1rem; display:none;">
+                    <h4 style="margin:0 0 0.4rem; font-size:0.9rem; color:#374151;">Órdenes de salida</h4>
+                    <table id="tabla-osalida" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead>
+                            <tr style="background:#f9fafb;">
+                                <th style="text-align:left; padding:0.35rem;">Fecha</th>
+                                <th style="text-align:left; padding:0.35rem;">Folio</th>
+                                <th style="text-align:left; padding:0.35rem;">Tipo</th>
+                                <th style="text-align:left; padding:0.35rem;">Destino</th>
+                                <th style="text-align:left; padding:0.35rem;">Equipos</th>
+                                <th style="text-align:left; padding:0.35rem;">Creada por</th>
+                                <th style="text-align:left; padding:0.35rem;">Estado</th>
+                                <th style="text-align:left; padding:0.35rem;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-osalida"></tbody>
+                    </table>
+                </div>
                 </div>
             </div>
 
@@ -3756,6 +3774,50 @@
                             });
                         } catch {}
                         try { window._noAtOrdenesAbiertas = ordenesAbiertas; } catch {}
+
+                        // Tabla administrable de órdenes de salida (últimas 50)
+                        try {
+                            const wrapOS = document.getElementById('osalida-lista-wrap');
+                            const tbodyOS = document.getElementById('tbody-osalida');
+                            if (wrapOS && tbodyOS) {
+                                const { getFirestore, collection, getDocs, query, orderBy, limit } = await import(
+                                    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                                );
+                                const db2 = getFirestore();
+                                const qAll = query(collection(db2, 'ordenes_salida'), orderBy('creadoEn', 'desc'), limit(50));
+                                const sAll = await getDocs(qAll);
+                                const ordenes = sAll.docs.map(d => ({ id: d.id, ...d.data() }));
+                                window._ordenesSalidaById = new Map(ordenes.map(o => [o.id, o]));
+                                tbodyOS.innerHTML = '';
+                                wrapOS.style.display = ordenes.length ? '' : 'none';
+                                ordenes.forEach(o => {
+                                    const fechaTxt = formatearFechaRegistro(o.fechaSalida || o.creadoEn);
+                                    const eqs = (Array.isArray(o.items) ? o.items : []).map(it => String(it.equipo || '')).filter(Boolean);
+                                    const esTerc = String(o.tipo || '').toUpperCase() === 'TERCERO';
+                                    const estadoUp = String(o.estado || 'ENVIADO').toUpperCase();
+                                    const badgeTipo = `<span style="display:inline-block; font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid ${esTerc ? '#fecaca' : '#fde68a'}; background:${esTerc ? '#fef2f2' : '#fffbeb'}; color:${esTerc ? '#b91c1c' : '#b45309'};">${esTerc ? 'TERCERO' : 'INTERNO'}</span>`;
+                                    const badgeEdo = estadoUp === 'ENVIADO'
+                                        ? '<span style="display:inline-block; font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #fde68a; background:#fffbeb; color:#b45309;">ENVIADO</span>'
+                                        : '<span style="display:inline-block; font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534;">RECIBIDO</span>';
+                                    const tr = document.createElement('tr');
+                                    tr.innerHTML = `
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${escAttr(fechaTxt)}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700;">${escAttr(o.folio || '')}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeTipo}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(o.destino || '-')}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;" title="${escAttr(eqs.join(', '))}">${eqs.length}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(o.creadoPor || '')}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${badgeEdo}</td>
+                                        <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">
+                                            <button type="button" class="os-btn-print" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; margin-right:0.25rem;">Reimprimir</button>
+                                            ${estadoUp === 'ENVIADO' && puedeDespachar ? `<button type="button" class="os-btn-recibir" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; margin-right:0.25rem;">Marcar recibida</button>` : ''}
+                                            ${window.isAdmin ? `<button type="button" class="os-btn-del" data-id="${escAttr(o.id)}" style="font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">Eliminar</button>` : ''}
+                                        </td>`;
+                                    tbodyOS.appendChild(tr);
+                                });
+                            }
+                        } catch {}
+
                         window._noAtInspById = new Map();
 
                         noAt.forEach(insp => {
@@ -3901,6 +3963,48 @@
                 if (btnTer && btnTer.dataset.bound !== '1') { btnTer.dataset.bound = '1'; btnTer.addEventListener('click', () => osAbrir('TERCERO')); }
                 const osBtnCancel = document.getElementById('osalida-cancelar');
                 if (osBtnCancel && osBtnCancel.dataset.bound !== '1') { osBtnCancel.dataset.bound = '1'; osBtnCancel.addEventListener('click', osCerrar); }
+
+                // Acciones de la tabla de órdenes (reimprimir / recibir / eliminar)
+                const tbodyOS = document.getElementById('tbody-osalida');
+                if (tbodyOS && tbodyOS.dataset.bound !== '1') {
+                    tbodyOS.dataset.bound = '1';
+                    tbodyOS.addEventListener('click', async (ev) => {
+                        const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+                        if (!btn) return;
+                        const id = String(btn.dataset.id || '');
+                        const orden = (window._ordenesSalidaById && window._ordenesSalidaById.get(id)) || null;
+                        if (!id || !orden) return;
+                        try {
+                            const { getFirestore, doc, updateDoc, deleteDoc, serverTimestamp } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                            );
+                            const db = getFirestore();
+                            if (btn.classList.contains('os-btn-print')) {
+                                imprimirOrdenSalida(orden);
+                            } else if (btn.classList.contains('os-btn-recibir')) {
+                                btn.disabled = true;
+                                await updateDoc(doc(db, 'ordenes_salida', id), {
+                                    estado: 'RECIBIDO',
+                                    recibidoPor: (window.currentUserEmail || '').toLowerCase(),
+                                    recibidoEn: serverTimestamp()
+                                });
+                                try { if (window.pctAudit) await window.pctAudit('ordenes_salida_recibir', { id, folio: orden.folio || '' }); } catch {}
+                                cargarDatos();
+                            } else if (btn.classList.contains('os-btn-del')) {
+                                const ok = window.confirm(`¿Eliminar la orden de salida ${orden.folio || id}?\n\nEl/los equipo(s) volverán a "No atendidas" como pendientes.`);
+                                if (!ok) return;
+                                btn.disabled = true;
+                                await deleteDoc(doc(db, 'ordenes_salida', id));
+                                try { if (window.pctAudit) await window.pctAudit('ordenes_salida_delete', { id, folio: orden.folio || '' }); } catch {}
+                                cargarDatos();
+                            }
+                        } catch (e) {
+                            console.error('Acción de orden de salida falló', e);
+                            alert('No se pudo completar la acción. Revisa la consola.');
+                            try { btn.disabled = false; } catch {}
+                        }
+                    });
+                }
 
                 const osBtnConf = document.getElementById('osalida-confirmar');
                 if (osBtnConf && osBtnConf.dataset.bound !== '1') {
