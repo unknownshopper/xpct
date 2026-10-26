@@ -606,10 +606,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     ensureAuditNavLink(isAdmin || isDirector || isSupervisor || isSgi || isAuxger || isVisor || isCops);
 
-                    // Actividoc: admin/director
-                    ensureActividocNavLink(isAdmin || isDirector);
-                    // XActividad (admax): admin/director
-                    ensureXActividadNavLink(isAdmin || isDirector);
+                    // Actividoc / XActividad: admin/director — nunca dentro de la cara de auditoría
+                    const isAuditFace = currentPage === 'audit.html';
+                    ensureActividocNavLink((isAdmin || isDirector) && !isAuditFace);
+                    ensureXActividadNavLink((isAdmin || isDirector) && !isAuditFace);
 
                     // En dashboard: ocultar KPIs solo para inspector (UI reducida)
                     if (currentPage === 'index.html' && isInspector) {

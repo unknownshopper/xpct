@@ -215,6 +215,7 @@
                 <input id="audit-equipo" type="text" placeholder="Ej. PCT-SSA-01" autocomplete="off">
             </div>
             <button type="button" id="btn-audit-generar">Generar dossier</button>
+            <button type="button" id="btn-audit-manifiesto" class="btn-print-audit">Manifiesto del sistema</button>
             <button type="button" id="btn-audit-print" class="btn-print-audit" style="display:none;">Imprimir / PDF</button>
             <span class="audit-status" id="audit-status"></span>
         </div>
@@ -287,6 +288,84 @@
                 out.push(`${p?.nombre || 'Parámetro'} (${est})${d.length ? ': ' + d.join(', ') : ''}`);
             });
             return out;
+        }
+
+        function renderManifiesto({ email, folioDoc }) {
+            const sec = (titulo, items) => `
+                <div class="doc-sec">
+                    <h2>${esc(titulo)}</h2>
+                    <ul style="margin:0; padding-left:1.1rem; font-size:.84rem; color:#1f2937; line-height:1.55;">
+                        ${items.map(i => `<li>${i}</li>`).join('')}
+                    </ul>
+                </div>`;
+            return `
+            <div class="vault">
+                <span class="vault-bolt tl"></span><span class="vault-bolt tr"></span>
+                <span class="vault-bolt bl"></span><span class="vault-bolt br"></span>
+                <div class="vault-paper">
+                    <div class="doc-head">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <img src="img/logopctch.png" alt="PCT">
+                            <div>
+                                <h1>Manifiesto del sistema</h1>
+                                <div class="sub">Sistema de inspección e inventario vivo</div>
+                            </div>
+                        </div>
+                        <div class="doc-folio">
+                            <div class="folio">${esc(folioDoc)}</div>
+                            <div>Emitido: ${fmtFecha(Date.now())}</div>
+                            <div>Por: ${esc(email)}</div>
+                        </div>
+                    </div>
+
+                    ${sec('1. Objeto', [
+                        'Plataforma digital para el <strong>control de inspecciones de equipos</strong>, el <strong>inventario vivo</strong> y la <strong>trazabilidad completa del ciclo de vida operativo</strong> de cada activo.'
+                    ])}
+
+                    ${sec('2. Alcance operativo', [
+                        '<strong>Inventario vivo de equipos</strong>: ficha técnica por activo (identificador, serial, especificación de conexión, presión de trabajo, descripción, estado).',
+                        '<strong>Inspecciones</strong> por etapa del ciclo: PRE-operativa, POST-trabajo, RECEPCIÓN, REINSPECCIÓN y ANUAL.',
+                        '<strong>Pruebas no destructivas</strong> registradas por equipo: UTT, LT y VT/PT/MT, con resultado y vigencia.',
+                        '<strong>Cuarentena</strong>: los equipos que reportan daño quedan apartados hasta decidir su destino.',
+                        '<strong>Órdenes de salida foliadas</strong>: mantenimiento interno <em>(PCT-MII-AAAA-####)</em> y a terceros <em>(PCT-MIE-AAAA-####)</em>, con equipos, daños, observaciones y evidencia.',
+                        '<strong>Recepción / reinspección</strong>: el equipo regresa, se verifica y se reintegra a la operatividad quedando su historial completo.',
+                        '<strong>Evidencias fotográficas</strong> y firmas digitales asociadas a cada registro.'
+                    ])}
+
+                    ${sec('3. Procesos programados (crontabs)', [
+                        '<strong>Monitoreo diario de pendientes (PND)</strong>: reconstrucción automática de resúmenes de inspecciones y pruebas por equipo.',
+                        '<strong>Control de vigencias</strong>: detección diaria de equipos próximos a vencer o vencidos en sus pruebas e inspecciones periódicas.',
+                        '<strong>Alertas diarias por correo</strong> al personal operativo con los equipos que requieren atención.',
+                        'Los procesos se ejecutan de forma programada y desatendida sobre la base de datos operativa; no dependen de que un usuario abra el sistema.'
+                    ])}
+
+                    ${sec('4. Control de acceso', [
+                        'Autenticación por correo y contraseña con <strong>sesiones que expiran</strong>.',
+                        '<strong>Roles operativos</strong> que limitan qué puede ver y modificar cada usuario (inspector, capturista, coordinación, supervisión, consulta).',
+                        'Las reglas de acceso se aplican a nivel de base de datos, no solo en la interfaz.'
+                    ])}
+
+                    ${sec('5. Integridad de la información', [
+                        'El historial de cada equipo es <strong>acumulativo</strong>: los registros no se sobreescriben; cada evento se conserva con fecha, folio y responsable.',
+                        'Los folios de órdenes de salida se generan con <strong>consecutivo transaccional</strong>, sin duplicados ni edición manual.',
+                        'Las evidencias fotográficas se almacenan de forma segura asociadas al registro que las originó.',
+                        'La bitácora de operaciones relevantes queda registrada para revisión.'
+                    ])}
+
+                    ${sec('6. Infraestructura', [
+                        'Aplicación web de acceso controlado, servida sobre CDN con protección perimetral.',
+                        'Base de datos y almacenamiento en la nube con reglas de seguridad por rol.',
+                        'Funciones programadas en la nube para los procesos automáticos descritos.'
+                    ])}
+
+                    <div class="doc-firmas">
+                        <div>Elaboró</div>
+                        <div>Revisó</div>
+                        <div>Auditor</div>
+                    </div>
+                    <div class="doc-pie">Documento generado electrónicamente por el sistema PCT — descripción del alcance operativo de la plataforma.</div>
+                </div>
+            </div>`;
         }
 
         function renderDossier({ equipo, ficha, eventos, email, folioDoc }) {
@@ -396,6 +475,17 @@
 
             btnPrint.addEventListener('click', () => window.print());
             inputEq.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnGen.click(); });
+
+            const btnManif = document.getElementById('btn-audit-manifiesto');
+            if (btnManif) {
+                btnManif.addEventListener('click', () => {
+                    const folioDoc = `MAN-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+                    result.innerHTML = renderManifiesto({ email, folioDoc });
+                    empty.style.display = 'none';
+                    btnPrint.style.display = '';
+                    status.textContent = 'Manifiesto listo para imprimir.';
+                });
+            }
 
             btnGen.addEventListener('click', async () => {
                 const eqInput = String(inputEq.value || '').trim();
