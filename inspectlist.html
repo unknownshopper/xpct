@@ -355,7 +355,7 @@
                     </div>
                     <div style="margin-bottom:0.6rem;">
                         <label for="osalida-folio" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">No. de salida / folio</label>
-                        <input id="osalida-folio" type="text" readonly placeholder="Se genera automáticamente (PCT-MIE-AAAA-####)" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; background:#f9fafb; color:#6b7280;">
+                        <input id="osalida-folio" type="text" readonly placeholder="Se genera automáticamente (PCT-MIE/MII-AAAA-####)" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; background:#f9fafb; color:#6b7280;">
                     </div>
                     <div style="margin-bottom:0.85rem;">
                         <label for="osalida-fecha" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Fecha de salida</label>
@@ -4309,16 +4309,23 @@
                             const db = getFirestore();
                             const email = (window.currentUserEmail || '').toLowerCase();
 
-                            // Folio automático consecutivo: PCT-MIE-AAAA-#### (contador transaccional).
+                            // Folio automático consecutivo por tipo (transaccional):
+                            //   TERCERO → PCT-MIE-AAAA-#### (Mantenimiento Industrial Externo)
+                            //   INTERNO → PCT-MII-AAAA-#### (Mantenimiento Industrial Interno)
                             let folio = '';
                             const year = new Date().getFullYear();
+                            const prefijo = _osalidaTipo === 'TERCERO' ? 'MIE' : 'MII';
+                            const keySeq = prefijo === 'MIE' ? 'seqMIE' : 'seqMII';
                             await runTransaction(db, async (tx) => {
                                 const refC = docFS2(db, 'ordenes_salida', '_control');
                                 const sC = await tx.get(refC);
                                 const dC = sC.exists() ? (sC.data() || {}) : {};
-                                const seq = (Number(dC.year) === year && Number.isFinite(Number(dC.seq))) ? Number(dC.seq) + 1 : 1;
-                                tx.set(refC, { year, seq }, { merge: true });
-                                folio = `PCT-MIE-${year}-${String(seq).padStart(4, '0')}`;
+                                let base = Number.isFinite(Number(dC[keySeq])) ? Number(dC[keySeq]) : 0;
+                                // Compat: el contador viejo 'seq' pertenecía a MIE.
+                                if (prefijo === 'MIE' && Number.isFinite(Number(dC.seq))) base = Math.max(base, Number(dC.seq));
+                                const seq = (Number(dC.year) === year) ? base + 1 : 1;
+                                tx.set(refC, { year, [keySeq]: seq }, { merge: true });
+                                folio = `PCT-${prefijo}-${year}-${String(seq).padStart(4, '0')}`;
                             });
 
                             const payload = {

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoría — Dossier de trazabilidad | PCT</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background: #0b1220; }
+
+        .audit-wrap { max-width: 1080px; margin: 0 auto; padding: 1rem; }
+
+        .audit-controls {
+            display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #263449 100%);
+            border: 1px solid #0b1220; border-radius: 12px;
+            padding: 0.85rem 1rem; margin-bottom: 1rem;
+            box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07);
+            position: relative; overflow: hidden;
+        }
+        .audit-controls::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
+            background: repeating-linear-gradient(-45deg, #f59e0b 0 7px, #111827 7px 14px);
+        }
+        .audit-controls label { color: #94a3b8; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 3px; }
+        .audit-controls input {
+            padding: .5rem .6rem; border-radius: 8px; border: 1px solid #475569;
+            background: #0f172a; color: #f1f5f9; font-size: .95rem; min-width: 220px;
+            letter-spacing: .04em;
+        }
+        .audit-controls input::placeholder { color: #475569; }
+        .audit-controls button {
+            padding: .5rem .95rem; border-radius: 999px; font-size: .82rem; font-weight: 600;
+            letter-spacing: .03em; cursor: pointer; border: 1px solid #f59e0b;
+            background: #f59e0b; color: #111827;
+        }
+        .audit-controls button.btn-print-audit { border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #e2e8f0; }
+        .audit-controls button:hover { filter: brightness(1.08); }
+        .audit-status { color: #94a3b8; font-size: .8rem; align-self: center; }
+
+        /* ===== La caja fuerte ===== */
+        .vault {
+            position: relative;
+            background: linear-gradient(160deg, #3f4756 0%, #232a38 40%, #1a202c 100%);
+            border: 1px solid #0a0f1a;
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 12px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.5);
+        }
+        .vault::before {
+            content: ''; position: absolute; left: 14px; right: 14px; top: 14px; height: 10px;
+            border-radius: 8px 8px 0 0;
+            background: repeating-linear-gradient(-45deg, #f59e0b 0 10px, #111827 10px 20px);
+            opacity: .9;
+        }
+        .vault-bolt {
+            position: absolute; width: 14px; height: 14px; border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #cbd5e1 0%, #64748b 45%, #1e293b 100%);
+            box-shadow: inset 0 -1px 2px rgba(0,0,0,.6), 0 1px 1px rgba(255,255,255,.15);
+            z-index: 3;
+        }
+        .vault-bolt::after {
+            content: ''; position: absolute; left: 50%; top: 2px; bottom: 2px; width: 2px;
+            margin-left: -1px; background: rgba(15,23,42,.7); border-radius: 1px;
+            transform: rotate(38deg);
+        }
+        .vault-bolt.tl { top: 30px; left: 30px; } .vault-bolt.tr { top: 30px; right: 30px; }
+        .vault-bolt.bl { bottom: 30px; left: 30px; } .vault-bolt.br { bottom: 30px; right: 30px; }
+
+        .vault-paper {
+            position: relative;
+            background: #fdfcf9;
+            border-radius: 6px;
+            margin-top: 10px;
+            padding: 2rem 2.2rem;
+            overflow: hidden;
+            box-shadow: inset 0 0 40px rgba(15,23,42,.05);
+        }
+        .vault-paper::after {
+            content: 'PCT · AUDITORÍA · PCT · AUDITORÍA · PCT · AUDITORÍA';
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-size: 3rem; font-weight: 800; letter-spacing: .3em; color: rgba(15,23,42,.045);
+            transform: rotate(-24deg); white-space: nowrap; pointer-events: none;
+        }
+        .vault-paper > * { position: relative; z-index: 1; }
+
+        .doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; border-bottom: 3px double #334155; padding-bottom: .8rem; }
+        .doc-head img { height: 44px; }
+        .doc-head h1 { font-size: 1.25rem; margin: 0; letter-spacing: .12em; color: #0f172a; text-transform: uppercase; }
+        .doc-head .sub { font-size: .72rem; color: #64748b; letter-spacing: .18em; text-transform: uppercase; margin-top: 2px; }
+        .doc-folio { text-align: right; font-size: .72rem; color: #475569; }
+        .doc-folio .folio { font-family: 'Courier New', monospace; font-size: .9rem; font-weight: 700; color: #0f172a; }
+
+        .doc-sec { margin-top: 1.1rem; }
+        .doc-sec > h2 {
+            font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; color: #f8fafc;
+            background: linear-gradient(90deg, #0f172a, #334155); display: inline-block;
+            padding: .28rem .8rem .28rem .7rem; border-radius: 0 999px 999px 0; margin: 0 0 .6rem;
+        }
+
+        table.ficha { width: 100%; border-collapse: collapse; font-size: .82rem; }
+        table.ficha td { border: 1px solid #cbd5e1; padding: .35rem .55rem; vertical-align: top; }
+        table.ficha td.k { background: #f1f5f9; font-weight: 700; width: 130px; text-transform: uppercase; font-size: .68rem; letter-spacing: .06em; color: #334155; }
+
+        .estado-actual {
+            display: inline-block; padding: .35rem 1rem; border-radius: 4px; font-weight: 800;
+            letter-spacing: .1em; font-size: .85rem; border: 2px solid; text-transform: uppercase;
+        }
+        .estado-ok { color: #166534; border-color: #166534; background: #f0fdf4; }
+        .estado-cuarentena { color: #b45309; border-color: #b45309; background: #fffbeb; }
+        .estado-despachado { color: #6d28d9; border-color: #6d28d9; background: #f5f3ff; }
+
+        .tl { border-left: 3px solid #cbd5e1; margin-left: 8px; }
+        .tl-ev { position: relative; padding: 0 0 .9rem 1.1rem; }
+        .tl-ev::before {
+            content: ''; position: absolute; left: -9px; top: 4px; width: 13px; height: 13px;
+            border-radius: 50%; background: #fff; border: 3px solid #94a3b8;
+        }
+        .tl-ev.c-blue::before { border-color: #1d4ed8; }
+        .tl-ev.c-amber::before { border-color: #d97706; }
+        .tl-ev.c-green::before { border-color: #16a34a; }
+        .tl-ev.c-purple::before { border-color: #7c3aed; }
+        .tl-ev.c-red::before { border-color: #dc2626; }
+        .tl-ev.c-slate::before { border-color: #64748b; }
+
+        .tl-card {
+            border: 1px solid #d7dee8; border-radius: 8px; background: #fff;
+            padding: .6rem .8rem; box-shadow: 0 1px 3px rgba(15,23,42,.06);
+            page-break-inside: avoid;
+        }
+        .tl-top { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
+        .stamp {
+            display: inline-block; font-size: .68rem; font-weight: 800; letter-spacing: .1em;
+            padding: .15rem .55rem; border-radius: 3px; border: 1.5px solid; text-transform: uppercase;
+            transform: rotate(-1.2deg);
+        }
+        .s-blue { color: #1d4ed8; border-color: #1d4ed8; }
+        .s-amber { color: #b45309; border-color: #b45309; }
+        .s-green { color: #166534; border-color: #166534; }
+        .s-purple { color: #6d28d9; border-color: #6d28d9; }
+        .s-red { color: #b91c1c; border-color: #b91c1c; }
+        .s-slate { color: #475569; border-color: #475569; }
+        .tl-fecha { font-family: 'Courier New', monospace; font-size: .78rem; color: #0f172a; font-weight: 700; }
+        .tl-folio { font-family: 'Courier New', monospace; font-size: .72rem; color: #6d28d9; }
+        .tl-title { font-size: .85rem; font-weight: 700; color: #0f172a; }
+        .tl-meta { font-size: .76rem; color: #64748b; margin-top: .2rem; }
+        .tl-danos { font-size: .78rem; color: #b91c1c; margin-top: .3rem; }
+        .tl-obs { font-size: .78rem; color: #374151; margin-top: .3rem; font-style: italic; }
+        .tl-evid { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .4rem; }
+        .tl-evid img { width: 74px; height: 56px; object-fit: cover; border: 1px solid #cbd5e1; border-radius: 4px; }
+
+        .doc-firmas { display: flex; gap: 48px; margin-top: 3rem; }
+        .doc-firmas div { flex: 1; border-top: 1.5px solid #0f172a; padding-top: 6px; font-size: .72rem; text-align: center; letter-spacing: .08em; text-transform: uppercase; color: #334155; }
+        .doc-pie { margin-top: 1.4rem; font-size: .66rem; color: #94a3b8; text-align: center; letter-spacing: .05em; }
+
+        .audit-empty { text-align: center; color: #94a3b8; padding: 3rem 1rem; font-size: .9rem; }
+
+        @media print {
+            body { background: #fff; }
+            header, .audit-controls, .nav-toggle, .audit-status { display: none !important; }
+            .audit-wrap { max-width: none; padding: 0; }
+            .vault { background: #fff; border: none; box-shadow: none; padding: 0; border-radius: 0; }
+            .vault::before, .vault-bolt { display: none; }
+            .vault-paper { margin-top: 0; box-shadow: none; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="img/logopctch.png" alt="Logo PCT">
+        </div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">&#9776;</button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Actividad</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="actividad.html">Registrar actividad</a></li>
+                        <li><a href="actividadlist.html">Listado de actividades</a></li>
+                        <li><a href="actividadmin.html" class="nav-admin-only">Administración</a></li>
+                        <li><a href="trazabilidades.html" class="nav-admin-only">Trazabilidades</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Pruebas</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="pruebas.html">Registrar prueba</a></li>
+                        <li><a href="pruebaslist.html">Listado de pruebas</a></li>
+                        <li><a href="pruebasrangos.html">Rangos</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item-has-dropdown">
+                    <a href="#">Inspecciones</a>
+                    <ul class="nav-dropdown">
+                        <li><a href="inspeccion.html">Nueva inspección</a></li>
+                        <li><a href="inspectlist.html">Listado de inspecciones</a></li>
+                        <li><a href="inspectcat.html">Categorías</a></li>
+                        <li><a href="catalogodanos.html">Catálogo de daños</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info">
+            <span class="user-info-email" id="nav-user-email"></span>
+            <button id="btn-logout">Salir</button>
+        </div>
+    </header>
+
+    <main class="audit-wrap">
+        <div class="audit-controls no-print">
+            <div>
+                <label for="audit-equipo">Equipo / activo</label>
+                <input id="audit-equipo" type="text" placeholder="Ej. PCT-SSA-01" autocomplete="off">
+            </div>
+            <button type="button" id="btn-audit-generar">Generar dossier</button>
+            <button type="button" id="btn-audit-print" class="btn-print-audit" style="display:none;">Imprimir / PDF</button>
+            <span class="audit-status" id="audit-status"></span>
+        </div>
+
+        <div id="audit-result"></div>
+        <div class="audit-empty" id="audit-empty">Escribe el identificador del equipo y genera su dossier de trazabilidad completo.<br>PRE → POST → cuarentena → orden de salida → recepción / reinspección.</div>
+    </main>
+
+    <script src="utils.js"></script>
+    <script src="nav.js"></script>
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+        import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import {
+            getFirestore, collection, getDocs, query, where, limit as fsLimit
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        const auth = window.auth;
+        const emailSpan = document.getElementById('nav-user-email');
+        const btnLogout = document.getElementById('btn-logout');
+        if (btnLogout) btnLogout.addEventListener('click', () => signOut(auth));
+
+        const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const normEq = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const toMs = (v) => {
+            try {
+                if (!v) return null;
+                if (typeof v === 'number') return v;
+                if (typeof v.toMillis === 'function') return v.toMillis();
+                if (v.seconds) return v.seconds * 1000;
+                if (typeof v.toDate === 'function') return v.toDate().getTime();
+                const t = new Date(v).getTime();
+                return Number.isFinite(t) ? t : null;
+            } catch { return null; }
+        };
+        const fmtFecha = (ms) => {
+            if (!ms) return '—';
+            try {
+                return new Date(ms).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch { return '—'; }
+        };
+
+        function variantesEquipo(input) {
+            const raw = String(input || '').trim();
+            const up = raw.toUpperCase();
+            const compact = up.replace(/\s+/g, '');
+            const spaced = compact.replace(/-/g, ' ').replace(/([A-Z]+)(\d)/g, '$1-$2');
+            return Array.from(new Set([raw, up, compact, spaced].filter(Boolean))).slice(0, 10);
+        }
+
+        function extraerEvidencias(insp) {
+            const urls = [];
+            const push = (u) => { if (u && /^https?:\/\//i.test(u) && !urls.includes(u)) urls.push(u); };
+            (Array.isArray(insp?.parametros) ? insp.parametros : []).forEach(p => {
+                push(p?.evidenciaUrl);
+                Object.values(p?.evidenciasPorDano || {}).forEach(b => push(b?.evidenciaUrl));
+            });
+            return urls;
+        }
+
+        function danosDe(insp) {
+            const out = [];
+            (Array.isArray(insp?.parametros) ? insp.parametros : []).forEach(p => {
+                const est = String(p?.estado || '').trim().toUpperCase();
+                if (est !== 'MALO' && est !== 'NO LEGIBLE') return;
+                const d = Array.isArray(p?.danosSeleccionados) && p.danosSeleccionados.length
+                    ? p.danosSeleccionados
+                    : Object.keys(p?.evidenciasPorDano || {});
+                out.push(`${p?.nombre || 'Parámetro'} (${est})${d.length ? ': ' + d.join(', ') : ''}`);
+            });
+            return out;
+        }
+
+        function renderDossier({ equipo, ficha, eventos, email, folioDoc }) {
+            const ultimo = eventos.length ? eventos[eventos.length - 1] : null;
+            let estadoTxt = 'SIN HISTORIAL', estadoCls = 'estado-cuarentena';
+            if (ultimo) {
+                if (ultimo.kind === 'orden' && String(ultimo.estado || '').toUpperCase() === 'ENVIADO') {
+                    estadoTxt = `DESPACHADO · ${esc(ultimo.stamp)}`; estadoCls = 'estado-despachado';
+                } else if (ultimo.malo) {
+                    estadoTxt = 'EN CUARENTENA'; estadoCls = 'estado-cuarentena';
+                } else {
+                    estadoTxt = 'OPERATIVO'; estadoCls = 'estado-ok';
+                }
+            }
+
+            const fichaRows = [
+                ['Equipo / activo', equipo],
+                ['Serial', ficha?.serial || '—'],
+                ['Espec. conexión', ficha?.conexion || ficha?.especificacion || ficha?.spec || '—'],
+                ['Presión de trabajo', ficha?.pt || ficha?.presion1 || '—'],
+                ['Descripción', ficha?.descripcion || '—'],
+                ['Área / cliente', ficha?.area || ficha?.cliente || ficha?.ubicacion || '—'],
+            ].map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
+
+            const evHtml = eventos.map(ev => `
+                <div class="tl-ev ${ev.color}">
+                    <div class="tl-card">
+                        <div class="tl-top">
+                            <span class="stamp ${ev.stampCls}">${esc(ev.stamp)}</span>
+                            <span class="tl-fecha">${fmtFecha(ev.ms)}</span>
+                            ${ev.folio ? `<span class="tl-folio">${esc(ev.folio)}</span>` : ''}
+                            <span class="tl-title">${esc(ev.titulo)}</span>
+                        </div>
+                        ${ev.meta ? `<div class="tl-meta">${esc(ev.meta)}</div>` : ''}
+                        ${ev.danos.length ? `<div class="tl-danos">Daño: ${ev.danos.map(d => esc(d)).join(' · ')}</div>` : ''}
+                        ${ev.obs ? `<div class="tl-obs">Obs: ${esc(ev.obs)}</div>` : ''}
+                        ${ev.evids.length ? `<div class="tl-evid">${ev.evids.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="evidencia"></a>`).join('')}</div>` : ''}
+                    </div>
+                </div>`).join('');
+
+            return `
+            <div class="vault">
+                <span class="vault-bolt tl"></span><span class="vault-bolt tr"></span>
+                <span class="vault-bolt bl"></span><span class="vault-bolt br"></span>
+                <div class="vault-paper">
+                    <div class="doc-head">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <img src="img/logopctch.png" alt="PCT">
+                            <div>
+                                <h1>Dossier de auditoría</h1>
+                                <div class="sub">Trazabilidad completa de equipo</div>
+                            </div>
+                        </div>
+                        <div class="doc-folio">
+                            <div class="folio">${esc(folioDoc)}</div>
+                            <div>Emitido: ${fmtFecha(Date.now())}</div>
+                            <div>Por: ${esc(email)}</div>
+                        </div>
+                    </div>
+
+                    <div class="doc-sec">
+                        <h2>Ficha del equipo</h2>
+                        <table class="ficha"><tbody>${fichaRows}</tbody></table>
+                    </div>
+
+                    <div class="doc-sec">
+                        <h2>Estado actual</h2>
+                        <span class="estado-actual ${estadoCls}">${estadoTxt}</span>
+                    </div>
+
+                    <div class="doc-sec">
+                        <h2>Línea de tiempo (${eventos.length} eventos)</h2>
+                        <div class="tl">${evHtml || '<div style="color:#64748b;font-size:.85rem;">Sin eventos registrados.</div>'}</div>
+                    </div>
+
+                    <div class="doc-firmas">
+                        <div>Elaboró</div>
+                        <div>Revisó</div>
+                        <div>Auditor</div>
+                    </div>
+                    <div class="doc-pie">Documento generado electrónicamente por el sistema PCT — la información proviene de los registros operativos en tiempo real.</div>
+                </div>
+            </div>`;
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) { window.location.href = 'website.html'; return; }
+            const email = (user.email || '').toLowerCase();
+            if (emailSpan) emailSpan.textContent = email;
+
+            let role = null;
+            try {
+                const token = await user.getIdTokenResult();
+                role = (token?.claims?.role) || null;
+            } catch {}
+            const permitido = ['admin', 'director', 'supervisor', 'sgi', 'auxger', 'visor', 'cops'].includes(role)
+                || email === 'cops@pc-t.com.mx' || email === 'sgi@pc-t.com.mx';
+            if (!permitido) { window.location.href = 'website.html'; return; }
+
+            const db = getFirestore();
+            const inputEq = document.getElementById('audit-equipo');
+            const btnGen = document.getElementById('btn-audit-generar');
+            const btnPrint = document.getElementById('btn-audit-print');
+            const status = document.getElementById('audit-status');
+            const result = document.getElementById('audit-result');
+            const empty = document.getElementById('audit-empty');
+
+            btnPrint.addEventListener('click', () => window.print());
+            inputEq.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnGen.click(); });
+
+            btnGen.addEventListener('click', async () => {
+                const eqInput = String(inputEq.value || '').trim();
+                if (!eqInput) { status.textContent = 'Escribe un identificador de equipo.'; return; }
+                btnGen.disabled = true;
+                status.textContent = 'Consultando registros…';
+                result.innerHTML = '';
+                try {
+                    const vars = variantesEquipo(eqInput);
+                    const kEq = normEq(eqInput);
+
+                    const [sEq, sInsp, sPrb, sOS] = await Promise.all([
+                        getDocs(query(collection(db, 'equipos'), where('equipo', 'in', vars), fsLimit(5))),
+                        getDocs(query(collection(db, 'inspecciones'), where('equipo', 'in', vars))),
+                        getDocs(query(collection(db, 'pruebas'), where('equipo', 'in', vars))),
+                        getDocs(collection(db, 'ordenes_salida')),
+                    ]);
+
+                    let ficha = null;
+                    sEq.forEach(d => { if (!ficha) ficha = d.data() || {}; });
+                    const equipoCanon = (ficha && ficha.equipo) || eqInput.toUpperCase();
+
+                    const eventos = [];
+
+                    sInsp.forEach(d => {
+                        const r = d.data() || {};
+                        if (normEq(r.equipo) !== kEq) return;
+                        const tipo = String(r.tipoInspeccion || r.tipo || 'INSPECCIÓN').toUpperCase();
+                        const danos = danosDe(r);
+                        const malo = danos.length > 0;
+                        let color = 'c-slate', stampCls = 's-slate', stamp = 'INSP';
+                        if (tipo.includes('RECEPC')) { color = 'c-green'; stampCls = 's-green'; stamp = 'REC'; }
+                        else if (tipo.includes('REINSP') || tipo.includes('REINSPEC')) { color = 'c-green'; stampCls = 's-green'; stamp = 'REI'; }
+                        else if (tipo.includes('POST')) { color = 'c-amber'; stampCls = 's-amber'; stamp = 'POST'; }
+                        else if (tipo.includes('PRE')) { color = 'c-blue'; stampCls = 's-blue'; stamp = 'PRE'; }
+                        else if (tipo.includes('ANUAL')) { color = 'c-blue'; stampCls = 's-blue'; stamp = 'ANUAL'; }
+                        if (malo) { color = 'c-red'; stampCls = 's-red'; stamp += '·MALO'; }
+                        eventos.push({
+                            kind: 'insp', ms: toMs(r.fecha || r.creadoEn) ?? 0,
+                            stamp, stampCls, color,
+                            titulo: tipo,
+                            folio: r.folio ? String(r.folio) : '',
+                            meta: [r.usuarioInspeccionEmail || r.inspectorAsignado || '', r.actividadCliente || r.cliente || ''].filter(Boolean).join(' · '),
+                            danos, obs: String(r.observaciones || ''),
+                            evids: extraerEvidencias(r).slice(0, 4),
+                            malo
+                        });
+                    });
+
+                    sPrb.forEach(d => {
+                        const r = d.data() || {};
+                        if (normEq(r.equipo) !== kEq) return;
+                        const res = String(r.resultado || r.estado || '').toUpperCase();
+                        const rech = res.includes('RECHAZ');
+                        eventos.push({
+                            kind: 'prueba', ms: toMs(r.fechaRealizacion || r.fecha || r.creadoEn) ?? 0,
+                            stamp: `PRB·${res || 'PRUEBA'}`, stampCls: rech ? 's-red' : 's-green',
+                            color: rech ? 'c-red' : 'c-slate',
+                            titulo: String(r.tipo || r.tipoPrueba || 'Prueba').toUpperCase(),
+                            folio: r.folio ? String(r.folio) : '',
+                            meta: String(r.evaluador || r.usuario || r.usuarioEmail || ''),
+                            danos: [], obs: String(r.observaciones || ''), evids: [], malo: rech
+                        });
+                    });
+
+                    sOS.forEach(d => {
+                        if (d.id === '_control') return;
+                        const r = d.data() || {};
+                        const items = Array.isArray(r.items) ? r.items : [];
+                        const mine = items.filter(it => normEq(it && it.equipo) === kEq);
+                        if (!mine.length) return;
+                        const esTerc = String(r.tipo || '').toUpperCase() === 'TERCERO';
+                        const recib = String(r.estado || '').toUpperCase() === 'RECIBIDO';
+                        eventos.push({
+                            kind: 'orden', ms: toMs(r.creadoEn || r.fechaSalida) ?? 0,
+                            stamp: esTerc ? 'MIE' : 'MII', stampCls: 's-purple', color: 'c-purple',
+                            titulo: `Orden de salida ${esTerc ? 'a tercero' : 'a mantenimiento interno'}`,
+                            folio: String(r.folio || ''),
+                            meta: [r.destino || '', r.creadoPor ? 'Despacha: ' + r.creadoPor : '', r.estado ? 'Estado: ' + r.estado : ''].filter(Boolean).join(' · '),
+                            danos: mine.flatMap(it => Array.isArray(it.danos) ? it.danos : []),
+                            obs: mine.map(it => it.obs).filter(Boolean).join(' | '),
+                            evids: [], malo: !recib, estado: r.estado
+                        });
+                        if (recib) {
+                            eventos.push({
+                                kind: 'orden', ms: toMs(r.recibidoEn) ?? (toMs(r.creadoEn) ?? 0) + 1,
+                                stamp: 'RECIBIDA', stampCls: 's-green', color: 'c-green',
+                                titulo: 'Orden recibida de vuelta',
+                                folio: String(r.folio || ''),
+                                meta: r.recibidoPor ? 'Por: ' + r.recibidoPor : '',
+                                danos: [], obs: '', evids: [], malo: false, estado: r.estado
+                            });
+                        }
+                    });
+
+                    eventos.sort((a, b) => a.ms - b.ms);
+
+                    const folioDoc = `AUD-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+                    result.innerHTML = renderDossier({
+                        equipo: equipoCanon, ficha, eventos, email, folioDoc
+                    });
+                    empty.style.display = 'none';
+                    btnPrint.style.display = '';
+                    status.textContent = `${eventos.length} eventos encontrados.`;
+                } catch (e) {
+                    console.error('audit dossier falló', e);
+                    status.textContent = 'No se pudo generar el dossier. Revisa la consola.';
+                } finally {
+                    btnGen.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

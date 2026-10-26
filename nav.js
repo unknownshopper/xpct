@@ -16,7 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'serviciolist.html',
         'actividoc.html',
         'manualinspec.html',
-        'manualpruebas.html'
+        'manualpruebas.html',
+        'audit.html'
     ]);
 
     function ensureManualesNavDropdown() {
@@ -570,6 +571,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Servicio: admin/director/supervisor/inspector/capturista (no visor)
                     ensureServicioNavDropdown(isAdmin || isDirector || isSupervisor || isInspector || isCapturista);
+
+                    // Auditoría (dossier de trazabilidad): roles de consulta/auditoría
+                    function ensureAuditNavLink(visible) {
+                        try {
+                            const insTop = Array.from(document.querySelectorAll('.nav-main > ul > li.nav-item-has-dropdown > a'))
+                                .find(a => ((a.textContent || '').trim().toLowerCase() === 'inspecciones'));
+                            const insLi = insTop ? (insTop.closest('li') || null) : null;
+                            const dd = insLi ? insLi.querySelector(':scope > ul.nav-dropdown') : null;
+                            if (!dd) return;
+
+                            const existing = dd.querySelector('a[href="audit.html"]');
+                            if (visible) {
+                                if (existing) {
+                                    const li = existing.closest('li') || existing;
+                                    li.style.display = '';
+                                    if (currentPage === 'audit.html') existing.classList.add('active');
+                                    else existing.classList.remove('active');
+                                    return;
+                                }
+                                const li = document.createElement('li');
+                                const a = document.createElement('a');
+                                a.href = 'audit.html';
+                                a.textContent = 'Auditoría';
+                                if (currentPage === 'audit.html') a.classList.add('active');
+                                li.appendChild(a);
+                                dd.appendChild(li);
+                            } else {
+                                if (!existing) return;
+                                const li = existing.closest('li') || existing;
+                                li.style.display = 'none';
+                            }
+                        } catch {}
+                    }
+                    ensureAuditNavLink(isAdmin || isDirector || isSupervisor || isSgi || isAuxger || isVisor || isCops);
 
                     // Actividoc: admin/director
                     ensureActividocNavLink(isAdmin || isDirector);
