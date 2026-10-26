@@ -1,0 +1,11 @@
+import admin from 'firebase-admin';
+import { readFileSync } from 'fs';
+const sa = JSON.parse(readFileSync(new URL('../serviceAccount.json', import.meta.url), 'utf8'));
+admin.initializeApp({ credential: admin.credential.cert(sa) });
+const db = admin.firestore();
+const snap = await db.collection('equipos').limit(5).get();
+console.log('equipos sample:', snap.size);
+snap.forEach(d => console.log(d.id, JSON.stringify(d.data()).slice(0,200)));
+const agg = await db.collection('equipos').count().get();
+console.log('TOTAL equipos:', agg.data().count);
+process.exit(0);

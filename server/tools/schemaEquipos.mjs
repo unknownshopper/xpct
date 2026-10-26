@@ -1,0 +1,11 @@
+import admin from 'firebase-admin';
+import { readFileSync } from 'fs';
+const sa = JSON.parse(readFileSync(new URL('../serviceAccount.json', import.meta.url), 'utf8'));
+admin.initializeApp({ credential: admin.credential.cert(sa) });
+const db = admin.firestore();
+const keys = new Set();
+let n = 0;
+const snap = await db.collection('equipos').limit(200).get();
+snap.forEach(d => { n++; Object.keys(d.data()).forEach(k => keys.add(k)); });
+console.log('campos en equipos (muestra 200):', [...keys].sort().join(', '));
+process.exit(0);
