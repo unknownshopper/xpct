@@ -3785,48 +3785,41 @@
                     if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = '';
 
                     const mostrarSecNoAt = (vistaActiva === 'no_atendidas');
-                    if (!noAt.length) {
-                        secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
-                        if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
-                        if (msgNoAtendidas) msgNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
-                    } else {
-                        secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
-                        if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
-                        tbodyNoAtendidas.innerHTML = '';
+                    const puedeDespachar = !!(window.isCops || window.isAdmin || window.isDirector || window.isSgi || window.isSupervisor);
+                    try {
+                        const b1 = document.getElementById('btn-osalida-interno');
+                        const b2 = document.getElementById('btn-osalida-tercero');
+                        const thD = document.getElementById('th-noat-desp');
+                        if (b1) b1.style.display = puedeDespachar ? '' : 'none';
+                        if (b2) b2.style.display = puedeDespachar ? '' : 'none';
+                        if (thD) thD.style.display = '';
+                    } catch {}
 
-                        // Órdenes de salida abiertas (equipo despachado a mant. interno / tercero)
-                        const puedeDespachar = !!(window.isCops || window.isAdmin || window.isDirector || window.isSgi || window.isSupervisor);
-                        try {
-                            const b1 = document.getElementById('btn-osalida-interno');
-                            const b2 = document.getElementById('btn-osalida-tercero');
-                            const thD = document.getElementById('th-noat-desp');
-                            if (b1) b1.style.display = puedeDespachar ? '' : 'none';
-                            if (b2) b2.style.display = puedeDespachar ? '' : 'none';
-                            if (thD) thD.style.display = '';
-                        } catch {}
-                        const ordenesAbiertas = new Map(); // eqK -> {tipo, destino, folio, id}
-                        try {
-                            const { getFirestore, collection, getDocs, query, where } = await import(
-                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                            );
-                            const db = getFirestore();
-                            const qOS = query(collection(db, 'ordenes_salida'), where('estado', '==', 'ENVIADO'));
-                            const sOS = await getDocs(qOS);
-                            sOS.forEach(d => {
-                                const r = d.data() || {};
-                                (Array.isArray(r.items) ? r.items : []).forEach(it => {
-                                    try {
-                                        const k = normEqCompact(it && it.equipo ? String(it.equipo) : '');
-                                        if (k && !ordenesAbiertas.has(k)) {
-                                            ordenesAbiertas.set(k, { tipo: String(r.tipo || ''), destino: String(r.destino || ''), folio: String(r.folio || ''), id: d.id });
-                                        }
-                                    } catch {}
-                                });
+                    // Órdenes de salida abiertas (equipo despachado a mant. interno / tercero)
+                    const ordenesAbiertas = new Map(); // eqK -> {tipo, destino, folio, id}
+                    try {
+                        const { getFirestore, collection, getDocs, query, where } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const db = getFirestore();
+                        const qOS = query(collection(db, 'ordenes_salida'), where('estado', '==', 'ENVIADO'));
+                        const sOS = await getDocs(qOS);
+                        sOS.forEach(d => {
+                            const r = d.data() || {};
+                            (Array.isArray(r.items) ? r.items : []).forEach(it => {
+                                try {
+                                    const k = normEqCompact(it && it.equipo ? String(it.equipo) : '');
+                                    if (k && !ordenesAbiertas.has(k)) {
+                                        ordenesAbiertas.set(k, { tipo: String(r.tipo || ''), destino: String(r.destino || ''), folio: String(r.folio || ''), id: d.id });
+                                    }
+                                } catch {}
                             });
-                        } catch {}
-                        try { window._noAtOrdenesAbiertas = ordenesAbiertas; } catch {}
+                        });
+                    } catch {}
+                    try { window._noAtOrdenesAbiertas = ordenesAbiertas; } catch {}
 
-                        // Tabla administrable de órdenes de salida (últimas 50)
+                    // Tabla administrable de órdenes de salida (últimas 50) — visible para todos.
+                    const renderTablaOrdenes = async () => {
                         try {
                             const wrapOS = document.getElementById('osalida-lista-wrap');
                             const tbodyOS = document.getElementById('tbody-osalida');
@@ -3908,6 +3901,17 @@
                                 });
                             }
                         } catch {}
+                    };
+                    await renderTablaOrdenes();
+
+                    if (!noAt.length) {
+                        secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
+                        if (tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
+                        if (msgNoAtendidas) msgNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
+                    } else {
+                        secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
+                        if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
+                        tbodyNoAtendidas.innerHTML = '';
 
                         window._noAtInspById = new Map();
 
