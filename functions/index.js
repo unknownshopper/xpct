@@ -2773,3 +2773,27 @@ export const backfillFolios = onRequest(
     }
   }
 );
+
+// Purga órdenes de salida marcadas con autoEliminarEn (Timestamp <= ahora).
+// Sirve para retirar órdenes de prueba o temporales sin intervención manual.
+export const purgeOrdenesSalidaProgramadas = onSchedule(
+  {
+    schedule: 'every day 06:00',
+    timeZone: TZ,
+    timeoutSeconds: 120,
+    memory: '256MiB',
+  },
+  async () => {
+    ensureAdmin();
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+    const snap = await db.collection('ordenes_salida')
+      .where('autoEliminarEn', '<=', now)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    console.log(`purgeOrdenesSalidaProgramadas: ${snap.size} orden(es) eliminada(s)`);
+  }
+);
