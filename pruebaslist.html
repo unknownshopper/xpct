@@ -1960,6 +1960,13 @@
             if (btnRegistrar) btnRegistrar.style.display = permitirActualizar ? '' : 'none';
         } catch {}
 
+        // "Exportar sin PND": solo sgi, auxger, director y admin
+        try {
+            const mail2 = (window.currentUserEmail || '').toString().trim().toLowerCase();
+            const permitirSinPnd = !!(window.isAdmin || window.isDirector || window.isSgi || window.isAuxger || mail2 === 'sgi@pc-t.com.mx');
+            if (btnExportSinPnd) btnExportSinPnd.style.display = permitirSinPnd ? '' : 'none';
+        } catch {}
+
         // Import CSV para auxger/auxndt/sgi (carga), pero sin permisos de edición de tabla
         if (btnImportCsv) btnImportCsv.style.display = ((window.isAuxger || window.isAuxndt || window.isSgi) ? '' : 'none');
         if (btnDeleteCsv) {
