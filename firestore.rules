@@ -34,6 +34,25 @@ service cloud.firestore {
       return isRoleAny(['admin', 'sgi']);
     }
 
+    function canUpdateInspecciones() {
+      // Admin-tier: edición completa (correcciones, reasignación, borrado lógico).
+      // Inspector/cops/auxndt: SOLO sus propias inspecciones — la sincronización
+      // de campo necesita update para adjuntar evidencias/firmas al doc que crearon.
+      return isRoleAny(['admin', 'director', 'sgi', 'supervisor'])
+        || (
+          isRoleAny(['inspector', 'auxndt', 'aux_ndt', 'cops'])
+          && (
+            resource.data.usuarioInspeccionEmail == request.auth.token.email
+            || resource.data.inspectorAsignado == request.auth.token.email
+            // Reclamar inspección sin asignar: solo puede cambiar inspectorAsignado a su propio email.
+            || (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inspectorAsignado'])
+              && request.resource.data.inspectorAsignado == request.auth.token.email
+            )
+          )
+        );
+    }
+
     function canWritePruebas() {
       // Permitir carga/importación de pruebas (PND/calibraciones) desde pruebaslist/pruebas.
       return isRoleAny(['admin', 'director', 'sgi', 'auxger', 'auxndt', 'aux_ndt']);
@@ -95,8 +114,8 @@ service cloud.firestore {
     match /inspecciones/{docId} {
       allow create: if canCreateInspecciones() && isEquipoOperativoParaInspeccion();
       allow read: if canReadOperativo();
-      // Permitir update para completar sincronización (evidencias/patches) desde campo.
-      allow update: if canCreateInspecciones();
+      // Update: solo admin-tier, o el inspector dueño/asignado (sync de evidencias).
+      allow update: if canUpdateInspecciones();
       allow delete: if canDeleteInspecciones();
     }
 
