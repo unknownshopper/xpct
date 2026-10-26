@@ -142,7 +142,7 @@ service cloud.firestore {
     // Órdenes de salida a mantenimiento interno / tercero (despacho desde "No atendidas").
     match /ordenes_salida/{docId} {
       allow read: if canReadOperativo();
-      allow create, update: if isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'cops']);
+      allow create, update: if isRoleAny(['admin', 'director', 'sgi', 'supervisor', 'cops', 'auxndt', 'aux_ndt']);
       allow delete: if isRoleAny(['admin']);
     }
 
