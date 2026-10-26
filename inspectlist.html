@@ -223,24 +223,33 @@
                 <p id="mensaje-sin-no-atendidas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay equipos con daño pendientes de atender.
                 </p>
-                <div id="osalida-lista-wrap" style="margin-top:1rem; display:none;">
-                    <h4 style="margin:0 0 0.4rem; font-size:0.9rem; color:#374151;">Órdenes de salida</h4>
-                    <table id="tabla-osalida" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-                        <thead>
-                            <tr style="background:#f9fafb;">
-                                <th style="text-align:left; padding:0.35rem;">Fecha</th>
-                                <th style="text-align:left; padding:0.35rem;">Folio</th>
-                                <th style="text-align:left; padding:0.35rem;">Tipo</th>
-                                <th style="text-align:left; padding:0.35rem;">Destino</th>
-                                <th style="text-align:left; padding:0.35rem;">Equipos</th>
-                                <th style="text-align:left; padding:0.35rem;">Creada por</th>
-                                <th style="text-align:left; padding:0.35rem;">Estado</th>
-                                <th style="text-align:left; padding:0.35rem;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-osalida"></tbody>
-                    </table>
                 </div>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-osalida" style="margin-top:0.75rem; display:none;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
+                    <h3 style="margin:0; font-size:1rem;">Órdenes de salida</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-osalida-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
+                </div>
+                <div id="insp-osalida-body">
+                <table id="tabla-osalida" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                    <thead>
+                        <tr style="background:#f9fafb;">
+                            <th style="text-align:left; padding:0.35rem;">Fecha</th>
+                            <th style="text-align:left; padding:0.35rem;">Folio</th>
+                            <th style="text-align:left; padding:0.35rem;">Tipo</th>
+                            <th style="text-align:left; padding:0.35rem;">Destino</th>
+                            <th style="text-align:left; padding:0.35rem;">Equipos</th>
+                            <th style="text-align:left; padding:0.35rem;">Creada por</th>
+                            <th style="text-align:left; padding:0.35rem;">Estado</th>
+                            <th style="text-align:left; padding:0.35rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-osalida"></tbody>
+                </table>
+                <p id="mensaje-sin-osalida" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
+                    No hay órdenes de salida registradas.
+                </p>
                 </div>
             </div>
 
@@ -482,6 +491,7 @@
         const secHuerfanas = document.getElementById('insp-seccion-huerfanas');
         const secRealizadas = document.getElementById('insp-seccion-realizadas');
         const secNoAtendidas = document.getElementById('insp-seccion-no-atendidas');
+        const secOsalida = document.getElementById('insp-seccion-osalida');
         const tbodyNoAtendidas = document.getElementById('tbody-inspecciones-no-atendidas');
         const msgNoAtendidas = document.getElementById('mensaje-sin-no-atendidas');
         const inputBuscar = document.getElementById('insp-buscar');
@@ -831,6 +841,7 @@
                 if (secRealizadas) secRealizadas.style.display = 'none';
                 if (secHuerfanas) secHuerfanas.style.display = 'none';
                 if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                if (secOsalida) secOsalida.style.display = 'none';
                 if (secSinInsp) secSinInsp.style.display = 'none';
             } catch {}
             try {
@@ -879,6 +890,7 @@
             } else if (vistaActiva === 'no_atendidas') {
                 filtroEstado = null;
                 try { if (secNoAtendidas) secNoAtendidas.style.display = ''; } catch {}
+                try { if (secOsalida) secOsalida.style.display = ''; } catch {}
                 try { resolverThumbsMalo(); } catch {}
             } else if (vistaActiva === 'sin_insp') {
                 filtroEstado = null;
@@ -891,6 +903,7 @@
                     if (secRealizadas) secRealizadas.style.display = 'none';
                     if (secHuerfanas) secHuerfanas.style.display = 'none';
                     if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                if (secOsalida) secOsalida.style.display = 'none';
                     if (secSinInsp) secSinInsp.style.display = 'none';
                     if (secAccionesPdf) secAccionesPdf.style.display = 'none';
                 } catch {}
@@ -1190,6 +1203,7 @@
             renderEquiposSinInspeccion(lista);
             try {
                 if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                if (secOsalida) secOsalida.style.display = 'none';
                 if (secRealizadas) secRealizadas.style.display = 'none';
                 if (secHuerfanas) secHuerfanas.style.display = 'none';
                 if (secPendientes) secPendientes.style.display = 'none';
@@ -2445,6 +2459,7 @@
 
             if (vistaActiva !== 'no_atendidas') {
                 if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                if (secOsalida) secOsalida.style.display = 'none';
             }
             if ((quiereTodo || quiereNoAtendidas) && tbodyNoAtendidas) tbodyNoAtendidas.innerHTML = '';
             if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
@@ -3821,9 +3836,10 @@
                     // Tabla administrable de órdenes de salida (últimas 50) — visible para todos.
                     const renderTablaOrdenes = async () => {
                         try {
-                            const wrapOS = document.getElementById('osalida-lista-wrap');
                             const tbodyOS = document.getElementById('tbody-osalida');
-                            if (wrapOS && tbodyOS) {
+                            const msgOS = document.getElementById('mensaje-sin-osalida');
+                            if (secOsalida && tbodyOS) {
+                                secOsalida.style.display = mostrarSecNoAt ? '' : 'none';
                                 const { getFirestore, collection, getDocs, query, orderBy, limit } = await import(
                                     'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                                 );
@@ -3872,7 +3888,7 @@
 
                                 window._ordenesSalidaById = new Map(ordenes.map(o => [o.id, o]));
                                 tbodyOS.innerHTML = '';
-                                wrapOS.style.display = ordenes.length ? '' : 'none';
+                                if (msgOS) msgOS.style.display = ordenes.length ? 'none' : '';
                                 ordenes.forEach(o => {
                                     const fechaTxt = formatearFechaRegistro(o.fechaSalida || o.creadoEn);
                                     const eqs = (Array.isArray(o.items) ? o.items : []).map(it => String(it.equipo || '')).filter(Boolean);
@@ -4006,6 +4022,7 @@
                 } catch (e) {
                     try {
                         if (secNoAtendidas) secNoAtendidas.style.display = 'none';
+                if (secOsalida) secOsalida.style.display = 'none';
                         if (cardWrapNoAtendidas) cardWrapNoAtendidas.style.display = 'none';
                     } catch {}
                     console.warn('No se pudo renderizar No atendidas', e);
