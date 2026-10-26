@@ -196,6 +196,8 @@
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0.25rem 0 0.5rem;">
                     <h3 style="margin:0; font-size:1rem;">No atendidas (equipos con daño)</h3>
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                        <button type="button" id="btn-osalida-interno" style="display:none; font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #fde68a; background:#fffbeb; color:#b45309;">→ Mant. interno</button>
+                        <button type="button" id="btn-osalida-tercero" style="display:none; font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c;">→ Tercero</button>
                         <button type="button" id="btn-insp-pdf-no-atendidas" style="font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Descargar PDF</button>
                         <button type="button" id="btn-insp-email-no-atendidas" style="display:none; font-size:0.8rem; padding:0.2rem 0.6rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8;">Enviar correo</button>
                         <button type="button" class="insp-sec-toggle" data-target="insp-no-atendidas-body" style="font-size:0.8rem; padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #d1d5db; background:#ffffff; color:#111827;">Contraer</button>
@@ -205,6 +207,7 @@
                 <table id="tabla-inspecciones-no-atendidas" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="background:#fef2f2;">
+                            <th id="th-noat-desp" style="text-align:left; padding:0.4rem; width:34px;"><input type="checkbox" id="chk-noat-todos" title="Seleccionar todos"></th>
                             <th style="text-align:left; padding:0.4rem;">Última inspección</th>
                             <th style="text-align:left; padding:0.4rem;">Días sin atención</th>
                             <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
@@ -220,6 +223,30 @@
                 <p id="mensaje-sin-no-atendidas" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay equipos con daño pendientes de atender.
                 </p>
+                </div>
+            </div>
+
+            <div id="osalida-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:70; align-items:center; justify-content:center;">
+                <div style="background:#ffffff; padding:1.1rem 1.25rem; border-radius:12px; width:min(440px,92vw); box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+                    <h3 id="osalida-titulo" style="margin:0 0 0.5rem; font-size:1.05rem;">Orden de salida</h3>
+                    <div id="osalida-resumen" style="font-size:0.85rem; color:#374151; margin-bottom:0.75rem; max-height:120px; overflow:auto;"></div>
+                    <div id="osalida-destino-wrap" style="display:none; margin-bottom:0.6rem;">
+                        <label for="osalida-destino" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Proveedor / taller destino *</label>
+                        <input id="osalida-destino" type="text" placeholder="Ej. Taller Hidráulica del Golfo" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem;">
+                    </div>
+                    <div style="margin-bottom:0.6rem;">
+                        <label for="osalida-folio" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">No. de salida / folio *</label>
+                        <input id="osalida-folio" type="text" placeholder="Número que genera quien despacha" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem;">
+                    </div>
+                    <div style="margin-bottom:0.85rem;">
+                        <label for="osalida-fecha" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Fecha de salida</label>
+                        <input id="osalida-fecha" type="date" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem;">
+                    </div>
+                    <div id="osalida-error" style="display:none; font-size:0.82rem; color:#b91c1c; margin-bottom:0.5rem;"></div>
+                    <div style="display:flex; gap:8px; justify-content:flex-end;">
+                        <button type="button" id="osalida-cancelar" style="padding:0.4rem 0.9rem; border-radius:8px; border:1px solid #d1d5db; background:#ffffff; color:#111827; font-size:0.85rem;">Cancelar</button>
+                        <button type="button" id="osalida-confirmar" style="padding:0.4rem 0.9rem; border-radius:8px; border:1px solid #1d4ed8; background:#1d4ed8; color:#ffffff; font-size:0.85rem;">Generar orden</button>
+                    </div>
                 </div>
             </div>
 
@@ -1388,6 +1415,62 @@
                         img.style.display = 'none';
                     }
                 } catch {}
+            }
+        }
+
+        // Documento imprimible de la orden de salida (equipos + daños + evidencia).
+        async function imprimirOrdenSalida(orden) {
+            const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            try {
+                let st = null;
+                try {
+                    const m = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+                    st = { ref: m.ref, getDownloadURL: m.getDownloadURL, storage: m.getStorage() };
+                } catch {}
+                const items = await Promise.all((orden.items || []).map(async it => {
+                    let u = String(it.evidenciaUrl || '').trim();
+                    if (!u && st) {
+                        const cands = [];
+                        if (it.evidenciaPath) cands.push(String(it.evidenciaPath));
+                        if (it.evidenciaNombre && it.inspId) cands.push(`inspecciones/${it.inspId}/${it.evidenciaNombre}`);
+                        for (const p of cands) {
+                            try { u = await st.getDownloadURL(st.ref(st.storage, p)); } catch { u = ''; }
+                            if (u) break;
+                        }
+                    }
+                    return { ...it, _img: u };
+                }));
+                const w = window.open('', '_blank');
+                if (!w) { alert('Permite ventanas emergentes para imprimir la orden de salida.'); return; }
+                const filas = items.map((it, i) => `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td>${esc(it.equipo)}</td>
+                        <td>${esc(it.serial)}</td>
+                        <td>${(it.danos || []).map(d => esc(d)).join('<br>')}</td>
+                        <td>${it._img ? `<img src="${esc(it._img)}" style="width:110px; max-height:90px; object-fit:cover; border:1px solid #ccc;" alt="">` : ''}</td>
+                    </tr>`).join('');
+                w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Orden de salida ${esc(orden.folio)}</title>
+                    <style>
+                        body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111}
+                        h1{font-size:18px;margin:0 0 4px}h2{font-size:12px;color:#555;margin:0 0 12px;font-weight:400}
+                        table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
+                        td,th{border:1px solid #999;padding:5px;text-align:left;vertical-align:top}
+                        th{background:#f3f4f6}
+                        .meta{margin:6px 0;font-size:13px}
+                        .firmas{display:flex;gap:60px;margin-top:64px}
+                        .firma{flex:1;border-top:1px solid #000;padding-top:6px;font-size:12px;text-align:center}
+                    </style></head><body>
+                    <h1>PCT — Orden de salida ${orden.tipo === 'TERCERO' ? 'a tercero' : 'a mantenimiento interno'}</h1>
+                    <h2>Equipos con daño reportados en inspección</h2>
+                    <div class="meta"><strong>Folio:</strong> ${esc(orden.folio)} &nbsp;·&nbsp; <strong>Fecha de salida:</strong> ${esc(orden.fechaSalida)}${orden.destino ? ` &nbsp;·&nbsp; <strong>Destino:</strong> ${esc(orden.destino)}` : ''} &nbsp;·&nbsp; <strong>Despacha:</strong> ${esc(orden.creadoPor || '')}</div>
+                    <table><thead><tr><th style="width:24px">#</th><th>Equipo</th><th>Serial</th><th>Daño reportado</th><th>Evidencia</th></tr></thead><tbody>${filas}</tbody></table>
+                    <div class="firmas"><div class="firma">Entrega</div><div class="firma">Recibe</div></div>
+                    <scr` + `ipt>window.addEventListener('load',()=>setTimeout(()=>window.print(),500))</scr` + `ipt>
+                    </body></html>`);
+                w.document.close();
+            } catch (e) {
+                console.warn('No se pudo imprimir la orden de salida', e);
             }
         }
 
@@ -3641,6 +3724,40 @@
                         secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
                         if (msgNoAtendidas) msgNoAtendidas.style.display = 'none';
                         tbodyNoAtendidas.innerHTML = '';
+
+                        // Órdenes de salida abiertas (equipo despachado a mant. interno / tercero)
+                        const puedeDespachar = !!(window.isCops || window.isAdmin || window.isDirector || window.isSgi || window.isSupervisor);
+                        try {
+                            const b1 = document.getElementById('btn-osalida-interno');
+                            const b2 = document.getElementById('btn-osalida-tercero');
+                            const thD = document.getElementById('th-noat-desp');
+                            if (b1) b1.style.display = puedeDespachar ? '' : 'none';
+                            if (b2) b2.style.display = puedeDespachar ? '' : 'none';
+                            if (thD) thD.style.display = '';
+                        } catch {}
+                        const ordenesAbiertas = new Map(); // eqK -> {tipo, destino, folio, id}
+                        try {
+                            const { getFirestore, collection, getDocs, query, where } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                            );
+                            const db = getFirestore();
+                            const qOS = query(collection(db, 'ordenes_salida'), where('estado', '==', 'ENVIADO'));
+                            const sOS = await getDocs(qOS);
+                            sOS.forEach(d => {
+                                const r = d.data() || {};
+                                (Array.isArray(r.items) ? r.items : []).forEach(it => {
+                                    try {
+                                        const k = normEqCompact(it && it.equipo ? String(it.equipo) : '');
+                                        if (k && !ordenesAbiertas.has(k)) {
+                                            ordenesAbiertas.set(k, { tipo: String(r.tipo || ''), destino: String(r.destino || ''), folio: String(r.folio || ''), id: d.id });
+                                        }
+                                    } catch {}
+                                });
+                            });
+                        } catch {}
+                        try { window._noAtOrdenesAbiertas = ordenesAbiertas; } catch {}
+                        window._noAtInspById = new Map();
+
                         noAt.forEach(insp => {
                             const eq = (insp?.equipo || '').toString().trim();
                             const equipoUp = (String(eq || '').trim().toUpperCase());
@@ -3675,9 +3792,24 @@
                             const usuarioNoAt = (insp?.usuarioInspeccion || insp?.usuarioInspeccionEmail || '').toString().trim();
                             const inspId = (insp?.id || '').toString().trim();
                             const thumbMalo = buildThumbMalo(insp);
+                            try { if (inspId && window._noAtInspById) window._noAtInspById.set(inspId, insp); } catch {}
+
+                            const osal = ordenesAbiertas.get(normEqCompact(eq)) || null;
+                            let tdDesp = '';
+                            if (osal) {
+                                const tag = osal.tipo === 'TERCERO'
+                                    ? `TERCERO${osal.destino ? ' · ' + osal.destino : ''}`
+                                    : 'MANT. INTERNO';
+                                tdDesp = `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;"><span title="${escAttr(osal.folio ? 'Salida ' + osal.folio : 'En despacho')}" style="display:inline-block; font-size:0.72rem; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid ${osal.tipo === 'TERCERO' ? '#fecaca' : '#fde68a'}; background:${osal.tipo === 'TERCERO' ? '#fef2f2' : '#fffbeb'}; color:${osal.tipo === 'TERCERO' ? '#b91c1c' : '#b45309'};">${escAttr(tag)}${osal.folio ? ` · ${escAttr(osal.folio)}` : ''}</span></td>`;
+                            } else if (puedeDespachar) {
+                                tdDesp = `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; text-align:center;"><input type="checkbox" class="noat-chk" data-insp-id="${escAttr(inspId)}"></td>`;
+                            } else {
+                                tdDesp = '<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"></td>';
+                            }
 
                             const tr = document.createElement('tr');
                             tr.innerHTML = `
+                                ${tdDesp}
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; white-space:nowrap;">${escAttr(fechaTxt)}</td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#991b1b;">${escAttr(diasSinAt)}</td>
                                 <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(equipoRender)}</td>
@@ -3722,6 +3854,131 @@
                     console.warn('No se pudo renderizar No atendidas', e);
                 }
             }
+
+            // Despacho a mantenimiento interno / tercero desde "No atendidas" (cops + admin-tier)
+            try {
+                const btnInt = document.getElementById('btn-osalida-interno');
+                const btnTer = document.getElementById('btn-osalida-tercero');
+                const osModal = document.getElementById('osalida-modal');
+                const chkTodos = document.getElementById('chk-noat-todos');
+                let _osalidaTipo = '';
+
+                if (chkTodos && chkTodos.dataset.bound !== '1') {
+                    chkTodos.dataset.bound = '1';
+                    chkTodos.addEventListener('change', () => {
+                        document.querySelectorAll('#tbody-inspecciones-no-atendidas input.noat-chk')
+                            .forEach(c => { c.checked = chkTodos.checked; });
+                    });
+                }
+
+                const osCerrar = () => { if (osModal) osModal.style.display = 'none'; };
+                const osFail = (m) => {
+                    const err = document.getElementById('osalida-error');
+                    if (err) { err.textContent = m; err.style.display = ''; }
+                };
+                const osAbrir = (tipo) => {
+                    const sel = Array.from(document.querySelectorAll('#tbody-inspecciones-no-atendidas input.noat-chk:checked'));
+                    if (!sel.length) { alert('Selecciona al menos un equipo con daño.'); return; }
+                    _osalidaTipo = tipo;
+                    const eqs = sel.map(c => {
+                        const insp = (window._noAtInspById && window._noAtInspById.get(c.dataset.inspId)) || null;
+                        return insp ? String(insp.equipo || '') : '';
+                    }).filter(Boolean);
+                    const resumen = document.getElementById('osalida-resumen');
+                    if (resumen) resumen.innerHTML = `<strong>${eqs.length} equipo(s):</strong><br>${eqs.map(x => escAttr(x)).join('<br>')}`;
+                    const t = document.getElementById('osalida-titulo');
+                    if (t) t.textContent = tipo === 'TERCERO' ? 'Orden de salida · Tercero' : 'Orden de salida · Mantenimiento interno';
+                    const dw = document.getElementById('osalida-destino-wrap');
+                    if (dw) dw.style.display = tipo === 'TERCERO' ? '' : 'none';
+                    const f = document.getElementById('osalida-fecha');
+                    if (f) f.value = new Date().toISOString().slice(0, 10);
+                    const err0 = document.getElementById('osalida-error');
+                    if (err0) err0.style.display = 'none';
+                    if (osModal) osModal.style.display = 'flex';
+                };
+
+                if (btnInt && btnInt.dataset.bound !== '1') { btnInt.dataset.bound = '1'; btnInt.addEventListener('click', () => osAbrir('INTERNO')); }
+                if (btnTer && btnTer.dataset.bound !== '1') { btnTer.dataset.bound = '1'; btnTer.addEventListener('click', () => osAbrir('TERCERO')); }
+                const osBtnCancel = document.getElementById('osalida-cancelar');
+                if (osBtnCancel && osBtnCancel.dataset.bound !== '1') { osBtnCancel.dataset.bound = '1'; osBtnCancel.addEventListener('click', osCerrar); }
+
+                const osBtnConf = document.getElementById('osalida-confirmar');
+                if (osBtnConf && osBtnConf.dataset.bound !== '1') {
+                    osBtnConf.dataset.bound = '1';
+                    osBtnConf.addEventListener('click', async () => {
+                        const destino = String(document.getElementById('osalida-destino')?.value || '').trim();
+                        const folio = String(document.getElementById('osalida-folio')?.value || '').trim();
+                        const fecha = String(document.getElementById('osalida-fecha')?.value || '').trim();
+                        if (_osalidaTipo === 'TERCERO' && !destino) return osFail('Escribe el proveedor / taller destino.');
+                        if (!folio) return osFail('Escribe el número de salida / folio.');
+
+                        const sel = Array.from(document.querySelectorAll('#tbody-inspecciones-no-atendidas input.noat-chk:checked'));
+                        const items = sel.map(chk => {
+                            const insp = (window._noAtInspById && window._noAtInspById.get(chk.dataset.inspId)) || null;
+                            if (!insp) return null;
+                            const params = Array.isArray(insp.parametros) ? insp.parametros : [];
+                            const danos = [];
+                            let evidenciaUrl = '', evidenciaPath = '', evidenciaNombre = '';
+                            for (const p of params) {
+                                const est = String(p && p.estado || '').trim().toUpperCase();
+                                if (est !== 'MALO' && est !== 'NO LEGIBLE') continue;
+                                const selD = Array.isArray(p.danosSeleccionados) ? p.danosSeleccionados.filter(Boolean) : [];
+                                const byK = (p.evidenciasPorDano && typeof p.evidenciasPorDano === 'object') ? Object.keys(p.evidenciasPorDano) : [];
+                                const d = selD.length ? selD : byK;
+                                danos.push(`${p.nombre || 'Parámetro'}${d.length ? ': ' + d.join(', ') : ''}`);
+                                if (!evidenciaUrl && !evidenciaPath) {
+                                    if (p.evidenciaUrl || p.evidenciaPath || p.evidenciaNombre) { evidenciaUrl = p.evidenciaUrl || ''; evidenciaPath = p.evidenciaPath || ''; evidenciaNombre = p.evidenciaNombre || ''; }
+                                    else {
+                                        for (const k of Object.keys(p.evidenciasPorDano || {})) {
+                                            const b = p.evidenciasPorDano[k] || {};
+                                            if (b.evidenciaUrl || b.evidenciaPath || b.evidenciaNombre) { evidenciaUrl = b.evidenciaUrl || ''; evidenciaPath = b.evidenciaPath || ''; evidenciaNombre = b.evidenciaNombre || ''; break; }
+                                        }
+                                    }
+                                }
+                            }
+                            return {
+                                equipo: String(insp.equipo || '').trim(),
+                                serial: String(insp.serial || '').trim(),
+                                danos,
+                                inspId: String(chk.dataset.inspId || ''),
+                                tipoInspeccion: String(insp.tipoInspeccion || ''),
+                                fechaInspeccion: String(insp.fecha || ''),
+                                evidenciaUrl, evidenciaPath, evidenciaNombre
+                            };
+                        }).filter(Boolean);
+                        if (!items.length) return osFail('No se pudieron leer los equipos seleccionados.');
+
+                        osBtnConf.disabled = true;
+                        try {
+                            const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                            );
+                            const db = getFirestore();
+                            const email = (window.currentUserEmail || '').toLowerCase();
+                            const payload = {
+                                tipo: _osalidaTipo,
+                                destino: _osalidaTipo === 'TERCERO' ? destino : '',
+                                folio,
+                                fechaSalida: fecha || new Date().toISOString().slice(0, 10),
+                                estado: 'ENVIADO',
+                                items,
+                                creadoPor: email,
+                                creadoEn: serverTimestamp()
+                            };
+                            const ref = await addDoc(collection(db, 'ordenes_salida'), payload);
+                            try { if (window.pctAudit) await window.pctAudit('ordenes_salida_create', { id: ref.id, tipo: _osalidaTipo, folio, count: items.length }); } catch {}
+                            osCerrar();
+                            imprimirOrdenSalida({ ...payload, creadoPor: email });
+                            setTimeout(() => { try { cargarDatos(); } catch {} }, 800);
+                        } catch (e) {
+                            console.error('No se pudo crear la orden de salida', e);
+                            osFail('No se pudo guardar la orden. Revisa la consola.');
+                        } finally {
+                            osBtnConf.disabled = false;
+                        }
+                    });
+                }
+            } catch {}
 
             // Botón de correo "No atendidas": visible solo para SGI/admin/director
             try {
