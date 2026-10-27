@@ -357,9 +357,42 @@
                         <label for="osalida-folio" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">No. de salida / folio</label>
                         <input id="osalida-folio" type="text" readonly placeholder="Se genera automáticamente (PCT-MIE/MII-AAAA-####)" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; background:#f9fafb; color:#6b7280;">
                     </div>
-                    <div style="margin-bottom:0.85rem;">
+                    <div style="margin-bottom:0.6rem;">
                         <label for="osalida-fecha" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Fecha de salida</label>
                         <input id="osalida-fecha" type="date" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem;">
+                    </div>
+                    <div id="osalida-extra-wrap" style="display:none;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+                            <div>
+                                <label for="osalida-cliente" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Cliente</label>
+                                <input id="osalida-cliente" type="text" placeholder="Ej. Halliburton" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.88rem;">
+                            </div>
+                            <div>
+                                <label for="osalida-direccion" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Dirección / base</label>
+                                <input id="osalida-direccion" type="text" placeholder="Ej. Base Reforma" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.88rem;">
+                            </div>
+                            <div>
+                                <label for="osalida-contacto" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Contacto</label>
+                                <input id="osalida-contacto" type="text" placeholder="Ej. Xavier Eduardo Orta" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.88rem;">
+                            </div>
+                            <div>
+                                <label for="osalida-referencia" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Referencia</label>
+                                <input id="osalida-referencia" type="text" placeholder="Ej. Takín 25 SWT" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.88rem;">
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:14px; margin-bottom:0.5rem; font-size:0.85rem; color:#374151;">
+                            <span style="font-size:0.78rem; color:#6b7280;">Prioridad:</span>
+                            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="osalida-prio" id="osalida-prio-normal" checked> Normal</label>
+                            <label style="display:flex; align-items:center; gap:4px;"><input type="radio" name="osalida-prio" id="osalida-prio-urgente"> Urgente</label>
+                        </div>
+                        <div style="margin-bottom:0.5rem;">
+                            <label for="osalida-entrega" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Entrega</label>
+                            <input id="osalida-entrega" type="text" value="Francisco Cruz" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.88rem;">
+                        </div>
+                        <div style="margin-bottom:0.6rem;">
+                            <label for="osalida-comentarios" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:2px;">Comentarios</label>
+                            <textarea id="osalida-comentarios" rows="2" placeholder="Observaciones generales del embarque (opcional)" style="width:100%; padding:0.4rem 0.5rem; border:1px solid #d1d5db; border-radius:8px; font-size:0.85rem; resize:vertical;"></textarea>
+                        </div>
                     </div>
                     <div id="osalida-error" style="display:none; font-size:0.82rem; color:#b91c1c; margin-bottom:0.5rem;"></div>
                     <div style="display:flex; gap:8px; justify-content:flex-end;">
@@ -1592,28 +1625,133 @@
 
         function ordenSalidaHtml(orden, items, paraPdf) {
             const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const td = 'border:1px solid #000;padding:4px 5px;vertical-align:top;font-size:11px;';
+            const th = 'border:1px solid #000;padding:4px 5px;background:#f3f4f6;font-size:10px;text-align:center;font-weight:700;';
+            const urgente = String(orden.prioridad || '').toUpperCase() === 'URGENTE';
+            const chk = (on) => `<span style="display:inline-block;width:11px;height:11px;border:1px solid #000;vertical-align:-1px;text-align:center;line-height:11px;font-size:9px;font-weight:700;">${on ? 'X' : ''}</span>`;
+
             const filas = (items || []).map((it, i) => `
                 <tr>
-                    <td>${i + 1}</td>
-                    <td>${esc(it.equipo)}</td>
-                    <td>${esc(it.serial)}</td>
-                    <td>${(it.danos || []).map(d => esc(d)).join('<br>')}</td>
-                    <td>${it._img ? `<img src="${esc(it._img)}" ${paraPdf ? 'crossorigin="anonymous"' : ''} style="width:110px; max-height:90px; object-fit:cover; border:1px solid #ccc;" alt="">` : ''}</td>
+                    <td style="${td}text-align:center;">${i + 1}</td>
+                    <td style="${td}text-align:center;">1</td>
+                    <td style="${td}">${esc(it.descripcion || '')}${it.danos && it.danos.length ? `<div style="font-size:10px;color:#991b1b;margin-top:2px;">Daño: ${esc(it.danos.join(' · '))}</div>` : ''}${it.serial ? `<div style="font-size:10px;color:#555;">SN: ${esc(it.serial)}</div>` : ''}</td>
+                    <td style="${td}text-align:center;font-weight:700;">${esc(it.equipo)}</td>
+                    <td style="${td}text-align:center;">${esc(it.vigencia || '')}</td>
+                    <td style="${td}text-align:center;"></td>
+                    <td style="${td}text-align:center;"></td>
                 </tr>${it.obs ? `
                 <tr>
-                    <td></td>
-                    <td colspan="4"><em style="color:#374151;">Observaciones: ${esc(it.obs)}</em></td>
+                    <td style="${td}"></td>
+                    <td style="${td}" colspan="6"><em style="color:#374151;">Observaciones: ${esc(it.obs)}</em></td>
                 </tr>` : ''}`).join('');
+
+            const anexo = (items || []).some(it => it._img) ? `
+                <div style="page-break-before:always;"></div>
+                <h2 style="font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em;">Anexo fotográfico — evidencia del daño reportado</h2>
+                <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                    <thead><tr><th style="${th}text-align:left;">Equipo</th><th style="${th}text-align:left;">Daño reportado</th><th style="${th}">Evidencia</th></tr></thead>
+                    <tbody>${(items || []).filter(it => it._img).map(it => `
+                        <tr>
+                            <td style="${td}font-weight:700;">${esc(it.equipo)}</td>
+                            <td style="${td}">${(it.danos || []).map(d => esc(d)).join('<br>')}</td>
+                            <td style="${td}text-align:center;"><img src="${esc(it._img)}" ${paraPdf ? 'crossorigin="anonymous"' : ''} style="width:140px; max-height:110px; object-fit:cover; border:1px solid #999;" alt=""></td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>` : '';
+
+            const fechaFmt = (() => {
+                try {
+                    const s = String(orden.fechaSalida || '');
+                    const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T12:00:00') : new Date(s);
+                    return isFinite(d) ? d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : s;
+                } catch { return String(orden.fechaSalida || ''); }
+            })();
+
             return `
-                <div style="font-family:Arial,Helvetica,sans-serif;color:#111;">
-                    <h1 style="font-size:18px;margin:0 0 4px;">PCT — Orden de salida ${orden.tipo === 'TERCERO' ? 'a tercero' : 'a mantenimiento interno'}</h1>
-                    <h2 style="font-size:12px;color:#555;margin:0 0 12px;font-weight:400;">Equipos con daño reportados en inspección</h2>
-                    <div style="margin:6px 0;font-size:13px;"><strong>Folio:</strong> ${esc(orden.folio)} &nbsp;·&nbsp; <strong>Fecha de salida:</strong> ${esc(orden.fechaSalida)}${orden.destino ? ` &nbsp;·&nbsp; <strong>Destino:</strong> ${esc(orden.destino)}` : ''} &nbsp;·&nbsp; <strong>Despacha:</strong> ${esc(orden.creadoPor || '')}</div>
-                    <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;">
-                        <thead><tr><th style="width:24px;border:1px solid #999;padding:5px;background:#f3f4f6;">#</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Equipo</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Serial</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Daño reportado</th><th style="border:1px solid #999;padding:5px;background:#f3f4f6;text-align:left;">Evidencia</th></tr></thead>
-                        <tbody>${filas.replace(/<td>/g, '<td style="border:1px solid #999;padding:5px;vertical-align:top;">')}</tbody>
+                <div style="font-family:Arial,Helvetica,sans-serif;color:#000;max-width:820px;">
+                    <table style="width:100%;border-collapse:collapse;border:none;">
+                        <tr>
+                            <td style="border:none;padding:0 8px 6px 0;vertical-align:middle;width:120px;"><img src="img/logopctch.png" style="height:54px;" alt="PCT"></td>
+                            <td style="border:none;padding:0;vertical-align:middle;text-align:left;">
+                                <div style="font-size:12px;font-weight:700;color:#333;">Proveedora y Comercializadora Tabasqueña</div>
+                            </td>
+                        </tr>
                     </table>
-                    <div style="display:flex;gap:60px;margin-top:64px;"><div style="flex:1;border-top:1px solid #000;padding-top:6px;font-size:12px;text-align:center;">Entrega</div><div style="flex:1;border-top:1px solid #000;padding-top:6px;font-size:12px;text-align:center;">Recibe</div></div>
+                    <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;">Manifiesto de Movilización de Equipos, Herramientas y Materiales</div>
+
+                    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                        <tr>
+                            <td style="${td}width:70px;background:#f3f4f6;font-weight:700;">Cliente:</td>
+                            <td style="${td}">${esc(orden.cliente || '')}</td>
+                            <td style="${td}width:60px;background:#f3f4f6;font-weight:700;">Fecha:</td>
+                            <td style="${td}width:120px;">${esc(fechaFmt)}</td>
+                            <td style="${td}width:80px;background:#f3f4f6;font-weight:700;">No. Embarque:</td>
+                            <td style="${td}width:130px;font-weight:800;text-align:center;">${esc(orden.folio)}</td>
+                        </tr>
+                        <tr>
+                            <td style="${td}background:#f3f4f6;font-weight:700;">Dirección:</td>
+                            <td style="${td}">${esc(orden.direccion || '')}</td>
+                            <td style="${td}background:#f3f4f6;font-weight:700;">Entrega:</td>
+                            <td style="${td}" colspan="3">${esc(orden.entregaNombre || 'Francisco Cruz')}<br><span style="font-size:10px;color:#555;">Proveedora y Comercializadora Tabasqueña</span></td>
+                        </tr>
+                        <tr>
+                            <td style="${td}background:#f3f4f6;font-weight:700;">Contacto:</td>
+                            <td style="${td}">${esc(orden.contacto || '')}</td>
+                            <td style="${td}background:#f3f4f6;font-weight:700;">Prioridad:</td>
+                            <td style="${td}">Normal&nbsp;${chk(!urgente)}&nbsp;&nbsp;Urgente&nbsp;${chk(urgente)}</td>
+                            <td style="${td}" colspan="2" style="text-align:center;">1 de 1</td>
+                        </tr>
+                        <tr>
+                            <td style="${td}background:#f3f4f6;font-weight:700;">Referencia:</td>
+                            <td style="${td}">${esc(orden.referencia || '')}</td>
+                            <td style="${td}background:#f3f4f6;font-weight:700;" colspan="2">${orden.destino ? 'Destino:' : ''}</td>
+                            <td style="${td}" colspan="2">${orden.destino ? esc(orden.destino) : 'Mantenimiento interno'}</td>
+                        </tr>
+                    </table>
+
+                    <table style="width:100%;border-collapse:collapse;margin-top:8px;">
+                        <thead>
+                            <tr>
+                                <th style="${th}width:26px;">#</th>
+                                <th style="${th}width:36px;">Cant</th>
+                                <th style="${th}">Descripción</th>
+                                <th style="${th}width:110px;">Identificación</th>
+                                <th style="${th}width:70px;">Vigencia de Inspecciones</th>
+                                <th style="${th}width:34px;">Sí</th>
+                                <th style="${th}width:34px;">No</th>
+                            </tr>
+                        </thead>
+                        <tbody>${filas}</tbody>
+                        <tfoot>
+                            <tr>
+                                <td style="${td}" colspan="4"></td>
+                                <td style="${td}text-align:right;font-weight:700;">Total:</td>
+                                <td style="${td}text-align:center;font-weight:800;" colspan="2">${(items || []).length}&nbsp;&nbsp;Pieza(s)</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <table style="width:100%;border-collapse:collapse;margin-top:8px;">
+                        <tr><td style="${td}background:#f3f4f6;font-weight:700;text-align:center;">Comentarios</td></tr>
+                        <tr><td style="${td}min-height:52px;height:52px;">${esc(orden.comentarios || '')}</td></tr>
+                    </table>
+
+                    <p style="font-size:10.5px;margin:12px 0 4px;">Por medio del presente documento, y con fecha y lugar señalado anteriormente en la parte superior del presente, se da entera constancia, una vez realizada la inspección y verificación pertinente del equipo, herramienta y materiales, de que recibí a mi entera satisfacción, los equipos arriba citados.</p>
+                    <p style="font-size:10.5px;margin:0 0 4px;">Se expide el presente documento de manifiesto de movilización de equipos, herramientas y materiales, para que sirva como el recibo más amplio y efectivo que en por derecho proceda, sin reservarse acción legal alguna que ejercer en contra de este documento.</p>
+
+                    <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11px;">
+                        <tr>
+                            <td style="${td}width:60px;background:#f3f4f6;font-weight:700;">Recibe:</td>
+                            <td style="${td}"></td>
+                            <td style="${td}width:200px;"></td>
+                        </tr>
+                        <tr>
+                            <td style="${td}background:#f3f4f6;font-weight:700;">Entrega:</td>
+                            <td style="${td}">${esc(orden.entregaNombre || 'Francisco Cruz')}</td>
+                            <td style="${td}"></td>
+                        </tr>
+                    </table>
+                    ${anexo}
                 </div>`;
         }
 
@@ -1624,7 +1762,7 @@
                 const items = await resolverItemsOrdenConImagen(orden);
                 const w = window.open('', '_blank');
                 if (!w) { alert('Permite ventanas emergentes para imprimir la orden de salida.'); return; }
-                w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Orden de salida ${esc(orden.folio)}</title></head><body style="margin:24px;">${ordenSalidaHtml(orden, items, false)}
+                w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Manifiesto ${esc(orden.folio)}</title></head><body style="margin:24px;">${ordenSalidaHtml(orden, items, false)}
                     <scr` + `ipt>window.addEventListener('load',()=>setTimeout(()=>window.print(),500))</scr` + `ipt>
                     </body></html>`);
                 w.document.close();
@@ -4195,6 +4333,15 @@
                     if (t) t.textContent = tipo === 'TERCERO' ? 'Orden de salida · Tercero' : 'Orden de salida · Mantenimiento interno';
                     const dw = document.getElementById('osalida-destino-wrap');
                     if (dw) dw.style.display = tipo === 'TERCERO' ? '' : 'none';
+                    const ew = document.getElementById('osalida-extra-wrap');
+                    if (ew) ew.style.display = tipo === 'TERCERO' ? '' : 'none';
+                    ['osalida-cliente','osalida-direccion','osalida-contacto','osalida-referencia','osalida-comentarios'].forEach(id => {
+                        const el = document.getElementById(id); if (el) el.value = '';
+                    });
+                    const ent = document.getElementById('osalida-entrega');
+                    if (ent) ent.value = 'Francisco Cruz';
+                    const prN = document.getElementById('osalida-prio-normal');
+                    if (prN) prN.checked = true;
                     const f = document.getElementById('osalida-fecha');
                     if (f) f.value = new Date().toISOString().slice(0, 10);
                     const err0 = document.getElementById('osalida-error');
@@ -4258,6 +4405,13 @@
                     osBtnConf.addEventListener('click', async () => {
                         const destino = String(document.getElementById('osalida-destino')?.value || '').trim();
                         const fecha = String(document.getElementById('osalida-fecha')?.value || '').trim();
+                        const cliente = String(document.getElementById('osalida-cliente')?.value || '').trim();
+                        const direccion = String(document.getElementById('osalida-direccion')?.value || '').trim();
+                        const contacto = String(document.getElementById('osalida-contacto')?.value || '').trim();
+                        const referencia = String(document.getElementById('osalida-referencia')?.value || '').trim();
+                        const comentarios = String(document.getElementById('osalida-comentarios')?.value || '').trim();
+                        const entregaNombre = String(document.getElementById('osalida-entrega')?.value || '').trim() || 'Francisco Cruz';
+                        const prioridad = document.getElementById('osalida-prio-urgente')?.checked ? 'URGENTE' : 'NORMAL';
                         if (_osalidaTipo === 'TERCERO' && !destino) return osFail('Escribe el proveedor / taller destino.');
 
                         const obsMap = new Map();
@@ -4302,13 +4456,33 @@
                         }).filter(Boolean);
                         if (!items.length) return osFail('No se pudieron leer los equipos seleccionados.');
 
+                        // Vigencia de inspección (MM-AA = mes siguiente a la fecha de inspección)
+                        // y descripción del equipo desde el inventario.
+                        items.forEach(it => {
+                            try {
+                                const ms = toMs(it.fechaInspeccion);
+                                const d = ms ? new Date(ms) : new Date();
+                                const m = (d.getMonth() + 2) % 12 || 12;
+                                const yy = String(d.getFullYear() + (d.getMonth() === 11 ? 1 : 0)).slice(-2);
+                                it.vigencia = `${String(m).padStart(2, '0')}-${yy}`;
+                            } catch { it.vigencia = ''; }
+                        });
+
                         osBtnConf.disabled = true;
                         try {
-                            const { getFirestore, collection, addDoc, doc: docFS2, runTransaction, serverTimestamp } = await import(
+                            const { getFirestore, collection, addDoc, doc: docFS2, getDoc, runTransaction, serverTimestamp } = await import(
                                 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
                             );
                             const db = getFirestore();
                             const email = (window.currentUserEmail || '').toLowerCase();
+
+                            // Descripción del equipo desde inventario (para el manifiesto)
+                            await Promise.all(items.map(async it => {
+                                try {
+                                    const sEq = await getDoc(docFS2(db, 'equipos', it.equipo));
+                                    if (sEq.exists()) it.descripcion = String((sEq.data() || {}).descripcion || '').trim();
+                                } catch {}
+                            }));
 
                             // Folio automático consecutivo por tipo (transaccional):
                             //   TERCERO → PCT-MIE-AAAA-#### (Mantenimiento Industrial Externo)
@@ -4336,6 +4510,7 @@
                                 fechaSalida: fecha || new Date().toISOString().slice(0, 10),
                                 estado: 'ENVIADO',
                                 items,
+                                cliente, direccion, contacto, referencia, comentarios, prioridad, entregaNombre,
                                 creadoPor: email,
                                 creadoEn: serverTimestamp()
                             };
