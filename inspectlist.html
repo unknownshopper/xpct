@@ -4323,9 +4323,10 @@
                         resumen.innerHTML = `<strong>${eqs.length} equipo(s):</strong>` + sel.map(c => {
                             const insp = (window._noAtInspById && window._noAtInspById.get(c.dataset.inspId)) || null;
                             const eq = insp ? String(insp.equipo || '') : '';
+                            const obsInsp = insp ? String(insp.observaciones || '').trim() : '';
                             return `<div style="display:flex; align-items:center; gap:6px; margin-top:6px;">
                                 <span style="min-width:112px; font-weight:600;">${escAttr(eq)}</span>
-                                <input type="text" class="osalida-obs" data-insp-id="${escAttr(c.dataset.inspId || '')}" placeholder="Observaciones del equipo (opcional)" style="flex:1; padding:0.28rem 0.45rem; border:1px solid #d1d5db; border-radius:6px; font-size:0.82rem;">
+                                <input type="text" class="osalida-obs" data-insp-id="${escAttr(c.dataset.inspId || '')}" value="${escAttr(obsInsp)}" placeholder="Observaciones del equipo (opcional)" style="flex:1; padding:0.28rem 0.45rem; border:1px solid #d1d5db; border-radius:6px; font-size:0.82rem;">
                             </div>`;
                         }).join('');
                     }
