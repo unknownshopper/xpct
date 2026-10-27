@@ -1625,8 +1625,9 @@
 
         function ordenSalidaHtml(orden, items, paraPdf) {
             const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            const td = 'border:1px solid #000;padding:4px 5px;vertical-align:top;font-size:11px;';
-            const th = 'border:1px solid #000;padding:4px 5px;background:#f3f4f6;font-size:10px;text-align:center;font-weight:700;';
+            const td = 'border:1px solid #7a3a08;padding:4px 5px;vertical-align:top;font-size:11px;';
+            const th = 'border:1px solid #7a3a08;padding:4px 5px;background:#b8580f;color:#fff;font-size:10px;text-align:center;font-weight:700;letter-spacing:.04em;text-transform:uppercase;';
+            const lbl = 'border:1px solid #7a3a08;padding:4px 5px;background:#fdf0e5;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#7a3a08;';
             const urgente = String(orden.prioridad || '').toUpperCase() === 'URGENTE';
             const chk = (on) => `<span style="display:inline-block;width:11px;height:11px;border:1px solid #000;vertical-align:-1px;text-align:center;line-height:11px;font-size:9px;font-weight:700;">${on ? 'X' : ''}</span>`;
 
@@ -1647,7 +1648,7 @@
 
             const anexo = (items || []).some(it => it._img) ? `
                 <div style="page-break-before:always;"></div>
-                <h2 style="font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em;">Anexo fotográfico — evidencia del daño reportado</h2>
+                <h2 style="font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;color:#7a3a08;border-bottom:2px solid #b8580f;padding-bottom:4px;">Anexo fotográfico — evidencia del daño reportado</h2>
                 <table style="width:100%;border-collapse:collapse;font-size:11px;">
                     <thead><tr><th style="${th}text-align:left;">Equipo</th><th style="${th}text-align:left;">Daño reportado</th><th style="${th}">Evidencia</th></tr></thead>
                     <tbody>${(items || []).filter(it => it._img).map(it => `
@@ -1669,42 +1670,43 @@
 
             return `
                 <div style="font-family:Arial,Helvetica,sans-serif;color:#000;max-width:820px;">
+                    <div style="height:8px;border-radius:2px;margin-bottom:8px;background:repeating-linear-gradient(-45deg,#f59e0b 0 10px,#7a3a08 10px 20px);"></div>
                     <table style="width:100%;border-collapse:collapse;border:none;">
                         <tr>
                             <td style="border:none;padding:0 8px 6px 0;vertical-align:middle;width:120px;"><img src="img/logopctch.png" style="height:54px;" alt="PCT"></td>
                             <td style="border:none;padding:0;vertical-align:middle;text-align:left;">
-                                <div style="font-size:12px;font-weight:700;color:#333;">Proveedora y Comercializadora Tabasqueña</div>
+                                <div style="font-size:12px;font-weight:700;color:#b8580f;letter-spacing:.05em;">Proveedora y Comercializadora Tabasqueña</div>
                             </td>
                         </tr>
                     </table>
-                    <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;">Manifiesto de Movilización de Equipos, Herramientas y Materiales</div>
+                    <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;color:#7a3a08;letter-spacing:.03em;border-bottom:2px solid #b8580f;padding-bottom:6px;">Manifiesto de Movilización de Equipos, Herramientas y Materiales</div>
 
                     <table style="width:100%;border-collapse:collapse;font-size:11px;">
                         <tr>
-                            <td style="${td}width:70px;background:#f3f4f6;font-weight:700;">Cliente:</td>
+                            <td style="${td}width:70px;background:#fdf0e5;font-weight:700;color:#7a3a08;">Cliente:</td>
                             <td style="${td}">${esc(orden.cliente || '')}</td>
-                            <td style="${td}width:60px;background:#f3f4f6;font-weight:700;">Fecha:</td>
+                            <td style="${td}width:60px;background:#fdf0e5;font-weight:700;color:#7a3a08;">Fecha:</td>
                             <td style="${td}width:120px;">${esc(fechaFmt)}</td>
-                            <td style="${td}width:80px;background:#f3f4f6;font-weight:700;">No. Embarque:</td>
+                            <td style="${td}width:80px;background:#fdf0e5;font-weight:700;color:#7a3a08;">No. Embarque:</td>
                             <td style="${td}width:130px;font-weight:800;text-align:center;">${esc(orden.folio)}</td>
                         </tr>
                         <tr>
-                            <td style="${td}background:#f3f4f6;font-weight:700;">Dirección:</td>
+                            <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Dirección:</td>
                             <td style="${td}">${esc(orden.direccion || '')}</td>
-                            <td style="${td}background:#f3f4f6;font-weight:700;">Entrega:</td>
+                            <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Entrega:</td>
                             <td style="${td}" colspan="3">${esc(orden.entregaNombre || 'Francisco Cruz')}<br><span style="font-size:10px;color:#555;">Proveedora y Comercializadora Tabasqueña</span></td>
                         </tr>
                         <tr>
-                            <td style="${td}background:#f3f4f6;font-weight:700;">Contacto:</td>
+                            <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Contacto:</td>
                             <td style="${td}">${esc(orden.contacto || '')}</td>
-                            <td style="${td}background:#f3f4f6;font-weight:700;">Prioridad:</td>
+                            <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Prioridad:</td>
                             <td style="${td}">Normal&nbsp;${chk(!urgente)}&nbsp;&nbsp;Urgente&nbsp;${chk(urgente)}</td>
                             <td style="${td}" colspan="2" style="text-align:center;">1 de 1</td>
                         </tr>
                         <tr>
-                            <td style="${td}background:#f3f4f6;font-weight:700;">Referencia:</td>
+                            <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Referencia:</td>
                             <td style="${td}">${esc(orden.referencia || '')}</td>
-                            <td style="${td}background:#f3f4f6;font-weight:700;" colspan="2">${orden.destino ? 'Destino:' : ''}</td>
+                            <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;" colspan="2">${orden.destino ? 'Destino:' : ''}</td>
                             <td style="${td}" colspan="2">${orden.destino ? esc(orden.destino) : 'Mantenimiento interno'}</td>
                         </tr>
                     </table>
@@ -1732,7 +1734,7 @@
                     </table>
 
                     <table style="width:100%;border-collapse:collapse;margin-top:8px;">
-                        <tr><td style="${td}background:#f3f4f6;font-weight:700;text-align:center;">Comentarios</td></tr>
+                        <tr><td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;text-align:center;">Comentarios</td></tr>
                         <tr><td style="${td}min-height:52px;height:52px;">${esc(orden.comentarios || '')}</td></tr>
                     </table>
 
@@ -1741,12 +1743,12 @@
 
                     <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11px;">
                         <tr>
-                            <td style="${td}width:60px;background:#f3f4f6;font-weight:700;">Recibe:</td>
+                            <td style="${td}width:60px;background:#fdf0e5;font-weight:700;color:#7a3a08;">Recibe:</td>
                             <td style="${td}"></td>
                             <td style="${td}width:200px;"></td>
                         </tr>
                         <tr>
-                            <td style="${td}background:#f3f4f6;font-weight:700;">Entrega:</td>
+                            <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Entrega:</td>
                             <td style="${td}">${esc(orden.entregaNombre || 'Francisco Cruz')}</td>
                             <td style="${td}"></td>
                         </tr>
