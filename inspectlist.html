@@ -1639,10 +1639,10 @@
                     <td style="${td}text-align:center;">${esc(it.vigencia || '')}</td>
                     <td style="${td}text-align:center;"></td>
                     <td style="${td}text-align:center;"></td>
-                </tr>${it.obs ? `
+                </tr>${(it.obs || it.obsInsp) ? `
                 <tr>
                     <td style="${td}"></td>
-                    <td style="${td}" colspan="6"><em style="color:#374151;">Observaciones: ${esc(it.obs)}</em></td>
+                    <td style="${td}" colspan="6"><em style="color:#374151;">${it.obsInsp ? `<strong>Obs. inspección:</strong> ${esc(it.obsInsp)}` : ''}${it.obsInsp && it.obs ? ' &nbsp;·&nbsp; ' : ''}${it.obs ? `<strong>Obs. despacho:</strong> ${esc(it.obs)}` : ''}</em></td>
                 </tr>` : ''}`).join('');
 
             const anexo = (items || []).some(it => it._img) ? `
@@ -4451,6 +4451,7 @@
                                 tipoInspeccion: String(insp.tipoInspeccion || ''),
                                 fechaInspeccion: String(insp.fecha || ''),
                                 obs: obsMap.get(String(chk.dataset.inspId || '')) || '',
+                                obsInsp: String(insp.observaciones || '').trim(),
                                 evidenciaUrl, evidenciaPath, evidenciaNombre
                             };
                         }).filter(Boolean);
