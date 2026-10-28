@@ -1679,7 +1679,7 @@
                             </td>
                         </tr>
                     </table>
-                    <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;color:#7a3a08;letter-spacing:.03em;border-bottom:2px solid #b8580f;padding-bottom:6px;">Manifiesto de Movilización de Equipos, Herramientas y Materiales</div>
+                    <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;color:#7a3a08;letter-spacing:.03em;border-bottom:2px solid #b8580f;padding-bottom:6px;">Orden de salida${orden.tipo === 'TERCERO' ? ' a tercero' : ' a mantenimiento interno'}</div>
 
                     <table style="width:100%;border-collapse:collapse;font-size:11px;">
                         <tr>
@@ -1739,7 +1739,7 @@
                     </table>
 
                     <p style="font-size:10.5px;margin:12px 0 4px;">Por medio del presente documento, y con fecha y lugar señalado anteriormente en la parte superior del presente, se da entera constancia, una vez realizada la inspección y verificación pertinente del equipo, herramienta y materiales, de que recibí a mi entera satisfacción, los equipos arriba citados.</p>
-                    <p style="font-size:10.5px;margin:0 0 4px;">Se expide el presente documento de manifiesto de movilización de equipos, herramientas y materiales, para que sirva como el recibo más amplio y efectivo que en por derecho proceda, sin reservarse acción legal alguna que ejercer en contra de este documento.</p>
+                    <p style="font-size:10.5px;margin:0 0 4px;">Se expide el presente documento de orden de salida de equipos, herramientas y materiales, para que sirva como el recibo más amplio y efectivo que en por derecho proceda, sin reservarse acción legal alguna que ejercer en contra de este documento.</p>
 
                     <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11px;">
                         <tr>
@@ -1764,7 +1764,7 @@
                 const items = await resolverItemsOrdenConImagen(orden);
                 const w = window.open('', '_blank');
                 if (!w) { alert('Permite ventanas emergentes para imprimir la orden de salida.'); return; }
-                w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Manifiesto ${esc(orden.folio)}</title></head><body style="margin:24px;">${ordenSalidaHtml(orden, items, false)}
+                w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Orden de salida ${esc(orden.folio)}</title></head><body style="margin:24px;">${ordenSalidaHtml(orden, items, false)}
                     <scr` + `ipt>window.addEventListener('load',()=>setTimeout(()=>window.print(),500))</scr` + `ipt>
                     </body></html>`);
                 w.document.close();
