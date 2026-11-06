@@ -242,7 +242,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch { return Date.now(); }
             }
             onAuthStateChanged(auth, async (user) => {
-                if (!user) return;
+                if (!user) {
+                    try { sessionStorage.removeItem('pct_session_active'); } catch {}
+                    return;
+                }
+                // Login fresco en la misma pestaña: el sessionStorage sobrevive al
+                // signOut anterior — sin reset, un login >1h expulsa al instante.
+                try {
+                    if (!sessionStorage.getItem('pct_session_active')) {
+                        sessionStorage.setItem('pct_session_active', '1');
+                        sessionStorage.setItem(loginTimeKey(user.uid), String(Date.now()));
+                        sessionStorage.setItem('pct_login_uid', String(user.uid || ''));
+                    }
+                } catch {}
                 ensureLoginStartStamp(user.uid);
 
                 auditOnce(`login_${(user.uid || '').toString().slice(0, 8)}`, 'login', null);
