@@ -203,3 +203,14 @@ Y aún así:
 - ¿Tu DNS está en IONOS, Cloudflare u otro?
 - ¿Quieres `www` como canónico con redirect desde apex?
 - ¿El proyecto Firebase está en plan Spark o Blaze?
+
+---
+
+## 11) Renovación del dominio (estado actual — Nov 2026)
+
+- **Registrar actual**: Cloudflare Registrar (transferencia completada desde IONOS)
+- **Vence / renueva**: **22-may-2030** — auto-renewal activo
+- **Dónde se paga**: `dash.cloudflare.com` → Domain Registration → `pc-t.com.mx` → Manage Domain
+  - Cloudflare cobra al costo (~$16.75 USD/año), se carga al método de pago de la cuenta
+  - El auth code de IONOS **ya no se necesita** — la transferencia terminó; guardarlo solo como referencia histórica
+- **Importante**: si el método de pago de Cloudflare caduca, la renovación automática falla — revisar Billing → Payment antes de mayo 2030 (o poner recordatorio)
