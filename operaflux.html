@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flujo operativo — Seguimiento de equipos | PCT</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background: #0b1220; }
+        .fx-wrap { max-width: 1150px; margin: 0 auto; padding: 1rem; }
+
+        .fx-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            background: linear-gradient(135deg, #7a3a08 0%, #b8580f 55%, #c96a1a 100%);
+            border: 1px solid #5c2c05; border-radius: 12px; padding: .9rem 1.1rem;
+            margin-bottom: 1.2rem; position: relative; overflow: hidden;
+            box-shadow: 0 3px 8px rgba(122,58,8,.4), inset 0 1px 0 rgba(255,255,255,.14);
+        }
+        .fx-head::before { content:''; position:absolute; left:0; top:0; bottom:0; width:7px;
+            background: repeating-linear-gradient(-45deg,#f59e0b 0 7px,#111827 7px 14px); }
+        .fx-head h1 { margin: 0; font-size: 1.15rem; letter-spacing: .1em; text-transform: uppercase; color: #fff; }
+        .fx-head .sub { font-size: .75rem; color: #fde8d8; letter-spacing: .06em; }
+
+        .fx-section {
+            background: #fdfcf9; border-radius: 12px; padding: 1.4rem 1.6rem;
+            box-shadow: 0 6px 20px rgba(0,0,0,.35); margin-bottom: 1.2rem;
+        }
+        .fx-section > h2 {
+            font-size: .74rem; letter-spacing: .2em; text-transform: uppercase; color: #f8fafc;
+            background: linear-gradient(90deg, #7a3a08, #b8580f); display: inline-block;
+            padding: .3rem .85rem .3rem .75rem; border-radius: 0 999px 999px 0; margin: 0 0 1rem;
+        }
+
+        /* ===== Diagrama ===== */
+        .lane { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+        .node {
+            flex: 1 1 0; min-width: 130px; border: 2px solid #7a3a08; border-radius: 10px;
+            background: #fff; padding: .6rem .7rem; text-align: center; position: relative;
+            display: flex; flex-direction: column; justify-content: center; gap: 2px;
+        }
+        .node .k { font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+        .node .d { font-size: .7rem; color: #4b5563; }
+        .node .docs { font-size: .62rem; color: #7a3a08; margin-top: .3rem; }
+        .n-in { background: #eff6ff; border-color: #1d4ed8; }
+        .n-in .k { color: #1d4ed8; }
+        .n-block { background: #fdf0e5; }
+        .n-block .k { color: #b8580f; }
+        .n-dec { background: #fffbeb; border-style: dashed; }
+        .n-dec .k { color: #b45309; }
+        .n-cuar { background: #fef2f2; border-color: #b91c1c; }
+        .n-cuar .k { color: #b91c1c; }
+        .n-ok { background: #ecfdf5; border-color: #166534; }
+        .n-ok .k { color: #166534; }
+        .n-gate { background: #f5f3ff; border-color: #6d28d9; }
+        .n-gate .k { color: #6d28d9; }
+
+        .arr { align-self: center; font-size: 1.3rem; font-weight: 800; color: #b8580f; padding: 0 .35rem; }
+        .arr.down { transform: rotate(90deg); display: block; text-align: center; padding: .15rem 0; }
+
+        .branch { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: .4rem; }
+        .branch > .bl { flex: 1; min-width: 280px; }
+        .branch-tag { font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; margin-bottom: .35rem; }
+        .branch-tag.bad { color: #b91c1c; }
+        .branch-tag.good { color: #166534; }
+
+        .gate-row {
+            display: flex; align-items: center; gap: .6rem; margin-top: 1rem;
+            border: 2px solid #6d28d9; border-radius: 10px; background: #f5f3ff; padding: .55rem .8rem;
+        }
+        .gate-row .lk { font-size: .78rem; font-weight: 800; color: #6d28d9; letter-spacing: .06em; }
+
+        table.fx { width: 100%; border-collapse: collapse; font-size: .82rem; }
+        table.fx th, table.fx td { border: 1px solid #d7c4b5; padding: .4rem .55rem; text-align: left; vertical-align: top; }
+        table.fx th { background: #fdf0e5; color: #7a3a08; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
+        .badge { display:inline-block; font-size:.66rem; font-weight:800; padding:.1rem .5rem; border-radius:999px; border:1.5px solid; text-transform:uppercase; }
+        .b-vt { color:#1d4ed8; border-color:#1d4ed8; }
+        .b-utt { color:#0e7490; border-color:#0e7490; }
+        .b-mt { color:#b45309; border-color:#b45309; }
+        .b-pt { color:#a16207; border-color:#a16207; }
+        .b-ph { color:#6d28d9; border-color:#6d28d9; }
+        .b-mt2 { color:#166534; border-color:#166534; }
+        .doc-chips span { display:inline-block; font-size:.62rem; border:1px solid #cbd5e1; background:#f8fafc; border-radius:4px; padding:.08rem .4rem; margin-right:.3rem; color:#475569; }
+        .note { font-size: .78rem; color: #64748b; }
+        .pending { border-left: 4px solid #f59e0b; background:#fffbeb; padding:.5rem .7rem; font-size:.8rem; border-radius:0 8px 8px 0; margin-top:.6rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo"><img src="img/logopctch.png" alt="Logo PCT"></div>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú">&#9776;</button>
+        <nav class="nav-main">
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li class="nav-item-has-dropdown"><a href="#">Actividad</a>
+                    <ul class="nav-dropdown"><li><a href="inspectlist.html">Listado de inspecciones</a></li></ul>
+                </li>
+            </ul>
+        </nav>
+        <div class="user-info"><span class="user-info-email" id="nav-user-email"></span><button id="btn-logout">Salir</button></div>
+    </header>
+
+    <main class="fx-wrap">
+        <div class="fx-head">
+            <div>
+                <h1>Flujo operativo</h1>
+                <div class="sub">Seguimiento de equipos · proceso post-trabajo</div>
+            </div>
+        </div>
+
+        <div class="fx-section">
+            <h2>1 · Entradas al flujo</h2>
+            <div class="lane">
+                <div class="node n-in">
+                    <div class="k">Equipos fuera</div>
+                    <div class="d">Rentas — regresan a patio</div>
+                    <div class="arr down">↓</div>
+                    <div class="d" style="font-weight:700;color:#b91c1c;">→ Cuarentena → Externo / Mantto. Gral.</div>
+                </div>
+                <div style="width:14px"></div>
+                <div class="node n-in">
+                    <div class="k">Equipos devolución</div>
+                    <div class="d">Cliente · Post-Job</div>
+                    <div class="arr down">↓</div>
+                    <div class="d" style="font-weight:700;color:#7a3a08;">→ Batería de bloques completa</div>
+                </div>
+                <div style="width:14px"></div>
+                <div class="node n-gate">
+                    <div class="k">Disponibilidad</div>
+                    <div class="d">Se checa contra</div>
+                    <div class="d" style="font-weight:700;color:#6d28d9;">reportes anuales vigentes</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="fx-section">
+            <h2>2 · Cadena de bloques (aplica a todos los que regresan)</h2>
+            <div class="lane">
+                <div class="node n-in">
+                    <div class="k">Recepción</div>
+                    <div class="d">Regresan de trabajo</div>
+                </div>
+                <div class="arr">→</div>
+                <div class="node n-block">
+                    <div class="k">Bloque A · VT / UTT</div>
+                    <div class="d"><span class="badge b-vt">VT</span> visual + <span class="badge b-utt">UTT</span> ultrasonido</div>
+                    <div class="docs">☑ checklist · obs. · foto</div>
+                </div>
+                <div class="arr">→</div>
+                <div class="node n-dec">
+                    <div class="k">Decisión</div>
+                    <div class="d">Según resultados del bloque A</div>
+                </div>
+            </div>
+
+            <div class="branch">
+                <div class="bl">
+                    <div class="branch-tag bad">✗ Daño detectado</div>
+                    <div class="lane">
+                        <div class="node n-cuar">
+                            <div class="k">Cuarentena</div>
+                            <div class="d">Apartado del inventario operativo</div>
+                            <div class="docs">orden de salida foliada</div>
+                        </div>
+                        <div class="arr">→</div>
+                        <div class="node n-cuar">
+                            <div class="k">Externo / Mantto. Gral.</div>
+                            <div class="d">Tercero (MIE) o reparación general</div>
+                            <div class="docs">recepción → vuelve al flujo</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bl">
+                    <div class="branch-tag good">✓ Apto — continúa la batería</div>
+                    <div class="lane">
+                        <div class="node n-block">
+                            <div class="k">B · MT / PT</div>
+                            <div class="d"><span class="badge b-mt">MT</span> partículas + <span class="badge b-pt">PT/LT</span> penetrantes</div>
+                            <div class="docs">☑ checklist · obs. · foto</div>
+                        </div>
+                        <div class="arr">→</div>
+                        <div class="node n-block">
+                            <div class="k">C · PH</div>
+                            <div class="d"><span class="badge b-ph">PH</span> prueba hidrostática</div>
+                            <div class="docs">☑ checklist · obs. · foto</div>
+                        </div>
+                        <div class="arr">→</div>
+                        <div class="node n-block">
+                            <div class="k">D · Mantto</div>
+                            <div class="d"><span class="badge b-mt2">MTTO</span> incl. pintura</div>
+                            <div class="docs">cierre del paquete</div>
+                        </div>
+                        <div class="arr">→</div>
+                        <div class="node n-ok">
+                            <div class="k">Operativo</div>
+                            <div class="d">Reintegrado</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="gate-row">
+                <div class="lk">⛔ Candado de salida</div>
+                <div class="note" style="color:#4c1d95;">Un equipo <strong>solo puede salir / rentarse</strong> si su <strong>reporte anual está vigente</strong>. Aunque haya pasado todos los bloques, sin anual vigente no se moviliza.</div>
+            </div>
+        </div>
+
+        <div class="fx-section">
+            <h2>3 · Qué documenta cada etapa</h2>
+            <table class="fx">
+                <thead><tr><th>Etapa</th><th>Contenido</th><th>Documento</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="badge b-vt">VT</span> + <span class="badge b-utt">UTT</span></td><td>Inspección visual + espesores/defectos ultrasónicos — es el filtro principal</td><td class="doc-chips"><span>checklist</span><span>observaciones</span><span>foto evidencia</span></td></tr>
+                    <tr><td><span class="badge b-mt">MT</span> + <span class="badge b-pt">PT</span></td><td>Partículas magnetizables + líquidos penetrantes — grietas superficiales</td><td class="doc-chips"><span>checklist</span><span>observaciones</span><span>foto evidencia</span></td></tr>
+                    <tr><td><span class="badge b-ph">PH</span></td><td>Prueba hidrostática de integridad a presión</td><td class="doc-chips"><span>checklist</span><span>observaciones</span><span>foto evidencia</span></td></tr>
+                    <tr><td><span class="badge b-mt2">MTTO</span></td><td>Mantenimiento incl. pintura — cierre del paquete de acondicionamiento</td><td class="doc-chips"><span>registro</span><span>observaciones</span></td></tr>
+                    <tr><td style="color:#b91c1c;font-weight:700;">CUARENTENA</td><td>Orden de salida foliada a tercero o mantenimiento general; recepción de regreso</td><td class="doc-chips"><span>orden MIE/MII</span><span>daños + obs</span><span>anexo fotográfico</span></td></tr>
+                </tbody>
+            </table>
+
+            <div class="pending">
+                <strong>Por definir con operación:</strong> punto "F/O" del diagrama original · si MT/PT y PH también pueden derivar a cuarentena o solo decide el bloque A · quién documenta cada bloque (mismo inspector o por especialidad) · si Mantto es solo pintura o mantenimiento general.
+            </div>
+            <p class="note" style="margin-top:.8rem;">Documento de referencia del modelo operativo — ver `TODOOP.md` para el desglose de implementación.</p>
+        </div>
+    </main>
+
+    <script src="config.local.js"></script>
+    <script type="module" src="firebase-init.js"></script>
+    <script type="module">
+        import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        const auth = window.auth;
+        const emailSpan = document.getElementById('nav-user-email');
+        const btnLogout = document.getElementById('btn-logout');
+        if (btnLogout) btnLogout.addEventListener('click', () => signOut(auth));
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) { window.location.href = 'website.html'; return; }
+            if (emailSpan) emailSpan.textContent = (user.email || '').toLowerCase();
+            let role = null;
+            try { role = (await user.getIdTokenResult())?.claims?.role || null; } catch {}
+            const permitido = ['admin','director','supervisor','sgi','auxger','visor','cops','inspector','capturista','auxndt','aux_ndt']
+                .includes(role) || (user.email || '').toLowerCase() === 'cops@pc-t.com.mx';
+            if (!permitido) window.location.href = 'website.html';
+        });
+    </script>
+</body>
+</html>
