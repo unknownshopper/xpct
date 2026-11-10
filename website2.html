@@ -316,7 +316,10 @@
 
   /* Nav */
   #navbar { transition: background .35s, box-shadow .35s, border-color .35s; }
-  #navbar.scrolled { background: rgba(4,6,14,.82); box-shadow: 0 10px 40px -20px rgba(0,0,0,.8); border-color: rgba(120,150,255,.18); }
+  /* Sin barra — solo chips flotantes; el fondo animado respira completo */
+  #navbar.scrolled { background: transparent; box-shadow: none; border-color: transparent; }
+  .nav-chip { padding: .4rem .95rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.045); backdrop-filter: blur(6px); transition: border-color .25s, color .25s, background .25s; }
+  .nav-chip:hover { color: #fff; border-color: rgba(251,191,36,.55); background: rgba(251,191,36,.08); }
 
   ::selection { background: rgba(184,88,15,.4); }
 
@@ -336,14 +339,14 @@
 <div id="cursor" aria-hidden="true"></div>
 
 <!-- NAV -->
-<header id="navbar" class="fixed top-0 inset-x-0 z-50 backdrop-blur-md border-b border-transparent">
-  <nav class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+<header id="navbar" class="fixed top-0 inset-x-0 z-50">
+  <nav class="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
     <a href="#" class="flex items-center gap-2.5"><img src="img/log33.png" alt="PCT" class="h-12 md:h-14 w-auto drop-shadow-[0_0_10px_rgba(251,191,36,.35)]" /></a>
-    <div class="hidden md:flex items-center gap-8 text-sm text-muted">
-      <a href="#servicios" class="hover:text-white transition">Servicios</a>
-      <a href="#ecosistema" class="hover:text-white transition">Trazabilidad</a>
-      <a href="#metodologia" class="hover:text-white transition">Proceso</a>
-      <a href="index.html" class="hover:text-white transition">Acceso</a>
+    <div class="hidden md:flex items-center gap-3 text-sm text-muted">
+      <a href="#servicios" class="nav-chip">Servicios</a>
+      <a href="#ecosistema" class="nav-chip">Trazabilidad</a>
+      <a href="#metodologia" class="nav-chip">Proceso</a>
+      <a href="index.html" class="nav-chip">Acceso</a>
       <a href="#contacto" class="js-contact btn-primary px-4 py-2 text-white font-medium">Contacto</a>
     </div>
   </nav>
