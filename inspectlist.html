@@ -4329,7 +4329,7 @@
                         }
                         const resumenMap = resumenMapGlobal;
 
-                        const noAtKeys = new Set(noAt.map(insp => normEqCompact(insp.equipo || '')));
+                        const noAtKeys = new Set(noAt.map(insp => normKeyCompact(insp.equipo || '')));
                         let activos = 0;
                         const disponibles = [];
                         const mantenimientoList = [];
@@ -4376,7 +4376,22 @@
                                     estado: enDaño ? 'CON DAÑO' : enOrden ? 'DESPACHADO' : vigente ? 'VIGENTE' : 'SIN VIGENCIA',
                                     ubi
                                 });
-                                if (enOrden || enDaño || !vigente) return;
+                                // En proceso post-trabajo: ultima inspeccion POST — el ciclo
+                                // cierra con RECEPCION/REINSPECCION, hasta entonces sigue en proceso
+                                const enPost = tUlt.includes('POST');
+                                if (enPost) {
+                                    const msU = toMs((ultimaPorEq.get(k) || {}).fecha || (ultimaPorEq.get(k) || {}).creadoEn) ?? 0;
+                                    mantenimientoList.push({
+                                        equipo: eqName,
+                                        folio: o ? (o.folio || '') : '—',
+                                        destino: o ? (o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO')
+                                            : enDaño ? 'CUARENTENA · PEND. DECISIÓN'
+                                            : 'PROCESO POST-TRABAJO',
+                                        dias: (o && o.ms) ? Math.floor((hoy - o.ms) / DAY) : (msU ? Math.floor((hoy - msU) / DAY) : null)
+                                    });
+                                    yaEnMantto.add(k);
+                                }
+                                if (enOrden || enDaño || !vigente || enPost) return;
                                 disponibles.push({
                                     equipo: eqName,
                                     serial: serialPorEquipo.get(k) || String(rs.serial || ''),
