@@ -4335,6 +4335,9 @@
                         const mantenimientoList = [];
                         const yaEnMantto = new Set();
                         const activosList = [];
+                        // ultimaPorEq esta indexada con normEqCompact (minusculas); equipoPorKey
+                        // con normKeyCompact (mayusculas) — lookup dual
+                        const uget = (kk, nm) => ultimaPorEq.get(kk) || ultimaPorEq.get(normEqCompact(nm || kk)) || null;
                         (equipoPorKey || new Map()).forEach((eqName0, k) => {
                             try {
                                 const edoOverride = String(edoPorEquipo.get(k) || '').trim().toUpperCase();
@@ -4361,7 +4364,8 @@
                                 const enOrden = ordenesAbiertas.has(k);
                                 // Ubicación en el flujo: orden > cuarentena > ultima inspeccion > planta
                                 const o = ordenesAbiertas.get(k);
-                                const tUlt = String(((ultimaPorEq.get(k) || {}).tipoInspeccion || (ultimaPorEq.get(k) || {}).tipo) || '').toUpperCase();
+                                const uInsp = uget(k, eqName);
+                                const tUlt = String((uInsp && (uInsp.tipoInspeccion || uInsp.tipo)) || '').toUpperCase();
                                 const ubi = o ? (o.tipo === 'TERCERO' ? `PROVEEDOR · ${o.destino || 'TERCERO'}` : 'PLANTA · MANT. INTERNO')
                                     : enDaño ? 'PLANTA · CUARENTENA'
                                     : tUlt.includes('REINSPECCION') ? 'PLANTA · REINSPECCIÓN'
@@ -4380,7 +4384,7 @@
                                 // cierra con RECEPCION/REINSPECCION, hasta entonces sigue en proceso
                                 const enPost = tUlt.includes('POST');
                                 if (enPost) {
-                                    const msU = toMs((ultimaPorEq.get(k) || {}).fecha || (ultimaPorEq.get(k) || {}).creadoEn) ?? 0;
+                                    const msU = uInsp ? (toMs(uInsp.fecha || uInsp.creadoEn) ?? 0) : 0;
                                     mantenimientoList.push({
                                         equipo: eqName,
                                         folio: o ? (o.folio || '') : '—',
@@ -4396,7 +4400,7 @@
                                     equipo: eqName,
                                     serial: serialPorEquipo.get(k) || String(rs.serial || ''),
                                     dias: diasAnual,
-                                    obs: String((ultimaPorEq.get(k) || {}).observaciones || (ultimaPorEq.get(k) || {}).observacionesManual || '').trim()
+                                    obs: String((uInsp && uInsp.observaciones) || (uInsp && uInsp.observacionesManual) || '').trim()
                                 });
                             } catch {}
                         });
