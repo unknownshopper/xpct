@@ -1374,9 +1374,8 @@
       o.textAlign = 'center'; o.textBaseline = 'middle';
       o.fillStyle = '#fff';
       o.fillText(word, MW / 2, MH * .34);
-      const fs2 = Math.min(MW / (sub.length * .8), fs * .45);
-      o.font = '600 ' + fs2 + 'px "Space Grotesk", sans-serif';
-      o.fillText(sub, MW / 2, MH * .58);
+      o.font = '700 ' + fs + 'px "Space Grotesk", sans-serif';
+      o.fillText(sub, MW / 2, MH * .62);
       const img = o.getImageData(0, 0, MW, MH).data;
       const targets = [];
       const st = Math.max(3, Math.round(MW / 240));
