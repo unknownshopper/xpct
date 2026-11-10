@@ -249,11 +249,7 @@
             </div>
 
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
-                <div class="dash-card" id="insp-card-wrap-pendientes" style="cursor:pointer;">
-                    <div class="dash-card-label">Por inspeccionar</div>
-                    <div class="dash-card-value" id="insp-card-pendientes">0</div>
-                    <div style="font-size:0.62rem; color:#6b7280; margin-top:2px;">equipos en actividad por regresar</div>
-                </div>
+                <!-- "Por inspeccionar" removida: era espejo de En actividad (mismo conteo/lista) -->
                 <div class="dash-card" id="insp-card-wrap-realizadas">
                     <div class="dash-card-label">Inspecciones realizadas (histórico)</div>
                     <div class="dash-card-value" id="insp-card-realizadas">0</div>
@@ -270,7 +266,7 @@
 
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
                 <div class="dash-card dash-card-sm" id="insp-card-wrap-activos" style="cursor:pointer;">
-                    <div class="dash-card-label">Activos</div>
+                    <div class="dash-card-label">En actividad</div>
                     <div class="dash-card-value" id="insp-card-activos">0</div>
                 </div>
                 <div class="dash-card dash-card-sm" id="insp-card-wrap-disponibles" style="cursor:pointer;">
@@ -397,7 +393,7 @@
 
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-activos" style="margin-top:0.75rem; display:none;">
                 <div class="insp-sec-head insp-sec-head--info">
-                    <h3><span class="insp-sec-ico">▣</span>Activos — en actividad / pozo</h3>
+                    <h3><span class="insp-sec-ico">▣</span>En actividad — fuera en pozo / locación</h3>
                     <button type="button" class="insp-sec-toggle" data-target="insp-activos-body">Expandir</button>
                 </div>
                 <div id="insp-activos-body" style="display:none;">
