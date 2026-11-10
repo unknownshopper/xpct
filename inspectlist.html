@@ -4251,44 +4251,52 @@
                     try {
                         const DAY = 86400000;
                         const hoy = Date.now();
-                        const ultimaAnual = new Map();
-                        (inspecciones || []).forEach(insp => {
-                            try {
-                                const t = String(insp?.tipoInspeccion || insp?.tipo || '').toUpperCase();
-                                if (!t.includes('ANUAL')) return;
-                                const k = normEqCompact(insp.equipo || '');
-                                if (!k) return;
-                                const ms = toMs(insp.fecha || insp.creadoEn) ?? 0;
-                                const prev = ultimaAnual.get(k);
-                                const prevMs = prev ? (toMs(prev.fecha || prev.creadoEn) ?? 0) : 0;
-                                if (!prev || ms >= prevMs) ultimaAnual.set(k, insp);
-                            } catch {}
-                        });
+                        // Vigencia anual vive en resumenes_equipos.pruebas.ltVigenteEfectivo
+                        const { getFirestore: _gf, collection: _col, getDocs: _gd } = await import(
+                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                        );
+                        const snapRes = await _gd(_col(_gf(), 'resumenes_equipos'));
+                        const resumenMap = new Map();
+                        snapRes.forEach(dd => resumenMap.set(String(dd.id || ''), dd.data() || {}));
 
                         const noAtKeys = new Set(noAt.map(insp => normEqCompact(insp.equipo || '')));
                         let activos = 0;
                         const disponibles = [];
                         const mantenimientoList = [];
+                        const yaEnMantto = new Set();
                         (edoPorEquipo || new Map()).forEach((edo, k) => {
                             try {
-                                if (String(edo || '').trim().toUpperCase() !== 'ON') return;
+                                const e = String(edo || '').trim().toUpperCase();
+                                const eqName = equipoPorKey.get(k) || k;
+                                if (e === 'WIP') {
+                                    const o = ordenesAbiertas.get(k);
+                                    mantenimientoList.push({
+                                        equipo: eqName,
+                                        folio: o ? (o.folio || '') : '—',
+                                        destino: o ? (o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO') : 'WIP (sin orden)',
+                                        dias: o && o.ms ? Math.floor((hoy - o.ms) / DAY) : null
+                                    });
+                                    yaEnMantto.add(k);
+                                    return;
+                                }
+                                if (e !== 'ON') return;
                                 activos++;
                                 if (ordenesAbiertas.has(k) || noAtKeys.has(k)) return;
-                                const a = ultimaAnual.get(k);
-                                const msA = a ? (toMs(a.fecha || a.creadoEn) ?? 0) : 0;
-                                if (!msA) return;
-                                const dias = Math.floor((hoy - msA) / DAY) - 365;
-                                if (dias < 0) {
-                                    disponibles.push({
-                                        equipo: equipoPorKey.get(k) || k,
-                                        serial: serialPorEquipo.get(k) || '',
-                                        dias,
-                                        obs: String(a.observaciones || a.observacionesManual || '').trim()
-                                    });
-                                }
+                                const rs = resumenMap.get(eqName) || resumenMap.get(k);
+                                const pr = rs && rs.pruebas ? rs.pruebas : null;
+                                if (!pr || pr.ltVigenteEfectivo !== true) return;
+                                const lt = pr.LT || null;
+                                const msProx = lt && lt.proxima ? (toMs(lt.proxima) ?? 0) : 0;
+                                disponibles.push({
+                                    equipo: eqName,
+                                    serial: serialPorEquipo.get(k) || String(rs.serial || ''),
+                                    dias: msProx ? Math.floor((hoy - msProx) / DAY) : null,
+                                    obs: String((ultimaPorEq.get(k) || {}).observaciones || (ultimaPorEq.get(k) || {}).observacionesManual || '').trim()
+                                });
                             } catch {}
                         });
                         ordenesAbiertas.forEach((o, k) => {
+                            if (yaEnMantto.has(k)) return;
                             mantenimientoList.push({
                                 equipo: equipoPorKey.get(k) || k,
                                 folio: o.folio || '',
@@ -4311,7 +4319,7 @@
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${r.dias > -30 ? '#b45309' : '#166534'};">${r.dias}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
                                     <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.obs || '—')}</td>`;
                                 tbD.appendChild(tr);
                             });
