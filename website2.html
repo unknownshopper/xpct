@@ -325,6 +325,19 @@
   .nav-chip { padding: .4rem .95rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.045); backdrop-filter: blur(6px); transition: border-color .25s, color .25s, background .25s; }
   .nav-chip:hover { color: #fff; border-color: rgba(251,191,36,.55); background: rgba(251,191,36,.08); }
 
+  /* Velo fantasma detrás de secciones — foto barriendo con opacidad baja */
+  .velo-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  .velo-backdrop img { position: absolute; width: clamp(240px, 26vw, 400px); border-radius: 14px;
+    filter: saturate(.85) brightness(.8); opacity: 0;
+    animation: velo-sweep 24s linear infinite; will-change: transform, opacity; }
+  @keyframes velo-sweep {
+    0%   { transform: translateX(115%) rotate(-2deg); opacity: 0; }
+    10%  { opacity: .13; }
+    45%  { opacity: .13; }
+    60%  { opacity: 0; }
+    100% { transform: translateX(-120%) rotate(-2deg); opacity: 0; }
+  }
+
   ::selection { background: rgba(184,88,15,.4); }
 
   @media (prefers-reduced-motion: reduce) {
@@ -650,7 +663,12 @@
 
 <!-- NORMAS Y CALIDAD -->
 <section id="calidad" class="py-24 relative overflow-hidden">
-  <div class="max-w-6xl mx-auto px-6">
+  <div class="velo-backdrop" aria-hidden="true">
+    <img src="img/Equipo-instalado-1.webp" alt="" style="top: 8%; animation-delay: 0s" />
+    <img src="img/IMG_7731.webp" alt="" style="top: 42%; animation-delay: 8s" />
+    <img src="img/Instalacion-Carrete-0002.webp" alt="" style="top: 18%; animation-delay: 16s" />
+  </div>
+  <div class="max-w-6xl mx-auto px-6 relative" style="z-index:1">
     <div class="reveal mb-12 text-center">
       <p class="text-accent3 text-sm font-medium tracking-widest uppercase mb-3">Normas y calidad</p>
       <h2 class="font-display text-2xl md:text-3xl font-bold text-white">Trabajo apegado a referencia normativa</h2>
