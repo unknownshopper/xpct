@@ -2626,6 +2626,8 @@
         let edoPorEquipo = new Map();
         let edoNativoPorEquipo = new Map();
         let vistaDetalleActiva = null;
+        let resumenMapGlobal = new Map();
+        let ultimaCargaResumenes = 0;
         let equipoPorKey = new Map();
         let inventarioSerialesPromise = null;
 
@@ -4302,13 +4304,25 @@
                     try {
                         const DAY = 86400000;
                         const hoy = Date.now();
-                        // Vigencia anual vive en resumenes_equipos.pruebas.ltVigenteEfectivo
-                        const { getFirestore: _gf, collection: _col, getDocs: _gd } = await import(
-                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
-                        );
-                        const snapRes = await _gd(_col(_gf(), 'resumenes_equipos'));
-                        const resumenMap = new Map();
-                        snapRes.forEach(dd => resumenMap.set(String(dd.id || ''), dd.data() || {}));
+                        // Vigencia anual vive en resumenes_equipos.pruebas.ltVigenteEfectivo.
+                        // Descarga masiva con TTL — ademas sembramos resumenEquipoCache para
+                        // que renderBloque no haga un getDoc por fila.
+                        const resumenTtl = (typeof RESUMEN_CACHE_TTL_MS !== 'undefined') ? RESUMEN_CACHE_TTL_MS : 300000;
+                        if (!resumenMapGlobal.size || (hoy - ultimaCargaResumenes) > resumenTtl) {
+                            const { getFirestore: _gf, collection: _col, getDocs: _gd } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                            );
+                            const snapRes = await _gd(_col(_gf(), 'resumenes_equipos'));
+                            resumenMapGlobal = new Map();
+                            snapRes.forEach(dd => {
+                                const data = dd.data() || {};
+                                const id = String(dd.id || '');
+                                resumenMapGlobal.set(id, data);
+                                try { resumenEquipoCache.set(id, { data, ts: hoy }); } catch {}
+                            });
+                            ultimaCargaResumenes = hoy;
+                        }
+                        const resumenMap = resumenMapGlobal;
 
                         const noAtKeys = new Set(noAt.map(insp => normEqCompact(insp.equipo || '')));
                         let activos = 0;
