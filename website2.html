@@ -11,7 +11,7 @@
 <link rel="dns-prefetch" href="https://cdn.tailwindcss.com" />
 <link rel="preconnect" href="https://unpkg.com" />
 <link rel="dns-prefetch" href="https://unpkg.com" />
-<link rel="icon" type="image/png" href="img/logopctch.png" />
+<link rel="icon" type="image/png" href="img/log22.png" />
 
 
 <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -338,7 +338,7 @@
 <!-- NAV -->
 <header id="navbar" class="fixed top-0 inset-x-0 z-50 backdrop-blur-md border-b border-transparent">
   <nav class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-    <a href="#" class="flex items-center gap-2.5"><img src="img/logopctch.png" alt="PCT" class="h-9 w-auto" /></a>
+    <a href="#" class="flex items-center gap-2.5"><img src="img/log22.png" alt="PCT" class="h-9 w-auto" /></a>
     <div class="hidden md:flex items-center gap-8 text-sm text-muted">
       <a href="#servicios" class="hover:text-white transition">Servicios</a>
       <a href="#ecosistema" class="hover:text-white transition">Trazabilidad</a>
@@ -750,7 +750,7 @@
     <div class="grid md:grid-cols-4 gap-10">
       <!-- Marca -->
       <div class="md:col-span-2">
-        <a href="#" class="flex items-center gap-2.5 w-fit"><img src="img/logopctch.png" alt="PCT" class="h-9 w-auto" /></a>
+        <a href="#" class="flex items-center gap-2.5 w-fit"><img src="img/log22.png" alt="PCT" class="h-9 w-auto" /></a>
         <p class="text-sm text-muted mt-4 leading-relaxed max-w-sm">Inspección y pruebas con trazabilidad.<br>Cada equipo, un historial completo.<br>Tabasco · México.</p>
       </div>
       <!-- Secciones -->
@@ -1161,68 +1161,21 @@
   if (tc) {
     const tx2 = tc.getContext('2d');
     const RINGS = 20, SPOKES = 22;
-    const LINES_C = [
-      'const sol = resolver(datos)',
-      'if (caos) ordenar(proceso)',
-      'map(d => d.significa())',
-      'return insight;',
-      'SELECT * FROM operaciones',
-      'await pct.inspeccionar(x)',
-      'x = argmin f(θ)',
-      'ia.aprender(historial)',
-      'const claro = orden(caos)',
-      'fetch("/v1/predicciones")',
-      'datos.filter(d => d.valido)',
-      'reduce((a, b) => a + b)',
-      'modelo.fit(X, y)',
-      'JSON.stringify(result)',
-      'pipeline.transform(input)',
-      'tensor.reshape(128, -1)',
-      'try { ejecutar() }',
-      'log("proceso ok")',
-      'for (const nodo of red)',
-    ];
-    const LINES_Y = [
-      'E = mc²',
-      'H(X) = -Σ p·log p',
-      '∂L/∂θ → 0',
-      'P(A|B) = P(B|A)·P(A)/P(B)',
-      'y = Σ xᵢ·wᵢ + b',
-      'f(x) = Σ aₙ·eⁱⁿˣ',
-      'λ → estabilidad',
-      'Δt → 0  ⇒  dx/dt',
-      'e^(iπ) + 1 = 0',
-      'σ(x) = 1/(1 + e^-x)',
-      'x̄ = Σxᵢ/n',
-      'z = (x - μ)/σ',
-      'cos²θ + sin²θ = 1',
-      '∫ f(x) dx = F(b) - F(a)',
-      '∇·E = ρ/ε₀',
-      'a² + b² = c²',
-      'φ = (1 + √5)/2',
-      'n! = n·(n-1)!',
-      'O(n log n)',
-      'det(A) ≠ 0',
-      'T = 2π√(L/g)',
-      'Q = CV²/2',
-      'ψ(x,t) = A·e^(i(kx-ωt))',
-      'S = k·ln Ω',
-    ];
-    const FRAGS_C = '01{}[]<>/=#$;:*%+_-'.split('');
-    const FRAGS_Y = 'λΣ∆πΩ∂∞√Φ±∫≈∇·'.split('');
+    // Velos con fotos reales de campo/equipo PCT
+    const VEL_IMGS = [
+      'img/IMG_7727-0001.webp', 'img/Equipo-instalado-1.webp', 'img/Instalacion-Carrete-0002.webp',
+      'img/IMG_7731.webp', 'img/IMG_7736.webp', 'img/IMG_7738.webp', 'img/IMG_7742.webp',
+      'img/IMG_7728.webp', 'img/Instalacion-Carrete-2.webp'
+    ].map(src => { const im = new Image(); im.src = src; return im; });
     function spawnWave(y) {
-      const S = (y ? LINES_Y : LINES_C).slice().sort(() => Math.random() - .5);
-      const F = y ? FRAGS_Y : FRAGS_C;
       const n = y ? 8 : 5;
       for (let i = 0; i < n; i++) {
         const z = y && i >= 4 ? 4.9 + (i - 4) * .18 : 3.1 + i * .18;
-        // 3 líneas únicas esparcidas por toda la lámina
-        const g = S.slice(i * 3, i * 3 + 3).map((t) => ({
-          t, u: Math.random() * 1.5 - .75, v: Math.random() * 1.6 - .8,
-        }));
-        // fragmentos pequeños rellenando la superficie
-        for (let k = 0; k < 8; k++)
-          g.push({ t: F[(Math.random() * F.length) | 0], u: Math.random() * 1.85 - .92, v: Math.random() * 1.85 - .92, s: .7 });
+        // 2-3 fotos esparcidas por toda la lámina
+        const g = [];
+        const spots = 2 + ((Math.random() * 2) | 0);
+        for (let k = 0; k < spots; k++)
+          g.push({ img: (Math.random() * VEL_IMGS.length) | 0, u: Math.random() * 1.4 - .7, v: Math.random() * 1.5 - .75, s: .45 + Math.random() * .45 });
         pulses.push({ z, y, g });
       }
     }
@@ -1312,19 +1265,18 @@
         tx2.lineWidth = 1.6;
         tx2.strokeStyle = `rgba(${core},${al})`;
         tx2.strokeRect(-hw, -hh, hw * 2, hh * 2);
-        // velo de luz con líneas de código / fórmulas
+        // velo de luz con fotos de campo
         tx2.fillStyle = `rgba(${halo},${al * .045})`;
         tx2.fillRect(-hw, -hh, hw * 2, hh * 2);
         if (hw > 40 && p.g) {
-          const fs = Math.min(16, Math.max(9, hw * .055));
-          tx2.font = fs + 'px "Space Grotesk", monospace';
-          tx2.textAlign = 'center'; tx2.textBaseline = 'middle';
-          tx2.fillStyle = `rgba(${core},${al * .65})`;
+          tx2.globalAlpha = Math.min(1, al * .8);
           for (const g of p.g) {
-            if (g.s) tx2.font = fs * g.s + 'px "Space Grotesk", monospace';
-            tx2.fillText(g.t, hw * g.u, hh * g.v);
-            if (g.s) tx2.font = fs + 'px "Space Grotesk", monospace';
+            const im = VEL_IMGS[g.img];
+            if (!im || !im.complete || !im.naturalWidth) continue;
+            const iw = hw * (g.s || .55), ih = iw * (im.naturalHeight / im.naturalWidth);
+            tx2.drawImage(im, hw * g.u - iw / 2, hh * g.v - ih / 2, iw, ih);
           }
+          tx2.globalAlpha = 1;
         }
         tx2.restore();
       }
