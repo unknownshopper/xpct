@@ -149,6 +149,27 @@
         .dashboard-cards .dash-card.dash-card-sm .dash-card-value {
             font-size: 1.35rem;
         }
+
+        .dash-card.card-sel {
+            outline: 2.5px solid #b8580f;
+            outline-offset: 1px;
+            box-shadow: 0 4px 14px rgba(184, 88, 15, 0.28);
+        }
+
+        th[data-sort] {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th[data-sort]:hover {
+            background: #f3d9c4;
+        }
+
+        th .sort-ind {
+            font-size: 0.62rem;
+            color: #b8580f;
+            margin-left: 0.2rem;
+        }
     </style>
 </head>
 <body style="margin:0;">
@@ -247,7 +268,7 @@
             </section>
 
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
-                <div class="dash-card dash-card-sm" id="insp-card-wrap-activos">
+                <div class="dash-card dash-card-sm" id="insp-card-wrap-activos" style="cursor:pointer;">
                     <div class="dash-card-label">Activos</div>
                     <div class="dash-card-value" id="insp-card-activos">0</div>
                 </div>
@@ -373,21 +394,44 @@
                 </div>
             </div>
 
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-activos" style="margin-top:0.75rem; display:none;">
+                <div class="insp-sec-head insp-sec-head--info">
+                    <h3><span class="insp-sec-ico">▣</span>Activos (parque operativo)</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-activos-body">Expandir</button>
+                </div>
+                <div id="insp-activos-body" style="display:none;">
+                <div style="max-height:55vh; overflow-y:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead><tr style="background:#fdf0e5; position:sticky; top:0;">
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Equipo / activo<span class="sort-ind"></span></th>
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Serial<span class="sort-ind"></span></th>
+                        <th data-sort="num" style="text-align:left; padding:0.4rem;">Días para anual<span class="sort-ind"></span></th>
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Estado<span class="sort-ind"></span></th>
+                    </tr></thead>
+                    <tbody id="tbody-activos"></tbody>
+                </table>
+                </div>
+                <p id="mensaje-sin-activos" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">No hay equipos activos.</p>
+                </div>
+            </div>
+
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-mantenimiento" style="margin-top:0.75rem; display:none;">
                 <div class="insp-sec-head insp-sec-head--info">
                     <h3><span class="insp-sec-ico">🔧</span>En mantenimiento</h3>
                     <button type="button" class="insp-sec-toggle" data-target="insp-mantenimiento-body">Expandir</button>
                 </div>
                 <div id="insp-mantenimiento-body" style="display:none;">
+                <div style="max-height:55vh; overflow-y:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                    <thead><tr style="background:#fdf0e5;">
-                        <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
-                        <th style="text-align:left; padding:0.4rem;">Orden</th>
-                        <th style="text-align:left; padding:0.4rem;">Destino</th>
-                        <th style="text-align:left; padding:0.4rem;">Días en mantto</th>
+                    <thead><tr style="background:#fdf0e5; position:sticky; top:0;">
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Equipo / activo<span class="sort-ind"></span></th>
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Orden<span class="sort-ind"></span></th>
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Destino<span class="sort-ind"></span></th>
+                        <th data-sort="num" style="text-align:left; padding:0.4rem;">Días en mantto<span class="sort-ind"></span></th>
                     </tr></thead>
                     <tbody id="tbody-mantenimiento"></tbody>
                 </table>
+                </div>
                 <p id="mensaje-sin-mantenimiento" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">No hay equipos en mantenimiento.</p>
                 </div>
             </div>
@@ -398,15 +442,17 @@
                     <button type="button" class="insp-sec-toggle" data-target="insp-disponibles-body">Expandir</button>
                 </div>
                 <div id="insp-disponibles-body" style="display:none;">
+                <div style="max-height:55vh; overflow-y:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                    <thead><tr style="background:#fdf0e5;">
-                        <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
-                        <th style="text-align:left; padding:0.4rem;">Serial</th>
-                        <th style="text-align:left; padding:0.4rem;">Días para anual</th>
-                        <th style="text-align:left; padding:0.4rem;">Observaciones</th>
+                    <thead><tr style="background:#fdf0e5; position:sticky; top:0;">
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Equipo / activo<span class="sort-ind"></span></th>
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Serial<span class="sort-ind"></span></th>
+                        <th data-sort="num" style="text-align:left; padding:0.4rem;">Días para anual<span class="sort-ind"></span></th>
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Observaciones<span class="sort-ind"></span></th>
                     </tr></thead>
                     <tbody id="tbody-disponibles"></tbody>
                 </table>
+                </div>
                 <p id="mensaje-sin-disponibles" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">No hay equipos disponibles con anual vigente.</p>
                 </div>
             </div>
@@ -2579,6 +2625,7 @@
         let serialPorEquipo = new Map();
         let edoPorEquipo = new Map();
         let edoNativoPorEquipo = new Map();
+        let vistaDetalleActiva = null;
         let equipoPorKey = new Map();
         let inventarioSerialesPromise = null;
 
@@ -4268,6 +4315,7 @@
                         const disponibles = [];
                         const mantenimientoList = [];
                         const yaEnMantto = new Set();
+                        const activosList = [];
                         (equipoPorKey || new Map()).forEach((eqName0, k) => {
                             try {
                                 const edoOverride = String(edoPorEquipo.get(k) || '').trim().toUpperCase();
@@ -4290,16 +4338,25 @@
                                 }
                                 if (e !== 'ON') return;
                                 activos++;
-                                if (ordenesAbiertas.has(k) || noAtKeys.has(k)) return;
                                 const rs = resumenMap.get(eqName) || resumenMap.get(k);
                                 const pr = rs && rs.pruebas ? rs.pruebas : null;
-                                if (!pr || pr.ltVigenteEfectivo !== true) return;
-                                const lt = pr.LT || null;
+                                const lt = pr && pr.LT ? pr.LT : null;
                                 const msProx = lt && lt.proxima ? (toMs(lt.proxima) ?? 0) : 0;
+                                const diasAnual = msProx ? Math.floor((hoy - msProx) / DAY) : null;
+                                const vigente = !!(pr && pr.ltVigenteEfectivo === true);
+                                const enDaño = noAtKeys.has(k);
+                                const enOrden = ordenesAbiertas.has(k);
+                                activosList.push({
+                                    equipo: eqName,
+                                    serial: serialPorEquipo.get(k) || String((rs && rs.serial) || ''),
+                                    dias: diasAnual,
+                                    estado: enDaño ? 'CON DAÑO' : enOrden ? 'DESPACHADO' : vigente ? 'VIGENTE' : 'SIN VIGENCIA'
+                                });
+                                if (enOrden || enDaño || !vigente) return;
                                 disponibles.push({
                                     equipo: eqName,
                                     serial: serialPorEquipo.get(k) || String(rs.serial || ''),
-                                    dias: msProx ? Math.floor((hoy - msProx) / DAY) : null,
+                                    dias: diasAnual,
                                     obs: String((ultimaPorEq.get(k) || {}).observaciones || (ultimaPorEq.get(k) || {}).observacionesManual || '').trim()
                                 });
                             } catch {}
@@ -4321,15 +4378,31 @@
                         if (cD) cD.textContent = String(disponibles.length);
                         if (cM) cM.textContent = String(mantenimientoList.length);
 
+                        const tbA = document.getElementById('tbody-activos');
+                        if (tbA) {
+                            tbA.innerHTML = '';
+                            const estColor = { 'CON DAÑO': '#b91c1c', 'DESPACHADO': '#b45309', 'VIGENTE': '#166534', 'SIN VIGENCIA': '#6d28d9' };
+                            activosList.sort((a, b) => String(a.equipo).localeCompare(String(b.equipo))).forEach(r => {
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
+                                    <td data-sort="${escAttr(r.serial || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
+                                    <td data-sort="${r.dias ?? 99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
+                                    <td data-sort="${escAttr(r.estado)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><span style="font-weight:700; color:${estColor[r.estado] || '#374151'};">${r.estado}</span></td>`;
+                                tbA.appendChild(tr);
+                            });
+                            const msgA = document.getElementById('mensaje-sin-activos');
+                            if (msgA) msgA.style.display = activosList.length ? 'none' : '';
+                        }
+
                         const tbD = document.getElementById('tbody-disponibles');
                         if (tbD) {
                             tbD.innerHTML = '';
-                            disponibles.sort((a, b) => b.dias - a.dias).forEach(r => {
+                            disponibles.sort((a, b) => (b.dias ?? -99999) - (a.dias ?? -99999)).forEach(r => {
                                 const tr = document.createElement('tr');
-                                tr.innerHTML = `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.obs || '—')}</td>`;
+                                tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
+                                    <td data-sort="${escAttr(r.serial || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
+                                    <td data-sort="${r.dias ?? 99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
+                                    <td data-sort="${escAttr(r.obs || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.obs || '—')}</td>`;
                                 tbD.appendChild(tr);
                             });
                             const msgD = document.getElementById('mensaje-sin-disponibles');
@@ -4340,26 +4413,73 @@
                             tbM.innerHTML = '';
                             mantenimientoList.sort((a, b) => (b.dias ?? 0) - (a.dias ?? 0)).forEach(r => {
                                 const tr = document.createElement('tr');
-                                tr.innerHTML = `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family:'Courier New',monospace;">${escAttr(r.folio)}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.destino)}</td>
-                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#b45309;">${r.dias ?? '—'}</td>`;
+                                tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
+                                    <td data-sort="${escAttr(r.folio || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family:'Courier New',monospace;">${escAttr(r.folio)}</td>
+                                    <td data-sort="${escAttr(r.destino || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.destino)}</td>
+                                    <td data-sort="${r.dias ?? -1}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#b45309;">${r.dias ?? '—'}</td>`;
                                 tbM.appendChild(tr);
                             });
                             const msgM = document.getElementById('mensaje-sin-mantenimiento');
                             if (msgM) msgM.style.display = mantenimientoList.length ? 'none' : '';
                         }
 
-                        [['insp-card-wrap-disponibles', 'insp-seccion-disponibles'],
-                         ['insp-card-wrap-mantenimiento', 'insp-seccion-mantenimiento']].forEach(([cardId, secId]) => {
+                        // Selección exclusiva de tarjetas + persistencia entre re-renders
+                        const detallePairs = [
+                            ['activos', 'insp-card-wrap-activos', 'insp-seccion-activos', 'insp-activos-body'],
+                            ['disponibles', 'insp-card-wrap-disponibles', 'insp-seccion-disponibles', 'insp-disponibles-body'],
+                            ['mantenimiento', 'insp-card-wrap-mantenimiento', 'insp-seccion-mantenimiento', 'insp-mantenimiento-body']
+                        ];
+                        window.__aplicarVistaDetalle = () => {
+                            detallePairs.forEach(([key, cardId, secId, bodyId]) => {
+                                const card = document.getElementById(cardId);
+                                const sec = document.getElementById(secId);
+                                const body = document.getElementById(bodyId);
+                                const open = (vistaDetalleActiva === key);
+                                if (card) card.classList.toggle('card-sel', open);
+                                if (sec) sec.style.display = open ? '' : 'none';
+                                if (body) body.style.display = open ? '' : 'none';
+                            });
+                        };
+                        detallePairs.forEach(([key, cardId, secId]) => {
                             const card = document.getElementById(cardId);
                             if (card && !card.dataset.bound) {
                                 card.dataset.bound = '1';
                                 card.addEventListener('click', () => {
-                                    const s = document.getElementById(secId);
-                                    if (s) s.style.display = (s.style.display === 'none' || !s.style.display) ? '' : 'none';
+                                    vistaDetalleActiva = (vistaDetalleActiva === key) ? null : key;
+                                    window.__aplicarVistaDetalle();
+                                    const sec = document.getElementById(secId);
+                                    if (vistaDetalleActiva && sec) sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                                 });
                             }
+                        });
+                        window.__aplicarVistaDetalle();
+
+                        // Ordenamiento asc/desc por encabezado (una sola vez)
+                        document.querySelectorAll('th[data-sort]').forEach(th => {
+                            if (th.dataset.sortBound) return;
+                            th.dataset.sortBound = '1';
+                            th.addEventListener('click', () => {
+                                const table = th.closest('table');
+                                const tbody = table && table.querySelector('tbody');
+                                if (!tbody) return;
+                                const idx = Array.from(th.parentNode.children).indexOf(th);
+                                const isNum = th.dataset.sort === 'num';
+                                const dir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+                                th.dataset.sortDir = dir;
+                                th.parentNode.querySelectorAll('.sort-ind').forEach(el => el.textContent = '');
+                                const ind = th.querySelector('.sort-ind');
+                                if (ind) ind.textContent = dir === 'asc' ? '▲' : '▼';
+                                const rows = Array.from(tbody.querySelectorAll('tr'));
+                                rows.sort((ra, rb) => {
+                                    const va = (ra.children[idx] || {}).dataset ? (ra.children[idx].dataset.sort ?? ra.children[idx].textContent) : '';
+                                    const vb = (rb.children[idx] || {}).dataset ? (rb.children[idx].dataset.sort ?? rb.children[idx].textContent) : '';
+                                    const cmp = isNum
+                                        ? (parseFloat(va) || 0) - (parseFloat(vb) || 0)
+                                        : String(va).localeCompare(String(vb));
+                                    return dir === 'asc' ? cmp : -cmp;
+                                });
+                                rows.forEach(r => tbody.appendChild(r));
+                            });
                         });
                     } catch {}
 
