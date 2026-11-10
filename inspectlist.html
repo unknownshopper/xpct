@@ -4343,17 +4343,7 @@
                                     : [edoOverride, edoNativo].includes('WIP') ? 'WIP'
                                     : (edoOverride || edoNativo || 'ON');
                                 const eqName = equipoPorKey.get(k) || k;
-                                if (e === 'WIP') {
-                                    const o = ordenesAbiertas.get(k);
-                                    mantenimientoList.push({
-                                        equipo: eqName,
-                                        folio: o ? (o.folio || '') : '—',
-                                        destino: o ? (o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO') : 'WIP (sin orden)',
-                                        dias: o && o.ms ? Math.floor((hoy - o.ms) / DAY) : null
-                                    });
-                                    yaEnMantto.add(k);
-                                    return;
-                                }
+                                // WIP = equipo en campo/trabajo — no es mantenimiento ni disponible
                                 if (e !== 'ON') return;
                                 activos++;
                                 const rs = resumenMap.get(eqName) || resumenMap.get(k);
@@ -5905,15 +5895,12 @@
         }
 
         // En móviles, al volver a esta página puede usarse bfcache y no re-ejecutar DOMContentLoaded.
-        // Solo recarga si los datos ya están viejos (>10 min) — evita el loader en cada cambio de pestaña.
+        // Si ya hay datos cargados, NO recargar — la primera descarga alimenta toda la sesión.
         try {
             window.addEventListener('pageshow', () => {
                 try {
-                    if (isLoadingDatos) return;
-                    if (vistaActiva) return;
-                    if (datosFrescos()) return;
-                    if (datosCargados) cargarDatos({ useCache: true });
-                    else cargarContadoresIniciales();
+                    if (isLoadingDatos || vistaActiva || datosCargados) return;
+                    cargarContadoresIniciales();
                 } catch {}
             });
         } catch {}
@@ -5921,12 +5908,8 @@
         try {
             document.addEventListener('visibilitychange', () => {
                 try {
-                    if (document.hidden) return;
-                    if (isLoadingDatos) return;
-                    if (vistaActiva) return;
-                    if (datosFrescos()) return;
-                    if (datosCargados) cargarDatos({ useCache: true });
-                    else cargarContadoresIniciales();
+                    if (document.hidden || isLoadingDatos || vistaActiva || datosCargados) return;
+                    cargarContadoresIniciales();
                 } catch {}
             });
         } catch {}
