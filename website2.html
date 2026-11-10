@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PCT — Proveedora y Comercializadora Tabasqueña · Inspección y pruebas de equipos</title>
+<meta name="description" content="Proveedora y Comercializadora Tabasqueña: inspección VT, UTT, MT/PT, pruebas hidrostáticas, renta y mantenimiento de equipos con trazabilidad completa." />
+<meta name="keywords" content="inspección de equipos, pruebas no destructivas, UTT, líquidos penetrantes, prueba hidrostática, renta de equipos, Tabasco" />
+<meta name="theme-color" content="#04060e" />
+<link rel="preconnect" href="https://cdn.tailwindcss.com" />
+<link rel="dns-prefetch" href="https://cdn.tailwindcss.com" />
+<link rel="preconnect" href="https://unpkg.com" />
+<link rel="dns-prefetch" href="https://unpkg.com" />
+<link rel="icon" type="image/png" href="img/logopctch.png" />
+
+
+<meta name="robots" content="index, follow, max-image-preview:large" />
+<!-- Open Graph — preview en WhatsApp, LinkedIn, etc. -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="PCT" />
+<meta property="og:url" content="https://www.pc-t.com.mx/" />
+<meta property="og:title" content="PCT — Inspección y pruebas de equipos con trazabilidad" />
+<meta property="og:description" content="Inspección VT/UTT/MT/PT, pruebas hidrostáticas, renta y mantenimiento de equipos. Cada equipo con historial y vigencia anual controlada." />
+<meta property="og:locale" content="es_MX" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Proveedora y Comercializadora Tabasqueña",
+  "alternateName": "PCT",
+  "url": "https://www.pc-t.com.mx/",
+  "description": "Inspección, pruebas no destructivas, renta y mantenimiento de equipos con trazabilidad digital.",
+  "address": { "@type": "PostalAddress", "addressRegion": "Tabasco", "addressCountry": "MX" }
+}
+</script>
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="PCT — Inspección y pruebas de equipos" />
+<meta name="twitter:description" content="Software a la medida, automatización de procesos, IA e inteligencia de negocios para empresas e instituciones en México." />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://unpkg.com" crossorigin />
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: '#04060e',
+          surface: '#080d1a',
+          card: '#0c1326',
+          accent: '#b8580f',
+          accent2: '#f59e0b',
+          accent3: '#fbbf24',
+          muted: '#94a1bd',
+        },
+        fontFamily: {
+          display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+          body: ['"Inter"', 'system-ui', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html { scroll-behavior: smooth; }
+  body { background: #04060e; color: #e9eefb; font-family: 'Inter', system-ui, sans-serif; overflow-x: hidden; }
+  .font-display { font-family: 'Space Grotesk', system-ui, sans-serif; }
+
+  /* Degradado animado en texto */
+  .grad-text {
+    background: linear-gradient(100deg, #b8580f 0%, #f59e0b 45%, #fbbf24 100%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 7s ease-in-out infinite alternate;
+  }
+  @keyframes shimmer { to { background-position: 100% 0; } }
+  .grad-line { background: linear-gradient(90deg, #b8580f, #f59e0b, #fbbf24); height: 2px; border-radius: 2px; }
+
+  /* Auroras */
+  .aurora { position: absolute; border-radius: 50%; filter: blur(110px); mix-blend-mode: screen; pointer-events: none; will-change: transform; }
+  @keyframes drift-a { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px,-40px) scale(1.15); } }
+  @keyframes drift-b { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-70px,50px) scale(1.1); } }
+  @keyframes drift-c { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px,60px) scale(.9); } }
+
+  /* Retícula */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(120,150,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120,150,255,.07) 1px, transparent 1px);
+    background-size: 54px 54px;
+    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
+            mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
+  }
+
+  /* Grano cinematográfico */
+  .grain {
+    position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Reveal al hacer scroll */
+  .reveal { opacity: 0; transform: translateY(34px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1); transition-delay: var(--d, 0s); }
+  .reveal.in { opacity: 1; transform: none; }
+  .reveal-scale { opacity: 0; transform: scale(.92); transition: opacity 1s cubic-bezier(.22,1,.36,1), transform 1s cubic-bezier(.22,1,.36,1); transition-delay: var(--d, 0s); }
+  .reveal-scale.in { opacity: 1; transform: none; }
+
+  /* Cards con spotlight */
+  .card {
+    position: relative; overflow: hidden;
+    background: linear-gradient(165deg, #0c1326 0%, #080d1a 100%);
+    border: 1px solid rgba(120,150,255,.14);
+    transition: transform .4s cubic-bezier(.22,1,.36,1), border-color .4s, box-shadow .4s;
+  }
+  .card::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(184,88,15,.17), transparent 65%);
+    opacity: 0; transition: opacity .45s;
+  }
+  .card:hover::before { opacity: 1; }
+  .card:hover { transform: translateY(-6px); border-color: rgba(184,88,15,.55); box-shadow: 0 30px 60px -30px rgba(184,88,15,.35); }
+  .card > * { position: relative; }
+  .card::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent 5%, rgba(251,191,36,.7) 50%, transparent 95%);
+    opacity: .45; transition: opacity .4s, box-shadow .4s;
+  }
+  .card:hover::after { opacity: 1; box-shadow: 0 0 14px 1px rgba(251,191,36,.8); }
+  .ghost-num {
+    color: transparent; -webkit-text-stroke: 1.2px rgba(184,88,15,.6);
+    text-shadow: 0 0 16px rgba(184,88,15,.3);
+    transition: -webkit-text-stroke-color .4s, text-shadow .4s;
+  }
+  .card:hover .ghost-num {
+    -webkit-text-stroke-color: rgba(150,185,255,.95);
+    text-shadow: 0 0 26px rgba(184,88,15,.85);
+  }
+
+  .icon-chip {
+    background: linear-gradient(135deg, rgba(184,88,15,.2), rgba(245,158,11,.2));
+    border: 1px solid rgba(184,88,15,.35);
+    box-shadow: inset 0 0 24px -6px rgba(184,88,15,.5);
+  }
+
+  /* Botones — cápsulas luminosas */
+  .btn-primary {
+    position: relative; overflow: hidden; border-radius: 9999px;
+    background: linear-gradient(95deg, rgba(184,88,15,.95), rgba(245,158,11,.95));
+    border: 1px solid rgba(150,180,255,.45);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 10px 34px -10px rgba(184,88,15,.7);
+    transition: transform .3s, box-shadow .4s;
+  }
+  .btn-primary::after {
+    content: ''; position: absolute; top: 0; left: -80%; width: 55%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.45), transparent);
+    transform: skewX(-20deg); transition: left .65s ease;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 16px 44px -10px rgba(251,191,36,.65); }
+  .btn-primary:hover::after { left: 140%; }
+  .btn-ghost {
+    position: relative; overflow: hidden; border-radius: 9999px;
+    border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.03);
+    transition: border-color .35s, background .35s, box-shadow .35s, transform .3s;
+  }
+  .btn-ghost:hover {
+    border-color: rgba(251,191,36,.6); background: rgba(251,191,36,.06);
+    box-shadow: 0 0 26px -8px rgba(251,191,36,.55), inset 0 0 18px -10px rgba(251,191,36,.4);
+    transform: translateY(-2px);
+  }
+  .sonar {
+    position: absolute; inset: 0; border: 1px solid rgba(251,191,36,.55); border-radius: 9999px;
+    animation: sonar 3s ease-out infinite; pointer-events: none;
+  }
+  @keyframes sonar { from { transform: scale(1); opacity: .8; } to { transform: scale(1.75); opacity: 0; } }
+
+  /* Hero */
+  .hero-line { display: block; overflow: hidden; }
+  .hero-line > span { display: block; transform: translateY(112%); animation: rise 1s cubic-bezier(.22,1,.36,1) forwards; }
+  .hero-line > span.d2 { animation-delay: .18s; }
+  @keyframes rise { to { transform: none; } }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+  .fade-up { opacity: 0; animation: fade-up .9s cubic-bezier(.22,1,.36,1) forwards; }
+
+  /* Modal contacto */
+  #cmodal { display: none; }
+  #cmodal.open { display: flex; }
+  #cmodal.open .panel { animation: fade-up .4s cubic-bezier(.22,1,.36,1) both; }
+  #cmodal.open #cmodal-bg { animation: fade-in .3s ease both; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .field {
+    width: 100%; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12);
+    border-radius: .8rem; padding: .75rem .95rem; color: #fff; font-size: .9rem;
+    font-family: inherit; outline: none; transition: border-color .25s, box-shadow .25s;
+  }
+  .field:focus { border-color: rgba(251,191,36,.55); box-shadow: 0 0 0 3px rgba(251,191,36,.12); }
+  .field::placeholder { color: rgba(148,161,189,.65); }
+  select.field {
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%2394a1bd" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>');
+    background-repeat: no-repeat; background-position: right .9rem center;
+  }
+  select.field option { background: #0c1326; color: #fff; }
+  @keyframes orbit { from { transform: rotate(0deg) translateX(11px); } to { transform: rotate(360deg) translateX(11px); } }
+
+  /* Nav móvil flotante — solo tras el hero, ahora arriba */
+  #mnav { opacity: 0; transform: translateY(-24px); pointer-events: none; transition: opacity .45s, transform .45s cubic-bezier(.22,1,.36,1); }
+  #mnav.show { opacity: 1; transform: none; pointer-events: auto; }
+
+  .pulse-dot { position: relative; }
+  .pulse-dot::after { content: ''; position: absolute; inset: -5px; border-radius: 9999px; background: rgba(251,191,36,.5); animation: pulse 2.2s ease-out infinite; }
+  @keyframes pulse { 0% { transform: scale(.6); opacity: .8; } 100% { transform: scale(2.2); opacity: 0; } }
+
+  /* Cursor luminoso */
+  #cursor {
+    position: fixed; left: 0; top: 0; width: 560px; height: 560px; border-radius: 50%;
+    pointer-events: none; z-index: 5; will-change: transform;
+    background: radial-gradient(circle, rgba(184,88,15,.13), rgba(245,158,11,.07) 40%, transparent 65%);
+  }
+
+  /* Marquee */
+  .marquee-track { display: flex; align-items: center; width: max-content; animation: marq 30s linear infinite; }
+  @keyframes marq { to { transform: translateX(-50%); } }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+
+  /* Metodología */
+  .step-line {
+    position: absolute; top: 20px; left: 0; height: 2px; width: 100%;
+    background: linear-gradient(90deg, #b8580f, #f59e0b, #fbbf24);
+    box-shadow: 0 0 14px rgba(184,88,15,.55);
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 5.5s linear;
+  }
+  .steps.in .step-line { clip-path: inset(0 0 0 0); animation: line-flicker 3.2s linear infinite 5.5s; }
+  @keyframes line-flicker {
+    0%,100% { filter: brightness(1); }
+    8% { filter: brightness(1.6); } 12% { filter: brightness(.85); }
+    42% { filter: brightness(1.25); } 55% { filter: brightness(1); }
+    78% { filter: brightness(1.45); } 84% { filter: brightness(.95); }
+  }
+  .step-line::after {
+    content: ''; position: absolute; right: -5px; top: 50%; width: 10px; height: 10px; margin-top: -5px;
+    border-radius: 50%; background: #fbbf24; box-shadow: 0 0 18px 5px rgba(251,191,36,.9);
+  }
+  .step-pulse {
+    position: absolute; top: -1px; left: -90px; height: 4px; width: 90px; border-radius: 4px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent);
+    filter: blur(1px);
+    animation: pulse-travel 1.8s linear infinite;
+  }
+  @keyframes pulse-travel { from { left: -90px; } to { left: 100%; } }
+  .spark {
+    position: absolute; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%;
+    background: #fbbf24; box-shadow: 0 0 10px 2px rgba(251,191,36,.9);
+    animation: spark-flick 1.4s ease-in-out infinite;
+  }
+  @keyframes spark-flick { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.5); } }
+
+  /* Metodología — versión vertical (móvil) */
+  .step-line-v {
+    position: absolute; top: 0; bottom: 0; left: 19px; width: 2px;
+    background: linear-gradient(180deg, #b8580f, #f59e0b, #fbbf24);
+    box-shadow: 0 0 14px rgba(184,88,15,.55);
+    clip-path: inset(0 0 100% 0);
+    transition: clip-path 5.5s linear;
+  }
+  .steps.in .step-line-v { clip-path: inset(0); animation: line-flicker 3.2s linear infinite 5.5s; }
+  .step-line-v::after {
+    content: ''; position: absolute; bottom: -5px; left: 50%; width: 10px; height: 10px; margin-left: -5px;
+    border-radius: 50%; background: #fbbf24; box-shadow: 0 0 18px 5px rgba(251,191,36,.9);
+  }
+  .step-pulse-v {
+    position: absolute; left: -1px; top: -90px; width: 4px; height: 90px; border-radius: 4px;
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,.95), transparent);
+    filter: blur(1px);
+    animation: pulse-travel-v 1.8s linear infinite;
+  }
+  @keyframes pulse-travel-v { from { top: -90px; } to { top: 100%; } }
+  .spark-v {
+    position: absolute; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%;
+    background: #fbbf24; box-shadow: 0 0 10px 2px rgba(251,191,36,.9);
+    animation: spark-flick 1.4s ease-in-out infinite;
+  }
+  .steps .dot {
+    position: relative; z-index: 1; border-color: rgba(120,150,255,.25);
+    color: rgba(140,170,255,.55); background: #080d1a;
+    transition: border-color .5s, color .5s, box-shadow .5s, background .5s;
+  }
+  .steps li.lit .dot {
+    border-color: rgba(251,191,36,.9); color: #fff;
+    background: linear-gradient(135deg, #b8580f, #f59e0b);
+    box-shadow: 0 0 26px rgba(184,88,15,.85);
+  }
+  .steps li h3 { color: #94a1bd; transition: color .5s; }
+  .steps li.lit h3 { color: #fff; }
+
+  /* Acordeón de servicios (móvil) */
+  .svc-body { display: none; }
+  .svc.open .svc-body { display: block; animation: fade-up .45s cubic-bezier(.22,1,.36,1) both; }
+  .svc-chev { transition: transform .35s; }
+  .svc.open .svc-chev { transform: rotate(180deg); }
+  @media (min-width: 768px) { .svc-body { display: block; } }
+
+  /* Spotlight secuencial — tarjeta que invita */
+  .svc-lit { transform: translateY(-6px); border-color: rgba(184,88,15,.55); box-shadow: 0 30px 60px -30px rgba(184,88,15,.35); }
+  .svc-lit::before { opacity: 1; }
+  .svc-lit::after { opacity: 1; box-shadow: 0 0 14px 1px rgba(251,191,36,.8); }
+  .svc-lit .ghost-num { -webkit-text-stroke-color: rgba(150,185,255,.95); text-shadow: 0 0 26px rgba(184,88,15,.85); }
+  .svc-lit .svc-chev { transform: rotate(180deg); color: #fbbf24; }
+  @media (max-width: 767px) {
+    .svc.svc-lit .svc-body { display: block; animation: fade-up .45s cubic-bezier(.22,1,.36,1) both; }
+  }
+
+  #graph { touch-action: pan-y; }
+
+  /* Nav */
+  #navbar { transition: background .35s, box-shadow .35s, border-color .35s; }
+  #navbar.scrolled { background: rgba(4,6,14,.82); box-shadow: 0 10px 40px -20px rgba(0,0,0,.8); border-color: rgba(120,150,255,.18); }
+
+  ::selection { background: rgba(184,88,15,.4); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal, .reveal-scale, .hero-line > span, .fade-up { opacity: 1 !important; transform: none !important; animation: none !important; transition: none !important; }
+    .marquee-track, .aurora, .grad-text, .pulse-dot::after, .step-pulse, .step-pulse-v, .spark, .spark-v { animation: none !important; }
+    .step-pulse, .step-pulse-v, .spark, .spark-v { display: none; }
+    .step-line, .step-line-v { transition: none !important; clip-path: inset(0) !important; }
+    .svc.open .svc-body { animation: none !important; }
+    #cursor { display: none; }
+  }
+</style>
+</head>
+<body class="antialiased">
+
+<div class="grain" aria-hidden="true"></div>
+<div id="cursor" aria-hidden="true"></div>
+
+<!-- NAV -->
+<header id="navbar" class="fixed top-0 inset-x-0 z-50 backdrop-blur-md border-b border-transparent">
+  <nav class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <a href="#" class="flex items-center gap-2.5"><img src="img/logopctch.png" alt="PCT" class="h-9 w-auto" /></a>
+    <div class="hidden md:flex items-center gap-8 text-sm text-muted">
+      <a href="#servicios" class="hover:text-white transition">Servicios</a>
+      <a href="#ecosistema" class="hover:text-white transition">Trazabilidad</a>
+      <a href="#metodologia" class="hover:text-white transition">Proceso</a>
+      <a href="#clientes" class="hover:text-white transition">Clientes</a>
+      <a href="index.html" class="hover:text-white transition">Acceso</a>
+      <a href="#contacto" class="js-contact btn-primary px-4 py-2 text-white font-medium">Contacto</a>
+    </div>
+  </nav>
+</header>
+
+<!-- HERO -->
+<section class="relative min-h-screen flex items-center overflow-hidden">
+  <canvas id="particles" class="absolute inset-0 w-full h-full" aria-hidden="true"></canvas>
+  <div class="absolute inset-0 bg-grid" aria-hidden="true"></div>
+  <canvas id="tunnel" class="absolute inset-0 w-full h-full" aria-hidden="true"></canvas>
+  <div class="aurora w-[560px] h-[560px] bg-accent/60 -top-48 -left-48" style="animation:drift-a 14s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="aurora w-[460px] h-[460px] bg-accent2/50 top-24 -right-40" style="animation:drift-b 18s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="aurora w-[380px] h-[380px] bg-accent3/40 bottom-0 left-1/3" style="animation:drift-c 20s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-ink" aria-hidden="true"></div>
+
+  <div class="max-w-6xl mx-auto px-6 relative w-full pt-36 pb-24">
+    <div class="fade-up inline-flex items-center gap-3 px-4 py-2 rounded-full border border-accent/30 bg-accent/10 backdrop-blur-sm mb-8" style="animation-delay:.1s">
+      <span class="pulse-dot w-2 h-2 rounded-full bg-accent3 shrink-0"></span>
+      <span class="text-sm md:text-base tracking-widest uppercase text-white/80">Inspección certificada · Trazabilidad de cada equipo</span>
+    </div>
+    <h1 class="fade-up font-display text-4xl md:text-6xl font-bold tracking-tight text-white max-w-3xl" style="animation-delay:.25s">
+      Proveedora y <span class="grad-text">Comercializadora</span> Tabasqueña
+    </h1>
+    <p class="fade-up mt-5 text-muted max-w-2xl text-base md:text-lg" style="animation-delay:.45s">
+      Inspección, pruebas no destructivas, renta y mantenimiento de equipos — cada equipo con historial completo y vigencia anual controlada.
+    </p>
+  </div>
+
+  <div class="fade-up absolute bottom-24 inset-x-0" style="animation-delay:.75s">
+    <div class="max-w-6xl mx-auto px-6 flex flex-wrap gap-4">
+      <a href="#servicios" class="btn-primary px-7 py-3.5 font-medium text-white flex items-center gap-2">
+        Ver servicios <i data-lucide="arrow-down-right" class="w-4 h-4"></i>
+      </a>
+      <a href="#metodologia" class="btn-ghost px-7 py-3.5 text-white/90">
+        Nuestro proceso
+      </a>
+    </div>
+  </div>
+
+  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 fade-up" style="animation-delay:1.2s">
+    <i data-lucide="chevron-down" class="w-5 h-5 text-muted animate-bounce"></i>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee relative py-5 border-y border-white/5 bg-surface/50 overflow-hidden" aria-hidden="true">
+  <div class="marquee-track font-display text-[13px] tracking-[.25em] uppercase text-muted/80">
+    <div class="flex items-center gap-14 pr-14">
+      <span>Inspección visual VT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Ultrasonido UTT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+      <span>Partículas MT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent3"></i>
+      <span>Líquidos PT·LT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Prueba hidrostática PH</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+      <span>Vigencia anual</span><i data-lucide="sparkles" class="w-4 h-4 text-accent3"></i>
+      <span>Renta de equipos</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Mantenimiento</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+      <span>Recepción y reinspección</span><i data-lucide="sparkles" class="w-4 h-4 text-accent3"></i>
+      <span>Evidencia fotográfica</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Trazabilidad total</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+    </div>
+    <div class="flex items-center gap-14 pr-14" aria-hidden="true">
+      <span>Inspección visual VT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Ultrasonido UTT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+      <span>Partículas MT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent3"></i>
+      <span>Líquidos PT·LT</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Prueba hidrostática PH</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+      <span>Vigencia anual</span><i data-lucide="sparkles" class="w-4 h-4 text-accent3"></i>
+      <span>Renta de equipos</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Mantenimiento</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+      <span>Recepción y reinspección</span><i data-lucide="sparkles" class="w-4 h-4 text-accent3"></i>
+      <span>Evidencia fotográfica</span><i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
+      <span>Trazabilidad total</span><i data-lucide="sparkles" class="w-4 h-4 text-accent2"></i>
+    </div>
+  </div>
+</div>
+
+<!-- SERVICES -->
+<section id="servicios" class="py-28 relative">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="reveal mb-16">
+      <p class="text-accent3 text-sm font-medium tracking-widest uppercase mb-3">Pruebas y servicios</p>
+      <h2 class="font-display text-3xl md:text-5xl font-bold tracking-tight">Nuestros servicios</h2>
+      <div class="grad-line w-24 mt-6"></div>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+      <!-- 1 -->
+      <article class="card svc reveal rounded-2xl p-7" style="--d:.05s">
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">01</span>
+        <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
+          <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
+            <i data-lucide="eye" class="w-5 h-5 text-accent"></i>
+          </div>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Inspección visual (VT)</h3>
+          <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
+        </button>
+        <div class="svc-body">
+          <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">El primer filtro de cada equipo.</p>
+        <ul class="text-sm text-muted space-y-2 leading-relaxed">
+          <li class="flex gap-2"><span class="text-accent">·</span>Revisión integral de superficie y componentes.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Detección temprana de daño visible.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Evidencia fotográfica en cada folio.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 2 -->
+      <article class="card svc reveal rounded-2xl p-7" style="--d:.12s">
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">02</span>
+        <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
+          <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
+            <i data-lucide="activity" class="w-5 h-5 text-accent"></i>
+          </div>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Ultrasonido de espesores (UTT)</h3>
+          <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
+        </button>
+        <div class="svc-body">
+          <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Medimos lo que no se ve.</p>
+        <ul class="text-sm text-muted space-y-2 leading-relaxed">
+          <li class="flex gap-2"><span class="text-accent">·</span>Espesores y pérdida de material por punto.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Resultados documentados y comparables.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Historial de mediciones por equipo.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 3 -->
+      <article class="card svc reveal rounded-2xl p-7" style="--d:.19s">
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">03</span>
+        <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
+          <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
+            <i data-lucide="magnet" class="w-5 h-5 text-accent"></i>
+          </div>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Partículas y líquidos (MT / PT·LT)</h3>
+          <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
+        </button>
+        <div class="svc-body">
+          <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Grietas superficiales al descubierto.</p>
+        <ul class="text-sm text-muted space-y-2 leading-relaxed">
+          <li class="flex gap-2"><span class="text-accent">·</span>Detección de discontinuidades superficiales.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Métodos magnéticos y de penetrantes.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Reporte con ubicación del hallazgo.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 4 -->
+      <article class="card svc reveal rounded-2xl p-7" style="--d:.05s">
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">04</span>
+        <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
+          <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
+            <i data-lucide="droplets" class="w-5 h-5 text-accent"></i>
+          </div>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Prueba hidrostática (PH)</h3>
+          <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
+        </button>
+        <div class="svc-body">
+          <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Integridad comprobada a presión.</p>
+        <ul class="text-sm text-muted space-y-2 leading-relaxed">
+          <li class="flex gap-2"><span class="text-accent">·</span>Verificación de hermeticidad a presión.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Presión de prueba documentada.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Aceptación conforme a especificación.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 5 -->
+      <article class="card svc reveal rounded-2xl p-7" style="--d:.12s">
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">05</span>
+        <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
+          <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
+            <i data-lucide="package" class="w-5 h-5 text-accent"></i>
+          </div>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Renta de equipos</h3>
+          <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
+        </button>
+        <div class="svc-body">
+          <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Equipo listo cuando lo necesitas.</p>
+        <ul class="text-sm text-muted space-y-2 leading-relaxed">
+          <li class="flex gap-2"><span class="text-accent">·</span>Solo sale equipo con anual vigente.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Inspección pre y post trabajo incluida.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Seguimiento del ciclo de vida completo.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 6 -->
+      <article class="card svc reveal rounded-2xl p-7" style="--d:.19s">
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">06</span>
+        <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
+          <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
+            <i data-lucide="wrench" class="w-5 h-5 text-accent"></i>
+          </div>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Mantenimiento y reacondicionamiento</h3>
+          <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
+        </button>
+        <div class="svc-body">
+          <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Del daño de vuelta a operación.</p>
+        <ul class="text-sm text-muted space-y-2 leading-relaxed">
+          <li class="flex gap-2"><span class="text-accent">·</span>Mantenimiento interno o con terceros.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Orden de salida foliada y trazable.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Recepción y reinspección al retorno.</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ECOSISTEMA -->
+<section id="ecosistema" class="py-28 relative overflow-hidden">
+  <div class="aurora w-[420px] h-[420px] bg-accent/30 -top-24 -right-32" style="animation:drift-c 17s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="max-w-6xl mx-auto px-6 relative">
+    <div class="reveal mb-10">
+      <p class="text-accent3 text-sm font-medium tracking-widest uppercase mb-3">Trazabilidad del ciclo de vida</p>
+      <h2 class="font-display text-3xl md:text-5xl font-bold tracking-tight">Todo queda registrado</h2>
+      <p class="mt-4 text-muted max-w-2xl">Cada equipo vive en el sistema: inspección, pruebas, mantenimiento y vigencia anual conectados en un solo historial auditable.</p>
+      <div class="grad-line w-24 mt-6"></div>
+    </div>
+    <div class="reveal relative rounded-3xl border border-white/10 bg-surface/40 overflow-hidden">
+      <canvas id="graph" class="w-full h-[75vh] md:h-[560px] block"></canvas>
+      <p class="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted/70 pointer-events-none">Arrastra los nodos o pasa el cursor para explorar las relaciones</p>
+    </div>
+  </div>
+</section>
+
+<!-- METHODOLOGY -->
+<section id="metodologia" class="py-28 bg-surface/40 border-y border-white/5 relative overflow-hidden">
+  <div class="aurora w-[420px] h-[420px] bg-accent2/40 -bottom-32 -left-32" style="animation:drift-b 16s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="max-w-6xl mx-auto px-6 relative">
+    <div class="reveal mb-16">
+      <p class="text-accent3 text-sm font-medium tracking-widest uppercase mb-3">El proceso post-trabajo</p>
+      <h2 class="font-display text-3xl md:text-5xl font-bold tracking-tight">Nuestro proceso</h2>
+      <p class="mt-4 text-muted max-w-2xl">Todo equipo que regresa recorre la misma cadena antes de volver a operación — documentado en cada etapa.</p>
+      <div class="grad-line w-24 mt-6"></div>
+    </div>
+
+    <ol class="steps reveal relative grid md:grid-cols-5 gap-6">
+      <div class="step-line hidden md:block" aria-hidden="true">
+        <span class="step-pulse"></span>
+        <span class="spark" style="left:18%; animation-delay:.2s"></span>
+        <span class="spark" style="left:38%; animation-delay:.7s"></span>
+        <span class="spark" style="left:58%; animation-delay:1.1s"></span>
+        <span class="spark" style="left:78%; animation-delay:.5s"></span>
+      </div>
+      <div class="step-line-v md:hidden" aria-hidden="true">
+        <span class="step-pulse-v"></span>
+        <span class="spark-v" style="top:10%; animation-delay:.3s"></span>
+        <span class="spark-v" style="top:30%; animation-delay:.8s"></span>
+        <span class="spark-v" style="top:50%; animation-delay:1.2s"></span>
+        <span class="spark-v" style="top:70%; animation-delay:.5s"></span>
+        <span class="spark-v" style="top:90%; animation-delay:1s"></span>
+      </div>
+      <li class="reveal flex items-start gap-4 md:block" style="--d:.1s">
+        <div class="dot shrink-0 w-10 h-10 rounded-full border flex items-center justify-center font-display font-bold">1</div>
+        <div>
+          <h3 class="font-display font-semibold leading-10 md:leading-normal md:mt-5 mb-1">Recepción</h3>
+          <p class="text-sm text-muted leading-relaxed">Todo equipo que regresa entra a recepción y queda registrado.</p>
+        </div>
+      </li>
+      <li class="reveal flex items-start gap-4 md:block" style="--d:.25s">
+        <div class="dot shrink-0 w-10 h-10 rounded-full border flex items-center justify-center font-display font-bold">2</div>
+        <div>
+          <h3 class="font-display font-semibold leading-10 md:leading-normal md:mt-5 mb-1">VT / UTT</h3>
+          <p class="text-sm text-muted leading-relaxed">Inspección visual y ultrasonido de espesores — el primer filtro de decisión.</p>
+        </div>
+      </li>
+      <li class="reveal flex items-start gap-4 md:block" style="--d:.4s">
+        <div class="dot shrink-0 w-10 h-10 rounded-full border flex items-center justify-center font-display font-bold">3</div>
+        <div>
+          <h3 class="font-display font-semibold leading-10 md:leading-normal md:mt-5 mb-1">MT / PT</h3>
+          <p class="text-sm text-muted leading-relaxed">Partículas magnetizables y líquidos penetrantes para hallazgos superficiales.</p>
+        </div>
+      </li>
+      <li class="reveal flex items-start gap-4 md:block" style="--d:.55s">
+        <div class="dot shrink-0 w-10 h-10 rounded-full border flex items-center justify-center font-display font-bold">4</div>
+        <div>
+          <h3 class="font-display font-semibold leading-10 md:leading-normal md:mt-5 mb-1">PH</h3>
+          <p class="text-sm text-muted leading-relaxed">Prueba hidrostática de integridad a presión.</p>
+        </div>
+      </li>
+      <li class="reveal flex items-start gap-4 md:block" style="--d:.7s">
+        <div class="dot shrink-0 w-10 h-10 rounded-full border flex items-center justify-center font-display font-bold">5</div>
+        <div>
+          <h3 class="font-display font-semibold leading-10 md:leading-normal md:mt-5 mb-1">Mantto + liberación</h3>
+          <p class="text-sm text-muted leading-relaxed">Reacondicionamiento — el equipo solo sale con su reporte anual vigente.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- CLIENTES -->
+<section id="clientes" class="py-24 relative overflow-hidden">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="reveal mb-12 text-center">
+      <p class="text-accent3 text-sm font-medium tracking-widest uppercase mb-3">Sectores que atendemos</p>
+      <h2 class="font-display text-2xl md:text-3xl font-bold text-white">Industrias que requieren equipos confiables</h2>
+      <p class="text-muted mt-3 max-w-xl mx-auto text-sm">Operación petrolera, perforación, servicios a pozo e industria: equipos que deben responder todos los días.</p>
+    </div>
+    <div class="reveal grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3" style="--d:.1s">
+      <div class="flex items-center justify-center rounded-xl border border-white/8 bg-white/[.02] py-5 px-4 hover:border-accent3/40 hover:bg-white/[.05] transition-all" title="Café La Cabaña">
+        <span class="font-display text-sm md:text-base text-white/70 group-hover:text-white text-center">Café La Cabaña</span>
+      </div>
+      <div class="flex items-center justify-center rounded-xl border border-white/8 bg-white/[.02] py-5 px-4 hover:border-accent3/40 hover:bg-white/[.05] transition-all" title="Café Jade">
+        <span class="font-display text-sm md:text-base text-white/70 group-hover:text-white text-center">Café Jade</span>
+      </div>
+      <div class="flex items-center justify-center rounded-xl border border-white/8 bg-white/[.02] py-5 px-4 hover:border-accent3/40 hover:bg-white/[.05] transition-all" title="Pata Negra">
+        <span class="font-display text-sm md:text-base text-white/70 group-hover:text-white text-center">Pata Negra</span>
+      </div>
+      <div class="flex items-center justify-center rounded-xl border border-white/8 bg-white/[.02] py-5 px-4 hover:border-accent3/40 hover:bg-white/[.05] transition-all" title="Portofino">
+        <span class="font-display text-sm md:text-base text-white/70 group-hover:text-white text-center">Portofino</span>
+      </div>
+      <div class="flex items-center justify-center rounded-xl border border-white/8 bg-white/[.02] py-5 px-4 hover:border-accent3/40 hover:bg-white/[.05] transition-all" title="Küchen">
+        <span class="font-display text-sm md:text-base text-white/70 group-hover:text-white text-center">Küchen</span>
+      </div>
+      <div class="flex items-center justify-center rounded-xl border border-white/8 bg-white/[.02] py-5 px-4 hover:border-accent3/40 hover:bg-white/[.05] transition-all" title="PCT">
+        <span class="font-display text-sm md:text-base text-white/70 group-hover:text-white text-center">PCT</span>
+      </div>
+      <div class="flex items-center justify-center rounded-xl border border-white/8 bg-white/[.02] py-5 px-4 hover:border-accent3/40 hover:bg-white/[.05] transition-all" title="The Unknown Shopper">
+        <span class="font-display text-sm md:text-base text-white/70 group-hover:text-white text-center">The Unknown Shopper</span>
+      </div>
+      <a href="#contacto" class="js-contact flex items-center justify-center rounded-xl border border-dashed border-accent3/30 bg-accent3/[.03] py-5 px-4 hover:border-accent3/60 hover:bg-accent3/[.07] transition-all group">
+        <span class="font-display text-sm text-muted group-hover:text-accent3 transition-colors text-center">+ Tu empresa aquí</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ENFOQUE / CTA -->
+<section id="enfoque" class="py-32 relative overflow-hidden">
+  <div class="aurora w-[500px] h-[500px] bg-accent/40 top-0 -right-40" style="animation:drift-a 16s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="aurora w-[380px] h-[380px] bg-accent3/30 bottom-0 -left-24" style="animation:drift-c 19s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="max-w-4xl mx-auto px-6 text-center relative">
+    <p class="reveal text-accent3 text-sm font-medium tracking-widest uppercase mb-4">Un equipo, un historial completo</p>
+    <div class="reveal relative mx-auto max-w-3xl" style="--d:.15s">
+      <canvas id="morph" class="w-full h-[380px] md:h-[440px] block"></canvas>
+      <div class="absolute inset-x-0 bottom-2 flex flex-col items-center justify-center">
+        <a href="#contacto" class="flex items-center gap-2.5 text-muted hover:text-accent3 transition-colors">
+          <span class="font-display text-xs md:text-sm tracking-[.3em] uppercase">Solicitud · Contacto</span>
+          <i data-lucide="arrow-down" class="w-4 h-4 animate-bounce"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contacto" class="py-32 relative overflow-hidden">
+  <div class="aurora w-[520px] h-[520px] bg-accent2/40 -top-48 left-1/2 -translate-x-1/2" style="animation:drift-b 18s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="aurora w-[400px] h-[400px] bg-accent3/30 -bottom-24 -right-24" style="animation:drift-c 16s ease-in-out infinite" aria-hidden="true"></div>
+  <div class="max-w-4xl mx-auto px-6 text-center relative">
+    <p class="reveal text-accent3 text-sm font-medium tracking-widest uppercase mb-5">Solicita tu servicio</p>
+    <h2 class="reveal font-display text-4xl md:text-6xl font-bold tracking-tight leading-tight" style="--d:.1s">
+      Hablemos de lo que podemos <span class="grad-text">inspeccionar</span> juntos.
+    </h2>
+    <div class="reveal mt-14 inline-flex relative" style="--d:.25s">
+      <span class="sonar" aria-hidden="true"></span>
+      <span class="sonar" style="animation-delay:1.5s" aria-hidden="true"></span>
+      <a href="#contacto" class="js-contact btn-primary relative px-9 py-4 font-medium text-white flex items-center gap-2.5">
+        <i data-lucide="mail" class="w-4 h-4"></i> Iniciar conversación
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="py-24 border-t border-white/5">
+  <div class="max-w-3xl mx-auto px-6">
+    <p class="text-xs tracking-[.25em] uppercase text-accent font-medium text-center">Preguntas frecuentes</p>
+    <h2 class="font-display text-2xl md:text-3xl font-bold mt-2 text-center text-white mb-10">Dudas comunes</h2>
+    <div class="space-y-4">
+      <details class="rounded-xl border border-white/10 bg-white/[.03] p-4">
+        <summary class="cursor-pointer font-medium text-white">¿Qué equipos pueden inspeccionar?</summary>
+        <p class="text-muted text-sm mt-3">Crossovers, spools, BOP, válvulas, herramientas de fondo y de superficie. Si tu equipo trabaja a presión, podemos inspeccionarlo y documentarlo.</p>
+      </details>
+      <details class="rounded-xl border border-white/10 bg-white/[.03] p-4">
+        <summary class="cursor-pointer font-medium text-white">¿Qué incluye el paquete completo?</summary>
+        <p class="text-muted text-sm mt-3">La cadena completa: inspección visual (VT), ultrasonido de espesores (UTT), partículas y líquidos penetrantes (MT/PT), prueba hidrostática (PH) y mantenimiento — cada etapa con checklist, observaciones y evidencia fotográfica.</p>
+      </details>
+      <details class="rounded-xl border border-white/10 bg-white/[.03] p-4">
+        <summary class="cursor-pointer font-medium text-white">¿Entregan reportes y evidencia?</summary>
+        <p class="text-muted text-sm mt-3">Sí. Cada inspección genera folio, observaciones, firma y evidencia fotográfica. El historial del equipo queda disponible para auditoría en cualquier momento.</p>
+      </details>
+      <details class="rounded-xl border border-white/10 bg-white/[.03] p-4">
+        <summary class="cursor-pointer font-medium text-white">¿Cada cuánto se requiere la inspección anual?</summary>
+        <p class="text-muted text-sm mt-3">La vigencia anual es el candado de operación: ningún equipo sale a trabajo sin su reporte vigente. Nosotros damos seguimiento a las fechas para que nada se venza.</p>
+      </details>
+      <details class="rounded-xl border border-white/10 bg-white/[.03] p-4">
+        <summary class="cursor-pointer font-medium text-white">¿Atienden a empresas y particulares?</summary>
+        <p class="text-muted text-sm mt-3">Sí. Recibimos equipos propios de terceros para inspección y pruebas — escríbenos con el listado de tus equipos y te agendamos.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="relative border-t border-white/5">
+  <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent3/70 to-transparent" aria-hidden="true"></div>
+  <div class="max-w-6xl mx-auto px-6 pt-14 pb-8">
+    <div class="grid md:grid-cols-4 gap-10">
+      <!-- Marca -->
+      <div class="md:col-span-2">
+        <a href="#" class="flex items-center gap-2.5 w-fit"><img src="img/logopctch.png" alt="PCT" class="h-9 w-auto" /></a>
+        <p class="text-sm text-muted mt-4 leading-relaxed max-w-sm">Inspección y pruebas con trazabilidad.<br>Cada equipo, un historial completo.<br>Tabasco · México.</p>
+      </div>
+      <!-- Secciones -->
+      <div>
+        <p class="text-xs tracking-[.2em] uppercase text-accent3 font-medium mb-4">Sitio</p>
+        <ul class="space-y-2.5">
+          <li><a href="#servicios" class="text-sm text-muted hover:text-white transition-colors">Servicios</a></li>
+          <li><a href="#ecosistema" class="text-sm text-muted hover:text-white transition-colors">Trazabilidad</a></li>
+          <li><a href="#metodologia" class="text-sm text-muted hover:text-white transition-colors">Proceso</a></li>
+          <li><a href="#clientes" class="text-sm text-muted hover:text-white transition-colors">Sectores</a></li>
+          <li><a href="#faq" class="text-sm text-muted hover:text-white transition-colors">Preguntas frecuentes</a></li>
+          <li><a href="#contacto" class="text-sm text-muted hover:text-white transition-colors">Contacto</a></li>
+        </ul>
+      </div>
+      <!-- Explora -->
+      <div>
+        <p class="text-xs tracking-[.2em] uppercase text-accent3 font-medium mb-4">Sistema</p>
+        <ul class="space-y-2.5">
+          <li><a href="index.html" class="text-sm text-muted hover:text-white transition-colors">Acceso al sistema</a></li>
+          <li><a href="website.html" class="text-sm text-muted hover:text-white transition-colors">Portada actual</a></li>
+          <li><a href="aviso.html" class="text-sm text-muted hover:text-white transition-colors">Aviso de privacidad</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="mt-12 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <p class="text-xs text-muted/70">PCT © 2026</p>
+      <p class="text-xs text-muted/70">Proveedora y Comercializadora Tabasqueña.</p>
+    </div>
+  </div>
+</footer>
+
+<!-- Nav móvil flotante (aparece tras el hero) -->
+<nav id="mnav" class="fixed top-0 inset-x-0 z-[60] flex justify-end items-center h-16 pr-4 md:hidden" style="touch-action:manipulation" aria-label="Navegación móvil">
+  <div class="flex items-center gap-0.5 px-1.5 py-1.5 rounded-full border border-white/10 bg-surface/80 backdrop-blur-md shadow-[0_12px_44px_-10px_rgba(0,0,0,.85)]">
+    <a href="#servicios" class="px-2.5 min-h-[40px] inline-flex items-center text-[11px] text-white/80 hover:text-white transition-colors">Servicios</a>
+    <a href="#metodologia" class="px-2.5 min-h-[40px] inline-flex items-center text-[11px] text-white/80 hover:text-white transition-colors">Proceso</a>
+    <a href="index.html" class="px-2.5 min-h-[40px] inline-flex items-center text-[11px] text-white/80 hover:text-white transition-colors">Acceso</a>
+    <a href="#clientes" class="px-2.5 min-h-[40px] inline-flex items-center text-[11px] text-white/80 hover:text-white transition-colors">Clientes</a>
+    <a href="#contacto" class="js-contact btn-primary px-3.5 min-h-[40px] inline-flex items-center text-[11px] font-medium text-white">Contacto</a>
+  </div>
+</nav>
+
+<!-- Modal contacto -->
+<div id="cmodal" class="fixed inset-0 z-[90] items-center justify-center p-5" role="dialog" aria-modal="true" aria-label="Formulario de contacto">
+  <div id="cmodal-bg" class="absolute inset-0 bg-ink/80 backdrop-blur-sm"></div>
+  <div class="panel relative w-full max-w-md rounded-2xl border border-white/10 bg-card/95 backdrop-blur-md p-7 shadow-[0_30px_80px_-20px_rgba(0,0,0,.85)] overflow-hidden">
+    <div class="aurora w-[280px] h-[280px] bg-accent/25 -top-32 -right-24" aria-hidden="true"></div>
+    <button id="cclose" type="button" class="absolute top-4 right-4 w-9 h-9 rounded-full border border-white/10 text-muted hover:text-white hover:border-white/30 flex items-center justify-center transition-colors" aria-label="Cerrar">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>
+    <p class="text-xs tracking-[.25em] uppercase text-accent3 font-medium">Contacto PCT</p>
+    <h3 class="font-display text-2xl font-bold mt-2">Solicita tu servicio</h3>
+    <p class="text-sm text-muted mt-1.5">El mensaje llega directo a nuestro correo.</p>
+    <form id="cform" class="mt-6 space-y-4 relative">
+      <input class="field" id="cf-nombre" type="text" placeholder="Tu nombre" required />
+      <input class="field" id="cf-contacto" type="text" placeholder="Correo o teléfono" required />
+      <select class="field" id="cf-servicio" required>
+        <option value="" disabled selected>Servicio que necesitas</option>
+        <option>Inspección visual (VT)</option>
+        <option>Ultrasonido de espesores (UTT)</option>
+        <option>Partículas / líquidos penetrantes (MT·PT)</option>
+        <option>Prueba hidrostática (PH)</option>
+        <option>Renta de equipos</option>
+        <option>Mantenimiento / reacondicionamiento</option>
+        <option>Otro servicio</option>
+      </select>
+      <textarea class="field" id="cf-msg" rows="3" placeholder="Cuéntanos brevemente (opcional)"></textarea>
+      <button type="submit" class="btn-primary w-full py-3.5 font-medium text-white flex items-center justify-center gap-2">
+        <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por correo
+      </button>
+    </form>
+  </div>
+</div>
+
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- Reveal on scroll ---------- */
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (e.isIntersecting) {
+      e.target.classList.add('in');
+      io.unobserve(e.target);
+      if (e.target.classList.contains('steps')) {
+        e.target.querySelectorAll('li').forEach((li, i) =>
+          setTimeout(() => li.classList.add('lit'), 550 + i * 1100));
+      }
+    }
+  }), { threshold: .15 });
+  document.querySelectorAll('.reveal, .reveal-scale, .steps').forEach((el) => io.observe(el));
+
+  /* ---------- Navbar condense ---------- */
+  const nav = document.getElementById('navbar');
+  addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 30), { passive: true });
+
+  /* ---------- Cursor luminoso ---------- */
+  if (!reduced) {
+    const cur = document.getElementById('cursor');
+    let tx = innerWidth / 2, ty = innerHeight / 3, cx = tx, cy = ty;
+    addEventListener('mousemove', (e) => { tx = e.clientX; ty = e.clientY; }, { passive: true });
+    (function follow() {
+      cx += (tx - cx) * .07; cy += (ty - cy) * .07;
+      cur.style.transform = `translate(${cx - 280}px, ${cy - 280}px)`;
+      requestAnimationFrame(follow);
+    })();
+  }
+
+  /* ---------- Acordeón de servicios ---------- */
+  document.querySelectorAll('.svc-head').forEach((b) => {
+    b.addEventListener('click', () => {
+      const card = b.closest('.svc');
+      const open = card.classList.toggle('open');
+      b.setAttribute('aria-expanded', String(open));
+    });
+  });
+
+  /* ---------- Spotlight secuencial en tarjetas ---------- */
+  const svcCards = [...document.querySelectorAll('.svc')];
+  const svcSec = document.getElementById('servicios');
+  if (svcCards.length && svcSec) {
+    let litI = 0, litIv = null, engaged = false;
+    const light = () => {
+      svcCards.forEach((c, i) => c.classList.toggle('svc-lit', i === litI));
+      litI = (litI + 1) % svcCards.length;
+    };
+    const start = () => { if (litIv || engaged) return; light(); litIv = setInterval(light, 3200); };
+    const stop = () => { clearInterval(litIv); litIv = null; svcCards.forEach((c) => c.classList.remove('svc-lit')); };
+    new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting ? start() : stop()), { threshold: .25 }).observe(svcSec);
+    svcSec.addEventListener('click', () => { engaged = true; stop(); }, { once: true });
+  }
+
+  /* ---------- Spotlight en cards ---------- */
+  document.querySelectorAll('.card').forEach((c) => {
+    c.addEventListener('mousemove', (e) => {
+      const r = c.getBoundingClientRect();
+      c.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+      c.style.setProperty('--my', (e.clientY - r.top) + 'px');
+    }, { passive: true });
+  });
+
+  /* ---------- Red de partículas ---------- */
+  const cv = document.getElementById('particles');
+  const ctx = cv.getContext('2d');
+  const N = 72, LINK = 120;
+  let W, H, pts = [];
+
+  function resize() { W = cv.width = cv.offsetWidth; H = cv.height = cv.offsetHeight; }
+  function seed() {
+    pts = Array.from({ length: N }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - .5) * .35, vy: (Math.random() - .5) * .35,
+    }));
+  }
+  function tick() {
+    ctx.clearRect(0, 0, W, H);
+    for (const p of pts) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 1.4, 0, 6.3);
+      ctx.fillStyle = 'rgba(140,170,255,.55)'; ctx.fill();
+    }
+    for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+      const a = pts[i], b = pts[j];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d < LINK) {
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `rgba(120,150,255,${(1 - d / LINK) * .22})`; ctx.stroke();
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  resize(); seed();
+  if (!reduced) { tick(); } else {
+    for (const p of pts) { ctx.beginPath(); ctx.arc(p.x, p.y, 1.4, 0, 6.3); ctx.fillStyle = 'rgba(140,170,255,.4)'; ctx.fill(); }
+  }
+  addEventListener('resize', () => { resize(); seed(); });
+
+  /* ---------- Grafo de relaciones (estilo Obsidian) ---------- */
+  const gc = document.getElementById('graph');
+  if (gc) {
+    const gx = gc.getContext('2d');
+    let GW = 0, GH = 0, hover = -1, drag = -1, downAt = null, gvis = false;
+
+    const gnodes = [
+      { id: 'PCT', r: 15, c: '#fbbf24', big: true },
+      { id: 'Inspección VT', r: 9, c: '#b8580f', svc: true },
+      { id: 'UTT', r: 9, c: '#f59e0b', svc: true },
+      { id: 'MT / PT', r: 9, c: '#fbbf24', svc: true },
+      { id: 'PH hidrostática', r: 9, c: '#b8580f', svc: true },
+      { id: 'Renta de equipos', r: 9, c: '#f59e0b', svc: true },
+      { id: 'Mantenimiento', r: 9, c: '#fbbf24', svc: true },
+      { id: 'Folio de inspección', r: 5, c: '#94a1bd' },
+      { id: 'Evidencia fotográfica', r: 5, c: '#94a1bd' },
+      { id: 'Espesores por punto', r: 5, c: '#94a1bd' },
+      { id: 'Hallazgos superficiales', r: 5, c: '#94a1bd' },
+      { id: 'Integridad a presión', r: 5, c: '#94a1bd' },
+      { id: 'Reporte anual', r: 5, c: '#94a1bd' },
+      { id: 'Orden de salida', r: 5, c: '#94a1bd' },
+      { id: 'Recepción', r: 5, c: '#94a1bd' },
+      { id: 'Reinspección', r: 5, c: '#94a1bd' },
+      { id: 'Cuarentena', r: 5, c: '#94a1bd' },
+      { id: 'Pintura / reacond.', r: 5, c: '#94a1bd' },
+      { id: 'Anual vigente', r: 5, c: '#94a1bd' },
+      { id: 'Historial auditable', r: 5, c: '#94a1bd' },
+    ];
+    const gedges = [
+      [0,1],[0,2],[0,3],[0,4],[0,5],[0,6],
+      [1,7],[1,8],[2,9],[2,10],[3,11],[3,12],[4,13],[4,14],[5,15],[5,16],[6,17],[6,18],
+      [1,3],[2,4],[3,6],[1,5],[4,6],[2,5],
+    ];
+
+    /* Paquetes de info: tráfico constante por las ramas, en colores */
+    const leafOf = [[7,8],[9,10],[11,12],[13,14],[15,16],[17,18]];
+    const routes = [];
+    leafOf.forEach((leaves, k) => leaves.forEach(l => routes.push([0, k + 1, l])));
+    [[1,3],[2,4],[3,6],[1,5],[4,6],[2,5]].forEach(([a, b]) => routes.push([0, a, b]));
+    const PK_COLORS = ['#fbbf24', '#b8580f', '#f59e0b', '#fcd34d', '#d97a2b'];
+    const PK_MAX = 4;
+    let pks = [], pkWait = 30, rIdx = 0;
+    function pkStep() {
+      if (pks.length < PK_MAX && --pkWait <= 0) {
+        rIdx = (rIdx + 1 + Math.floor(Math.random() * (routes.length - 1))) % routes.length;
+        pks.push({ route: routes[rIdx], seg: 0, t: 0, c: PK_COLORS[Math.floor(Math.random() * PK_COLORS.length)] });
+        pkWait = 25 + Math.random() * 45;
+      }
+      for (let i = pks.length - 1; i >= 0; i--) {
+        const pk = pks[i];
+        pk.t += .016;
+        if (pk.t >= 1) {
+          gnodes[pk.route[++pk.seg]].flash = 1;
+          pk.t = 0;
+          if (pk.seg >= pk.route.length - 1) pks.splice(i, 1);
+        }
+      }
+    }
+
+    function gresize() {
+      const d = Math.min(devicePixelRatio || 1, 2);
+      GW = gc.offsetWidth; GH = gc.offsetHeight;
+      gc.width = GW * d; gc.height = GH * d;
+      gx.setTransform(d, 0, 0, d, 0, 0);
+    }
+    function ginit() {
+      const rx = GW * .36, ry = GH * .4;
+      gnodes.forEach((n, i) => {
+        if (i === 0) { n.x = GW / 2; n.y = GH / 2; }
+        else if (i <= 6) {
+          const a = (i - 1) / 6 * Math.PI * 2 - Math.PI / 2;
+          n.ax = Math.min(Math.max(GW / 2 + Math.cos(a) * rx, 70), GW - 70);
+          n.ay = Math.min(Math.max(GH / 2 + Math.sin(a) * ry, 60), GH - 60);
+          n.x = n.ax + (Math.random() - .5) * 40; n.y = n.ay + (Math.random() - .5) * 40;
+        } else {
+          const p = gnodes[Math.floor((i - 7) / 2) + 1];
+          n.x = p.x + (Math.random() - .5) * 120; n.y = p.y + (Math.random() - .5) * 120;
+        }
+        n.vx = 0; n.vy = 0;
+      });
+    }
+    function restOf(a, b) {
+      if (a <= 6 && b <= 6) return Math.min(GW, GH) * .6;
+      return Math.min(GW, GH) * .34;
+    }
+    function gstep() {
+      for (let i = 0; i < gnodes.length; i++) {
+        const n = gnodes[i];
+        for (let j = 0; j < gnodes.length; j++) {
+          if (i === j) continue;
+          const m = gnodes[j];
+          const dx = n.x - m.x, dy = n.y - m.y;
+          const d = Math.hypot(dx, dy) || .01;
+          const f = Math.min(8600 / (d * d), 1.5);
+          n.vx += (dx / d) * f * .12; n.vy += (dy / d) * f * .12;
+        }
+      }
+      for (const [ai, bi] of gedges) {
+        if (ai === 0) continue; // enlaces al centro: solo visuales
+        const a = gnodes[ai], b = gnodes[bi];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy) || .01;
+        const f = (d - restOf(ai, bi)) * (a.svc && b.svc ? .004 : .012);
+        a.vx += dx / d * f; a.vy += dy / d * f;
+        b.vx -= dx / d * f; b.vy -= dy / d * f;
+      }
+      gnodes.forEach((n, i) => {
+        if (i === drag) { n.vx = n.vy = 0; return; }
+        if (i === 0) { n.x = GW / 2; n.y = GH / 2; n.vx = n.vy = 0; return; }
+        if (n.svc) { n.vx += (n.ax - n.x) * .006; n.vy += (n.ay - n.y) * .006; }
+        else {
+          const ox = n.x - GW / 2, oy = n.y - GH / 2;
+          const od = Math.hypot(ox, oy) || 1;
+          const push = Math.min(od * .0014, .5);
+          n.vx += ox / od * push; n.vy += oy / od * push;
+          const M = 44;
+          if (n.x < M) n.vx += (M - n.x) * .04;
+          else if (n.x > GW - M) n.vx += (GW - M - n.x) * .04;
+          if (n.y < M) n.vy += (M - n.y) * .04;
+          else if (n.y > GH - M) n.vy += (GH - M - n.y) * .04;
+        }
+        n.vx *= .88; n.vy *= .88;
+        n.x += n.vx; n.y += n.vy;
+      });
+    }
+    function linked(i, j) { return gedges.some(([a, b]) => (a === i && b === j) || (a === j && b === i)); }
+    function gdraw() {
+      gx.clearRect(0, 0, GW, GH);
+      for (const [ai, bi] of gedges) {
+        const a = gnodes[ai], b = gnodes[bi];
+        const hot = hover === -1 || hover === ai || hover === bi;
+        const onPk = pks.find(pk => (ai === pk.route[pk.seg] && bi === pk.route[pk.seg + 1]) || (ai === pk.route[pk.seg + 1] && bi === pk.route[pk.seg]));
+        gx.beginPath(); gx.moveTo(a.x, a.y); gx.lineTo(b.x, b.y);
+        gx.strokeStyle = onPk ? onPk.c + 'cc' : hot ? 'rgba(120,150,255,.28)' : 'rgba(120,150,255,.05)';
+        gx.lineWidth = onPk ? 2 : (hot && hover !== -1 ? 1.4 : 1);
+        gx.stroke();
+      }
+      const ez = (t) => t * t * (3 - 2 * t);
+      pks.forEach((pk) => {
+        const a = gnodes[pk.route[pk.seg]], b = gnodes[pk.route[pk.seg + 1]];
+        const px = a.x + (b.x - a.x) * ez(pk.t), py = a.y + (b.y - a.y) * ez(pk.t);
+        const tb = Math.max(0, pk.t - .16);
+        gx.save();
+        gx.lineCap = 'round';
+        gx.shadowBlur = 10; gx.shadowColor = pk.c;
+        gx.strokeStyle = pk.c + '8c'; gx.lineWidth = 2.4;
+        gx.beginPath();
+        gx.moveTo(a.x + (b.x - a.x) * ez(tb), a.y + (b.y - a.y) * ez(tb));
+        gx.lineTo(px, py);
+        gx.stroke();
+        gx.shadowBlur = 18;
+        gx.beginPath(); gx.arc(px, py, 3.6, 0, 6.3); gx.fillStyle = '#f4feff'; gx.fill();
+        gx.restore();
+      });
+      gnodes.forEach((n, i) => {
+        const fl = n.flash || 0;
+        n.flash = fl > .02 ? fl * .9 : 0;
+        const hot = hover === -1 || i === hover || linked(i, hover);
+        gx.save();
+        gx.shadowBlur = (n.big ? 30 : (hot ? 18 : 8)) + fl * 26;
+        gx.shadowColor = n.c;
+        gx.globalAlpha = hot ? 1 : .25;
+        gx.beginPath(); gx.arc(n.x, n.y, n.r + fl * 3, 0, 6.3); gx.fillStyle = n.c; gx.fill();
+        gx.restore();
+        const isLeaf = !n.big && !n.svc;
+        if (!isLeaf || hot) {
+          gx.globalAlpha = isLeaf ? .55 : (hot ? 1 : .35);
+          gx.font = (n.big ? '700 15px' : '600 11px') + ' "Space Grotesk", sans-serif';
+          gx.fillStyle = hot ? '#e9eefb' : '#94a1bd';
+          gx.textAlign = 'center';
+          gx.fillText(n.id, n.x, n.y + n.r + 16);
+          gx.globalAlpha = 1;
+        }
+      });
+    }
+    function gframe() { if (gvis) { gstep(); pkStep(); gdraw(); } requestAnimationFrame(gframe); }
+
+    function gpos(e) { const r = gc.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+    function gpick(x, y) { let f = -1; gnodes.forEach((n, i) => { if (Math.hypot(n.x - x, n.y - y) < n.r + 18) f = i; }); return f; }
+
+    gc.style.touchAction = 'pan-y'; // scroll vertical libre; drag horizontal sí captura
+    gc.addEventListener('pointerdown', (e) => {
+      const [x, y] = gpos(e);
+      const p = gpick(x, y);
+      if (p !== -1) {
+        downAt = [x, y, p]; // candidato: no arrastra hasta superar umbral
+        hover = p;
+        gc.setPointerCapture(e.pointerId);
+      }
+    });
+    gc.addEventListener('pointermove', (e) => {
+      const [x, y] = gpos(e);
+      if (downAt) {
+        if (drag === -1 && Math.hypot(x - downAt[0], y - downAt[1]) > 7) {
+          drag = downAt[2]; // arrastre real
+          gnodes[drag].vx = gnodes[drag].vy = 0;
+        }
+        if (drag !== -1) {
+          const n = gnodes[drag];
+          n.x = x; n.y = y; n.vx = n.vy = 0;
+          hover = drag;
+          gc.style.cursor = 'grabbing';
+        }
+      } else {
+        hover = gpick(x, y);
+        gc.style.cursor = hover !== -1 ? 'grab' : 'default';
+      }
+    }, { passive: true });
+    const gend = () => {
+      if (downAt && drag === -1) hover = downAt[2]; // tap = inspeccionar nodo
+      drag = -1; downAt = null;
+      gc.style.cursor = hover !== -1 ? 'grab' : 'default';
+    };
+    gc.addEventListener('pointerup', gend);
+    gc.addEventListener('pointercancel', gend);
+    gc.addEventListener('mouseleave', () => { if (drag === -1) hover = -1; });
+
+    new IntersectionObserver((es) => es.forEach((e) => gvis = e.isIntersecting), { threshold: .05 }).observe(gc);
+
+    gresize(); ginit();
+    if (reduced) { for (let i = 0; i < 400; i++) gstep(); gdraw(); }
+    else gframe();
+    addEventListener('resize', () => { gresize(); ginit(); });
+  }
+
+  /* ---------- Túnel de malla (wormhole) ---------- */
+  const tc = document.getElementById('tunnel');
+  if (tc) {
+    const tx2 = tc.getContext('2d');
+    const RINGS = 20, SPOKES = 22;
+    const LINES_C = [
+      'const sol = resolver(datos)',
+      'if (caos) ordenar(proceso)',
+      'map(d => d.significa())',
+      'return insight;',
+      'SELECT * FROM operaciones',
+      'await pct.inspeccionar(x)',
+      'x = argmin f(θ)',
+      'ia.aprender(historial)',
+      'const claro = orden(caos)',
+      'fetch("/v1/predicciones")',
+      'datos.filter(d => d.valido)',
+      'reduce((a, b) => a + b)',
+      'modelo.fit(X, y)',
+      'JSON.stringify(result)',
+      'pipeline.transform(input)',
+      'tensor.reshape(128, -1)',
+      'try { ejecutar() }',
+      'log("proceso ok")',
+      'for (const nodo of red)',
+    ];
+    const LINES_Y = [
+      'E = mc²',
+      'H(X) = -Σ p·log p',
+      '∂L/∂θ → 0',
+      'P(A|B) = P(B|A)·P(A)/P(B)',
+      'y = Σ xᵢ·wᵢ + b',
+      'f(x) = Σ aₙ·eⁱⁿˣ',
+      'λ → estabilidad',
+      'Δt → 0  ⇒  dx/dt',
+      'e^(iπ) + 1 = 0',
+      'σ(x) = 1/(1 + e^-x)',
+      'x̄ = Σxᵢ/n',
+      'z = (x - μ)/σ',
+      'cos²θ + sin²θ = 1',
+      '∫ f(x) dx = F(b) - F(a)',
+      '∇·E = ρ/ε₀',
+      'a² + b² = c²',
+      'φ = (1 + √5)/2',
+      'n! = n·(n-1)!',
+      'O(n log n)',
+      'det(A) ≠ 0',
+      'T = 2π√(L/g)',
+      'Q = CV²/2',
+      'ψ(x,t) = A·e^(i(kx-ωt))',
+      'S = k·ln Ω',
+    ];
+    const FRAGS_C = '01{}[]<>/=#$;:*%+_-'.split('');
+    const FRAGS_Y = 'λΣ∆πΩ∂∞√Φ±∫≈∇·'.split('');
+    function spawnWave(y) {
+      const S = (y ? LINES_Y : LINES_C).slice().sort(() => Math.random() - .5);
+      const F = y ? FRAGS_Y : FRAGS_C;
+      const n = y ? 8 : 5;
+      for (let i = 0; i < n; i++) {
+        const z = y && i >= 4 ? 4.9 + (i - 4) * .18 : 3.1 + i * .18;
+        // 3 líneas únicas esparcidas por toda la lámina
+        const g = S.slice(i * 3, i * 3 + 3).map((t) => ({
+          t, u: Math.random() * 1.5 - .75, v: Math.random() * 1.6 - .8,
+        }));
+        // fragmentos pequeños rellenando la superficie
+        for (let k = 0; k < 8; k++)
+          g.push({ t: F[(Math.random() * F.length) | 0], u: Math.random() * 1.85 - .92, v: Math.random() * 1.85 - .92, s: .7 });
+        pulses.push({ z, y, g });
+      }
+    }
+    let TW = 0, TH = 0, vpx = 0, vpy = 0, tmx = 0, tmy = 0, tvis = false, rings = [], pulses = [], nextPulse = 0, waveCount = 0, nextYellow = 5 + Math.floor(Math.random() * 3);
+
+    function tresize() {
+      const d = Math.min(devicePixelRatio || 1, 2);
+      TW = tc.offsetWidth; TH = tc.offsetHeight;
+      tc.width = TW * d; tc.height = TH * d;
+      tx2.setTransform(d, 0, 0, d, 0, 0);
+      vpx = tmx = TW / 2; vpy = tmy = TH * .42;
+      rings = Array.from({ length: RINGS }, (_, i) => ({ z: .22 + (i / RINGS) * 4.2 }));
+    }
+    function tstep() {
+      const t = performance.now() * .001;
+      const wx = Math.sin(t * .16) * TW * .18;
+      const wy = Math.cos(t * .11) * TH * .12;
+      vpx += (tmx + wx - vpx) * .04;
+      vpy += (tmy + wy - vpy) * .04;
+      for (const r of rings) { r.z -= .0045; if (r.z <= .22) r.z += 4.2; }
+      const now = performance.now();
+      if (pulses.length === 0 && now > nextPulse) {
+        waveCount++;
+        if (waveCount >= nextYellow) {
+          // doble ráfaga amarilla, más rápida — intervalo impredecible
+          waveCount = 0;
+          nextYellow = 5 + Math.floor(Math.random() * 3);
+          spawnWave(true);
+        } else {
+          spawnWave(false);
+        }
+        nextPulse = now + 3500 + Math.random() * 3500;
+      }
+      for (const p of pulses) p.z -= p.y ? .095 : .055;
+      pulses = pulses.filter((p) => p.z > .18);
+    }
+    function tdraw() {
+      tx2.clearRect(0, 0, TW, TH);
+      const RAD = Math.hypot(TW, TH);
+      const swirlT = performance.now() * .00008;
+      // radios en espiral
+      for (let s = 0; s < SPOKES; s++) {
+        const a0 = (s / SPOKES) * Math.PI * 2 + swirlT * 1.6;
+        tx2.beginPath();
+        for (let k = 0; k <= 10; k++) {
+          const f = k / 10;
+          const a = a0 + f * .3;
+          const x = vpx + Math.cos(a) * f * RAD, y = vpy + Math.sin(a) * f * RAD;
+          if (k) tx2.lineTo(x, y); else tx2.moveTo(x, y);
+        }
+        tx2.strokeStyle = 'rgba(120,150,255,.07)';
+        tx2.stroke();
+      }
+      const KX = TW * .55, KY = TH * .55;
+      for (const r of rings) {
+        const hw = KX / r.z, hh = KY / r.z;
+        if (hw > RAD) continue;
+        const al = .42 * (1 - r.z / 4.8);
+        const rot = swirlT * 2 + r.z * .09; // torsión sutil por profundidad
+        tx2.save();
+        tx2.translate(vpx, vpy);
+        tx2.rotate(rot);
+        // halo difuso
+        tx2.lineWidth = 3.5;
+        tx2.strokeStyle = `rgba(184,88,15,${al * .35})`;
+        tx2.strokeRect(-hw, -hh, hw * 2, hh * 2);
+        // núcleo brillante
+        tx2.lineWidth = 1.2;
+        tx2.strokeStyle = `rgba(170,200,255,${al})`;
+        tx2.strokeRect(-hw, -hh, hw * 2, hh * 2);
+        tx2.restore();
+      }
+      // ráfagas de energía hacia el espectador
+      for (const p of pulses) {
+        const hw = KX / p.z, hh = KY / p.z;
+        if (hw > RAD) continue;
+        const al = Math.max(0, .85 * (1 - p.z / 4.6)) * Math.min(1, p.z / .4);
+        const halo = p.y ? '250,204,80' : '251,191,36';
+        const core = p.y ? '255,244,214' : '225,245,255';
+        const prot = swirlT * 2 + p.z * .09;
+        tx2.save();
+        tx2.translate(vpx, vpy);
+        tx2.rotate(prot);
+        tx2.lineWidth = 6;
+        tx2.strokeStyle = `rgba(${halo},${al * .3})`;
+        tx2.strokeRect(-hw, -hh, hw * 2, hh * 2);
+        tx2.lineWidth = 1.6;
+        tx2.strokeStyle = `rgba(${core},${al})`;
+        tx2.strokeRect(-hw, -hh, hw * 2, hh * 2);
+        // velo de luz con líneas de código / fórmulas
+        tx2.fillStyle = `rgba(${halo},${al * .045})`;
+        tx2.fillRect(-hw, -hh, hw * 2, hh * 2);
+        if (hw > 40 && p.g) {
+          const fs = Math.min(16, Math.max(9, hw * .055));
+          tx2.font = fs + 'px "Space Grotesk", monospace';
+          tx2.textAlign = 'center'; tx2.textBaseline = 'middle';
+          tx2.fillStyle = `rgba(${core},${al * .65})`;
+          for (const g of p.g) {
+            if (g.s) tx2.font = fs * g.s + 'px "Space Grotesk", monospace';
+            tx2.fillText(g.t, hw * g.u, hh * g.v);
+            if (g.s) tx2.font = fs + 'px "Space Grotesk", monospace';
+          }
+        }
+        tx2.restore();
+      }
+      tx2.lineWidth = 1;
+    }
+    function tframe() { if (tvis) { tstep(); tdraw(); } requestAnimationFrame(tframe); }
+    addEventListener('mousemove', (e) => {
+      const r = tc.getBoundingClientRect();
+      tmx = TW / 2 + (e.clientX - (r.left + r.width / 2)) * .12;
+      tmy = TH * .42 + (e.clientY - (r.top + r.height * .42)) * .08;
+    }, { passive: true });
+    new IntersectionObserver((es) => es.forEach((e) => tvis = e.isIntersecting), { threshold: .02 }).observe(tc);
+    tresize();
+    if (reduced) tdraw(); else tframe();
+    addEventListener('resize', tresize);
+  }
+
+  /* ---------- Motor visual: caos → orden ---------- */
+  const mc = document.getElementById('morph');
+  if (mc) {
+    const mx2 = mc.getContext('2d');
+    const WORDS = ['EXCEL', 'SISTEMA', 'MANUAL', 'AUTOMÁTICO', 'PAPELEO', 'DIGITAL', 'DISPERSO', 'CONECTADO'];
+    const F = 1300, H = 2400, S = 1100, T = F + H + S;
+    let MW = 0, MH = 0, mpts = [], mvis = false, wi = 0, wstart = performance.now();
+
+    function mresize() {
+      const d = Math.min(devicePixelRatio || 1, 2);
+      MW = mc.offsetWidth; MH = mc.offsetHeight;
+      mc.width = MW * d; mc.height = MH * d;
+      mx2.setTransform(d, 0, 0, d, 0, 0);
+      buildTargets();
+    }
+    function buildTargets() {
+      const word = WORDS[wi];
+      const oc = document.createElement('canvas');
+      oc.width = MW; oc.height = MH;
+      const o = oc.getContext('2d');
+      const fs = Math.min(MW / (word.length * .62), MH / 2.2);
+      o.font = '700 ' + fs + 'px "Space Grotesk", sans-serif';
+      o.textAlign = 'center'; o.textBaseline = 'middle';
+      o.fillStyle = '#fff';
+      o.fillText(word, MW / 2, MH * .44);
+      const img = o.getImageData(0, 0, MW, MH).data;
+      const targets = [];
+      const st = Math.max(3, Math.round(MW / 240));
+      for (let y = 0; y < MH; y += st) for (let x = 0; x < MW; x += st)
+        if (img[(y * MW + x) * 4 + 3] > 128) targets.push({ x, y });
+      if (!targets.length) return;
+      if (!mpts.length)
+        mpts = targets.map((t) => ({ t, x: Math.random() * MW, y: Math.random() * MH, vx: 0, vy: 0 }));
+      else if (targets.length >= mpts.length)
+        mpts.forEach((p, i) => { p.t = targets[Math.floor(i * targets.length / mpts.length)]; });
+      else
+        mpts.forEach((p, i) => { p.t = targets[i % targets.length]; });
+    }
+    function morder() {
+      const el = performance.now() - wstart;
+      if (el >= T) { wi = (wi + 1) % WORDS.length; wstart = performance.now(); buildTargets(); return 0; }
+      if (el < F) return el / F;
+      if (el < F + H) return 1;
+      return 1 - (el - F - H) / S;
+    }
+    function mstep(order) {
+      const chaos = 1 - order;
+      for (const p of mpts) {
+        p.vx += (Math.random() - .5) * .4 * chaos + (p.t.x - p.x) * .05 * order;
+        p.vy += (Math.random() - .5) * .4 * chaos + (p.t.y - p.y) * .05 * order;
+        const damp = .9 - order * .14;
+        p.vx *= damp; p.vy *= damp;
+        p.x += p.vx; p.y += p.vy;
+        if (order < .4) {
+          if (p.x < 0) p.x += MW; if (p.x > MW) p.x -= MW;
+          if (p.y < 0) p.y += MH; if (p.y > MH) p.y -= MH;
+        }
+      }
+    }
+    function mdraw(order) {
+      mx2.clearRect(0, 0, MW, MH);
+      const col = wi % 2 === 0 ? '140,170,255' : '251,191,36';
+      if (order > .55) {
+        mx2.lineWidth = 1;
+        mx2.strokeStyle = `rgba(${col},${(order - .55) * .5})`;
+        mx2.beginPath();
+        for (let i = 0; i < mpts.length - 1; i++) {
+          const a = mpts[i], b = mpts[i + 1];
+          if (Math.abs(a.t.x - b.t.x) < 8 && Math.abs(a.t.y - b.t.y) < 8) {
+            mx2.moveTo(a.x, a.y); mx2.lineTo(b.x, b.y);
+          }
+        }
+        mx2.stroke();
+      }
+      for (const p of mpts) {
+        const al = .3 + order * .6;
+        mx2.beginPath(); mx2.arc(p.x, p.y, 1.5, 0, 6.3);
+        mx2.fillStyle = order > .5 ? `rgba(${col},${al})` : `rgba(140,170,255,${al})`;
+        mx2.fill();
+      }
+    }
+    function mframe() {
+      if (mvis) {
+        const order = reduced ? 1 : morder();
+        if (!reduced) mstep(order);
+        mdraw(order);
+      }
+      requestAnimationFrame(mframe);
+    }
+    new IntersectionObserver((es) => es.forEach((e) => mvis = e.isIntersecting), { threshold: .1 }).observe(mc);
+    mresize();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildTargets);
+    mframe();
+    addEventListener('resize', mresize);
+  }
+
+  /* ---------- Sonido ambiente ---------- */
+  const bgm = document.getElementById('bgm'), sndBtn = document.getElementById('sound');
+  if (bgm && sndBtn) {
+    let on = false;
+    const setIcon = (n) => { sndBtn.innerHTML = `<i data-lucide="${n}" class="w-4 h-4"></i>`; lucide.createIcons(); };
+    const fadeIn = () => {
+      const iv = setInterval(() => { bgm.volume = Math.min(.35, bgm.volume + .02); if (bgm.volume >= .35) clearInterval(iv); }, 60);
+    };
+    const start = () => {
+      if (on) return;
+      bgm.muted = false;
+      bgm.volume = 0;
+      bgm.play().then(() => {
+        on = true; setIcon('volume-2'); fadeIn();
+        const p = document.getElementById('sound-ping'); if (p) p.remove();
+      }).catch(() => {});
+    };
+    sndBtn.addEventListener('click', async () => {
+      if (!on) { start(); return; }
+      on = false; setIcon('volume-x');
+      const iv = setInterval(() => { bgm.volume = Math.max(0, bgm.volume - .03); if (bgm.volume <= 0) { bgm.pause(); clearInterval(iv); } }, 60);
+    });
+    // entra reproduciendo en silencio (permitido); el primer gesto lo desmutea con fade-in
+    bgm.muted = true;
+    bgm.play().catch(() => {});
+    start(); // por si el navegador ya permite audio con sonido
+    addEventListener('pointerdown', () => start(), { once: true });
+    addEventListener('keydown', () => start(), { once: true });
+    // pausa al salir de la app/pestaña; reanuda solo si el usuario lo tenía activado
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { bgm.pause(); }
+      else if (on) { bgm.play().catch(() => {}); }
+    });
+    addEventListener('pagehide', () => { bgm.pause(); });
+    addEventListener('pageshow', (e) => { if (e.persisted && on) bgm.play().catch(() => {}); });
+  }
+
+  /* ---------- Nav móvil: visible solo tras el hero ---------- */
+  const mnav = document.getElementById('mnav');
+  if (mnav) addEventListener('scroll', () => mnav.classList.toggle('show', scrollY > innerHeight * .72), { passive: true });
+
+  /* ---------- Modal contacto → WhatsApp ---------- */
+  const PCT_MAIL = 'ventas@pc-t.com.mx';
+  const cmodal = document.getElementById('cmodal');
+  if (cmodal) {
+    const openC = (e) => { if (e) e.preventDefault(); cmodal.classList.add('open'); document.body.style.overflow = 'hidden'; };
+    window.pctContact = openC;
+    const closeC = () => { cmodal.classList.remove('open'); document.body.style.overflow = ''; };
+    document.querySelectorAll('.js-contact').forEach((b) => b.addEventListener('click', openC));
+    document.getElementById('cmodal-bg').addEventListener('click', closeC);
+    document.getElementById('cclose').addEventListener('click', closeC);
+    addEventListener('keydown', (e) => { if (e.key === 'Escape') closeC(); });
+    document.getElementById('cform').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const n = document.getElementById('cf-nombre').value.trim();
+      const c = document.getElementById('cf-contacto').value.trim();
+      const s = document.getElementById('cf-servicio').value;
+      const m = document.getElementById('cf-msg').value.trim();
+      let msg = `Hola PCT, soy ${n}.
+Servicio de interés: ${s}
+Contacto: ${c}`;
+      if (m) msg += `
+
+${m}`;
+      location.href = `mailto:${PCT_MAIL}?subject=${encodeURIComponent('Solicitud de servicio — ' + s)}&body=${encodeURIComponent(msg)}`;
+    });
+  }
+
+
+</script>
+
+<!-- Cookie gate — decide antes de entrar -->
+<div id="cookie-gate" class="fixed inset-0 z-[100] hidden items-center justify-center p-6 bg-[#04060e]/95 backdrop-blur-md transition-opacity duration-500 opacity-0">
+  <div class="max-w-md w-full rounded-2xl border border-white/10 bg-surface/90 p-8 text-center shadow-[0_24px_80px_-20px_rgba(0,0,0,.9)]">
+    <span class="inline-flex w-3 h-3 rounded-full bg-gradient-to-br from-accent to-accent2 shadow-[0_0_14px_2px_rgba(184,88,15,.8)]"></span>
+    <h2 class="font-display text-xl font-bold text-white mt-4">Bienvenido a PCT</h2>
+    <p class="text-sm text-muted mt-3 leading-relaxed">Usamos cookies mínimas para mejorar tu experiencia. Elige y entras directo a <b class="text-white">PCT</b>. Más info en el <a href="aviso.html" class="text-accent hover:underline">Aviso</a>.</p>
+    <div class="flex flex-col sm:flex-row gap-3 mt-6">
+      <button id="cookie-accept" class="btn-primary flex-1 py-3 text-sm font-medium text-white rounded-lg">Aceptar cookies</button>
+      <button id="cookie-reject" class="flex-1 py-3 text-sm font-medium text-muted hover:text-white border border-white/15 rounded-lg transition-colors">Rechazar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const gate = document.getElementById('cookie-gate');
+    if (!gate) return;
+    const done = (v) => {
+      localStorage.setItem('pira_cookies', v);
+      gate.classList.add('opacity-0');
+      document.body.style.overflow = '';
+      setTimeout(() => { gate.classList.add('hidden'); }, 500);
+    };
+    if (!localStorage.getItem('pira_cookies')) {
+      gate.classList.remove('hidden'); gate.classList.add('flex');
+      requestAnimationFrame(() => { requestAnimationFrame(() => gate.classList.remove('opacity-0')); });
+      document.body.style.overflow = 'hidden';
+    } else {
+      gate.classList.add('hidden');
+    }
+    document.getElementById('cookie-accept').addEventListener('click', () => done('ok'));
+    document.getElementById('cookie-reject').addEventListener('click', () => done('no'));
+  })();
+</script>
+
+</body>
+</html>
