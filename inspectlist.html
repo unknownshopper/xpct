@@ -136,6 +136,19 @@
             background: rgba(255, 255, 255, 0.18);
             color: #ffffff;
         }
+
+        .dashboard-cards .dash-card.dash-card-sm {
+            padding: 0.5rem 0.75rem;
+            min-height: 0;
+        }
+
+        .dashboard-cards .dash-card.dash-card-sm .dash-card-label {
+            font-size: 0.68rem;
+        }
+
+        .dashboard-cards .dash-card.dash-card-sm .dash-card-value {
+            font-size: 1.35rem;
+        }
     </style>
 </head>
 <body style="margin:0;">
@@ -230,6 +243,21 @@
                 <div class="dash-card" id="insp-card-wrap-no-atendidas">
                     <div class="dash-card-label">Con daño</div>
                     <div class="dash-card-value" id="insp-card-no-atendidas">0</div>
+                </div>
+            </section>
+
+            <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
+                <div class="dash-card dash-card-sm" id="insp-card-wrap-activos">
+                    <div class="dash-card-label">Activos</div>
+                    <div class="dash-card-value" id="insp-card-activos">0</div>
+                </div>
+                <div class="dash-card dash-card-sm" id="insp-card-wrap-disponibles" style="cursor:pointer;">
+                    <div class="dash-card-label">Disponibles</div>
+                    <div class="dash-card-value" id="insp-card-disponibles">0</div>
+                </div>
+                <div class="dash-card dash-card-sm" id="insp-card-wrap-mantenimiento" style="cursor:pointer;">
+                    <div class="dash-card-label">En mantenimiento</div>
+                    <div class="dash-card-value" id="insp-card-mantenimiento">0</div>
                 </div>
             </section>
 
@@ -342,6 +370,44 @@
                 <p id="mensaje-sin-osalida" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">
                     No hay órdenes de salida registradas.
                 </p>
+                </div>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-mantenimiento" style="margin-top:0.75rem; display:none;">
+                <div class="insp-sec-head insp-sec-head--info">
+                    <h3><span class="insp-sec-ico">🔧</span>En mantenimiento</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-mantenimiento-body">Expandir</button>
+                </div>
+                <div id="insp-mantenimiento-body" style="display:none;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead><tr style="background:#fdf0e5;">
+                        <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                        <th style="text-align:left; padding:0.4rem;">Orden</th>
+                        <th style="text-align:left; padding:0.4rem;">Destino</th>
+                        <th style="text-align:left; padding:0.4rem;">Días en mantto</th>
+                    </tr></thead>
+                    <tbody id="tbody-mantenimiento"></tbody>
+                </table>
+                <p id="mensaje-sin-mantenimiento" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">No hay equipos en mantenimiento.</p>
+                </div>
+            </div>
+
+            <div class="tabla-inspecciones-wrapper" id="insp-seccion-disponibles" style="margin-top:0.75rem; display:none;">
+                <div class="insp-sec-head insp-sec-head--info">
+                    <h3><span class="insp-sec-ico">✓</span>Disponibles (anual vigente)</h3>
+                    <button type="button" class="insp-sec-toggle" data-target="insp-disponibles-body">Expandir</button>
+                </div>
+                <div id="insp-disponibles-body" style="display:none;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead><tr style="background:#fdf0e5;">
+                        <th style="text-align:left; padding:0.4rem;">Equipo / activo</th>
+                        <th style="text-align:left; padding:0.4rem;">Serial</th>
+                        <th style="text-align:left; padding:0.4rem;">Días para anual</th>
+                        <th style="text-align:left; padding:0.4rem;">Observaciones</th>
+                    </tr></thead>
+                    <tbody id="tbody-disponibles"></tbody>
+                </table>
+                <p id="mensaje-sin-disponibles" style="font-size:0.9rem; color:#6b7280; margin-top:0.75rem; display:none;">No hay equipos disponibles con anual vigente.</p>
                 </div>
             </div>
 
@@ -4087,7 +4153,7 @@
                                 try {
                                     const k = normEqCompact(it && it.equipo ? String(it.equipo) : '');
                                     if (k && !ordenesAbiertas.has(k)) {
-                                        ordenesAbiertas.set(k, { tipo: String(r.tipo || ''), destino: String(r.destino || ''), folio: String(r.folio || ''), id: d.id });
+                                        ordenesAbiertas.set(k, { tipo: String(r.tipo || ''), destino: String(r.destino || ''), folio: String(r.folio || ''), id: d.id, ms: toMs(r.creadoEn || r.fechaSalida) ?? 0 });
                                     }
                                 } catch {}
                             });
@@ -4180,6 +4246,105 @@
                         } catch {}
                     };
                     await renderTablaOrdenes();
+
+                    // ===== Tarjetas: Activos / Disponibles / En mantenimiento =====
+                    try {
+                        const DAY = 86400000;
+                        const hoy = Date.now();
+                        const ultimaAnual = new Map();
+                        (inspecciones || []).forEach(insp => {
+                            try {
+                                const t = String(insp?.tipoInspeccion || insp?.tipo || '').toUpperCase();
+                                if (!t.includes('ANUAL')) return;
+                                const k = normEqCompact(insp.equipo || '');
+                                if (!k) return;
+                                const ms = toMs(insp.fecha || insp.creadoEn) ?? 0;
+                                const prev = ultimaAnual.get(k);
+                                const prevMs = prev ? (toMs(prev.fecha || prev.creadoEn) ?? 0) : 0;
+                                if (!prev || ms >= prevMs) ultimaAnual.set(k, insp);
+                            } catch {}
+                        });
+
+                        const noAtKeys = new Set(noAt.map(insp => normEqCompact(insp.equipo || '')));
+                        let activos = 0;
+                        const disponibles = [];
+                        const mantenimientoList = [];
+                        (edoPorEquipo || new Map()).forEach((edo, k) => {
+                            try {
+                                if (String(edo || '').trim().toUpperCase() !== 'ON') return;
+                                activos++;
+                                if (ordenesAbiertas.has(k) || noAtKeys.has(k)) return;
+                                const a = ultimaAnual.get(k);
+                                const msA = a ? (toMs(a.fecha || a.creadoEn) ?? 0) : 0;
+                                if (!msA) return;
+                                const dias = Math.floor((hoy - msA) / DAY) - 365;
+                                if (dias < 0) {
+                                    disponibles.push({
+                                        equipo: equipoPorKey.get(k) || k,
+                                        serial: serialPorEquipo.get(k) || '',
+                                        dias,
+                                        obs: String(a.observaciones || a.observacionesManual || '').trim()
+                                    });
+                                }
+                            } catch {}
+                        });
+                        ordenesAbiertas.forEach((o, k) => {
+                            mantenimientoList.push({
+                                equipo: equipoPorKey.get(k) || k,
+                                folio: o.folio || '',
+                                destino: o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO',
+                                dias: o.ms ? Math.floor((hoy - o.ms) / DAY) : null
+                            });
+                        });
+
+                        const cA = document.getElementById('insp-card-activos');
+                        const cD = document.getElementById('insp-card-disponibles');
+                        const cM = document.getElementById('insp-card-mantenimiento');
+                        if (cA) cA.textContent = String(activos);
+                        if (cD) cD.textContent = String(disponibles.length);
+                        if (cM) cM.textContent = String(mantenimientoList.length);
+
+                        const tbD = document.getElementById('tbody-disponibles');
+                        if (tbD) {
+                            tbD.innerHTML = '';
+                            disponibles.sort((a, b) => b.dias - a.dias).forEach(r => {
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${r.dias > -30 ? '#b45309' : '#166534'};">${r.dias}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.obs || '—')}</td>`;
+                                tbD.appendChild(tr);
+                            });
+                            const msgD = document.getElementById('mensaje-sin-disponibles');
+                            if (msgD) msgD.style.display = disponibles.length ? 'none' : '';
+                        }
+                        const tbM = document.getElementById('tbody-mantenimiento');
+                        if (tbM) {
+                            tbM.innerHTML = '';
+                            mantenimientoList.sort((a, b) => (b.dias ?? 0) - (a.dias ?? 0)).forEach(r => {
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `<td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family:'Courier New',monospace;">${escAttr(r.folio)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.destino)}</td>
+                                    <td style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#b45309;">${r.dias ?? '—'}</td>`;
+                                tbM.appendChild(tr);
+                            });
+                            const msgM = document.getElementById('mensaje-sin-mantenimiento');
+                            if (msgM) msgM.style.display = mantenimientoList.length ? 'none' : '';
+                        }
+
+                        [['insp-card-wrap-disponibles', 'insp-seccion-disponibles'],
+                         ['insp-card-wrap-mantenimiento', 'insp-seccion-mantenimiento']].forEach(([cardId, secId]) => {
+                            const card = document.getElementById(cardId);
+                            if (card && !card.dataset.bound) {
+                                card.dataset.bound = '1';
+                                card.addEventListener('click', () => {
+                                    const s = document.getElementById(secId);
+                                    if (s) s.style.display = (s.style.display === 'none' || !s.style.display) ? '' : 'none';
+                                });
+                            }
+                        });
+                    } catch {}
 
                     if (!noAt.length) {
                         secNoAtendidas.style.display = mostrarSecNoAt ? '' : 'none';
