@@ -4385,12 +4385,15 @@
                                 const enPost = tUlt.includes('POST');
                                 if (enPost) {
                                     const msU = uInsp ? (toMs(uInsp.fecha || uInsp.creadoEn) ?? 0) : 0;
+                                    // Checklist de bloques: prueba con fechaReal posterior al POST = hecha
+                                    const pruebas = rs && rs.pruebas ? rs.pruebas : {};
+                                    const done = (pb) => !!(pb && pb.fechaReal && (toMs(pb.fechaReal) ?? 0) > msU);
+                                    const chk = `VT ✓ · UTT ${done(pruebas.UTT) ? '✓' : '○'} · MT/PT ${done(pruebas['VT/PT/MT']) ? '✓' : '○'} · LT ${done(pruebas.LT) ? '✓' : '○'} · MTTO ○`;
                                     mantenimientoList.push({
                                         equipo: eqName,
                                         folio: o ? (o.folio || '') : '—',
-                                        destino: o ? (o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO')
-                                            : enDaño ? 'CUARENTENA · PEND. DECISIÓN'
-                                            : 'PROCESO POST-TRABAJO',
+                                        destino: chk + ' │ ' + (o ? (o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO')
+                                            : enDaño ? 'CUARENTENA' : 'EN PROCESO'),
                                         dias: (o && o.ms) ? Math.floor((hoy - o.ms) / DAY) : (msU ? Math.floor((hoy - msU) / DAY) : null)
                                     });
                                     yaEnMantto.add(k);
