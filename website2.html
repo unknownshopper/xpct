@@ -499,15 +499,15 @@
           <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
             <i data-lucide="magnet" class="w-5 h-5 text-accent"></i>
           </div>
-          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Partículas y líquidos (MT / PT·LT)</h3>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Magnetic Test (MT)</h3>
           <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
         </button>
         <div class="svc-body">
           <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Grietas superficiales al descubierto.</p>
         <ul class="text-sm text-muted space-y-2 leading-relaxed">
-          <li class="flex gap-2"><span class="text-accent">·</span>Detección de discontinuidades superficiales.</li>
-          <li class="flex gap-2"><span class="text-accent">·</span>Métodos magnéticos y de penetrantes.</li>
-          <li class="flex gap-2"><span class="text-accent">·</span>Reporte con ubicación del hallazgo.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Partículas magnetizables aplicadas.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Para piezas ferromagnéticas.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Referencia: ASTM E1444.</li>
           </ul>
         </div>
       </article>
@@ -519,22 +519,42 @@
           <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
             <i data-lucide="droplets" class="w-5 h-5 text-accent"></i>
           </div>
-          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Prueba hidrostática (PH)</h3>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Penetrant Test (PT)</h3>
+          <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
+        </button>
+        <div class="svc-body">
+          <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Indicaciones que el ojo no ve.</p>
+        <ul class="text-sm text-muted space-y-2 leading-relaxed">
+          <li class="flex gap-2"><span class="text-accent">·</span>Líquidos penetrantes aplicados.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>No requiere magnetismo.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Referencia: ASTM E165.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 5 -->
+      <article class="card svc reveal rounded-2xl p-7" style="--d:.05s">
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">05</span>
+        <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
+          <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
+            <i data-lucide="gauge" class="w-5 h-5 text-accent"></i>
+          </div>
+          <h3 class="font-display text-base md:text-lg font-semibold flex-1 md:mb-2">Hydrostatic / Leaking Test (PH · LT)</h3>
           <i data-lucide="chevron-down" class="svc-chev w-5 h-5 text-muted shrink-0 md:hidden"></i>
         </button>
         <div class="svc-body">
           <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">Integridad comprobada a presión.</p>
         <ul class="text-sm text-muted space-y-2 leading-relaxed">
-          <li class="flex gap-2"><span class="text-accent">·</span>Verificación de hermeticidad a presión.</li>
-          <li class="flex gap-2"><span class="text-accent">·</span>Presión de prueba documentada.</li>
-          <li class="flex gap-2"><span class="text-accent">·</span>Aceptación conforme a especificación.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Presión controlada documentada.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Verificación de hermeticidad.</li>
+          <li class="flex gap-2"><span class="text-accent">·</span>Referencia: ASME BPVC V.</li>
           </ul>
         </div>
       </article>
 
       <!-- 5 -->
       <article class="card svc reveal rounded-2xl p-7" style="--d:.12s">
-        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">05</span>
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">06</span>
         <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
           <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
             <i data-lucide="package" class="w-5 h-5 text-accent"></i>
@@ -554,7 +574,7 @@
 
       <!-- 6 -->
       <article class="card svc reveal rounded-2xl p-7" style="--d:.19s">
-        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">06</span>
+        <span class="ghost-num absolute top-5 right-6 font-display text-4xl font-bold hidden md:block">07</span>
         <button class="svc-head flex items-center gap-4 w-full text-left md:block md:pointer-events-none" aria-expanded="false">
           <div class="icon-chip shrink-0 w-11 h-11 rounded-xl flex items-center justify-center md:mb-5">
             <i data-lucide="wrench" class="w-5 h-5 text-accent"></i>
@@ -1325,7 +1345,7 @@
   const mc = document.getElementById('morph');
   if (mc) {
     const mx2 = mc.getContext('2d');
-    const WORDS = ['VISUAL TEST', 'ULTRASONIC THICKNESS TEST', 'MAGNETIC TEST', 'PENETRANT TEST', 'LEAKING TEST', 'HYDROSTATIC TEST', '30,000 PSI', 'VIGENCIA ANUAL', 'TRAZABILIDAD'];
+    const WORDS = ['VISUAL TEST', 'ULTRASONIC THICKNESS TEST', 'MAGNETIC TEST', 'PENETRANT TEST', 'LEAKING TEST · PH', '30,000 PSI', 'VIGENCIA ANUAL', 'TRAZABILIDAD'];
     const F = 1300, H = 2400, S = 1100, T = F + H + S;
     let MW = 0, MH = 0, mpts = [], mvis = false, wi = 0, wstart = performance.now();
 
