@@ -1136,10 +1136,10 @@
     function spawnWave(y) {
       const n = y ? 8 : 5;
       for (let i = 0; i < n; i++) {
-        const z = y && i >= 4 ? 4.9 + (i - 4) * .18 : 3.1 + i * .18;
-        // 2-3 fotos esparcidas por toda la lámina
+        const z = y && i >= 4 ? 4.9 + (i - 4) * .55 : 3.1 + i * .55;
+        // 1-2 fotos por lámina — llegan espaciadas, no en tren
         const g = [];
-        const spots = 2 + ((Math.random() * 2) | 0);
+        const spots = 1 + ((Math.random() * 2) | 0);
         for (let k = 0; k < spots; k++)
           g.push({ img: (Math.random() * VEL_IMGS.length) | 0, u: Math.random() * 1.4 - .7, v: Math.random() * 1.5 - .75, s: .45 + Math.random() * .45 });
         pulses.push({ z, y, g });
