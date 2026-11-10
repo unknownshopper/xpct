@@ -407,6 +407,7 @@
                         <th data-sort="text" style="text-align:left; padding:0.4rem;">Serial<span class="sort-ind"></span></th>
                         <th data-sort="num" style="text-align:left; padding:0.4rem;">Días para anual<span class="sort-ind"></span></th>
                         <th data-sort="text" style="text-align:left; padding:0.4rem;">Estado<span class="sort-ind"></span></th>
+                        <th data-sort="text" style="text-align:left; padding:0.4rem;">Ubicación en el flujo<span class="sort-ind"></span></th>
                     </tr></thead>
                     <tbody id="tbody-activos"></tbody>
                 </table>
@@ -4358,11 +4359,22 @@
                                 const vigente = !!(pr && pr.ltVigenteEfectivo === true);
                                 const enDaño = noAtKeys.has(k);
                                 const enOrden = ordenesAbiertas.has(k);
+                                // Ubicación en el flujo: orden > cuarentena > ultima inspeccion > planta
+                                const o = ordenesAbiertas.get(k);
+                                const tUlt = String(((ultimaPorEq.get(k) || {}).tipoInspeccion || (ultimaPorEq.get(k) || {}).tipo) || '').toUpperCase();
+                                const ubi = o ? (o.tipo === 'TERCERO' ? `PROVEEDOR · ${o.destino || 'TERCERO'}` : 'PLANTA · MANT. INTERNO')
+                                    : enDaño ? 'PLANTA · CUARENTENA'
+                                    : tUlt.includes('REINSPECCION') ? 'PLANTA · REINSPECCIÓN'
+                                    : (tUlt.includes('RECEPCION') || tUlt === 'REC' || tUlt === 'REI') ? 'PLANTA · RECEPCIÓN'
+                                    : tUlt.includes('PRE') ? 'EN CAMPO · EN ACTIVIDAD'
+                                    : tUlt.includes('POST') ? 'PLANTA · POST-TRABAJO'
+                                    : 'PLANTA';
                                 activosList.push({
                                     equipo: eqName,
                                     serial: serialPorEquipo.get(k) || String((rs && rs.serial) || ''),
                                     dias: diasAnual,
-                                    estado: enDaño ? 'CON DAÑO' : enOrden ? 'DESPACHADO' : vigente ? 'VIGENTE' : 'SIN VIGENCIA'
+                                    estado: enDaño ? 'CON DAÑO' : enOrden ? 'DESPACHADO' : vigente ? 'VIGENTE' : 'SIN VIGENCIA',
+                                    ubi
                                 });
                                 if (enOrden || enDaño || !vigente) return;
                                 disponibles.push({
@@ -4399,7 +4411,8 @@
                                 tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td data-sort="${escAttr(r.serial || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
                                     <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
-                                    <td data-sort="${escAttr(r.estado)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><span style="font-weight:700; color:${estColor[r.estado] || '#374151'};">${r.estado}</span></td>`;
+                                    <td data-sort="${escAttr(r.estado)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><span style="font-weight:700; color:${estColor[r.estado] || '#374151'};">${r.estado}</span></td>
+                                    <td data-sort="${escAttr(r.ubi || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-size:0.8rem; color:${String(r.ubi||'').startsWith('EN CAMPO') ? '#0369a1' : String(r.ubi||'').startsWith('PROVEEDOR') ? '#b45309' : '#475569'};">${escAttr(r.ubi || '—')}</td>`;
                                 tbA.appendChild(tr);
                             });
                             const msgA = document.getElementById('mensaje-sin-activos');
