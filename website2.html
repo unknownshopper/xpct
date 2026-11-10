@@ -328,14 +328,14 @@
   /* Velo fantasma detrás de secciones — foto barriendo con opacidad baja */
   .velo-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
   .velo-backdrop img { position: absolute; width: clamp(240px, 26vw, 400px); border-radius: 14px;
-    filter: saturate(.85) brightness(.8); opacity: 0;
-    animation: velo-sweep 24s linear infinite; will-change: transform, opacity; }
+    filter: saturate(.85) brightness(.8); opacity: 0; transform: rotate(-2deg);
+    animation: velo-sweep 24s linear infinite; will-change: left, opacity; }
   @keyframes velo-sweep {
-    0%   { transform: translateX(115%) rotate(-2deg); opacity: 0; }
-    10%  { opacity: .13; }
+    0%   { left: 108%; opacity: 0; }
+    12%  { opacity: .13; }
     45%  { opacity: .13; }
     60%  { opacity: 0; }
-    100% { transform: translateX(-120%) rotate(-2deg); opacity: 0; }
+    100% { left: -30%; opacity: 0; }
   }
 
   ::selection { background: rgba(184,88,15,.4); }
