@@ -2578,6 +2578,7 @@
 
         let serialPorEquipo = new Map();
         let edoPorEquipo = new Map();
+        let edoNativoPorEquipo = new Map();
         let equipoPorKey = new Map();
         let inventarioSerialesPromise = null;
 
@@ -2691,6 +2692,7 @@
 
                     const mapa = new Map();
                     const mapaEq = new Map();
+                    const mapaEdoNativo = new Map();
                     const dl = document.getElementById('insp-catalogo-equipos');
                     const vistos = new Set();
                     if (dl) dl.innerHTML = '';
@@ -2705,6 +2707,7 @@
 
                         if (!mapa.has(key)) mapa.set(key, sr);
                         if (!mapaEq.has(key)) mapaEq.set(key, eq);
+                        if (!mapaEdoNativo.has(key)) mapaEdoNativo.set(key, String(data.edo || '').trim().toUpperCase());
 
                         const edoKey = (mapaEdo.has(key) ? String(mapaEdo.get(key) || '') : 'ON').trim().toUpperCase();
                         if (edoKey !== 'ON' && edoKey !== 'ACTIVO' && edoKey !== 'WIP') return;
@@ -2720,6 +2723,7 @@
                     serialPorEquipo = mapa;
                     edoPorEquipo = mapaEdo;
                     equipoPorKey = mapaEq;
+                    edoNativoPorEquipo = mapaEdoNativo;
                 } catch (e) {
                     console.warn('No se pudo cargar inventario para seriales', e);
                     serialPorEquipo = new Map();
@@ -4264,9 +4268,14 @@
                         const disponibles = [];
                         const mantenimientoList = [];
                         const yaEnMantto = new Set();
-                        (edoPorEquipo || new Map()).forEach((edo, k) => {
+                        (equipoPorKey || new Map()).forEach((eqName0, k) => {
                             try {
-                                const e = String(edo || '').trim().toUpperCase();
+                                const edoOverride = String(edoPorEquipo.get(k) || '').trim().toUpperCase();
+                                const edoNativo = String(edoNativoPorEquipo.get(k) || '').trim().toUpperCase();
+                                // Si cualquier fuente marca el equipo como fuera de operación, no es disponible
+                                const e = [edoOverride, edoNativo].includes('OFF') ? 'OFF'
+                                    : [edoOverride, edoNativo].includes('WIP') ? 'WIP'
+                                    : (edoOverride || edoNativo || 'ON');
                                 const eqName = equipoPorKey.get(k) || k;
                                 if (e === 'WIP') {
                                     const o = ordenesAbiertas.get(k);
