@@ -396,7 +396,7 @@
 
             <div class="tabla-inspecciones-wrapper" id="insp-seccion-activos" style="margin-top:0.75rem; display:none;">
                 <div class="insp-sec-head insp-sec-head--info">
-                    <h3><span class="insp-sec-ico">▣</span>Activos (parque operativo)</h3>
+                    <h3><span class="insp-sec-ico">▣</span>Activos — en actividad / pozo</h3>
                     <button type="button" class="insp-sec-toggle" data-target="insp-activos-body">Expandir</button>
                 </div>
                 <div id="insp-activos-body" style="display:none;">
@@ -4349,7 +4349,6 @@
                                 const eqName = equipoPorKey.get(k) || k;
                                 // WIP = equipo en campo/trabajo — no es mantenimiento ni disponible
                                 if (e !== 'ON') return;
-                                activos++;
                                 const rs = resumenMap.get(eqName) || resumenMap.get(k);
                                 const pr = rs && rs.pruebas ? rs.pruebas : null;
                                 // ltVigenteEfectivo = LT vigente || UTT vigente || VT/PT/MT vigente.
@@ -4373,13 +4372,18 @@
                                     : tUlt.includes('PRE') ? 'EN CAMPO · EN ACTIVIDAD'
                                     : tUlt.includes('POST') ? 'PLANTA · POST-TRABAJO'
                                     : 'PLANTA';
-                                activosList.push({
-                                    equipo: eqName,
-                                    serial: serialPorEquipo.get(k) || String((rs && rs.serial) || ''),
-                                    dias: diasAnual,
-                                    estado: enDaño ? 'CON DAÑO' : enOrden ? 'DESPACHADO' : vigente ? 'VIGENTE' : 'SIN VIGENCIA',
-                                    ubi
-                                });
+                                // ACTIVOS = equipo fuera en actividad/pozo — ultimo registro PRE-TRABAJO
+                                const enActividad = tUlt.includes('PRE');
+                                if (enActividad) {
+                                    activos++;
+                                    activosList.push({
+                                        equipo: eqName,
+                                        serial: serialPorEquipo.get(k) || String((rs && rs.serial) || ''),
+                                        dias: diasAnual,
+                                        estado: enDaño ? 'CON DAÑO' : enOrden ? 'DESPACHADO' : vigente ? 'VIGENTE' : 'SIN VIGENCIA',
+                                        ubi
+                                    });
+                                }
                                 // En proceso post-trabajo: ultima inspeccion POST — el ciclo
                                 // cierra con RECEPCION/REINSPECCION, hasta entonces sigue en proceso
                                 const enPost = tUlt.includes('POST');
@@ -4398,7 +4402,7 @@
                                     });
                                     yaEnMantto.add(k);
                                 }
-                                if (enOrden || enDaño || !vigente || enPost) return;
+                                if (enOrden || enDaño || !vigente || enPost || enActividad) return;
                                 disponibles.push({
                                     equipo: eqName,
                                     serial: serialPorEquipo.get(k) || String(rs.serial || ''),
