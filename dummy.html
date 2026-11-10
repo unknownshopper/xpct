@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCT · Catálogo de componentes (skin demo)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="styles2.css">
+<style>
+  /* Solo scaffolding del catalogo — no es parte del skin */
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  .cat { margin: 2.2rem 0 .8rem; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1.05rem; color:#111827; }
+  .cat small { font-weight:500; color:#6b7280; font-size:.75rem; margin-left:.5rem; }
+  .row { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+  .card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.8rem; }
+  .togglebar { position:sticky; top:0; z-index:50; background:#fff; border-bottom:1px solid #e8eaee; padding:.5rem 1rem; display:flex; gap:.6rem; align-items:center; font-size:.8rem; }
+</style>
+</head>
+<body>
+
+<div class="togglebar">
+  <strong>Skin demo</strong>
+  <span id="skin-state">styles2.css activo</span>
+  <button class="btn btn-secundario" id="btn-skin">Alternar skin</button>
+</div>
+
+<!-- ============ NAV ============ -->
+<div class="cat">Barra de navegación <small>estructura tipo sistema</small></div>
+<nav class="navbar" style="display:flex; gap:.4rem; align-items:center; padding:.6rem 1rem;">
+  <strong style="margin-right:1rem;">PCT</strong>
+  <a href="#">Inicio</a>
+  <a href="#">Inventario</a>
+  <a href="#">Servicio</a>
+  <a href="#">Actividad</a>
+  <a href="#">Pruebas</a>
+  <a href="#">Inspecciones</a>
+  <a href="#">Manuales</a>
+  <span style="margin-left:auto; font-size:.75rem; color:#6b7280;">usuario@pct.com</span>
+  <a href="#">Salir</a>
+</nav>
+
+<div class="wrap">
+
+<!-- ============ TARJETAS ============ -->
+<div class="cat">Tarjetas de tablero <small>acento = significado</small></div>
+<section class="card-grid">
+  <div class="dash-card" data-kind="actividad"><div class="dash-card-label">En actividad</div><div class="dash-card-value">345</div></div>
+  <div class="dash-card" data-kind="disponibles"><div class="dash-card-label">Disponibles</div><div class="dash-card-value">1021</div></div>
+  <div class="dash-card" data-kind="mantenimiento"><div class="dash-card-label">En mantenimiento</div><div class="dash-card-value">61</div></div>
+  <div class="dash-card" data-kind="dano"><div class="dash-card-label">Con daño</div><div class="dash-card-value">43</div></div>
+  <div class="dash-card card-sel"><div class="dash-card-label">Seleccionada</div><div class="dash-card-value">12</div></div>
+</section>
+
+<!-- ============ CABECERAS DE SECCION ============ -->
+<div class="cat">Cabeceras de sección</div>
+<h3 class="insp-sec-head"><span class="insp-sec-ico">▣</span> En actividad — fuera en pozo / locación</h3>
+<h3 class="insp-sec-head" style="margin-top:.6rem;"><span class="insp-sec-ico">⚙</span> Pendientes de sincronizar (este dispositivo)</h3>
+
+<!-- ============ TABLAS ============ -->
+<div class="cat">Tabla operativa <small>ordenamiento, zebra, hover</small></div>
+<table style="width:100%;">
+  <thead><tr>
+    <th data-sort>Equipo / activo <span class="sort-ind">▲</span></th>
+    <th data-sort>Serial <span class="sort-ind"></span></th>
+    <th data-sort="num">Días para anual <span class="sort-ind"></span></th>
+    <th data-sort>Estado <span class="sort-ind"></span></th>
+    <th data-sort>Ubicación en el flujo <span class="sort-ind"></span></th>
+  </tr></thead>
+  <tbody>
+    <tr><td>PCT-45-001</td><td>PCT-23-4206-45-001</td><td data-sort="num">-130</td><td><span class="badge" style="background:#dcfce7;color:#166534;">VIGENTE</span></td><td>EN CAMPO · EN ACTIVIDAD</td></tr>
+    <tr><td>PCT-BC-02</td><td>PCT-BC-02-SN</td><td data-sort="num">+11</td><td><span class="badge" style="background:#ede9fe;color:#6d28d9;">SIN VIGENCIA</span></td><td>PLANTA</td></tr>
+    <tr><td>PCT-BP-11</td><td>PCT-BP-11-SN</td><td data-sort="num">—</td><td><span class="badge" style="background:#fee2e2;color:#b91c1c;">CON DAÑO</span></td><td>PLANTA · CUARENTENA</td></tr>
+    <tr><td>PCT-DSA-03</td><td>PCT-DSA-03-SN</td><td data-sort="num">-12</td><td><span class="badge" style="background:#fef3c7;color:#92400e;">DESPACHADO</span></td><td>PROVEEDOR · NDT SERVICIOS</td></tr>
+    <tr><td>PCT-45-006</td><td>PCT-23-4206-45-006</td><td data-sort="num">-130</td><td><span class="badge" style="background:#dcfce7;color:#166534;">VIGENTE</span></td><td>EN CAMPO · EN ACTIVIDAD</td></tr>
+  </tbody>
+</table>
+
+<div class="cat">Tabla de mantenimiento <small>con checklist de bloques</small></div>
+<table style="width:100%;">
+  <thead><tr><th data-sort>Equipo</th><th data-sort>Folio</th><th data-sort>Bloques / destino</th><th data-sort="num">Días</th></tr></thead>
+  <tbody>
+    <tr><td>PCT-BP-11</td><td>—</td><td>VT ✓ · UTT ○ · MT/PT ○ · LT ○ · MTTO ○ │ CUARENTENA</td><td data-sort="num">4</td></tr>
+    <tr><td>PCT-DSA-06</td><td>PCT-MIE-2026-0007</td><td>VT ✓ · UTT ✓ · MT/PT ○ · LT ○ · MTTO ○ │ NDT SERVICIOS</td><td data-sort="num">9</td></tr>
+    <tr><td>PCT-45-090</td><td>—</td><td>VT ✓ · UTT ✓ · MT/PT ✓ · LT ○ · MTTO ○ │ EN PROCESO</td><td data-sort="num">2</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ BOTONES ============ -->
+<div class="cat">Botones <small>jerarquía de acción</small></div>
+<div class="row">
+  <button class="btn btn-primario">Guardar inspección</button>
+  <button class="btn btn-secundario">Cancelar</button>
+  <button class="btn btn-peligro">Eliminar</button>
+  <button class="btn btn-tomar-foto">Tomar foto</button>
+  <button class="btn btn-subir-foto">Subir foto</button>
+  <button class="insp-sec-toggle btn">Expandir ▾</button>
+  <button class="btn" disabled style="opacity:.5;">Deshabilitado</button>
+</div>
+
+<!-- ============ FORMULARIOS ============ -->
+<div class="cat">Formulario <small>inputs, selects, textarea</small></div>
+<div class="card" style="padding:1.2rem;">
+  <div class="row" style="margin-bottom:.7rem;">
+    <input type="text" placeholder="Equipo (ej. PCT-45-001)" style="flex:1; min-width:180px;">
+    <input type="text" placeholder="Serial" style="flex:1; min-width:180px;">
+    <select style="min-width:160px;">
+      <option>Tipo de inspección</option><option>PRE-TRABAJO</option><option>POST-TRABAJO</option>
+      <option>RECEPCION</option><option>REINSPECCION</option>
+    </select>
+  </div>
+  <div class="row">
+    <input type="date" style="min-width:160px;">
+    <input type="search" placeholder="Buscar…" style="flex:1; min-width:180px;">
+    <textarea placeholder="Observaciones" rows="2" style="flex:2; min-width:220px;"></textarea>
+  </div>
+</div>
+
+<!-- ============ PARAMETROS / BADGES ============ -->
+<div class="cat">Parámetros y badges</div>
+<div class="card" style="padding:1.2rem;">
+  <div class="row" style="margin-bottom:.6rem;">
+    <span class="badge" style="background:#dcfce7;color:#166534;">BUENO</span>
+    <span class="badge" style="background:#fee2e2;color:#b91c1c;">MALO</span>
+    <span class="badge" style="background:#fef3c7;color:#92400e;">DESPACHADO</span>
+    <span class="badge" style="background:#ede9fe;color:#6d28d9;">SIN VIGENCIA</span>
+    <span class="badge-prev-malo" style="font-size:.68rem;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:2px 6px;">Daño previo — foto requerida al marcar BUENO</span>
+  </div>
+  <div class="row">
+    <button class="dano-chip">Fisura</button>
+    <button class="dano-chip is-selected" style="background:#b8580f;color:#fff;">Corrosión</button>
+    <button class="dano-chip">Deformación</button>
+    <button class="dano-chip">Otro</button>
+  </div>
+</div>
+
+<!-- ============ ALERTAS / PANEL ============ -->
+<div class="cat">Paneles y alertas</div>
+<div class="card" style="padding:1rem; border-left:4px solid #b91c1c; margin-bottom:.7rem;">
+  <strong>Equipo con daño reportado.</strong> Pasa a cuarentena hasta decisión MII/MIE.
+</div>
+<div class="card" style="padding:1rem; border-left:4px solid #16a34a; margin-bottom:.7rem;">
+  <strong>Inspección guardada.</strong> La evidencia quedó registrada en el histórico.
+</div>
+<div class="card" style="padding:1rem; border-left:4px solid #b8580f;">
+  <strong>Prueba próxima a vencer.</strong> Faltan 12 días para la anual.
+</div>
+
+</div>
+
+<script>
+// Toggle para comparar skin on/off sin tocar nada
+document.getElementById('btn-skin').addEventListener('click', () => {
+  const l = document.querySelector('link[href="styles2.css"]');
+  l.disabled = !l.disabled;
+  document.getElementById('skin-state').textContent = l.disabled ? 'styles2.css OFF (style.css base)' : 'styles2.css activo';
+});
+</script>
+</body>
+</html>

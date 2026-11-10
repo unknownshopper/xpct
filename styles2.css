@@ -1,0 +1,195 @@
+/* ============================================================
+   styles2.css — Skin PCT (overlay sobre style.css)
+   Paleta: ladrillo #b8580f, neutros frios, tipografia Space
+   Grotesk (titulos/numeros) + Inter (datos).
+   Solo composicion: aire, jerarquia, redondeos coherentes.
+   ============================================================ */
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #f4f5f7;
+    color: #1c1e22;
+}
+
+h1, h2, h3, .dash-card-value, .font-display {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+}
+
+/* ---------- Nav ---------- */
+.navbar, .topnav, header.site-header {
+    background: #ffffff !important;
+    border-bottom: 3px solid #b8580f !important;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .06);
+    color: #1c1e22 !important;
+}
+.navbar a, .topnav a, .nav-link {
+    color: #4b5563 !important;
+    border-radius: 999px !important;
+    padding: .35rem .8rem !important;
+    transition: background .15s ease, color .15s ease;
+}
+.navbar a:hover, .topnav a:hover, .nav-link:hover {
+    background: #fdf3e7 !important;
+    color: #b8580f !important;
+}
+
+/* ---------- Tarjetas dashboard ---------- */
+.dash-card {
+    border-radius: 10px !important;
+    border-top: none !important;
+    border-left: 4px solid #d1d5db;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+    padding: .9rem 1.1rem !important;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+.dash-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, .1);
+}
+.dash-card-label {
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+.dash-card-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.15;
+}
+/* Acento por significado */
+#insp-card-wrap-activos, .dash-card[data-kind="actividad"] { border-left-color: #2563eb; }
+#insp-card-wrap-disponibles, .dash-card[data-kind="disponibles"] { border-left-color: #16a34a; }
+#insp-card-wrap-mantenimiento, .dash-card[data-kind="mantenimiento"] { border-left-color: #b8580f; }
+#insp-card-wrap-no-atendidas, .dash-card[data-kind="dano"] { border-left-color: #b91c1c; }
+.dash-card.card-sel {
+    border-left-color: #b8580f;
+    box-shadow: 0 0 0 2px rgba(184, 88, 15, .25), 0 4px 12px rgba(15, 23, 42, .12);
+}
+
+/* ---------- Cabeceras de seccion ---------- */
+.insp-sec-head, section > h3 {
+    background: linear-gradient(90deg, #b8580f, #8f4509) !important;
+    color: #ffffff !important;
+    border-radius: 10px !important;
+    padding: .55rem .9rem !important;
+    font-size: .82rem !important;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    box-shadow: 0 1px 3px rgba(143, 69, 9, .35);
+}
+.insp-sec-ico { opacity: .85; }
+
+/* ---------- Tablas ---------- */
+table, .tabla-inspecciones-wrapper table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+    background: #ffffff;
+}
+thead th, table th {
+    background: #f1f2f4 !important;
+    color: #4b5563 !important;
+    font-size: .68rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: .55rem .7rem !important;
+    border-bottom: 2px solid #e2e4e8 !important;
+}
+table th[data-sort]:hover { color: #b8580f !important; }
+tbody td, table td {
+    padding: .5rem .7rem !important;
+    border-bottom: 1px solid #eef0f2 !important;
+    font-size: .82rem;
+    color: #1f2937;
+}
+tbody tr:nth-child(even) td { background: #fafbfc; }
+tbody tr:hover td { background: #fdf3e7 !important; }
+
+/* ---------- Botones ---------- */
+.btn, button.btn, input[type="submit"], button:not(.dano-chip):not(.insp-sec-toggle) {
+    border-radius: 8px !important;
+    font-weight: 600;
+    font-size: .8rem;
+    padding: .45rem .85rem;
+    transition: transform .1s ease, box-shadow .1s ease, background .15s ease;
+}
+.btn-primario, .btn-primary, .btn[type="submit"], #btn-guardar, button.btn-guardar {
+    background: linear-gradient(135deg, #c46418, #b8580f) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 2px 6px rgba(184, 88, 15, .3);
+}
+.btn-primario:hover, #btn-guardar:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(184, 88, 15, .35);
+}
+.btn-secundario, .btn-secondary {
+    background: #ffffff !important;
+    border: 1px solid #d8dbe0 !important;
+    color: #374151 !important;
+}
+.btn-secundario:hover { background: #f8f9fa !important; border-color: #b8580f !important; color: #b8580f !important; }
+.btn-peligro, .btn-danger, .btn-eliminar {
+    background: #ffffff !important;
+    border: 1px solid #fecaca !important;
+    color: #b91c1c !important;
+}
+.btn-peligro:hover { background: #fef2f2 !important; }
+.btn-tomar-foto, .btn-subir-foto {
+    background: #f1f2f4 !important;
+    border: 1px solid #e2e4e8 !important;
+    color: #374151 !important;
+    font-size: .72rem !important;
+    border-radius: 7px !important;
+}
+.btn-tomar-foto:hover, .btn-subir-foto:hover { background: #fdf3e7 !important; border-color: #e8b98a !important; color: #b8580f !important; }
+
+/* ---------- Inputs ---------- */
+input[type="text"], input[type="email"], input[type="password"], input[type="number"],
+input[type="date"], input[type="search"], select, textarea {
+    border-radius: 8px !important;
+    border: 1px solid #d8dbe0 !important;
+    padding: .5rem .7rem !important;
+    font-size: .85rem;
+    background: #ffffff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+input:focus, select:focus, textarea:focus {
+    outline: none !important;
+    border-color: #b8580f !important;
+    box-shadow: 0 0 0 3px rgba(184, 88, 15, .15) !important;
+}
+
+/* ---------- Badges / estados ---------- */
+.badge, .estado-badge, .dano-chip {
+    border-radius: 999px !important;
+    font-size: .68rem !important;
+    font-weight: 600 !important;
+    padding: .18rem .55rem !important;
+}
+.badge-prev-malo { border-radius: 6px !important; }
+
+/* ---------- Banners ---------- */
+.insp-sec-pendientes, .banner-sync {
+    border-radius: 10px !important;
+    box-shadow: 0 1px 3px rgba(120, 53, 15, .2);
+}
+
+/* ---------- Contenedores ---------- */
+.card, .panel, .insp-panel {
+    border-radius: 12px !important;
+    border: 1px solid #e8eaee !important;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .06);
+}
+
+/* ---------- Enlaces ---------- */
+a { color: #b8580f; }
+a:hover { color: #8f4509; }
