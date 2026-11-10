@@ -4533,7 +4533,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (!colEvid) return;
                     const tipo = getTipoInspeccionNow();
-                    const allowByTipo = (tipo === 'PRETRABAJO' || tipo === 'RECEPCION' || tipo === 'POSTTRABAJO');
+                    const allowByTipo = (tipo === 'PRETRABAJO' || tipo === 'RECEPCION' || tipo === 'POSTTRABAJO' || tipo === 'REINSPECCION' || tipo === 'REINSPECCIN');
                     const estadoSel = filaHtml.querySelector(`input[name="param-${idx}-estado"]:checked`);
                     const estadoVal = estadoSel ? String(estadoSel.value || '').trim().toUpperCase() : '';
                     const show = !!(esEstadoGeneral || estadoVal === 'MALO' || allowByTipo);
@@ -4868,7 +4868,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return sel ? String(sel.value || '').trim().toUpperCase() : '';
                         } catch { return ''; }
                     })();
-                    const permitirEvidenciaBueno = (tipoActual === 'PRE-TRABAJO' || tipoActual === 'RECEPCION' || tipoActual === 'POST-TRABAJO' || tipoActual === 'POSTTRABAJO');
+                    const permitirEvidenciaBueno = (tipoActual === 'PRE-TRABAJO' || tipoActual === 'RECEPCION' || tipoActual === 'POST-TRABAJO' || tipoActual === 'POSTTRABAJO' || tipoActual === 'REINSPECCION' || tipoActual === 'REINSPECCIÓN');
 
                     if (colDano) colDano.style.display = 'none';
                     if (selectDano) {
@@ -6718,7 +6718,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const danosSeleccionados = (tieneChipsDano && (estado || '').toUpperCase() === 'MALO') ? getSelDanos() : [];
                 const evidenciasPorDano = {};
 
-                const allowEvidOnBueno = (tipoInspeccion === 'PRE-TRABAJO' || tipoInspeccion === 'RECEPCION' || tipoInspeccion === 'POST-TRABAJO' || tipoInspeccion === 'POSTTRABAJO');
+                const allowEvidOnBueno = (tipoInspeccion === 'PRE-TRABAJO' || tipoInspeccion === 'RECEPCION' || tipoInspeccion === 'POST-TRABAJO' || tipoInspeccion === 'POSTTRABAJO' || tipoInspeccion === 'REINSPECCION');
                 if (esEstadoGeneral || (estado && estado.toUpperCase() === 'MALO') || allowEvidOnBueno) {
                     if (tieneChipsDano) {
                         // PRE-TRABAJO (BUENO) sin chips seleccionados: permitir evidencia por parámetro (legacy)
@@ -7177,6 +7177,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                 }
+                // Liberación: pieza con daño previo marcada BUENO exige foto de evidencia
+                try {
+                    const esPrevMalo = !!(filaHtml && filaHtml.dataset && filaHtml.dataset.prevMalo === '1');
+                    if (esPrevMalo && String(p.estado || '').toUpperCase() === 'BUENO' && !puedeOmitirFotos()) {
+                        const inputFoto = document.querySelector(`input[name="param-${i}-foto"]`);
+                        const inputFoto2 = document.querySelector(`input[name="param-${i}-foto2"]`);
+                        const del1 = !!(fotosTomadas[i] && fotosTomadas[i].del1);
+                        const del2 = !!(fotosTomadas[i] && fotosTomadas[i].del2);
+                        const tieneNueva1 = !!((fotosTomadas[i] && fotosTomadas[i].blob) || (inputFoto && inputFoto.files && inputFoto.files[0]));
+                        const tieneNueva2 = !!((fotosTomadas[i] && fotosTomadas[i].blob2) || (inputFoto2 && inputFoto2.files && inputFoto2.files[0]));
+                        if (!((tieneNueva1 && !del1) || (tieneNueva2 && !del2))) {
+                            try { if (filaHtml && filaHtml.scrollIntoView) filaHtml.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+                            alert(`"${p.nombre}" tenía daño reportado — para liberarlo en BUENO adjunta la foto de evidencia de la reparación (en su fila, columna Evidencia).`);
+                            try { btnGuardar.innerHTML = prevBtnHtml; btnGuardar.disabled = prevBtnDisabled; } catch {}
+                            guardandoInspeccion = false;
+                            return;
+                        }
+                    }
+                } catch {}
                 if (p.estado.toUpperCase() === 'MALO') {
                     // En POST-TRABAJO / RECEPCION / REINSPECCION: evidencia obligatoria cuando hay daño.
                     // Única excepción: SGI puede omitir fotos.
