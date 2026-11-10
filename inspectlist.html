@@ -4348,8 +4348,12 @@
                                 activos++;
                                 const rs = resumenMap.get(eqName) || resumenMap.get(k);
                                 const pr = rs && rs.pruebas ? rs.pruebas : null;
-                                const lt = pr && pr.LT ? pr.LT : null;
-                                const msProx = lt && lt.proxima ? (toMs(lt.proxima) ?? 0) : 0;
+                                // ltVigenteEfectivo = LT vigente || UTT vigente || VT/PT/MT vigente.
+                                // La vigencia real expira con la proxima MAS lejana entre esas pruebas.
+                                const proximas = pr ? [pr.LT, pr.UTT, pr['VT/PT/MT']]
+                                    .map(p => (p && p.proxima) ? (toMs(p.proxima) ?? 0) : 0)
+                                    .filter(Boolean) : [];
+                                const msProx = proximas.length ? Math.max.apply(null, proximas) : 0;
                                 const diasAnual = msProx ? Math.floor((hoy - msProx) / DAY) : null;
                                 const vigente = !!(pr && pr.ltVigenteEfectivo === true);
                                 const enDaño = noAtKeys.has(k);
@@ -4394,7 +4398,7 @@
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td data-sort="${escAttr(r.serial || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
-                                    <td data-sort="${r.dias ?? 99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
+                                    <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
                                     <td data-sort="${escAttr(r.estado)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><span style="font-weight:700; color:${estColor[r.estado] || '#374151'};">${r.estado}</span></td>`;
                                 tbA.appendChild(tr);
                             });
@@ -4409,7 +4413,7 @@
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td data-sort="${escAttr(r.serial || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
-                                    <td data-sort="${r.dias ?? 99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
+                                    <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
                                     <td data-sort="${escAttr(r.obs || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.obs || '—')}</td>`;
                                 tbD.appendChild(tr);
                             });
@@ -4424,7 +4428,7 @@
                                 tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td data-sort="${escAttr(r.folio || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family:'Courier New',monospace;">${escAttr(r.folio)}</td>
                                     <td data-sort="${escAttr(r.destino || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.destino)}</td>
-                                    <td data-sort="${r.dias ?? -1}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#b45309;">${r.dias ?? '—'}</td>`;
+                                    <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#b45309;">${r.dias ?? '—'}</td>`;
                                 tbM.appendChild(tr);
                             });
                             const msgM = document.getElementById('mensaje-sin-mantenimiento');
