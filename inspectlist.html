@@ -779,6 +779,9 @@
         let pendientesRenderizadasUltimaCarga = 0;
 
         let datosCargados = false;
+        let ultimaCargaDatosTs = 0;
+        const DATOS_FRESCOS_MS = 10 * 60 * 1000;
+        const datosFrescos = () => datosCargados && ultimaCargaDatosTs && (Date.now() - ultimaCargaDatosTs) < DATOS_FRESCOS_MS;
         let vistaReintentada = null; // última vista auto-re-renderizada por tbody vacío
         const RESUMEN_CACHE_TTL_MS = 5 * 60 * 1000;
         const resumenEquipoCache = new Map(); // eqId -> { data, ts }
@@ -4128,6 +4131,7 @@
             if (quierePendientes && !quiereTodo) {
                 // Solo pendientes: evitar render de realizadas y no atendidas (más pesado)
                 datosCargados = true;
+                ultimaCargaDatosTs = Date.now();
 
             try { setLoadingUi(true, 'Cargando inspecciones…', 'Finalizando…'); } catch {}
                 try { if (vistaActiva) setVista(vistaActiva); } catch {}
@@ -5858,6 +5862,7 @@
             });
 
             datosCargados = true;
+            ultimaCargaDatosTs = Date.now();
 
             // Si existe una vista solicitada, aplicarla después de cargar
             try {
@@ -5900,12 +5905,13 @@
         }
 
         // En móviles, al volver a esta página puede usarse bfcache y no re-ejecutar DOMContentLoaded.
-        // Forzar recarga de datos al mostrar la página o volver a enfocarla.
+        // Solo recarga si los datos ya están viejos (>10 min) — evita el loader en cada cambio de pestaña.
         try {
             window.addEventListener('pageshow', () => {
                 try {
                     if (isLoadingDatos) return;
                     if (vistaActiva) return;
+                    if (datosFrescos()) return;
                     if (datosCargados) cargarDatos({ useCache: true });
                     else cargarContadoresIniciales();
                 } catch {}
@@ -5918,6 +5924,7 @@
                     if (document.hidden) return;
                     if (isLoadingDatos) return;
                     if (vistaActiva) return;
+                    if (datosFrescos()) return;
                     if (datosCargados) cargarDatos({ useCache: true });
                     else cargarContadoresIniciales();
                 } catch {}
