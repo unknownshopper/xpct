@@ -249,9 +249,10 @@
             </div>
 
             <section class="dashboard-cards" style="margin-bottom: 0.75rem;">
-                <div class="dash-card" id="insp-card-wrap-pendientes">
-                    <div class="dash-card-label">Inspecciones pendientes</div>
+                <div class="dash-card" id="insp-card-wrap-pendientes" style="cursor:pointer;">
+                    <div class="dash-card-label">Por inspeccionar</div>
                     <div class="dash-card-value" id="insp-card-pendientes">0</div>
+                    <div style="font-size:0.62rem; color:#6b7280; margin-top:2px;">equipos en actividad por regresar</div>
                 </div>
                 <div class="dash-card" id="insp-card-wrap-realizadas">
                     <div class="dash-card-label">Inspecciones realizadas (histórico)</div>
@@ -1177,6 +1178,16 @@
                 if (cardWrapPend && !cardWrapPend.dataset.filterBound) {
                     cardWrapPend.dataset.filterBound = '1';
                     cardWrapPend.addEventListener('click', async () => {
+                        // Por inspeccionar = equipos en actividad — abre la misma vista que Activos
+                        try {
+                            if (window.__aplicarVistaDetalle) {
+                                vistaDetalleActiva = (vistaDetalleActiva === 'activos') ? null : 'activos';
+                                window.__aplicarVistaDetalle();
+                                const sec = document.getElementById('insp-seccion-activos');
+                                if (vistaDetalleActiva && sec) sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                return;
+                            }
+                        } catch {}
                         setVista(vistaActiva === 'pendientes' ? null : 'pendientes');
                         try {
                             await asegurarDatosCargados();
@@ -3391,7 +3402,7 @@
                                 return false;
                             }
                         }).length;
-                        cardPendientes.textContent = String(pendientes);
+                        cardPendientes.textContent = String((window.__porInspeccionar != null) ? window.__porInspeccionar : pendientes);
                     } else {
                         cardPendientes.textContent = '0';
                     }
@@ -4124,7 +4135,7 @@
                 await renderBloque(false, tbody);
                 try {
                     if (cardPendientes && actividadesPermitidas) {
-                        cardPendientes.textContent = String(pendientesRenderizadasUltimaCarga || 0);
+                        cardPendientes.textContent = String((window.__porInspeccionar != null) ? window.__porInspeccionar : (pendientesRenderizadasUltimaCarga || 0));
                     }
                 } catch {}
             }
@@ -4427,6 +4438,9 @@
                         if (cA) cA.textContent = String(activos);
                         if (cD) cD.textContent = String(disponibles.length);
                         if (cM) cM.textContent = String(mantenimientoList.length);
+                        // Por inspeccionar = equipos en actividad esperando regreso/post-trabajo
+                        window.__porInspeccionar = activos;
+                        if (cardPendientes) cardPendientes.textContent = String(activos);
 
                         const tbA = document.getElementById('tbody-activos');
                         if (tbA) {
