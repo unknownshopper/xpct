@@ -4472,7 +4472,7 @@
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td data-sort="${escAttr(r.serial || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
-                                    <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
+                                    <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias == null ? '—' : (r.dias <= 0 ? String(-r.dias) : '+' + r.dias)}</td>
                                     <td data-sort="${escAttr(r.estado)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;"><span style="font-weight:700; color:${estColor[r.estado] || '#374151'};">${r.estado}</span></td>
                                     <td data-sort="${escAttr(r.ubi || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-size:0.8rem; color:${String(r.ubi||'').startsWith('EN CAMPO') ? '#0369a1' : String(r.ubi||'').startsWith('PROVEEDOR') ? '#b45309' : '#475569'};">${escAttr(r.ubi || '—')}</td>`;
                                 tbA.appendChild(tr);
@@ -4488,7 +4488,7 @@
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td data-sort="${escAttr(r.serial || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.serial || '—')}</td>
-                                    <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias ?? '—'}</td>
+                                    <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:${(r.dias === null || r.dias > -30) ? '#b45309' : '#166534'};">${r.dias == null ? '—' : (r.dias <= 0 ? String(-r.dias) : '+' + r.dias)}</td>
                                     <td data-sort="${escAttr(r.obs || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.obs || '—')}</td>`;
                                 tbD.appendChild(tr);
                             });
