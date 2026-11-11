@@ -48,3 +48,13 @@ OPERATIVO — disponible para salir (si anual vigente)
 - Reusar evidencias + firmas + observaciones de inspecciones
 - Gate de salida: verificar `vigenciaAnual` antes de permitir renta/despacho
 - Referencia visual: `operaflux.html`
+
+## Checklist de bloques post-trabajo — decisión (11/nov/2026)
+
+- SGI registra las pruebas UTT/MT/PT/LT — NO se capturan datos de prueba por operativo.
+- COPS solo marca los bloques que le conciernen: **checkboxes simples**, sin formatos ni datos.
+- Diseño propuesto (PENDIENTE implementar — equipo en operación):
+  - Doc `procesoEquipo/{equipoId}` con bloques `{ utt, mtpt, lt, mtto }` = `{ hecho, por, en }`
+  - En tabla EN MANTENIMIENTO: checkbox por bloque según rol (COPS marca su parte)
+  - El checklist actual (que infería de resumenes_equipos.fechaReal) se sustituye por estos checks reales
+  - REINSPECCIÓN aprobada cierra el ciclo → equipo sale de la lista automáticamente
