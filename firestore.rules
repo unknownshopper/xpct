@@ -154,6 +154,12 @@ service cloud.firestore {
       allow delete: if canDeletePruebas();
     }
 
+    // Estado de bloques post-trabajo por equipo (checkboxes operativos)
+    match /procesoEquipo/{docId} {
+      allow read: if canReadOperativo();
+      allow create, update, delete: if isRoleAny(['admin', 'sgi', 'cops']);
+    }
+
     match /audit_logs/{docId} {
       allow read: if isRoleAny(['admin']) || (isSignedIn() && request.auth.token.email == 'the@unknownshoppers.com');
       allow create: if canReadOperativo()

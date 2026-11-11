@@ -4336,6 +4336,16 @@
                         }
                         const resumenMap = resumenMapGlobal;
 
+                        // Estado manual de bloques post-trabajo (procesoEquipo/{key})
+                        const procesoPorKey = new Map();
+                        try {
+                            const { getFirestore: _g2, collection: _c2, getDocs: _gd2 } = await import(
+                                'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                            );
+                            const snapProc = await _gd2(_c2(_g2(), 'procesoEquipo'));
+                            snapProc.forEach(dd => procesoPorKey.set(String(dd.id || ''), dd.data() || {}));
+                        } catch {}
+
                         const noAtKeys = new Set(noAt.map(insp => normKeyCompact(insp.equipo || '')));
                         let activos = 0;
                         const disponibles = [];
@@ -4396,19 +4406,31 @@
                                 const enPost = tUlt.includes('POST');
                                 if (enPost) {
                                     const msU = uInsp ? (toMs(uInsp.fecha || uInsp.creadoEn) ?? 0) : 0;
-                                    // Checklist de bloques: ✅ paso / ⭕ pendiente / ❌ no paso (rechazada)
+                                    // Checklist de bloques: ✅ paso / ⭕ pendiente / ❌ no paso
+                                    // Estado manual (procesoEquipo) tiene precedencia sobre la inferencia
                                     const pruebas = rs && rs.pruebas ? rs.pruebas : {};
-                                    const stB = (pb) => {
-                                        if (!(pb && pb.fechaReal && (toMs(pb.fechaReal) ?? 0) > msU)) return '⭕';
-                                        const r = String(pb.resultado || '').toUpperCase();
-                                        return /RECHAZ|NO\s*ACEPT|MALO/.test(r) ? '❌' : '✅';
+                                    const procDoc = procesoPorKey.get(k) || null;
+                                    const manEst = (b) => {
+                                        const v = procDoc && procDoc.blocks ? procDoc.blocks[b] : null;
+                                        return v && v.estado ? String(v.estado) : null;
                                     };
-                                    const chk = `VT ${enDaño ? '❌' : '✅'} · UTT ${stB(pruebas.UTT)} · MT/PT ${stB(pruebas['VT/PT/MT'])} · LT ${stB(pruebas.LT)} · MTTO ⭕`;
+                                    const stB = (pb, b) => {
+                                        const m = manEst(b);
+                                        if (m === 'ok' || m === 'mal' || m === 'pend') return m;
+                                        if (!(pb && pb.fechaReal && (toMs(pb.fechaReal) ?? 0) > msU)) return 'pend';
+                                        const r = String(pb.resultado || '').toUpperCase();
+                                        return /RECHAZ|NO\s*ACEPT|MALO/.test(r) ? 'mal' : 'ok';
+                                    };
+                                    const puedeMarcar = !!(window.isAdmin || window.isSgi || window.isCops);
+                                    const icos = { pend: '⭕', ok: '✅', mal: '❌' };
+                                    const ic = (b) => `<span class="blk-ic" data-eq="${escAttr(k)}" data-blk="${b}" data-est="${stB(b === 'utt' ? pruebas.UTT : b === 'mtpt' ? pruebas['VT/PT/MT'] : b === 'lt' ? pruebas.LT : null, b)}"${puedeMarcar ? ' style="cursor:pointer;" title="Click para cambiar: ⭕→✅→❌"' : ''}>${icos[stB(b === 'utt' ? pruebas.UTT : b === 'mtpt' ? pruebas['VT/PT/MT'] : b === 'lt' ? pruebas.LT : null, b)]}</span>`;
+                                    const chkHtml = `VT ${enDaño ? '❌' : '✅'} · UTT ${ic('utt')} · MT/PT ${ic('mtpt')} · LT ${ic('lt')} · MTTO ${ic('mtto')}`;
                                     mantenimientoList.push({
                                         equipo: eqName,
                                         folio: o ? (o.folio || '') : '—',
-                                        destino: chk + ' │ ' + (o ? (o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO')
+                                        destino: (o ? (o.tipo === 'TERCERO' ? (o.destino || 'TERCERO') : 'MANT. INTERNO')
                                             : enDaño ? 'CUARENTENA' : 'EN PROCESO'),
+                                        chkHtml,
                                         dias: (o && o.ms) ? Math.floor((hoy - o.ms) / DAY) : (msU ? Math.floor((hoy - msU) / DAY) : null)
                                     });
                                     yaEnMantto.add(k);
@@ -4480,12 +4502,45 @@
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `<td data-sort="${escAttr(r.equipo)}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:600;">${escAttr(r.equipo)}</td>
                                     <td data-sort="${escAttr(r.folio || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-family:'Courier New',monospace;">${escAttr(r.folio)}</td>
-                                    <td data-sort="${escAttr(r.destino || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${escAttr(r.destino)}</td>
+                                    <td data-sort="${escAttr(r.destino || '')}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb;">${r.chkHtml ? r.chkHtml + ' │ ' : ''}${escAttr(r.destino)}</td>
                                     <td data-sort="${r.dias ?? -99999}" style="padding:0.35rem; border-bottom:1px solid #e5e7eb; font-weight:700; color:#b45309;">${r.dias ?? '—'}</td>`;
                                 tbM.appendChild(tr);
                             });
                             const msgM = document.getElementById('mensaje-sin-mantenimiento');
                             if (msgM) msgM.style.display = mantenimientoList.length ? 'none' : '';
+                            // Toggles de bloques (⭕→✅→❌) — admin/sgi/cops
+                            if (!tbM.dataset.blkBound) {
+                                tbM.dataset.blkBound = '1';
+                                tbM.addEventListener('click', async (ev) => {
+                                    const el = ev.target.closest('.blk-ic');
+                                    if (!el || !el.dataset.blk || !el.dataset.eq) return;
+                                    if (!(window.isAdmin || window.isSgi || window.isCops)) return;
+                                    const orden = ['pend', 'ok', 'mal'];
+                                    const icos = { pend: '⭕', ok: '✅', mal: '❌' };
+                                    const cur = el.dataset.est || 'pend';
+                                    const nxt = orden[(orden.indexOf(cur) + 1) % 3];
+                                    el.dataset.est = nxt;
+                                    el.textContent = icos[nxt];
+                                    try {
+                                        const { getFirestore, doc, setDoc, serverTimestamp } = await import(
+                                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+                                        );
+                                        const { getAuth } = await import(
+                                            'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js'
+                                        );
+                                        const por = (getAuth().currentUser && getAuth().currentUser.email) || '';
+                                        await setDoc(doc(getFirestore(), 'procesoEquipo', el.dataset.eq), {
+                                            equipo: (equipoPorKey && equipoPorKey.get(el.dataset.eq)) || el.dataset.eq,
+                                            blocks: { [el.dataset.blk]: { estado: nxt, por, en: serverTimestamp() } },
+                                            actualizadoEn: serverTimestamp()
+                                        }, { merge: true });
+                                    } catch (e) {
+                                        el.dataset.est = cur;
+                                        el.textContent = icos[cur];
+                                        alert('No se pudo guardar el estado del bloque.');
+                                    }
+                                });
+                            }
                         }
 
                         // Selección exclusiva de tarjetas + persistencia entre re-renders
