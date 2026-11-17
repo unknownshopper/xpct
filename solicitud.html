@@ -337,43 +337,147 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   }
 });
 
+async function ensureHtml2Canvas() {
+  if (window.html2canvas) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function solicitudHtml(s) {
+  const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const td = 'border:1px solid #7a3a08;padding:4px 5px;vertical-align:top;font-size:11px;';
+  const th = 'border:1px solid #7a3a08;padding:4px 5px;background:#b8580f;color:#fff;font-size:10px;text-align:center;font-weight:700;letter-spacing:.04em;text-transform:uppercase;';
+  const lbl = 'border:1px solid #7a3a08;padding:4px 5px;background:#fdf0e5;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#7a3a08;';
+  const chk = on => `<span style="display:inline-block;width:11px;height:11px;border:1px solid #000;vertical-align:-1px;text-align:center;line-height:11px;font-size:9px;font-weight:700;">${on ? 'X' : ''}</span>`;
+  const fechaFmt = s.fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+  const PRUEBAS = ['VT', 'UTT', 'MT', 'PT', 'LT'];
+  const prSel = new Set(s.pruebas || []);
+
+  const filas = (s.equipos || []).map((e, i) => `
+    <tr>
+      <td style="${td}text-align:center;">${i + 1}</td>
+      <td style="${td}text-align:center;">1</td>
+      <td style="${td}">${esc(e.desc || e.tipo)}${e.accesorios && e.accesorios.length ? `<div style="font-size:10px;color:#7a3a08;margin-top:2px;">Accesorios: ${esc(e.accesorios.join(', '))}</div>` : ''}</td>
+      <td style="${td}text-align:center;font-weight:700;">${esc(e.serie || 'S/N')}</td>
+      <td style="${td}text-align:center;"></td>
+      <td style="${td}text-align:center;"></td>
+    </tr>`).join('');
+
+  return `
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#000;max-width:820px;">
+      <div style="height:8px;border-radius:2px;margin-bottom:8px;background:repeating-linear-gradient(-45deg,#f59e0b 0 10px,#7a3a08 10px 20px);"></div>
+      <table style="width:100%;border-collapse:collapse;border:none;">
+        <tr>
+          <td style="border:none;padding:0 8px 6px 0;vertical-align:middle;width:120px;"><img src="img/logopctch.png" style="height:54px;" alt="PCT"></td>
+          <td style="border:none;padding:0;vertical-align:middle;text-align:left;">
+            <div style="font-size:12px;font-weight:700;color:#b8580f;letter-spacing:.05em;">Proveedora y Comercializadora Tabasqueña</div>
+          </td>
+        </tr>
+      </table>
+      <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;color:#7a3a08;letter-spacing:.03em;border-bottom:2px solid #b8580f;padding-bottom:6px;">Solicitud de recepción de equipos para inspección</div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <tr>
+          <td style="${td}width:70px;background:#fdf0e5;font-weight:700;color:#7a3a08;">Cliente:</td>
+          <td style="${td}">${esc(s.nombre)}</td>
+          <td style="${td}width:60px;background:#fdf0e5;font-weight:700;color:#7a3a08;">Fecha:</td>
+          <td style="${td}width:130px;">${esc(fechaFmt)}</td>
+          <td style="${td}width:60px;background:#fdf0e5;font-weight:700;color:#7a3a08;">Folio:</td>
+          <td style="${td}width:130px;font-weight:800;text-align:center;">${esc(s.folio)}</td>
+        </tr>
+        <tr>
+          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Empresa:</td>
+          <td style="${td}">${esc(s.empresa || '—')}</td>
+          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Teléfono:</td>
+          <td style="${td}">${esc(s.telefono || '—')}</td>
+          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Correo:</td>
+          <td style="${td}">${esc(s.correo || '—')}</td>
+        </tr>
+        <tr>
+          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Pruebas:</td>
+          <td style="${td}" colspan="5">${PRUEBAS.map(p => `${chk(prSel.has(p))}&nbsp;${p}`).join('&nbsp;&nbsp;&nbsp;')}</td>
+        </tr>
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;margin-top:8px;">
+        <thead>
+          <tr>
+            <th style="${th}width:26px;">#</th>
+            <th style="${th}width:36px;">Cant</th>
+            <th style="${th}">Descripción</th>
+            <th style="${th}width:110px;">Identificación</th>
+            <th style="${th}width:34px;">Sí</th>
+            <th style="${th}width:34px;">No</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+        <tfoot>
+          <tr>
+            <td style="${td}" colspan="4"></td>
+            <td style="${td}text-align:center;font-weight:800;" colspan="2">${(s.equipos || []).length}&nbsp;&nbsp;Pieza(s)</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;margin-top:8px;">
+        <tr><td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;text-align:center;">Observaciones</td></tr>
+        <tr><td style="${td}min-height:44px;height:44px;">${esc(s.observaciones || '')}</td></tr>
+      </table>
+
+      <p style="font-size:10.5px;margin:12px 0 4px;">Por medio del presente documento se hace constar la solicitud de recepción de los equipos arriba citados para su inspección y pruebas, con las especificaciones y accesorios descritos por el cliente.</p>
+
+      <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11px;">
+        <tr>
+          <td style="${td}width:80px;background:#fdf0e5;font-weight:700;color:#7a3a08;">Entrega (cliente):</td>
+          <td style="${td}">${esc(s.nombre)}</td>
+          <td style="${td}width:200px;text-align:center;"><div style="border-top:1px solid #000;margin-top:22px;font-size:9px;color:#555;">Nombre y firma</div></td>
+        </tr>
+        <tr>
+          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Recibe (PCT):</td>
+          <td style="${td}">${esc(s.creadoPor || '')}</td>
+          <td style="${td}"></td>
+        </tr>
+      </table>
+    </div>`;
+}
+
 async function generarPdf() {
   if (!ultimaSol) return;
-  await ensureJsPdf();
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-  const s = ultimaSol;
-  let y = 18;
-  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.setTextColor(184, 88, 15);
-  pdf.text('PCT · Solicitud de inspección de equipos', 14, y); y += 8;
-  pdf.setFontSize(10); pdf.setTextColor(40);
-  pdf.setFont('helvetica', 'bold'); pdf.text('Folio: ' + s.folio, 14, y);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('Fecha: ' + s.fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }), 120, y); y += 8;
-  pdf.setDrawColor(184, 88, 15); pdf.setLineWidth(0.8); pdf.line(14, y, 196, y); y += 7;
-  pdf.setFont('helvetica', 'bold'); pdf.text('Cliente', 14, y); y += 6; pdf.setFont('helvetica', 'normal');
-  pdf.text(`Nombre: ${s.nombre}`, 14, y); pdf.text(`Empresa: ${s.empresa || '—'}`, 110, y); y += 6;
-  pdf.text(`Correo: ${s.correo}`, 14, y); pdf.text(`Teléfono: ${s.telefono}`, 110, y); y += 9;
-  pdf.setFont('helvetica', 'bold'); pdf.text('Equipos', 14, y); y += 6; pdf.setFont('helvetica', 'normal');
-  (s.equipos || []).forEach((e, i) => {
-    pdf.setFont('helvetica', 'bold'); pdf.text(`${i + 1}. ${e.tipo}`, 16, y);
-    pdf.setFont('helvetica', 'normal'); pdf.text(`Serie: ${e.serie || '—'}`, 90, y); y += 5;
-    if (e.desc) { pdf.text(pdf.splitTextToSize(`    ${e.desc}`, 176), 16, y); y += 5; }
-    if (e.accesorios && e.accesorios.length) { pdf.text(`    Acc: ${e.accesorios.join(', ')}`, 16, y); y += 5; }
-    y += 1;
-  });
-  y += 3;
-  pdf.setFont('helvetica', 'bold'); pdf.text('Pruebas solicitadas', 14, y); y += 6;
-  pdf.setFont('helvetica', 'normal'); pdf.text((s.pruebas || []).join(' · ') || '—', 16, y); y += 7;
-  if (s.observaciones) {
-    pdf.setFont('helvetica', 'bold'); pdf.text('Observaciones', 14, y); y += 6;
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(pdf.splitTextToSize(s.observaciones, 176), 16, y); y += 10;
+  let wrapper = null;
+  try {
+    await ensureHtml2Canvas();
+    await ensureJsPdf();
+    wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:900px;background:#fff;padding:16px 18px 22px;';
+    wrapper.innerHTML = solicitudHtml(ultimaSol);
+    document.body.appendChild(wrapper);
+    const canvas = await html2canvas(wrapper, { useCORS: true, scale: 2, backgroundColor: '#ffffff' });
+    const img = canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgH = (canvas.height * pageW) / canvas.width;
+    let restante = imgH, pos = 0;
+    pdf.addImage(img, 'JPEG', 0, pos, pageW, imgH);
+    restante -= pageH;
+    while (restante > 0) {
+      pos -= pageH;
+      pdf.addPage();
+      pdf.addImage(img, 'JPEG', 0, pos, pageW, imgH);
+      restante -= pageH;
+    }
+    pdf.save(ultimaSol.folio + '.pdf');
+  } catch (e) {
+    console.error('No se pudo generar el PDF', e);
+    alert('No se pudo generar el PDF.');
+  } finally {
+    try { if (wrapper) wrapper.remove(); } catch {}
   }
-  y = Math.max(y, 268);
-  pdf.setFontSize(8); pdf.setTextColor(120);
-  pdf.text('Proveedora y Comercializadora Tabasqueña · Solicitud generada por ' + (s.creadoPor || 'sistema'), 14, y);
-  pdf.save(s.folio + '.pdf');
 }
 
 document.getElementById('btn-pdf').addEventListener('click', generarPdf);
