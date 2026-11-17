@@ -356,6 +356,14 @@ function solicitudHtml(s) {
   const fechaFmt = s.fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
   const PRUEBAS = ['VT', 'UTT', 'MT', 'PT', 'LT'];
   const prSel = new Set(s.pruebas || []);
+  const NOMBRES = {
+    'cops@pc-t.com.mx': 'Francisco Cruz · COPS',
+    'sgi@pc-t.com.mx': 'Rubén Magaña · SGI',
+    'jalcz@pc-t.com.mx': 'Administrador',
+    'lgmt@pc-t.com.mx': 'Dirección',
+    'admin@pc-t.com.mx': 'Administrador',
+  };
+  const generadoPor = NOMBRES[String(s.creadoPor || '').toLowerCase()] || s.creadoPor || '—';
 
   const filas = (s.equipos || []).map((e, i) => `
     <tr>
@@ -399,7 +407,9 @@ function solicitudHtml(s) {
         </tr>
         <tr>
           <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Pruebas:</td>
-          <td style="${td}" colspan="5">${PRUEBAS.map(p => `${chk(prSel.has(p))}&nbsp;${p}`).join('&nbsp;&nbsp;&nbsp;')}</td>
+          <td style="${td}" colspan="3">${PRUEBAS.map(p => `${chk(prSel.has(p))}&nbsp;${p}`).join('&nbsp;&nbsp;&nbsp;')}</td>
+          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Generado por:</td>
+          <td style="${td}">${esc(generadoPor)}</td>
         </tr>
       </table>
 
@@ -438,7 +448,7 @@ function solicitudHtml(s) {
         </tr>
         <tr>
           <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Recibe (PCT):</td>
-          <td style="${td}">${esc(s.creadoPor || '')}</td>
+          <td style="${td}">${esc(generadoPor)}</td>
           <td style="${td}"></td>
         </tr>
       </table>
