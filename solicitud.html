@@ -43,7 +43,7 @@
 <body>
 <header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE INSPECCIÓN</b></header>
 
-<main class="wrap">
+<main class="wrap" id="wrap" style="display:none;">
   <p class="lead">Registro de equipos para inspección</p>
   <p class="sub">Proveedora y Comercializadora Tabasqueña — completa el formulario y te contactamos para agendar la recepción.</p>
 
@@ -98,6 +98,25 @@
 </main>
 
 <script src="config.local.js"></script>
+<script type="module" src="firebase-init.js"></script>
+<script type="module">
+// Acceso: solo roles internos (lgmt=director, jalcz/admin=admin, sgi, cops)
+import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+const auth = window.auth;
+if (!auth) { window.location.href = 'login.html'; }
+else {
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    const email = (user.email || '').toLowerCase();
+    const role = (await user.getIdTokenResult()).claims?.role || null;
+    const ok = ['admin', 'director', 'sgi'].includes(role)
+      || role === 'cops' || email === 'cops@pc-t.com.mx'
+      || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'sgi@pc-t.com.mx', 'admin@pc-t.com.mx'].includes(email);
+    if (!ok) { window.location.href = 'inspectlist.html'; return; }
+    document.getElementById('wrap').style.display = '';
+  });
+}
+</script>
 <script type="module">
 const eqs = document.getElementById('eqs');
 const chipWrap = document.getElementById('chips-pruebas');
@@ -157,11 +176,9 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   const btn = document.getElementById('btn-enviar');
   btn.disabled = true; btn.textContent = 'Enviando…';
   try {
-    const cfg = window.PCT_FIREBASE_CONFIG;
-    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const app = initializeApp(cfg);
-    const db = getFirestore(app);
+    const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const db = window.db;
+    const usuario = window.auth?.currentUser?.email || null;
     const fl = folio();
     await addDoc(collection(db, 'solicitudes_ext'), {
       folio: fl,
@@ -170,6 +187,7 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
       pruebas: [...sel],
       observaciones: f.obs.value.trim(),
       estado: 'NUEVA',
+      creadoPor: usuario,
       creadoEn: serverTimestamp()
     });
     document.getElementById('f').style.display = 'none';

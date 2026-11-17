@@ -154,10 +154,10 @@ service cloud.firestore {
       allow delete: if canDeletePruebas();
     }
 
-    // Solicitudes de inspeccion de clientes externos (formulario publico)
+    // Solicitudes de inspeccion de clientes externos (solo roles internos por ahora;
+    // si se abre a clientes con login propio, ajustar create por claim/rol de cliente)
     match /solicitudes_ext/{docId} {
-      allow create: if true;
-      allow read, update, delete: if isRoleAny(['admin', 'director', 'sgi', 'supervisor']);
+      allow create, read, update, delete: if isRoleAny(['admin', 'director', 'sgi', 'cops']);
     }
 
     // Estado de bloques post-trabajo por equipo (checkboxes operativos)
