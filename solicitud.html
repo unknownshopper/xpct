@@ -134,12 +134,15 @@ function eqRow(i) {
           <option>BOP / preventor</option><option>Spool</option><option>Tee</option>
           <option>Crossover (X-over)</option><option>Pup joint</option><option>Válvula</option>
           <option>Caja / subs</option><option>Otro</option>
-        </select></div>
+        </select>
+        <input name="eq-tipo-otro" placeholder="Especifica el tipo de equipo" style="display:none; margin-top:.45rem;"></div>
       <div class="fld"><label>Serie / identificación</label><input name="eq-serie" placeholder="S/N"></div>
     </div>
     <div class="fld" style="margin-bottom:0;"><label>Descripción breve</label>
       <input name="eq-desc" placeholder="Ej. Preventor anular 13-5/8&quot; 5M, presión de trabajo…"></div>
     <button type="button" class="rm">Quitar</button>`;
+  const selTipo = d.querySelector('[name=eq-tipo]'), otro = d.querySelector('[name=eq-tipo-otro]');
+  selTipo.addEventListener('change', () => { otro.style.display = selTipo.value === 'Otro' ? '' : 'none'; });
   d.querySelector('.rm').addEventListener('click', () => { if (eqs.children.length > 1) d.remove(); renum(); });
   return d;
 }
@@ -165,13 +168,17 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   const f = ev.target;
   if (f.empresa2.value) return; // honeypot
   const nombre = f.nombre.value.trim(), correo = f.correo.value.trim(), telefono = f.telefono.value.trim();
-  const equipos = [...eqs.children].map(d => ({
-    tipo: d.querySelector('[name=eq-tipo]').value,
-    serie: d.querySelector('[name=eq-serie]').value.trim(),
-    desc: d.querySelector('[name=eq-desc]').value.trim()
-  })).filter(e => e.tipo || e.serie || e.desc);
+  const equipos = [...eqs.children].map(d => {
+    const t = d.querySelector('[name=eq-tipo]').value;
+    const otro = d.querySelector('[name=eq-tipo-otro]').value.trim();
+    return {
+      tipo: t === 'Otro' ? otro : t,
+      serie: d.querySelector('[name=eq-serie]').value.trim(),
+      desc: d.querySelector('[name=eq-desc]').value.trim()
+    };
+  }).filter(e => e.tipo || e.serie || e.desc);
   if (!nombre || !correo || !telefono) { err.textContent = 'Completa nombre, correo y teléfono.'; err.style.display = ''; return; }
-  if (!equipos.length || equipos.some(e => !e.tipo)) { err.textContent = 'Agrega al menos un equipo con su tipo.'; err.style.display = ''; return; }
+  if (!equipos.length || equipos.some(e => !e.tipo)) { err.textContent = 'Cada equipo necesita su tipo — si elegiste "Otro", especifica cuál.'; err.style.display = ''; return; }
 
   const btn = document.getElementById('btn-enviar');
   btn.disabled = true; btn.textContent = 'Enviando…';
