@@ -182,14 +182,31 @@ function eqRow(i) {
   const prev = d.querySelector('.eq-prev');
   const upd = () => { prev.textContent = compDesc(d); };
   const ENDS_POR_TIPO = { 'TAPA': 1, 'TEE': 3, 'CROSS': 4, 'WYE': 3, 'MANIFOLD': 3 };
+  const TPLS = [
+    '1 206 M 2000', '1 206 H 2000', '2 206 M 2000', '2 206 H 2000',
+    '2 602 M 5000', '2 602 H 5000', '3 602 M 5000', '3 602 H 5000',
+    '4 206 M 2000', '4 206 H 2000', '4 602 M 5000', '4 602 H 5000',
+    '2 1002 M 10000', '2 1002 H 10000', '2 1502 M 15000', '2 1502 H 15000',
+    '3 1502 M 15000', '3 1502 H 15000',
+    '1/2 NPT M 2000', '1/2 NPT H 2000', '3/4 NPT M 2000', '3/4 NPT H 2000',
+    '1 NPT M 2000', '1 NPT H 2000', '2 NPT M 2000', '2 NPT H 2000'
+  ];
   function addEnd(val = '') {
     const row = document.createElement('div');
     row.className = 'end-row';
     row.style.cssText = 'display:flex; gap:.4rem; margin-bottom:.4rem;';
-    row.innerHTML = `<input name="eq-end" value="${val}" placeholder="Ej. 4 206 M 2000 / 1/2 NPT H 2000" style="flex:1; border:1px solid var(--bd); border-radius:8px; padding:.55rem .7rem; font-size:.88rem; font-family:inherit;">
+    row.innerHTML = `<select name="eq-end-tpl" style="width:9.5rem; border:1px solid var(--bd); border-radius:8px; padding:.4rem .3rem; font-size:.75rem; color:var(--mut); background:#fff;">
+        <option value="">plantilla…</option>${TPLS.map(t => `<option>${t}</option>`).join('')}
+      </select>
+      <input name="eq-end" value="${val}" placeholder="Ej. 4 206 M 2000 / 1/2 NPT H 2000" style="flex:1; border:1px solid var(--bd); border-radius:8px; padding:.55rem .7rem; font-size:.88rem; font-family:inherit;">
       <button type="button" title="Quitar extremo" style="border:1px solid #fecaca; color:#b91c1c; background:#fff; border-radius:8px; padding:0 .6rem; cursor:pointer;">×</button>`;
+    const inp = row.querySelector('[name=eq-end]');
+    row.querySelector('[name=eq-end-tpl]').addEventListener('change', (ev) => {
+      if (ev.target.value) { inp.value = ev.target.value; upd(); }
+      ev.target.value = '';
+    });
     row.querySelector('button').addEventListener('click', () => { if (endsWrap.children.length > 1) { row.remove(); upd(); } });
-    row.querySelector('input').addEventListener('input', upd);
+    inp.addEventListener('input', upd);
     endsWrap.appendChild(row);
   }
   function setEnds(n) {
