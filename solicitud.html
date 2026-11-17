@@ -85,7 +85,10 @@
     </section>
 
     <input class="hp" type="text" name="empresa2" tabindex="-1" autocomplete="off">
-    <button type="submit" class="btn-main" id="btn-enviar">Enviar solicitud</button>
+    <div style="display:flex; gap:.6rem;">
+      <button type="submit" class="btn-main" id="btn-enviar" style="flex:2;">Enviar solicitud</button>
+      <button type="button" class="btn-main" id="btn-pdf-solo" style="flex:1; background:#fff; color:var(--brick); border:1.5px solid var(--brick); box-shadow:none;">Descargar PDF</button>
+    </div>
     <p class="err" id="err"></p>
   </form>
 
@@ -255,13 +258,8 @@ function folio() {
   return 'SOL-' + new Date().getFullYear() + '-' + n.slice(-5);
 }
 
-document.getElementById('f').addEventListener('submit', async (ev) => {
-  ev.preventDefault();
-  const err = document.getElementById('err');
-  err.style.display = 'none';
-  const f = ev.target;
-  if (f.empresa2.value) return; // honeypot
-  const nombre = f.nombre.value.trim(), correo = f.correo.value.trim(), telefono = f.telefono.value.trim();
+function recolectar() {
+  const f = document.getElementById('f');
   const equipos = [...eqs.children].map(d => {
     const t = d.querySelector('[name=eq-tipo]').value;
     const otro = d.querySelector('[name=eq-tipo-otro]').value.trim();
@@ -278,6 +276,30 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
       espec: (ends.length || pt) ? { ends, pt, long: d.querySelector('[name=eq-long]').value.trim(), temp: d.querySelector('[name=eq-temp]').value.trim() } : undefined
     };
   }).filter(e => e.tipo || e.serie || e.desc);
+  return {
+    nombre: f.nombre.value.trim(), empresa: f.empresa.value.trim(),
+    correo: f.correo.value.trim(), telefono: f.telefono.value.trim(),
+    equipos, pruebas: [...sel], observaciones: f.obs.value.trim()
+  };
+}
+
+document.getElementById('btn-pdf-solo').addEventListener('click', () => {
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  const d = recolectar();
+  if (!d.nombre) { err.textContent = 'Pon al menos el nombre del cliente para el PDF.'; err.style.display = ''; return; }
+  if (!d.equipos.length || d.equipos.some(e => !e.tipo)) { err.textContent = 'Cada equipo necesita su tipo — si elegiste "Otro", especifica cuál.'; err.style.display = ''; return; }
+  ultimaSol = { ...d, folio: 'PRE-' + folio().slice(4), creadoPor: window.auth?.currentUser?.email || 'borrador', fecha: new Date() };
+  generarPdf();
+});
+
+document.getElementById('f').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  const f = ev.target;
+  if (f.empresa2.value) return; // honeypot
+  const { nombre, correo, telefono, equipos } = recolectar();
   if (!nombre || !correo || !telefono) { err.textContent = 'Completa nombre, correo y teléfono.'; err.style.display = ''; return; }
   if (!equipos.length || equipos.some(e => !e.tipo)) { err.textContent = 'Cada equipo necesita su tipo — si elegiste "Otro", especifica cuál.'; err.style.display = ''; return; }
 
