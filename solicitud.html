@@ -163,6 +163,16 @@ function eqRow(i) {
       <div class="fld"><label>LONG</label><input name="eq-long" placeholder="N/A" value="N/A"></div>
       <div class="fld"><label>TEMP</label><input name="eq-temp" value="-29 - 121 C"></div>
     </div>
+    <div class="fld"><label>Accesorios que trae</label>
+      <div class="chips chips-acc">
+        <div class="chip" data-a="EMPAQUE">Empaque</div>
+        <div class="chip" data-a="ANILLO RETENEDOR">Anillo retenedor</div>
+        <div class="chip" data-a="TORNILLERIA">Tornillería</div>
+        <div class="chip" data-a="TAPON">Tapón</div>
+        <div class="chip" data-a="OTRO">Otro…</div>
+      </div>
+      <input name="eq-acc-otro" placeholder="Especifica el accesorio" style="display:none; margin-top:.4rem;">
+    </div>
     <div class="fld" style="margin-bottom:0;"><label>Nota adicional (opcional)</label>
       <input name="eq-desc" placeholder="Ej. Preventor anular 13-5/8&quot; 5M — solo si no aplica la notación de extremos"></div>
     <div class="eq-prev" style="font-size:.74rem; color:var(--brick); font-weight:600; margin-top:.45rem; min-height:1em;"></div>
@@ -194,6 +204,11 @@ function eqRow(i) {
     upd();
   });
   d.querySelector('.btn-add-ext').addEventListener('click', () => { addEnd(); upd(); });
+  const accOtro = d.querySelector('[name=eq-acc-otro]');
+  d.querySelectorAll('.chips-acc .chip').forEach(c => c.addEventListener('click', () => {
+    c.classList.toggle('on');
+    if (c.dataset.a === 'OTRO') accOtro.style.display = c.classList.contains('on') ? '' : 'none';
+  }));
   d.querySelectorAll('input,select').forEach(el => { if (el.name !== 'eq-end') el.addEventListener('input', upd); });
   d.querySelector('.rm').addEventListener('click', () => { if (eqs.children.length > 1) d.remove(); renum(); });
   return d;
@@ -235,10 +250,14 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     const otro = d.querySelector('[name=eq-tipo-otro]').value.trim();
     const ends = [...d.querySelectorAll('[name=eq-end]')].map(i => i.value.trim()).filter(Boolean);
     const pt = d.querySelector('[name=eq-pt]').value.trim();
+    const accs = [...d.querySelectorAll('.chips-acc .chip.on')].map(c => c.dataset.a);
+    const accOtro = d.querySelector('[name=eq-acc-otro]').value.trim();
+    if (accOtro) accs.splice(accs.indexOf('OTRO'), 1, `OTRO: ${accOtro}`);
     return {
       tipo: t === 'Otro' ? otro : t,
       serie: d.querySelector('[name=eq-serie]').value.trim(),
       desc: compDesc(d),
+      accesorios: accs,
       espec: (ends.length || pt) ? { ends, pt, long: d.querySelector('[name=eq-long]').value.trim(), temp: d.querySelector('[name=eq-temp]').value.trim() } : undefined
     };
   }).filter(e => e.tipo || e.serie || e.desc);
@@ -310,6 +329,7 @@ document.getElementById('btn-pdf').addEventListener('click', async () => {
     pdf.setFont('helvetica', 'bold'); pdf.text(`${i + 1}. ${e.tipo}`, 16, y);
     pdf.setFont('helvetica', 'normal'); pdf.text(`Serie: ${e.serie || '—'}`, 90, y); y += 5;
     if (e.desc) { pdf.text(pdf.splitTextToSize(`    ${e.desc}`, 176), 16, y); y += 5; }
+    if (e.accesorios && e.accesorios.length) { pdf.text(`    Acc: ${e.accesorios.join(', ')}`, 16, y); y += 5; }
     y += 1;
   });
   y += 3;

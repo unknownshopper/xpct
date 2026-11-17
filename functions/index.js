@@ -2816,7 +2816,7 @@ export const onSolicitudExtCreada = onDocumentCreated(
         <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${i + 1}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-weight:600;">${safe(e.tipo)}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${safe(e.serie || '—')}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${safe(e.desc || '')}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${safe(e.desc || '')}${e.accesorios && e.accesorios.length ? `<br><span style="font-size:11px;color:#6b7280;">Acc: ${safe(e.accesorios.join(', '))}</span>` : ''}</td>
       </tr>`).join('');
 
     const html = `
