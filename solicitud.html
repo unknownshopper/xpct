@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCT · Solicitud de inspección de equipos</title>
+<link rel="icon" type="image/png" href="img/log33.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --brick:#b8580f; --brick-d:#8f4509; --ink:#1c1e22; --mut:#6b7280; --bd:#d8dbe0; --bg:#f4f5f7; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; }
+  .top { background:#fff; border-bottom:3px solid var(--brick); padding:.7rem 1.2rem; display:flex; align-items:center; gap:.8rem; }
+  .top img { height:34px; }
+  .top b { font-family:'Space Grotesk',sans-serif; letter-spacing:.04em; }
+  .wrap { max-width:760px; margin:0 auto; padding:2rem 1rem 4rem; }
+  .lead { font-family:'Space Grotesk',sans-serif; font-size:1.5rem; font-weight:700; margin-bottom:.3rem; }
+  .sub { color:var(--mut); font-size:.9rem; margin-bottom:1.6rem; }
+  .card { background:#fff; border:1px solid #e8eaee; border-radius:12px; padding:1.3rem; margin-bottom:1.2rem; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .card h2 { font-family:'Space Grotesk',sans-serif; font-size:.85rem; letter-spacing:.07em; text-transform:uppercase; color:var(--brick); margin-bottom:1rem; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.8rem; }
+  .fld { display:flex; flex-direction:column; gap:.3rem; margin-bottom:.8rem; }
+  .fld label { font-size:.72rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mut); }
+  .fld label em { font-style:normal; color:var(--brick); }
+  .fld input, .fld select, .fld textarea { border:1px solid var(--bd); border-radius:8px; padding:.55rem .7rem; font-size:.88rem; font-family:inherit; background:#fff; width:100%; }
+  .fld input:focus, .fld select:focus, .fld textarea:focus { outline:none; border-color:var(--brick); box-shadow:0 0 0 3px rgba(184,88,15,.15); }
+  .eq { border:1px dashed var(--bd); border-radius:10px; padding:1rem; margin-bottom:.8rem; position:relative; }
+  .eq .num { position:absolute; top:.6rem; right:.8rem; font-family:'Space Grotesk'; font-size:.75rem; font-weight:700; color:var(--brick); }
+  .eq .rm { position:absolute; bottom:.6rem; right:.8rem; font-size:.72rem; border:1px solid #fecaca; color:#b91c1c; background:#fff; border-radius:999px; padding:.15rem .6rem; cursor:pointer; }
+  .chips { display:flex; flex-wrap:wrap; gap:.5rem; }
+  .chip { border:1px solid var(--bd); border-radius:999px; padding:.4rem .9rem; font-size:.8rem; font-weight:600; cursor:pointer; background:#fff; user-select:none; transition:.12s; }
+  .chip.on { background:var(--brick); border-color:var(--brick); color:#fff; }
+  .btn-main { width:100%; border:none; border-radius:10px; padding:.9rem; font-family:'Space Grotesk'; font-weight:700; font-size:1rem; color:#fff; background:linear-gradient(135deg,#c46418,var(--brick)); cursor:pointer; box-shadow:0 2px 8px rgba(184,88,15,.3); }
+  .btn-main:disabled { opacity:.55; cursor:default; }
+  .btn-add { border:1px dashed var(--brick); color:var(--brick); background:#fff; border-radius:8px; padding:.45rem .9rem; font-size:.8rem; font-weight:600; cursor:pointer; }
+  .ok-box { text-align:center; padding:3rem 1rem; display:none; }
+  .ok-box .folio { font-family:'Space Grotesk'; font-size:1.6rem; font-weight:700; color:var(--brick); margin:.8rem 0; }
+  .hp { position:absolute; left:-9999px; }
+  .err { color:#b91c1c; font-size:.82rem; margin-top:.5rem; display:none; }
+  @media (max-width:560px) { .grid2 { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE INSPECCIÓN</b></header>
+
+<main class="wrap">
+  <p class="lead">Registro de equipos para inspección</p>
+  <p class="sub">Proveedora y Comercializadora Tabasqueña — completa el formulario y te contactamos para agendar la recepción.</p>
+
+  <form id="f" novalidate>
+    <!-- CLIENTE -->
+    <section class="card">
+      <h2>Datos del cliente</h2>
+      <div class="grid2">
+        <div class="fld"><label>Nombre / contacto <em>*</em></label><input name="nombre" required placeholder="Ej. Juan Pérez"></div>
+        <div class="fld"><label>Empresa</label><input name="empresa" placeholder="Ej. Servicios del Golfo S.A."></div>
+      </div>
+      <div class="grid2">
+        <div class="fld"><label>Correo <em>*</em></label><input name="correo" type="email" required placeholder="correo@empresa.com"></div>
+        <div class="fld"><label>Teléfono <em>*</em></label><input name="telefono" type="tel" required placeholder="993 000 0000"></div>
+      </div>
+    </section>
+
+    <!-- EQUIPOS -->
+    <section class="card">
+      <h2>Equipos a inspeccionar</h2>
+      <div id="eqs"></div>
+      <button type="button" class="btn-add" id="btn-add-eq">+ Agregar otro equipo</button>
+    </section>
+
+    <!-- PRUEBAS -->
+    <section class="card">
+      <h2>Pruebas solicitadas</h2>
+      <div class="chips" id="chips-pruebas">
+        <div class="chip" data-p="VT">Visual Test</div>
+        <div class="chip" data-p="UTT">Ultrasonic Thickness</div>
+        <div class="chip" data-p="MT">Magnetic Test</div>
+        <div class="chip" data-p="PT">Penetrant Test</div>
+        <div class="chip" data-p="LT">Leaking Test</div>
+      </div>
+      <div class="fld" style="margin-top:1rem; margin-bottom:0;">
+        <label>Observaciones</label>
+        <textarea name="obs" rows="3" placeholder="Estado general de los equipos, urgencia, ubicación…"></textarea>
+      </div>
+    </section>
+
+    <input class="hp" type="text" name="empresa2" tabindex="-1" autocomplete="off">
+    <button type="submit" class="btn-main" id="btn-enviar">Enviar solicitud</button>
+    <p class="err" id="err"></p>
+  </form>
+
+  <div class="ok-box" id="ok">
+    <div style="font-size:3rem;">✓</div>
+    <h2 class="lead">Solicitud recibida</h2>
+    <div class="folio" id="folio"></div>
+    <p class="sub">Guarda tu folio. Te contactaremos para agendar la recepción de tus equipos.</p>
+  </div>
+</main>
+
+<script src="config.local.js"></script>
+<script type="module">
+const eqs = document.getElementById('eqs');
+const chipWrap = document.getElementById('chips-pruebas');
+const sel = new Set();
+
+function eqRow(i) {
+  const d = document.createElement('div');
+  d.className = 'eq';
+  d.innerHTML = `
+    <span class="num">Equipo ${i + 1}</span>
+    <div class="grid2">
+      <div class="fld"><label>Tipo de equipo <em>*</em></label>
+        <select name="eq-tipo" required>
+          <option value="">Selecciona…</option>
+          <option>BOP / preventor</option><option>Spool</option><option>Tee</option>
+          <option>Crossover (X-over)</option><option>Pup joint</option><option>Válvula</option>
+          <option>Caja / subs</option><option>Otro</option>
+        </select></div>
+      <div class="fld"><label>Serie / identificación</label><input name="eq-serie" placeholder="S/N"></div>
+    </div>
+    <div class="fld" style="margin-bottom:0;"><label>Descripción breve</label>
+      <input name="eq-desc" placeholder="Ej. Preventor anular 13-5/8&quot; 5M, presión de trabajo…"></div>
+    <button type="button" class="rm">Quitar</button>`;
+  d.querySelector('.rm').addEventListener('click', () => { if (eqs.children.length > 1) d.remove(); renum(); });
+  return d;
+}
+function renum() { [...eqs.children].forEach((d, i) => d.querySelector('.num').textContent = 'Equipo ' + (i + 1)); }
+function addEq() { eqs.appendChild(eqRow(eqs.children.length)); }
+addEq();
+document.getElementById('btn-add-eq').addEventListener('click', addEq);
+
+chipWrap.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+  c.classList.toggle('on');
+  c.classList.contains('on') ? sel.add(c.dataset.p) : sel.delete(c.dataset.p);
+}));
+
+function folio() {
+  const n = Date.now().toString(36).toUpperCase();
+  return 'SOL-' + new Date().getFullYear() + '-' + n.slice(-5);
+}
+
+document.getElementById('f').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  const f = ev.target;
+  if (f.empresa2.value) return; // honeypot
+  const nombre = f.nombre.value.trim(), correo = f.correo.value.trim(), telefono = f.telefono.value.trim();
+  const equipos = [...eqs.children].map(d => ({
+    tipo: d.querySelector('[name=eq-tipo]').value,
+    serie: d.querySelector('[name=eq-serie]').value.trim(),
+    desc: d.querySelector('[name=eq-desc]').value.trim()
+  })).filter(e => e.tipo || e.serie || e.desc);
+  if (!nombre || !correo || !telefono) { err.textContent = 'Completa nombre, correo y teléfono.'; err.style.display = ''; return; }
+  if (!equipos.length || equipos.some(e => !e.tipo)) { err.textContent = 'Agrega al menos un equipo con su tipo.'; err.style.display = ''; return; }
+
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    const cfg = window.PCT_FIREBASE_CONFIG;
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const app = initializeApp(cfg);
+    const db = getFirestore(app);
+    const fl = folio();
+    await addDoc(collection(db, 'solicitudes_ext'), {
+      folio: fl,
+      nombre, empresa: f.empresa.value.trim(), correo, telefono,
+      equipos,
+      pruebas: [...sel],
+      observaciones: f.obs.value.trim(),
+      estado: 'NUEVA',
+      creadoEn: serverTimestamp()
+    });
+    document.getElementById('f').style.display = 'none';
+    document.getElementById('folio').textContent = fl;
+    document.getElementById('ok').style.display = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (e) {
+    err.textContent = 'No se pudo enviar. Intenta de nuevo o escríbenos a ventas@pc-t.com.mx';
+    err.style.display = '';
+    btn.disabled = false; btn.textContent = 'Enviar solicitud';
+  }
+});
+</script>
+</body>
+</html>
