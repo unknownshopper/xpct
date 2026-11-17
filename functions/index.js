@@ -2900,7 +2900,7 @@ export const chatPublico = onCall(
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: CHAT_SYSTEM }] },
               contents: mensajes,
-              generationConfig: { maxOutputTokens: 300, temperature: 0.4 },
+              generationConfig: { maxOutputTokens: 1200, temperature: 0.4 },
             }),
           }
         );

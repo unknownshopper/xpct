@@ -1646,7 +1646,11 @@ ${m}`;
       ? 'ml-auto max-w-[85%] rounded-xl rounded-br-sm px-3 py-2 text-white'
       : 'mr-auto max-w-[85%] rounded-xl rounded-bl-sm px-3 py-2 text-white/90 bg-white/5 border border-white/10';
     if (me) d.style.background = 'linear-gradient(135deg,#c46418,#b8580f)';
-    d.textContent = text;
+    if (me) { d.textContent = text; }
+    else {
+      const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      d.innerHTML = esc.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    }
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
     return d;
