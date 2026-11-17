@@ -156,10 +156,8 @@ function eqRow(i) {
         <input name="eq-tipo-otro" placeholder="Especifica el tipo de equipo" style="display:none; margin-top:.45rem;"></div>
       <div class="fld"><label>Serie / identificación</label><input name="eq-serie" placeholder="S/N"></div>
     </div>
-    <div class="grid2">
-      <div class="fld"><label>Extremo M</label><input name="eq-e1" placeholder="Ej. 4 206 M 2000"></div>
-      <div class="fld"><label>Extremo H</label><input name="eq-e2" placeholder="Ej. 4 206 H 2000 / 1/2 NPT H 2000"></div>
-    </div>
+    <div class="eq-ends"></div>
+    <button type="button" class="btn-add-ext" style="font-size:.72rem; border:1px dashed var(--bd); color:var(--mut); background:#fff; border-radius:8px; padding:.3rem .7rem; cursor:pointer; margin-bottom:.7rem;">+ Agregar extremo</button>
     <div style="display:grid; grid-template-columns:1fr 1fr 2fr; gap:.8rem;">
       <div class="fld"><label>P.T. (psi)</label><input name="eq-pt" placeholder="2000"></div>
       <div class="fld"><label>LONG</label><input name="eq-long" placeholder="N/A" value="N/A"></div>
@@ -170,10 +168,33 @@ function eqRow(i) {
     <div class="eq-prev" style="font-size:.74rem; color:var(--brick); font-weight:600; margin-top:.45rem; min-height:1em;"></div>
     <button type="button" class="rm">Quitar</button>`;
   const selTipo = d.querySelector('[name=eq-tipo]'), otro = d.querySelector('[name=eq-tipo-otro]');
-  selTipo.addEventListener('change', () => { otro.style.display = selTipo.value === 'Otro' ? '' : 'none'; });
+  const endsWrap = d.querySelector('.eq-ends');
   const prev = d.querySelector('.eq-prev');
   const upd = () => { prev.textContent = compDesc(d); };
-  d.querySelectorAll('input,select').forEach(el => el.addEventListener('input', upd));
+  const ENDS_POR_TIPO = { 'TAPA': 1, 'TEE': 3, 'CROSS': 4, 'WYE': 3, 'MANIFOLD': 3 };
+  function addEnd(val = '') {
+    const row = document.createElement('div');
+    row.className = 'end-row';
+    row.style.cssText = 'display:flex; gap:.4rem; margin-bottom:.4rem;';
+    row.innerHTML = `<input name="eq-end" value="${val}" placeholder="Ej. 4 206 M 2000 / 1/2 NPT H 2000" style="flex:1; border:1px solid var(--bd); border-radius:8px; padding:.55rem .7rem; font-size:.88rem; font-family:inherit;">
+      <button type="button" title="Quitar extremo" style="border:1px solid #fecaca; color:#b91c1c; background:#fff; border-radius:8px; padding:0 .6rem; cursor:pointer;">×</button>`;
+    row.querySelector('button').addEventListener('click', () => { if (endsWrap.children.length > 1) { row.remove(); upd(); } });
+    row.querySelector('input').addEventListener('input', upd);
+    endsWrap.appendChild(row);
+  }
+  function setEnds(n) {
+    const vals = [...endsWrap.querySelectorAll('[name=eq-end]')].map(i => i.value);
+    endsWrap.innerHTML = '';
+    for (let i = 0; i < n; i++) addEnd(vals[i] || '');
+  }
+  setEnds(2);
+  selTipo.addEventListener('change', () => {
+    otro.style.display = selTipo.value === 'Otro' ? '' : 'none';
+    setEnds(ENDS_POR_TIPO[selTipo.value] || 2);
+    upd();
+  });
+  d.querySelector('.btn-add-ext').addEventListener('click', () => { addEnd(); upd(); });
+  d.querySelectorAll('input,select').forEach(el => { if (el.name !== 'eq-end') el.addEventListener('input', upd); });
   d.querySelector('.rm').addEventListener('click', () => { if (eqs.children.length > 1) d.remove(); renum(); });
   return d;
 }
@@ -181,9 +202,10 @@ function renum() { [...eqs.children].forEach((d, i) => d.querySelector('.num').t
 function compDesc(d) {
   const v = n => (d.querySelector(`[name=${n}]`)?.value || '').trim();
   const t = v('eq-tipo') === 'Otro' ? v('eq-tipo-otro') : v('eq-tipo');
-  const e1 = v('eq-e1'), e2 = v('eq-e2'), pt = v('eq-pt');
-  if (!e1 && !e2 && !pt) return v('eq-desc');
-  let s = `${String(t || '').toUpperCase()} ${e1} X ${e2} P.T: ${pt} H2S LONG: ${v('eq-long') || 'N/A'} TEMP: ${v('eq-temp') || '-29 - 121 C'}`.replace(/\s+/g, ' ').trim();
+  const ends = [...d.querySelectorAll('[name=eq-end]')].map(i => i.value.trim()).filter(Boolean);
+  const pt = v('eq-pt');
+  if (!ends.length && !pt) return v('eq-desc');
+  let s = `${String(t || '').toUpperCase()} ${ends.join(' X ')} P.T: ${pt} H2S LONG: ${v('eq-long') || 'N/A'} TEMP: ${v('eq-temp') || '-29 - 121 C'}`.replace(/\s+/g, ' ').trim();
   const nota = v('eq-desc');
   return nota ? `${s} · ${nota}` : s;
 }
@@ -211,14 +233,13 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   const equipos = [...eqs.children].map(d => {
     const t = d.querySelector('[name=eq-tipo]').value;
     const otro = d.querySelector('[name=eq-tipo-otro]').value.trim();
-    const e1 = d.querySelector('[name=eq-e1]').value.trim(),
-          e2 = d.querySelector('[name=eq-e2]').value.trim(),
-          pt = d.querySelector('[name=eq-pt]').value.trim();
+    const ends = [...d.querySelectorAll('[name=eq-end]')].map(i => i.value.trim()).filter(Boolean);
+    const pt = d.querySelector('[name=eq-pt]').value.trim();
     return {
       tipo: t === 'Otro' ? otro : t,
       serie: d.querySelector('[name=eq-serie]').value.trim(),
       desc: compDesc(d),
-      espec: (e1 || e2 || pt) ? { e1, e2, pt, long: d.querySelector('[name=eq-long]').value.trim(), temp: d.querySelector('[name=eq-temp]').value.trim() } : undefined
+      espec: (ends.length || pt) ? { ends, pt, long: d.querySelector('[name=eq-long]').value.trim(), temp: d.querySelector('[name=eq-temp]').value.trim() } : undefined
     };
   }).filter(e => e.tipo || e.serie || e.desc);
   if (!nombre || !correo || !telefono) { err.textContent = 'Completa nombre, correo y teléfono.'; err.style.display = ''; return; }
