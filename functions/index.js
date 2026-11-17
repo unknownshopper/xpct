@@ -1,7 +1,7 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2/options';
 import { onRequest } from 'firebase-functions/v2/https';
-import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onDocumentWritten, onDocumentCreated } from 'firebase-functions/v2/firestore';
 import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { DateTime } from 'luxon';
@@ -2795,5 +2795,70 @@ export const purgeOrdenesSalidaProgramadas = onSchedule(
     snap.forEach((d) => batch.delete(d.ref));
     await batch.commit();
     console.log(`purgeOrdenesSalidaProgramadas: ${snap.size} orden(es) eliminada(s)`);
+  }
+);
+
+// Aviso por correo cuando se registra una solicitud de inspeccion de cliente externo.
+export const onSolicitudExtCreada = onDocumentCreated(
+  {
+    document: 'solicitudes_ext/{solId}',
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap || !snap.exists) return;
+    const s = snap.data() || {};
+
+    const safe = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const eqRows = (s.equipos || []).map((e, i) => `
+      <tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${i + 1}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;font-weight:600;">${safe(e.tipo)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${safe(e.serie || '—')}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${safe(e.desc || '')}</td>
+      </tr>`).join('');
+
+    const html = `
+      <div style="font-family:Arial, Helvetica, sans-serif; color:#111827;">
+        <div style="font-size:18px; font-weight:700;">Nueva solicitud de inspección externa</div>
+        <p style="margin:6px 0 12px; font-size:13px; color:#4b5563;">
+          Folio <b>${safe(s.folio)}</b> · registrada por ${safe(s.creadoPor || '—')}
+        </p>
+        <h3 style="margin:0 0 6px; font-size:14px;">Cliente</h3>
+        <p style="margin:0 0 12px; font-size:13px;">
+          ${safe(s.nombre)}${s.empresa ? ' · ' + safe(s.empresa) : ''}<br>
+          ${safe(s.correo)} · ${safe(s.telefono)}
+        </p>
+        <h3 style="margin:0 0 6px; font-size:14px;">Equipos (${(s.equipos || []).length})</h3>
+        <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;font-size:13px;">
+          <thead><tr>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;">#</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;">Tipo</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;">Serie</th>
+            <th align="left" style="padding:6px 8px;border-bottom:1px solid #cbd5e1;">Descripción</th>
+          </tr></thead>
+          <tbody>${eqRows}</tbody>
+        </table>
+        <p style="margin:12px 0 4px; font-size:13px;"><b>Pruebas solicitadas:</b> ${safe((s.pruebas || []).join(', ') || '—')}</p>
+        ${s.observaciones ? `<p style="margin:4px 0; font-size:13px;"><b>Observaciones:</b> ${safe(s.observaciones)}</p>` : ''}
+        <div style="margin-top:16px; padding-top:10px; border-top:1px solid #e5e7eb;">
+          <p style="margin:0; font-size:11px; color:#6b7280;">Proveedora y Comercializadora Tabasqueña · Aviso automático de solicitud externa</p>
+        </div>
+      </div>`;
+
+    const to = parseEmailList(process.env.MAIL_SOLICITUDES_TO || 'cops@pc-t.com.mx');
+    const cc = parseEmailList(process.env.MAIL_SOLICITUDES_CC || 'sgi@pc-t.com.mx, admin@pc-t.com.mx, lgmt@pc-t.com.mx, jalcz@pc-t.com.mx');
+
+    if (isMailDisabled()) {
+      console.log('onSolicitudExtCreada: mail disabled, folio', s.folio);
+      return;
+    }
+    await enviarCorreo({
+      html,
+      subject: `Solicitud externa ${s.folio || ''} — ${s.nombre || 'cliente'}`,
+      to, cc,
+    });
+    console.log('onSolicitudExtCreada: aviso enviado, folio', s.folio);
   }
 );

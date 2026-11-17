@@ -45,7 +45,7 @@
 
 <main class="wrap" id="wrap" style="display:none;">
   <p class="lead">Registro de equipos para inspección</p>
-  <p class="sub">Proveedora y Comercializadora Tabasqueña — completa el formulario y te contactamos para agendar la recepción.</p>
+  <p class="sub">Proveedora y Comercializadora Tabasqueña — completa el formulario y te contactamos para agendar la recepción. · <b id="fecha-hoy"></b></p>
 
   <form id="f" novalidate>
     <!-- CLIENTE -->
@@ -72,11 +72,11 @@
     <section class="card">
       <h2>Pruebas solicitadas</h2>
       <div class="chips" id="chips-pruebas">
-        <div class="chip" data-p="VT">Visual Test</div>
-        <div class="chip" data-p="UTT">Ultrasonic Thickness</div>
-        <div class="chip" data-p="MT">Magnetic Test</div>
-        <div class="chip" data-p="PT">Penetrant Test</div>
-        <div class="chip" data-p="LT">Leaking Test</div>
+        <div class="chip on" data-p="VT">Visual Test</div>
+        <div class="chip on" data-p="UTT">Ultrasonic Thickness</div>
+        <div class="chip on" data-p="MT">Magnetic Test</div>
+        <div class="chip on" data-p="PT">Penetrant Test</div>
+        <div class="chip on" data-p="LT">Leaking Test</div>
       </div>
       <div class="fld" style="margin-top:1rem; margin-bottom:0;">
         <label>Observaciones</label>
@@ -94,7 +94,13 @@
     <h2 class="lead">Solicitud recibida</h2>
     <div class="folio" id="folio"></div>
     <p class="sub">Guarda tu folio. Te contactaremos para agendar la recepción de tus equipos.</p>
+    <button type="button" class="btn-main" id="btn-pdf" style="max-width:280px; margin:0 auto;">Descargar solicitud en PDF</button>
   </div>
+
+  <section class="card" id="card-solicitudes">
+    <h2>Solicitudes registradas</h2>
+    <div id="lista-sol" style="font-size:.83rem;">Cargando…</div>
+  </section>
 </main>
 
 <script src="config.local.js"></script>
@@ -114,13 +120,18 @@ else {
       || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'sgi@pc-t.com.mx', 'admin@pc-t.com.mx'].includes(email);
     if (!ok) { window.location.href = 'inspectlist.html'; return; }
     document.getElementById('wrap').style.display = '';
+    document.dispatchEvent(new Event('sol-auth-ok'));
   });
 }
 </script>
 <script type="module">
 const eqs = document.getElementById('eqs');
 const chipWrap = document.getElementById('chips-pruebas');
-const sel = new Set();
+const sel = new Set(['VT', 'UTT', 'MT', 'PT', 'LT']);
+let ultimaSol = null;
+
+document.getElementById('fecha-hoy').textContent =
+  new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
 function eqRow(i) {
   const d = document.createElement('div');
@@ -187,26 +198,112 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     const db = window.db;
     const usuario = window.auth?.currentUser?.email || null;
     const fl = folio();
-    await addDoc(collection(db, 'solicitudes_ext'), {
+    ultimaSol = {
       folio: fl,
       nombre, empresa: f.empresa.value.trim(), correo, telefono,
       equipos,
       pruebas: [...sel],
       observaciones: f.obs.value.trim(),
-      estado: 'NUEVA',
       creadoPor: usuario,
+      fecha: new Date()
+    };
+    await addDoc(collection(db, 'solicitudes_ext'), {
+      ...ultimaSol, fecha: undefined,
+      estado: 'NUEVA',
       creadoEn: serverTimestamp()
     });
     document.getElementById('f').style.display = 'none';
     document.getElementById('folio').textContent = fl;
     document.getElementById('ok').style.display = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    cargarSolicitudes();
   } catch (e) {
     err.textContent = 'No se pudo enviar. Intenta de nuevo o escríbenos a ventas@pc-t.com.mx';
     err.style.display = '';
     btn.disabled = false; btn.textContent = 'Enviar solicitud';
   }
 });
+
+async function ensureJsPdf() {
+  if (window.jspdf && window.jspdf.jsPDF) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+document.getElementById('btn-pdf').addEventListener('click', async () => {
+  if (!ultimaSol) return;
+  await ensureJsPdf();
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  const s = ultimaSol;
+  let y = 18;
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.setTextColor(184, 88, 15);
+  pdf.text('PCT · Solicitud de inspección de equipos', 14, y); y += 8;
+  pdf.setFontSize(10); pdf.setTextColor(40);
+  pdf.setFont('helvetica', 'bold'); pdf.text('Folio: ' + s.folio, 14, y);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('Fecha: ' + s.fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }), 120, y); y += 8;
+  pdf.setDrawColor(184, 88, 15); pdf.setLineWidth(0.8); pdf.line(14, y, 196, y); y += 7;
+  pdf.setFont('helvetica', 'bold'); pdf.text('Cliente', 14, y); y += 6; pdf.setFont('helvetica', 'normal');
+  pdf.text(`Nombre: ${s.nombre}`, 14, y); pdf.text(`Empresa: ${s.empresa || '—'}`, 110, y); y += 6;
+  pdf.text(`Correo: ${s.correo}`, 14, y); pdf.text(`Teléfono: ${s.telefono}`, 110, y); y += 9;
+  pdf.setFont('helvetica', 'bold'); pdf.text('Equipos', 14, y); y += 6; pdf.setFont('helvetica', 'normal');
+  (s.equipos || []).forEach((e, i) => {
+    pdf.setFont('helvetica', 'bold'); pdf.text(`${i + 1}. ${e.tipo}`, 16, y);
+    pdf.setFont('helvetica', 'normal'); pdf.text(`Serie: ${e.serie || '—'}`, 90, y); y += 5;
+    if (e.desc) { pdf.text(pdf.splitTextToSize(`    ${e.desc}`, 176), 16, y); y += 5; }
+    y += 1;
+  });
+  y += 3;
+  pdf.setFont('helvetica', 'bold'); pdf.text('Pruebas solicitadas', 14, y); y += 6;
+  pdf.setFont('helvetica', 'normal'); pdf.text((s.pruebas || []).join(' · ') || '—', 16, y); y += 7;
+  if (s.observaciones) {
+    pdf.setFont('helvetica', 'bold'); pdf.text('Observaciones', 14, y); y += 6;
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(pdf.splitTextToSize(s.observaciones, 176), 16, y); y += 10;
+  }
+  y = Math.max(y, 268);
+  pdf.setFontSize(8); pdf.setTextColor(120);
+  pdf.text('Proveedora y Comercializadora Tabasqueña · Solicitud generada por ' + (s.creadoPor || 'sistema'), 14, y);
+  pdf.save(s.folio + '.pdf');
+});
+
+async function cargarSolicitudes() {
+  const box = document.getElementById('lista-sol');
+  try {
+    const { collection, getDocs, query, orderBy, limit } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(query(collection(window.db, 'solicitudes_ext'), orderBy('creadoEn', 'desc'), limit(30)));
+    if (snap.empty) { box.innerHTML = '<span style="color:#6b7280;">Sin solicitudes aún.</span>'; return; }
+    const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const rows = [];
+    snap.forEach(d => {
+      const s = d.data() || {};
+      const fecha = s.creadoEn?.toDate ? s.creadoEn.toDate().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—';
+      const pruebas = (s.pruebas || []).join(' ') || '—';
+      rows.push(`<tr>
+        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; font-weight:700; color:var(--brick); white-space:nowrap;">${esc(s.folio)}</td>
+        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; white-space:nowrap;">${esc(fecha)}</td>
+        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3;">${esc(s.nombre)}${s.empresa ? ` · ${esc(s.empresa)}` : ''}</td>
+        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; text-align:center;">${(s.equipos || []).length}</td>
+        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; font-size:.75rem; color:#6b7280;">${esc(pruebas)}</td>
+        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; white-space:nowrap;"><span style="font-size:.7rem; font-weight:700; padding:.15rem .55rem; border-radius:999px; background:#fef3e8; color:var(--brick);">${esc(s.estado || 'NUEVA')}</span></td>
+      </tr>`);
+    });
+    box.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse;">
+      <thead><tr style="font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#6b7280;">
+        <th style="text-align:left; padding:.3rem .5rem;">Folio</th><th style="text-align:left; padding:.3rem .5rem;">Fecha</th>
+        <th style="text-align:left; padding:.3rem .5rem;">Cliente</th><th style="padding:.3rem .5rem;">Equipos</th>
+        <th style="text-align:left; padding:.3rem .5rem;">Pruebas</th><th style="text-align:left; padding:.3rem .5rem;">Estado</th>
+      </tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  } catch (e) {
+    box.innerHTML = `<span style="color:#b91c1c;">No se pudo cargar la lista (${String(e?.message || e)}).</span>`;
+  }
+}
+document.addEventListener('sol-auth-ok', cargarSolicitudes);
 </script>
 </body>
 </html>
