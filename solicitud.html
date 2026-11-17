@@ -306,6 +306,7 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     document.getElementById('folio').textContent = fl;
     document.getElementById('ok').style.display = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    generarPdf();
     cargarSolicitudes();
   } catch (e) {
     err.textContent = 'No se pudo enviar. Intenta de nuevo o escríbenos a ventas@pc-t.com.mx';
@@ -314,17 +315,7 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   }
 });
 
-async function ensureJsPdf() {
-  if (window.jspdf && window.jspdf.jsPDF) return;
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
-    s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
-
-document.getElementById('btn-pdf').addEventListener('click', async () => {
+async function generarPdf() {
   if (!ultimaSol) return;
   await ensureJsPdf();
   const { jsPDF } = window.jspdf;
@@ -361,7 +352,20 @@ document.getElementById('btn-pdf').addEventListener('click', async () => {
   pdf.setFontSize(8); pdf.setTextColor(120);
   pdf.text('Proveedora y Comercializadora Tabasqueña · Solicitud generada por ' + (s.creadoPor || 'sistema'), 14, y);
   pdf.save(s.folio + '.pdf');
-});
+}
+
+document.getElementById('btn-pdf').addEventListener('click', generarPdf);
+
+async function ensureJsPdf() {
+  if (window.jspdf && window.jspdf.jsPDF) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
 
 async function cargarSolicitudes() {
   const box = document.getElementById('lista-sol');
