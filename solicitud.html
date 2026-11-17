@@ -142,22 +142,47 @@ function eqRow(i) {
       <div class="fld"><label>Tipo de equipo <em>*</em></label>
         <select name="eq-tipo" required>
           <option value="">Selecciona…</option>
-          <option>BOP / preventor</option><option>Spool</option><option>Tee</option>
-          <option>Crossover (X-over)</option><option>Pup joint</option><option>Válvula</option>
-          <option>Caja / subs</option><option>Otro</option>
+          <option value="45">Codo 45°</option><option value="90">Codo 90°</option>
+          <option value="TAPA">Tapa</option><option value="TEE">Tee</option>
+          <option value="CROSS">Cross</option><option value="SPOOL">Spool</option>
+          <option value="BOP">BOP / preventor</option><option value="X-OVER">Crossover (X-over)</option>
+          <option value="PUP JOINT">Pup joint</option><option value="VALVULA">Válvula</option>
+          <option value="CAJA">Caja / subs</option><option>Otro</option>
         </select>
         <input name="eq-tipo-otro" placeholder="Especifica el tipo de equipo" style="display:none; margin-top:.45rem;"></div>
       <div class="fld"><label>Serie / identificación</label><input name="eq-serie" placeholder="S/N"></div>
     </div>
-    <div class="fld" style="margin-bottom:0;"><label>Descripción breve</label>
-      <input name="eq-desc" placeholder="Ej. Preventor anular 13-5/8&quot; 5M, presión de trabajo…"></div>
+    <div class="grid2">
+      <div class="fld"><label>Extremo M</label><input name="eq-e1" placeholder="Ej. 4 206 M 2000"></div>
+      <div class="fld"><label>Extremo H</label><input name="eq-e2" placeholder="Ej. 4 206 H 2000 / 1/2 NPT H 2000"></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 2fr; gap:.8rem;">
+      <div class="fld"><label>P.T. (psi)</label><input name="eq-pt" placeholder="2000"></div>
+      <div class="fld"><label>LONG</label><input name="eq-long" placeholder="N/A" value="N/A"></div>
+      <div class="fld"><label>TEMP</label><input name="eq-temp" value="-29 - 121 C"></div>
+    </div>
+    <div class="fld" style="margin-bottom:0;"><label>Nota adicional (opcional)</label>
+      <input name="eq-desc" placeholder="Ej. Preventor anular 13-5/8&quot; 5M — solo si no aplica la notación de extremos"></div>
+    <div class="eq-prev" style="font-size:.74rem; color:var(--brick); font-weight:600; margin-top:.45rem; min-height:1em;"></div>
     <button type="button" class="rm">Quitar</button>`;
   const selTipo = d.querySelector('[name=eq-tipo]'), otro = d.querySelector('[name=eq-tipo-otro]');
   selTipo.addEventListener('change', () => { otro.style.display = selTipo.value === 'Otro' ? '' : 'none'; });
+  const prev = d.querySelector('.eq-prev');
+  const upd = () => { prev.textContent = compDesc(d); };
+  d.querySelectorAll('input,select').forEach(el => el.addEventListener('input', upd));
   d.querySelector('.rm').addEventListener('click', () => { if (eqs.children.length > 1) d.remove(); renum(); });
   return d;
 }
 function renum() { [...eqs.children].forEach((d, i) => d.querySelector('.num').textContent = 'Equipo ' + (i + 1)); }
+function compDesc(d) {
+  const v = n => (d.querySelector(`[name=${n}]`)?.value || '').trim();
+  const t = v('eq-tipo') === 'Otro' ? v('eq-tipo-otro') : v('eq-tipo');
+  const e1 = v('eq-e1'), e2 = v('eq-e2'), pt = v('eq-pt');
+  if (!e1 && !e2 && !pt) return v('eq-desc');
+  let s = `${String(t || '').toUpperCase()} ${e1} X ${e2} P.T: ${pt} H2S LONG: ${v('eq-long') || 'N/A'} TEMP: ${v('eq-temp') || '-29 - 121 C'}`.replace(/\s+/g, ' ').trim();
+  const nota = v('eq-desc');
+  return nota ? `${s} · ${nota}` : s;
+}
 function addEq() { eqs.appendChild(eqRow(eqs.children.length)); }
 addEq();
 document.getElementById('btn-add-eq').addEventListener('click', addEq);
@@ -182,10 +207,14 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   const equipos = [...eqs.children].map(d => {
     const t = d.querySelector('[name=eq-tipo]').value;
     const otro = d.querySelector('[name=eq-tipo-otro]').value.trim();
+    const e1 = d.querySelector('[name=eq-e1]').value.trim(),
+          e2 = d.querySelector('[name=eq-e2]').value.trim(),
+          pt = d.querySelector('[name=eq-pt]').value.trim();
     return {
       tipo: t === 'Otro' ? otro : t,
       serie: d.querySelector('[name=eq-serie]').value.trim(),
-      desc: d.querySelector('[name=eq-desc]').value.trim()
+      desc: compDesc(d),
+      espec: (e1 || e2 || pt) ? { e1, e2, pt, long: d.querySelector('[name=eq-long]').value.trim(), temp: d.querySelector('[name=eq-temp]').value.trim() } : undefined
     };
   }).filter(e => e.tipo || e.serie || e.desc);
   if (!nombre || !correo || !telefono) { err.textContent = 'Completa nombre, correo y teléfono.'; err.style.display = ''; return; }
