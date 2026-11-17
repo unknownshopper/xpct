@@ -1,6 +1,7 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2/options';
 import { onRequest, onCall } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
 import { onDocumentWritten, onDocumentCreated } from 'firebase-functions/v2/firestore';
 import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
@@ -2863,8 +2864,8 @@ export const onSolicitudExtCreada = onDocumentCreated(
   }
 );
 
-// Asistente publico del sitio web (chat con IA). Requiere ANTHROPIC_API_KEY
-// en functions/.env.<proyecto> o como secreto de entorno.
+// Asistente publico del sitio web (chat con IA, Gemini).
+// Requiere secreto GEMINI_KEY: firebase functions:secrets:set GEMINI_KEY
 const CHAT_SYSTEM = `Eres el asistente del sitio web de PCT (Proveedora y Comercializadora Tabasqueña), empresa de Tabasco, México.
 Servicios: RENTA DE EQUIPOS DE ALTA PRESION es el servicio principal (codos, tees, crosses, wyes, spools, bridas espaciadoras y adaptadoras, pup joints, valvulas, preventores/BOP, crossovers, cajas/subs, de 2000 a 15000 psi, figuras 206/602/1002/1502, servicio H2S). Todo equipo rentado sale con inspeccion anual vigente, inspeccion visual pre y post trabajo, y trazabilidad completa.
 INSPECCION Y PRUEBAS NO DESTRUCTIVAS (PND) para terceros/particulares: Visual Test (VT), Ultrasonic Thickness Test (UTT), Magnetic Test (MT), Penetrant Test (PT), Leaking Test (LT). Trabajo apegado a referencia normativa (API 6A, ASME BPVC V, ASTM E1444, ASTM E165, ISO 9712, SNT-TC-1A) — no afirmes certificaciones, di 'bajo referencia de' la norma.
@@ -2874,42 +2875,41 @@ CONSTRUCCION: obra civil y adecuaciones industriales.
 MANTENIMIENTO y reacondicionamiento de equipos, interno o con terceros.
 Responde en espanol, breve (maximo ~90 palabras), claro y sin inventar precios ni tiempos de entrega. Si piden cotizar, disponibilidad o algo que no sepas, invita a escribir a ventas@pc-t.com.mx o usar el formulario de contacto del sitio.`;
 
-export const chatPublico = onCall(
-  { timeoutSeconds: 30, memory: '256MiB', cors: true },
-  async (req) => {
-    const key = (process.env.ANTHROPIC_API_KEY || '').trim();
-    if (!key) return { respuesta: 'El asistente no está configurado aún — escríbenos a ventas@pc-t.com.mx.' };
+const GEMINI_KEY = defineSecret('GEMINI_KEY');
+const CHAT_MODELS = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.0-flash'];
 
+export const chatPublico = onCall(
+  { timeoutSeconds: 30, memory: '256MiB', cors: true, secrets: [GEMINI_KEY] },
+  async (req) => {
     const raw = Array.isArray(req.data?.mensajes) ? req.data.mensajes : [];
     const mensajes = raw
       .filter(m => m && typeof m.content === 'string' && ['user', 'assistant'].includes(m.role))
       .slice(-10)
-      .map(m => ({ role: m.role, content: String(m.content).slice(0, 1000) }));
+      .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content).slice(0, 1000) }] }));
     if (!mensajes.length || mensajes[mensajes.length - 1].role !== 'user') {
       return { respuesta: '¿En qué te puedo ayudar?' };
     }
 
-    try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 300,
-          system: CHAT_SYSTEM,
-          messages: mensajes,
-        }),
-      });
-      const j = await r.json();
-      const text = (j?.content || []).map(c => c.text || '').join('').trim();
-      return { respuesta: text || 'No pude responder, intenta de nuevo.' };
-    } catch (e) {
-      console.error('chatPublico error:', e);
-      return { respuesta: 'Tuve un problema técnico — intenta de nuevo o escríbenos a ventas@pc-t.com.mx.' };
+    for (const model of CHAT_MODELS) {
+      try {
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY.value()}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: CHAT_SYSTEM }] },
+              contents: mensajes,
+              generationConfig: { maxOutputTokens: 300, temperature: 0.4 },
+            }),
+          }
+        );
+        if (!r.ok) { console.error('chatPublico gemini', model, r.status); continue; }
+        const j = await r.json();
+        const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+        if (text) return { respuesta: text.slice(0, 1200) };
+      } catch (e) { console.error('chatPublico', model, e); }
     }
+    return { respuesta: 'Tuve un problema técnico — intenta de nuevo o escríbenos a ventas@pc-t.com.mx.' };
   }
 );
