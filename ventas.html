@@ -71,6 +71,7 @@
   <div class="acciones">
     <a class="btn-main" href="solicitud.html">+ Nueva solicitud</a>
     <button class="btn-sec" id="btn-clientes">Directorio de clientes</button>
+    <button class="btn-sec" id="btn-comis" style="display:none;">Comisiones</button>
   </div>
 
   <div class="card" id="card-sol">
@@ -78,9 +79,14 @@
     <div id="lista-sol"><span style="color:#6b7280;">Cargando…</span></div>
   </div>
 
-  <div class="card" id="clientes">
+  <div class="card" id="clientes" style="display:none;">
     <h2>Directorio de clientes</h2>
     <div id="lista-cli"></div>
+  </div>
+
+  <div class="card" id="comisiones" style="display:none;">
+    <h2>Comisiones — solicitudes entregadas por vendedor</h2>
+    <div id="lista-comis"></div>
   </div>
 </div>
 
@@ -92,6 +98,9 @@ import { collection, getDocs, query, where, limit, doc, updateDoc }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const ESTADOS = ['NUEVA', 'CONTACTADA', 'EN PLANTA', 'ENTREGADA', 'CANCELADA'];
+// Sin vendedor atribuido, estas cuentas no comisionan
+const STAFF_EMAILS = new Set(['cops@pc-t.com.mx', 'sgi@pc-t.com.mx', 'lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'admin@pc-t.com.mx']);
+let esAdminDir = false;
 const auth = window.auth;
 if (!auth) window.location.href = 'login.html';
 
@@ -112,6 +121,9 @@ onAuthStateChanged(auth, async (user) => {
     || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'sgi@pc-t.com.mx', 'admin@pc-t.com.mx', 'cops@pc-t.com.mx'].includes(email);
   const esVendedor = role === 'vendedor';
   if (!esVendedor && !esStaff) { window.location.href = 'index.html'; return; }
+  esAdminDir = ['admin', 'director'].includes(role)
+    || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'admin@pc-t.com.mx'].includes(email);
+  if (esAdminDir) document.getElementById('btn-comis').style.display = '';
   document.getElementById('usr').textContent = email;
   document.getElementById('wrap').style.display = 'block';
   cargar(email, esVendedor);
@@ -120,13 +132,15 @@ onAuthStateChanged(auth, async (user) => {
 document.getElementById('btn-out').addEventListener('click', async () => {
   try { await signOut(auth); } finally { window.location.href = 'login.html'; }
 });
-document.getElementById('btn-clientes').addEventListener('click', (e) => {
-  const box = document.getElementById('clientes');
+const toggleCard = (btnId, cardId) => document.getElementById(btnId).addEventListener('click', (e) => {
+  const box = document.getElementById(cardId);
   const ver = box.style.display === 'none';
   box.style.display = ver ? '' : 'none';
   e.target.classList.toggle('on', ver);
   if (ver) box.scrollIntoView({ behavior: 'smooth' });
 });
+toggleCard('btn-clientes', 'clientes');
+toggleCard('btn-comis', 'comisiones');
 
 async function cargar(email, esVendedor) {
   const box = document.getElementById('lista-sol');
@@ -150,6 +164,7 @@ async function cargar(email, esVendedor) {
     const docs = [...byId.values()];
     docs.sort((a, b) => (b.data().creadoEn?.toMillis?.() || 0) - (a.data().creadoEn?.toMillis?.() || 0));
     pintar(docs, box, email, esVendedor);
+    if (esAdminDir) pintarComisiones(docs);
   } catch (e) {
     box.innerHTML = `<span style="color:#b91c1c;">No se pudo cargar (${esc(e?.message || e)}).</span>`;
   }
@@ -228,6 +243,48 @@ function pintar(docs, box, miEmail, esVendedor) {
       ${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
     </div>`;
   }).join('') || '<span style="color:#6b7280;">Sin clientes aún.</span>';
+}
+
+// Comisiones: solicitudes ENTREGADAS atribuidas a vendedor (asignadoA o creadoPor)
+function pintarComisiones(docs) {
+  const ahora = new Date();
+  const porVend = {};
+  docs.forEach(d => {
+    const s = d.data() || {};
+    if ((s.estado || 'NUEVA') !== 'ENTREGADA') return;
+    const attrib = s.asignadoA || s.creadoPor || '';
+    if (!attrib || STAFF_EMAILS.has(attrib)) return;
+    if (!porVend[attrib]) porVend[attrib] = { nombre: '', sols: 0, eqs: 0, mes: 0, lista: [] };
+    const v = porVend[attrib];
+    if (s.asignadoA === attrib && s.asignadoANombre) v.nombre = s.asignadoANombre;
+    const nEq = (s.equipos || []).length;
+    v.sols++; v.eqs += nEq;
+    const f = s.creadoEn?.toDate?.();
+    if (f && f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear()) v.mes++;
+    v.lista.push(s);
+  });
+
+  const box = document.getElementById('lista-comis');
+  const vend = Object.entries(porVend).sort((a, b) => b[1].sols - a[1].sols);
+  if (!vend.length) {
+    box.innerHTML = '<span style="color:#6b7280;">Sin solicitudes entregadas atribuidas a vendedores.</span>';
+    return;
+  }
+  const td = 'padding:.5rem .6rem; border-bottom:1px solid #eef0f3;';
+  box.innerHTML = vend.map(([em, v]) => {
+    const nombre = v.nombre || em.split('@')[0].toUpperCase();
+    const detalle = v.lista.map(s => `<div style="font-size:.78rem; padding:.25rem 0; border-bottom:1px dashed #eef0f3;">
+      <b style="color:var(--brick);">${esc(s.folio || '—')}</b> · ${esc(s.nombre)}${s.empresa ? ' / ' + esc(s.empresa) : ''} · ${(s.equipos || []).length} equipo(s)
+      · ${s.creadoEn?.toDate ? s.creadoEn.toDate().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : ''}
+    </div>`).join('');
+    return `<details style="border:1px solid #eef0f3; border-radius:10px; padding:.8rem 1rem; margin-bottom:.6rem;">
+      <summary style="cursor:pointer; display:flex; align-items:center; gap:1rem; flex-wrap:wrap; list-style:none;">
+        <b>${esc(nombre)}</b> <span style="font-size:.72rem; color:var(--mut);">${esc(em)}</span>
+        <span style="margin-left:auto; font-size:.78rem;"><b style="color:var(--brick);">${v.sols}</b> entregada(s) · <b style="color:var(--brick);">${v.eqs}</b> equipo(s) · <b style="color:var(--brick);">${v.mes}</b> este mes</span>
+      </summary>
+      <div style="margin-top:.6rem;">${detalle}</div>
+    </details>`;
+  }).join('');
 }
 </script>
 </body>
