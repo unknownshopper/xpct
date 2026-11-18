@@ -112,7 +112,7 @@ onAuthStateChanged(auth, async (user) => {
   const esVendedor = role === 'vendedor';
   if (!esVendedor && !esStaff) { window.location.href = 'index.html'; return; }
   document.getElementById('usr').textContent = email;
-  document.getElementById('wrap').style.display = '';
+  document.getElementById('wrap').style.display = 'block';
   cargar(email, esVendedor);
 });
 
