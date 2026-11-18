@@ -1648,7 +1648,7 @@
     let ctx = null, master = null, wet = null, motifTimer = null, whiteBuf = null;
     // AJUSTES DEL MOTIVO — tocar aqui:
     const BEAT = 0.6;                // velocidad (seg por tiempo) — compas = 4 tiempos (2.4s)
-    const CYCLE_BARS = 20;           // ciclo completo (~48s): A B A (B+bombazo), respiro, repite
+    const CYCLE_BARS = 16;           // ciclo ~38s: A B A (B+bombazo) — la sig. frase cae en el compas 20, sin hueco
     const A_BAR = 4, B_BAR = 8;      // frases cada 4 compases — grid estricto
     const NOTE_F = [329.63, 261.63, 220]; // las 3 notas: E4 C4 A3 (desciende al grave)
     // Secuencia: A B A B — el bombazo va DENTRO de la 4ta marca, no agrega compas
