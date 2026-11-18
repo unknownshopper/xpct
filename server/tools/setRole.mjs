@@ -63,7 +63,7 @@ async function main() {
   }
   const email = String(emailArg).trim().toLowerCase();
   const role = String(roleArg).trim().toLowerCase();
-  const allowed = new Set(['admin', 'director', 'supervisor', 'inspector', 'capturista', 'visor', 'none']);
+  const allowed = new Set(['admin', 'director', 'supervisor', 'inspector', 'capturista', 'visor', 'vendedor', 'sgi', 'cops', 'auxndt', 'aux_ndt', 'none']);
   if (!allowed.has(role)) {
     console.error('Invalid role. Allowed:', Array.from(allowed).join(', '));
     process.exit(1);

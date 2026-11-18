@@ -118,7 +118,9 @@ else {
     if (!user) { window.location.href = 'login.html'; return; }
     const email = (user.email || '').toLowerCase();
     const role = (await user.getIdTokenResult()).claims?.role || null;
-    const ok = ['admin', 'director', 'sgi'].includes(role)
+    window.userRole = role;
+    window.currentUserEmail = email;
+    const ok = ['admin', 'director', 'sgi', 'vendedor'].includes(role)
       || role === 'cops' || email === 'cops@pc-t.com.mx'
       || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'sgi@pc-t.com.mx', 'admin@pc-t.com.mx'].includes(email);
     if (!ok) { window.location.href = 'inspectlist.html'; return; }
@@ -506,12 +508,20 @@ async function ensureJsPdf() {
 async function cargarSolicitudes() {
   const box = document.getElementById('lista-sol');
   try {
-    const { collection, getDocs, query, orderBy, limit } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const snap = await getDocs(query(collection(window.db, 'solicitudes_ext'), orderBy('creadoEn', 'desc'), limit(30)));
+    const { collection, getDocs, query, orderBy, limit, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const esVendedor = window.userRole === 'vendedor';
+    const q = esVendedor
+      ? query(collection(window.db, 'solicitudes_ext'), where('creadoPor', '==', window.currentUserEmail), limit(50))
+      : query(collection(window.db, 'solicitudes_ext'), orderBy('creadoEn', 'desc'), limit(30));
+    const snap = await getDocs(q);
     if (snap.empty) { box.innerHTML = '<span style="color:#6b7280;">Sin solicitudes aún.</span>'; return; }
     const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const rows = [];
-    snap.forEach(d => {
+    const docs = [];
+    snap.forEach(d => docs.push(d));
+    docs.sort((a, b) => (b.data().creadoEn?.toMillis?.() || 0) - (a.data().creadoEn?.toMillis?.() || 0));
+    if (esVendedor) document.querySelector('#card-solicitudes h2').textContent = 'Mis solicitudes';
+    docs.forEach(d => {
       const s = d.data() || {};
       const fecha = s.creadoEn?.toDate ? s.creadoEn.toDate().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—';
       const pruebas = (s.pruebas || []).join(' ') || '—';
