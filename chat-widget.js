@@ -34,7 +34,6 @@
     <div class="flex gap-1.5 px-3 pt-2 border-t border-white/10" id="ai-quick">
       <button type="button" data-act="catalogo" class="ai-chip">Catálogo</button>
       <button type="button" data-act="form" class="ai-chip">Cotizar</button>
-      <button type="button" data-act="ventas" class="ai-chip">Ventas</button>
     </div>
     <form id="ai-form" class="flex gap-2 p-3">
       <input id="ai-in" class="flex-1 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent" placeholder="Pregunta por renta, pruebas, servicios…" autocomplete="off" maxlength="500">
@@ -58,13 +57,12 @@
   // Acciones de los botones (chips fijos + botones inline [BTN:X] del modelo)
   const ACTIONS = {
     catalogo: () => { location.href = 'catalogo.html'; },
-    ventas:   () => { location.href = 'mailto:ventas@pc-t.com.mx'; },
     form:     () => {
       if (window.pctContact) window.pctContact();
       else location.href = 'website.html#contacto';
     },
   };
-  const BTN_LABEL = { catalogo: 'Ver catálogo', ventas: 'Escribir a ventas', form: 'Formulario de contacto' };
+  const BTN_LABEL = { catalogo: 'Ver catálogo', form: 'Formulario de contacto' };
 
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
@@ -87,7 +85,7 @@
   function renderBot(el, text) {
     const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     el.innerHTML = esc
-      .replace(/\[BTN:(CATALOGO|VENTAS|FORM)\]/gi,
+      .replace(/\[BTN:(CATALOGO|FORM)\]/gi,
         (m, k) => `<button type="button" class="ai-btn" data-act="${k.toLowerCase()}">${BTN_LABEL[k.toLowerCase()]}</button>`)
       .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
@@ -126,7 +124,7 @@
       hist.push({ role: 'assistant', content: ans });
       save();
     } catch (e) {
-      renderBot(wait, 'Ahora no puedo responder — inténtalo de nuevo o contáctanos directo. [BTN:VENTAS] [BTN:FORM]');
+      renderBot(wait, 'Ahora no puedo responder — inténtalo de nuevo o usa el formulario. [BTN:FORM]');
     }
     msgs.scrollTop = msgs.scrollHeight;
   });
