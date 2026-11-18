@@ -912,7 +912,7 @@
   const heroEyebrow = document.getElementById('hero-eyebrow');
   const navLinks = document.getElementById('nav-links');
   if (navLogo && heroEyebrow && !reduced) {
-    const RANGE = 320, THETA = 11 * Math.PI / 180, GAP = 26;
+    const RANGE = 320, GAP = 30;
     let S = 1;
     const measure = () => {
       navLogo.style.transform = '';
@@ -920,12 +920,12 @@
       const logoTop = navLogo.getBoundingClientRect().top;
       const ebTop = heroEyebrow.getBoundingClientRect().top + scrollY;
       const avail = Math.max(ebTop - logoTop - GAP, H);
-      S = Math.max(1, Math.min(avail / (W * Math.sin(THETA) + H * Math.cos(THETA)), innerWidth * 1.35 / W, 9));
+      S = Math.max(1, Math.min(avail / H, innerWidth * 1.35 / W, 9));
       update();
     };
     const update = () => {
       const k = 1 - Math.pow(1 - Math.min(scrollY / RANGE, 1), 2.2);
-      navLogo.style.transform = `scale(${(1 + (S - 1) * (1 - k)).toFixed(3)}) rotate(${(11 * (1 - k)).toFixed(2)}deg)`;
+      navLogo.style.transform = `scale(${(1 + (S - 1) * (1 - k)).toFixed(3)})`;
       if (navLinks) navLinks.style.opacity = String(Math.min(1, k * 1.6));
     };
     navLogo.style.transformOrigin = 'top left';

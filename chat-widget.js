@@ -3,7 +3,7 @@
 // Requiere config.local.js cargado antes (window.PCT_FIREBASE_CONFIG).
 (function () {
   const KEY = 'pct_ai_hist';
-  const WELCOME = 'Hola, soy el asistente de PCT. Puedo orientarte sobre renta de equipos de alta presión, inspecciones y pruebas, limpieza industrial, procura y construcción. ¿Qué necesitas?\n[BTN:CATALOGO] [BTN:FORM]';
+  const WELCOME = 'Hola, soy el asistente de PCT. Puedo orientarte sobre renta de equipos de alta presión, inspecciones y pruebas, limpieza industrial, procura y construcción. ¿Qué necesitas?';
 
   let hist = [];
   try { hist = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch {}
