@@ -2913,3 +2913,49 @@ export const chatPublico = onCall(
     return { respuesta: 'Tuve un problema técnico — intenta de nuevo o escríbenos a ventas@pc-t.com.mx.' };
   }
 );
+
+// Aviso por correo cuando el formulario de contacto del sitio publico
+// genera un lead en contactos_web.
+export const onContactoWeb = onDocumentCreated(
+  {
+    document: 'contactos_web/{docId}',
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap || !snap.exists) return;
+    const c = snap.data() || {};
+
+    const safe = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const html = `
+      <div style="font-family:Arial, Helvetica, sans-serif; color:#111827;">
+        <div style="font-size:18px; font-weight:700;">Contacto desde el sitio web</div>
+        <p style="margin:6px 0 12px; font-size:13px; color:#4b5563;">
+          Servicio de interés: <b>${safe(c.servicio)}</b>
+        </p>
+        <h3 style="margin:0 0 6px; font-size:14px;">Contacto</h3>
+        <p style="margin:0 0 12px; font-size:13px;">
+          ${safe(c.nombre)}<br>
+          ${safe(c.contacto)}
+        </p>
+        ${c.mensaje ? `<h3 style="margin:0 0 6px; font-size:14px;">Mensaje</h3>
+        <p style="margin:0 0 12px; font-size:13px; white-space:pre-line;">${safe(c.mensaje)}</p>` : ''}
+        <div style="margin-top:16px; padding-top:10px; border-top:1px solid #e5e7eb;">
+          <p style="margin:0; font-size:11px; color:#6b7280;">Proveedora y Comercializadora Tabasqueña · Aviso automático del formulario web</p>
+        </div>
+      </div>`;
+
+    if (isMailDisabled()) {
+      console.log('onContactoWeb: mail disabled');
+      return;
+    }
+    await enviarCorreo({
+      html,
+      subject: `Contacto web — ${c.servicio || 'servicio'} — ${c.nombre || ''}`,
+      to: parseEmailList(process.env.MAIL_CONTACTO_TO || 'ventas@pc-t.com.mx'),
+      cc: parseEmailList(process.env.MAIL_CONTACTO_CC || ''),
+    });
+    console.log('onContactoWeb: aviso enviado');
+  }
+);

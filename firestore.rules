@@ -154,6 +154,23 @@ service cloud.firestore {
       allow delete: if canDeletePruebas();
     }
 
+    // Contacto del sitio publico (website): cualquiera puede CREAR un lead
+    // con campos validados y honeypot vacio; solo staff puede leerlos.
+    match /contactos_web/{docId} {
+      allow create: if request.resource.data.keys().hasAll(['nombre', 'contacto', 'servicio', 'hp'])
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 120
+        && request.resource.data.contacto is string
+        && request.resource.data.contacto.size() > 0 && request.resource.data.contacto.size() <= 160
+        && request.resource.data.servicio is string
+        && request.resource.data.servicio.size() > 0 && request.resource.data.servicio.size() <= 300
+        && request.resource.data.get('mensaje', '') is string
+        && request.resource.data.get('mensaje', '').size() <= 2000
+        && request.resource.data.hp == '';
+      allow read: if isRoleAny(['admin', 'director', 'sgi', 'cops', 'vendedor']);
+      allow update, delete: if false;
+    }
+
     // Solicitudes de inspeccion de clientes externos.
     // Staff: todo. Vendedor: crea y ve/actualiza SOLO las que registro (creadoPor = su email).
     match /solicitudes_ext/{docId} {
