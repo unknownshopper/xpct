@@ -37,11 +37,13 @@
   .ok-box .folio { font-family:'Space Grotesk'; font-size:1.6rem; font-weight:700; color:var(--brick); margin:.8rem 0; }
   .hp { position:absolute; left:-9999px; }
   .err { color:#b91c1c; font-size:.82rem; margin-top:.5rem; display:none; }
+  .toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(18px); background:var(--brick); color:#fff; font-weight:600; font-size:.9rem; padding:.85rem 1.4rem; border-radius:10px; box-shadow:0 8px 24px rgba(140,69,9,.4); opacity:0; pointer-events:none; transition:.25s; z-index:9999; max-width:90vw; text-align:center; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   @media (max-width:560px) { .grid2 { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
-<header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE INSPECCIÓN</b><a id="lnk-panel" href="ventas.html" style="display:none;margin-left:auto;font-size:.78rem;font-weight:600;color:var(--brick);text-decoration:none;border:1px solid var(--brick);border-radius:999px;padding:.3rem .8rem;">← Mi panel</a></header>
+<header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE INSPECCIÓN</b><a id="lnk-panel" href="ventas.html" style="display:none;margin-left:auto;font-size:.78rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#c46418,var(--brick));text-decoration:none;border-radius:999px;padding:.4rem .9rem;box-shadow:0 2px 8px rgba(184,88,15,.35);">← Mi panel</a></header>
 
 <main class="wrap" id="wrap" style="display:none;">
   <p class="lead">Registro de equipos para inspección</p>
@@ -261,6 +263,19 @@ function folio() {
   return 'SOL-' + new Date().getFullYear() + '-' + n.slice(-5);
 }
 
+function toast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast'; t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 4500);
+}
+
 function recolectar() {
   const f = document.getElementById('f');
   const equipos = [...eqs.children].map(d => {
@@ -325,12 +340,16 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     const docData = { ...ultimaSol, estado: 'NUEVA', creadoEn: serverTimestamp() };
     delete docData.fecha;
     await addDoc(collection(db, 'solicitudes_ext'), docData);
-    document.getElementById('f').style.display = 'none';
-    document.getElementById('folio').textContent = fl;
-    document.getElementById('ok').style.display = '';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
     generarPdf();
     cargarSolicitudes();
+    // Limpiar formulario y quedarse en él (flujo vendedor: captura continua)
+    f.reset();
+    eqs.innerHTML = '';
+    addEq();
+    document.querySelectorAll('#chips-pruebas .chip').forEach(c => { c.classList.add('on'); sel.add(c.dataset.p); });
+    btn.disabled = false; btn.textContent = 'Enviar solicitud';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast(`Solicitud ${fl} creada con éxito — PDF descargado`);
   } catch (e) {
     err.textContent = 'No se pudo enviar. Intenta de nuevo o escríbenos a ventas@pc-t.com.mx';
     err.style.display = '';
