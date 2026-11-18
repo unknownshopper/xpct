@@ -202,20 +202,39 @@ function pintar(docs, box, miEmail, esVendedor) {
     const pruebas = (s.pruebas || []).join(' · ') || '—';
     const wa = waLink(s.telefono, `Hola ${s.nombre || ''}, le escribo de PCT sobre su solicitud ${s.folio || ''} (${(s.equipos || []).length} equipo(s) para inspección).`);
     const asignada = esVendedor && s.creadoPor && s.creadoPor !== miEmail;
+    const eqHtml = (s.equipos || []).map((eq, i) => `<div style="border-top:1px dashed #eef0f3; padding:.4rem 0;">
+      <b style="font-size:.8rem;">${i + 1}. ${esc(eq.tipo || '—')}</b>${eq.serie ? ` <span style="font-size:.75rem; color:var(--mut);">S/N ${esc(eq.serie)}</span>` : ''}
+      ${eq.desc ? `<div style="font-size:.75rem; color:#444; word-break:break-word;">${esc(eq.desc)}</div>` : ''}
+      ${(eq.accesorios || []).length ? `<div style="font-size:.72rem; color:var(--mut);">Acc: ${esc(eq.accesorios.join(', '))}</div>` : ''}
+    </div>`).join('');
+    const contacto = [s.correo, s.telefono].filter(Boolean).join(' · ');
     return `<div class="sol" data-id="${esc(s._id)}">
       <div class="cab">
         <span class="folio">${esc(s.folio || '—')}</span>
         <span class="fecha">${esc(fecha)}</span>
         ${asignada ? `<span style="font-size:.65rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; background:#e0ecff; color:#25548f;">ASIGNADA POR ${esc(normTxt(s.creadoPorNombre || s.creadoPor.split('@')[0]))}</span>` : ''}
         ${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp cliente</a>` : ''}
+        <span class="tog" style="margin-left:auto; font-size:.72rem; font-weight:700; color:var(--brick); cursor:pointer; user-select:none;">Detalle ▸</span>
       </div>
       <div class="cli">${esc(s.nombre)}</div>
       ${s.empresa ? `<div style="font-size:.82rem; font-weight:600; color:var(--brick); margin-top:.1rem;">${esc(s.empresa)}</div>` : ''}
       <div class="eqs">${(s.equipos || []).length} equipo(s) · ${esc(pruebas)}</div>
       <div class="estados">${ESTADOS.map(e =>
         `<span class="est ${((s.estado || 'NUEVA') === e) ? 'on' : ''}" data-e="${e}">${e}</span>`).join('')}</div>
+      <div class="det" style="display:none; margin-top:.6rem; font-size:.8rem;">
+        ${contacto ? `<div style="font-size:.75rem; color:var(--mut); padding-bottom:.4rem;">${esc(contacto)}</div>` : ''}
+        ${eqHtml}
+        ${s.observaciones ? `<div style="border-top:1px dashed #eef0f3; padding-top:.4rem; font-size:.75rem; color:var(--mut);">Obs: ${esc(s.observaciones)}</div>` : ''}
+      </div>
     </div>`;
   }).join('');
+
+  box.querySelectorAll('.sol .tog').forEach(t => t.addEventListener('click', () => {
+    const det = t.closest('.sol').querySelector('.det');
+    const abierto = det.style.display !== 'none';
+    det.style.display = abierto ? 'none' : '';
+    t.textContent = abierto ? 'Detalle ▸' : 'Detalle ▾';
+  }));
 
   box.querySelectorAll('.est').forEach(chip => chip.addEventListener('click', async () => {
     const card = chip.closest('.sol');

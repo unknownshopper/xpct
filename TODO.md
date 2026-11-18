@@ -1,34 +1,64 @@
-# TODO — Deuda técnica y pendientes del sistema
+# TODO — Pendientes del sistema PCT
 
-Lo que hay que corregir en el futuro para pasar de "muy bien hecho" a "difícil de tumbar".
+Unificado de TODO.md + TODOEXT.md + TODOOP.md (nov-2026). Lo entregado queda en la sección "Completado" al final como referencia histórica.
 
-## Datos / infraestructura
+## Comercial / solicitudes externas (B2C)
 
-- [ ] **Migrar CSVs de runtime a Firestore** — `INVENTARIOTOTAL04-202602.csv`, `invre.csv`, `invre2.csv`, `certif.csv`, `noutt.csv`, `malescritos.csv`, `forxmat.csv` y el resto de `docs/` se leen en vivo por 11+ páginas. Ya existe la colección `equipos` (1,620 docs). Requiere loader compartido en `utils.js` con caché (localStorage/TTL) para no leer 1,620 docs por page-load.
-- [ ] **Saneamiento del repo público** — los CSVs de negocio están en el repo público Y en su historial Git. Borrarlos no basta: purga real requiere reescritura de historial (destructivo) o repo privado (GitHub Pro). Decisión pendiente.
-- [ ] **Dejar de traer colecciones completas para filtrar en JS** — hay consultas que hacen `getDocs` de todo y filtran en cliente (ej. `ordenes_salida` completo para matchear equipos, `inspecciones` completo para un equipo). Conforme crece la base, esto cobra cuota y lentitud. Consolidar en queries con `where` o resúmenes.
-- [ ] **Consolidar consultas de inspecciones/pruebas por equipo** — para el dossier y contadores conviene un índice o `resumenes_equipos` más completo en vez de escanear.
+- [ ] **Renovaciones**: `proximaInspeccion` por equipo/solicitud + Cloud Function mensual de vencimientos → alerta al vendedor para contacto recurrente (venta anual)
+- [ ] **`clienteId` en `solicitudes_ext`** — anticipar portal del cliente (reglas por cliente sin migración)
+- [ ] **App Check** — `chatPublico` es callable pública sin login (riesgo de abuso/costo Gemini); también aplica si el form se abre al público algún día
+- [ ] **Colección `clientes` formal** — el directorio se deriva de solicitudes; si crece, catalogar clientes con historial/RFC
+- [ ] **Catálogo de vendedores** — `VENDEDORES` es const en `solicitud.html`; mover a config/Firestore cuando sean >2
+- [ ] **Definir con PCT**: servicio on-site vs. equipo viaja a taller (¿orden de salida/manifiesto aplica a externos?), si checklists `inspectcat` reusan o son configurables
+- [ ] **Email de asignación** — `onSolicitudExtCreada` notifica a COPS; falta avisar al vendedor cuando le asignan una
 
-## Código
+## Flujo post-trabajo (operativo)
 
-- [ ] **Romper los monolitos HTML** — `inspectlist.html` (~4,500 líneas) y `pruebaslist.html` mezclan markup + JS + estilos inline. Cada cambio es cirugía. Candidato: extraer el JS a módulos (`inspectlist.js`, `ordenes.js`, etc.).
-- [ ] **Tests** — cero cobertura automática. Mínimo: tests de las reglas de Firestore (emulator suite) y de la lógica de contadores (rechazados, no-atendidas, pendientes UTT).
-- [ ] **Emails hardcodeados → claims** — `cops@pc-t.com.mx`, `sgi@pc-t.com.mx`, `auxndt@pct.com` aparecen como excepciones literales en UI y reglas. Cuando asignen el claim real a esas cuentas, quitar las excepciones por email.
-- [ ] **Duplicación de lógica de contadores** — render, bootstrap y modal de `pruebaslist` repiten el cálculo de "última prueba rechazada por equipo". Extraer a función compartida.
-- [ ] **`_control` doc en `ordenes_salida`** — el contador transaccional convive con documentos reales en la misma colección; funciona, pero una colección `config/contadores` sería más limpio.
+- [ ] **Reset de `procesoEquipo`** al cerrar ciclo / abrir uno nuevo — estados ✅ viejos persisten entre ciclos
+- [ ] **Mostrar `por`/`en`** en cada bloque del checklist (ya se guarda, no se muestra)
+- [ ] **Permisos por bloque** — hoy admin/sgi/cops marcan todo; refinar: COPS sus bloques operativos, SGI pruebas formales
+- [ ] **Candado de salida** — verificar reporte anual vigente antes de permitir despacho/renta
+- [ ] **Pizarrón #7** — `PCT-CA-09`, `PCT-BP-03 ~ BP-06`: falta contexto de qué reportaron
+- [ ] **"F/O" del pizarrón** — punto ② no identificado (¿folio/orden? ¿formato oficial?)
+- [ ] **Decidir**: MT/PT y PH ¿también derivan a cuarentena o solo VT/UTT decide? ¿orden estricto de bloques B/C/D o paralelo?
+- [ ] **Validar flujo MIE/MII en producción** con orden real (despacho → recepción → cierre automático)
+- [ ] **Inventario vs realidad** — equipos WIP que siguieron operando (ej. PCT-XO-290)
 
-## Operativo pendiente
+## Deuda técnica
 
-- [ ] **Pizarrón PCT #7** — `PCT-CA-09` y `PCT-BP-03 ~ BP-06`: falta contexto de qué reportaron.
-- [ ] **Validar flujo cop s en producción end-to-end** — despacho MIE/MII real (no de prueba), recepción y cierre automático.
-- [ ] **`audit.html` dossier global** — opcional: exportar todas las órdenes o equipos en cuarentena por periodo para auditoría.
-- [ ] **Revisar edo inventario vs realidad** — equipos marcados WIP que siguieron operando (ej. PCT-XO-290).
+- [ ] **Migrar CSVs de runtime a Firestore** — `INVENTARIOTOTAL04-202602.csv`, `invre*.csv`, `certif.csv`, `noutt.csv`, etc. leídos en vivo por 11+ páginas; requiere loader compartido en `utils.js` con caché
+- [ ] **Saneamiento del repo público** — CSVs de negocio en repo + historial Git; purga real = reescritura de historial o repo privado (decisión pendiente)
+- [ ] **Dejar de traer colecciones completas para filtrar en JS** — `ordenes_salida`, `inspecciones` completos por page-load; cuota y lentitud al crecer
+- [ ] **Consolidar consultas por equipo** — `resumenes_equipos` más completo o índice para dossier/contadores
+- [ ] **Romper monolitos HTML** — `inspectlist.html` (~4,500 líneas) y `pruebaslist.html` a módulos
+- [ ] **Tests** — reglas Firestore en emulator + lógica de contadores
+- [ ] **Emails hardcodeados → claims** — quedan literales `cops@`, `sgi@`, `auxndt@` en UI y reglas; quitar al asignar claims reales
+- [ ] **Duplicación de contadores** en `pruebaslist` (render/bootstrap/modal repiten "última prueba rechazada")
+- [ ] **`_control` doc** en `ordenes_salida` → colección `config/contadores`
+- [ ] **`audit.html`**: exportar dossier global por periodo (opcional)
 
-## Portofino (pendientes menores)
+## Portofino (otro repo — recordatorio)
 
-- [ ] Activar **Enforce HTTPS** en GitHub Pages cuando el cert termine de provisionarse.
-- [ ] Limpiar subdominios cPanel huérfanos del DNS (`cpanel`, `whm`, `webdisk`, `ftp`, `admin`, `test`) si el hosting viejo murió — y cancelar ese hosting (posible PHP = superficie de ataque PHP2Shell).
+- [ ] **Enforce HTTPS** en GitHub Pages cuando el cert termine de provisionarse
+- [ ] **Limpiar subdominios cPanel huérfanos** del DNS y cancelar hosting viejo si murió (superficie PHP2Shell)
 
-## Nuevo: Servicio de inspecciones a particulares (B2C)
+---
 
-Ver sección de observaciones — en diseño. Regla de oro: **sin chocar con el inventario interno**.
+## Completado (nov-2026) — referencia
+
+**Comercial B2C**
+- `solicitudes_ext` aislada del inventario interno; folios `SOL-AAAA-XXXXX`; PDF institucional (línea gráfica de órdenes); correo automático a COPS/SGI/admin vía `onSolicitudExtCreada`
+- Rol `vendedor` con claim Firebase; panel exclusivo `ventas.html` (KPIs, pipeline editable, directorio de clientes auto-generado, WhatsApp, detalle expandible por solicitud)
+- Vista **Comisiones** para admin/director: entregadas por `asignadoA`/`creadoPor` con detalle por folio
+- Asignación: checkbox "Asignar a vendedor" (solo staff) → `asignadoA`/`asignadoANombre`; `creadoPor` = auditoría, `asignadoA` = comisión
+- Normalización: MAYÚSCULAS sin acentos en vivo, correo minúsculas, teléfono dígitos; dedup por correo + anti doble-envío; directorio agrupa por clave normalizada
+- Descripción estructurada de equipos (notación PCT, extremos dinámicos, plantillas, accesorios)
+
+**Flujo post-trabajo**
+- `procesoEquipo`: checklist ⭕→✅→❌ por bloque con `por`/`en`; VT derivado de resultados; cuarentena → decisión MIE/MII; reinspección con evidencia fotográfica; liberación
+- Órdenes de salida: folio transaccional `PCT-MIE/MII-AAAA-####`, PDF, tabla admin, auto-cierre RECIBIDO, observaciones por equipo
+- `audit.html` dossier por equipo + manifiesto del sistema
+- Purga automática de docs `autoEliminarEn` (Cloud Function)
+
+**Sitio público**
+- `website2` promovido a portada: renta primero, 6 líneas de negocio (LT separado de PND), chat IA con Gemini (`chatPublico`), metas OG/Twitter + `img/og-cover.png`
