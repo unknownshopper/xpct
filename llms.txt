@@ -5,7 +5,7 @@
 ## Servicios
 
 - Renta de equipos de alta presión: codos 45°/90°, tees, crosses, wyes, spools, bridas espaciadoras y adaptadoras, pup joints, niples, conos/reducciones, swivels, válvulas, manifolds, preventores/BOP, crossovers y cajas/subs. Figuras 206/602/1002/1502, 2000–15000 psi, servicio H2S, rango de temperatura -29 a 121 °C
-- Inspección y pruebas para particulares: VT (visual), UTT (ultrasonido de espesores, bajo referencia ASTM E114/API 1132), MT (partículas magnéticas, ASTM E1444), PT (líquidos penetrantes, ASTM E165) y LT (prueba de fuga/integridad a presión — no es PND)
+- Inspección y pruebas para particulares: VT (visual), UTT (ultrasonido de espesores, bajo referencia ASTM E114/API 1132), MT (partículas magnéticas, ASTM E709/SE-709), PT (líquidos penetrantes, ASTM E165) y LT (prueba de fuga/integridad a presión — no es PND)
 - Mantenimiento y reacondicionamiento de equipos de alta presión (incluye pintura)
 - Limpieza industrial
 - Procura y proveeduría industrial
