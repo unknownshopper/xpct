@@ -1702,7 +1702,7 @@
       // piston: golpe grave sordo que asienta
       const th = ctx.createOscillator(), tg = ctx.createGain();
       th.type = 'sine'; th.frequency.value = 58;
-      tg.gain.setValueAtTime(.11, t);
+      tg.gain.setValueAtTime(.09, t);
       tg.gain.exponentialRampToValueAtTime(.0001, t + .14);
       th.connect(tg); tg.connect(master); th.start(t); th.stop(t + .2);
       // mete presion: ruido subiendo, luego exhala — barrido suave, sin eco
@@ -1712,9 +1712,9 @@
       bp.frequency.setValueAtTime(1200, t + .12);
       ng.gain.setValueAtTime(0, t + .12);
       ng.gain.linearRampToValueAtTime(.045, t + .5);            // compresion
-      bp.frequency.setValueAtTime(2300, t + .53);
-      bp.frequency.exponentialRampToValueAtTime(500, t + 1.5);  // exhala abriendose
-      ng.gain.linearRampToValueAtTime(.11, t + .6);             // pfff — sube natural
+      bp.frequency.setValueAtTime(1900, t + .53);
+      bp.frequency.exponentialRampToValueAtTime(450, t + 1.5);  // exhala abriendose
+      ng.gain.linearRampToValueAtTime(.085, t + .6);            // pfff — sube natural
       ng.gain.exponentialRampToValueAtTime(.0001, t + 1.6);     // se disipa
       src.connect(bp); bp.connect(ng); ng.connect(master);
       src.start(t + .1); src.stop(t + 1.7);
@@ -1744,8 +1744,8 @@
     function fire() {
       if (playing && ctx.state === 'running') {
         const t0 = ctx.currentTime + .12, ev = EVENTS[evIdx];
-        if (ev.breath) exhale(t0);
         if (ev.phrase) ev.phrase.forEach(([ni, ob, dur]) => pluck(NOTE_F[ni], t0 + ob * BEAT, dur));
+        if (ev.breath) exhale(t0 + 5 * BEAT); // la bomba exhala DESPUES — bajo la cola del tannnn, nunca encima
       }
       if (++evIdx >= EVENTS.length) { evIdx = 0; cycleStart += CYCLE_BARS * 4 * BEAT; }
       planNext();
