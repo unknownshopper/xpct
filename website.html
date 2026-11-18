@@ -1648,8 +1648,8 @@
     let ctx = null, master = null, wet = null, motifTimer = null;
     // AJUSTES DEL MOTIVO — tocar aqui:
     const BEAT = 0.6;                // velocidad (seg por tiempo) — compas = 4 tiempos (2.4s)
-    const CYCLE_BARS = 64;           // ciclo completo en compases
-    const A_BAR = 8, B_BAR = 40;     // donde caen las dos frases
+    const CYCLE_BARS = 16;           // ciclo completo en compases (~38s a BEAT .6)
+    const A_BAR = 4, B_BAR = 8;      // donde caen las dos frases (~9.6s y ~19.2s)
     const NOTE_F = [329.63, 261.63, 220]; // las 3 notas: E4 C4 A3 (desciende al grave)
     // "tán . tan tan" en compas 8-9 | "tan . tan tannnn" en compas 40-41
     const EVENTS = [
@@ -1739,7 +1739,7 @@
       if (!playing) {
         ctx.resume(); playing = true; swap(true); ramp(.42, 4);
         if (!motifTimer) {
-          cycleStart = ctx.currentTime - (A_BAR - 1) * 4 * BEAT; // arrancamos en compas 7: la primera frase llega enseguida
+          cycleStart = ctx.currentTime; // el ciclo arranca aqui — frase A a los ~9.6s
           evIdx = 0; planNext();
         }
       } else {
