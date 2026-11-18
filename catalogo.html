@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo de equipos de alta presión — PCT</title>
+<meta name="description" content="Catálogo de equipos de alta presión para renta: codos, tees, crosses, pup joints, bridas, carretes y tapas. Figuras 206/602/1002/1502, 2,000–15,000 psi, servicio H2S." />
+<meta property="og:title" content="PCT — Catálogo de equipos de alta presión" />
+<meta property="og:description" content="Codos, tees, crosses, pup joints, bridas y carretes de 2,000 a 15,000 psi, servicio H2S. Renta con inspección anual vigente." />
+<meta property="og:image" content="https://www.pc-t.com.mx/img/og-cover.png" />
+<link rel="icon" type="image/png" href="img/log33.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { primary:'#d97706', accent3:'#fbbf24', surface:'#0c1326', muted:'#8b95ad' },
+    fontFamily: { display:['Space Grotesk','sans-serif'], body:['Inter','sans-serif'] }
+  } } };
+</script>
+<style>
+  body { font-family:'Inter',sans-serif; background:#04060e; color:#e2e8f0; }
+  .fam { transition:.25s; }
+  .fam:hover { border-color:rgba(251,191,36,.45); transform:translateY(-3px); box-shadow:0 12px 40px -12px rgba(217,119,6,.25); }
+  .spec { font-size:.72rem; }
+</style>
+</head>
+<body class="antialiased">
+
+<header class="border-b border-white/10 bg-[#04060e]/95 sticky top-0 z-40 backdrop-blur">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center gap-4">
+    <a href="website.html"><img src="img/log33.png" alt="PCT" class="h-10 w-auto drop-shadow-[0_0_12px_rgba(251,191,36,.5)] brightness-[1.15]"></a>
+    <div class="leading-tight">
+      <div class="font-display font-bold text-white">Catálogo de equipos</div>
+      <div class="text-[11px] text-muted">Alta presión · especificaciones estándar</div>
+    </div>
+    <a href="website.html" class="ml-auto text-sm text-muted hover:text-white transition">← Sitio</a>
+    <a href="website.html#contacto" class="text-sm font-semibold text-accent3 border border-accent3/40 rounded-full px-4 py-1.5 hover:bg-accent3/10 transition">Cotizar</a>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 py-14">
+  <p class="text-xs tracking-[.25em] uppercase text-accent3 font-medium">Renta de equipos</p>
+  <h1 class="font-display text-3xl md:text-5xl font-bold text-white mt-2">Familias de equipos</h1>
+  <p class="text-muted mt-4 max-w-2xl">Medidas y presiones de nuestras líneas estándar. Uniones figuras 206, 602, 1002 y 1502 · bridas API 6A · servicio <b class="text-white/80">H2S</b> · temperatura -29 a 121 °C. Todo equipo sale con <b class="text-white/80">inspección anual vigente</b> y trazabilidad digital.</p>
+  <p class="text-xs text-muted/70 mt-2">Especificaciones referenciales por familia — la configuración exacta y disponibilidad se confirman al cotizar.</p>
+
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-12" id="grid"></div>
+
+  <div class="mt-16 rounded-2xl border border-accent3/25 bg-accent3/[.06] p-8 text-center">
+    <h2 class="font-display text-xl md:text-2xl font-bold text-white">¿Necesitas una configuración específica?</h2>
+    <p class="text-muted text-sm mt-2">Cuéntanos medida, figura y presión requerida — armamos la pieza o el conjunto.</p>
+    <a href="website.html#contacto" class="inline-block mt-5 px-8 py-3 rounded-xl bg-primary font-semibold text-white hover:bg-primary/90 transition">Solicitar cotización</a>
+  </div>
+</main>
+
+<footer class="border-t border-white/5 py-8 text-center text-xs text-muted/70">
+  Proveedora y Comercializadora Tabasqueña · Tabasco, México · ventas@pc-t.com.mx
+</footer>
+
+<script>
+const FAMILIAS = [
+  { n: 'Codos 45° y 90°', d: 'Cambio de dirección en líneas de alta presión.',
+    m: '2" – 6"', c: 'Uniones FIG 206 / 602 / 1002 / 1502 · roscas NPT', p: '2,000 – 10,000 psi' },
+  { n: 'Pup joints / tubos', d: 'Tramos rectos para extender líneas de flujo.',
+    m: '2" – 10"', c: 'Uniones FIG 206 / 602 / 1002 / 1502', p: '2,000 – 10,000 psi' },
+  { n: 'Tees', d: 'Derivaciones en T — configuraciones H×M×M, H×M×H y H×H×M.',
+    m: '2" – 4"', c: 'Uniones FIG 206 / 602 / 1002 / 1502', p: '2,000 – 10,000 psi' },
+  { n: 'Crosses y X-over', d: 'Cruces y adaptadores de unión entre figuras y normas.',
+    m: '2" – 8"', c: 'Uniones FIG · bridas ANSI / API 6A', p: '285 – 15,000 psi' },
+  { n: 'Tapas y tapones', d: 'Cierres y puntos muertos con rosca adicional según configuración.',
+    m: '1/2" – 6"', c: 'Uniones FIG · roscas NPT', p: '1,300 – 10,000 psi' },
+  { n: 'Bridas', d: 'Adaptadoras, ciegas y de prueba para conexión y sellado.',
+    m: '1/2" – 20 3/4"', c: 'Bridas API 6A · anillos R / RX / BX', p: '3,000 – 10,000 psi' },
+  { n: 'Carretes', d: 'Espaciadores y adaptadores bridados de gran diámetro.',
+    m: '4 1/16" – 21 1/4"', c: 'Bridas API 6A', p: '3,000 – 10,000 psi' },
+  { n: 'DSA / SSA', d: 'Adaptadores embridados dobles y sencillos para manifold y cabezal.',
+    m: '2 1/16" – 13 5/8"', c: 'Bridas API 6A', p: '5,000 – 10,000 psi' },
+  { n: 'Wyes, spools y especiales', d: 'Derivaciones en Y, spools bridados y piezas a configuración.',
+    m: 'Según requerimiento', c: 'Uniones FIG · bridas API 6A', p: 'Hasta 15,000 psi' },
+];
+
+document.getElementById('grid').innerHTML = FAMILIAS.map(f => `
+  <div class="fam rounded-xl border border-white/10 bg-white/[.03] p-5">
+    <h3 class="font-display font-semibold text-white">${f.n}</h3>
+    <p class="text-sm text-muted mt-1.5">${f.d}</p>
+    <div class="mt-4 space-y-1.5">
+      <div class="spec flex justify-between gap-3"><span class="text-muted">Medidas</span><span class="text-white/85 text-right">${f.m}</span></div>
+      <div class="spec flex justify-between gap-3"><span class="text-muted">Conexiones</span><span class="text-white/85 text-right">${f.c}</span></div>
+      <div class="spec flex justify-between gap-3"><span class="text-muted">Presión</span><span class="text-accent3 font-semibold text-right">${f.p}</span></div>
+    </div>
+  </div>`).join('');
+</script>
+</body>
+</html>

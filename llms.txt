@@ -27,4 +27,5 @@
 ## Páginas
 
 - [Portada](https://www.pc-t.com.mx/website.html): servicios, catálogo y contacto
+- [Catálogo de equipos](https://www.pc-t.com.mx/catalogo.html): familias de equipos de alta presión para renta — medidas, conexiones y rangos de presión estándar
 - [Solicitud de inspección](https://www.pc-t.com.mx/solicitud.html): registro de equipos externos para inspección (acceso interno)
