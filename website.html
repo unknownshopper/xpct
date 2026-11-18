@@ -1616,6 +1616,38 @@
 <script src="config.local.js"></script>
 <script src="chat-widget.js"></script>
 
+<!-- Audio ambient — aparece el toggle solo si el archivo existe -->
+<button id="snd-toggle" hidden aria-label="Activar sonido ambient" title="Sonido"
+  class="fixed bottom-5 left-5 z-[80] w-11 h-11 rounded-full items-center justify-center border border-white/15 bg-ink/70 backdrop-blur-sm text-muted hover:text-accent3 hover:border-accent/50 transition flex">
+  <svg id="snd-ico-off" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+  <svg id="snd-ico-on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+</button>
+<audio id="ambient" src="audio/trace.mp3" loop preload="none"></audio>
+<script>
+  (function () {
+    const amb = document.getElementById('ambient'), btn = document.getElementById('snd-toggle');
+    const icoOn = document.getElementById('snd-ico-on'), icoOff = document.getElementById('snd-ico-off');
+    let playing = false, fadeIv = null;
+    // Solo mostrar el toggle si el archivo realmente existe
+    fetch('audio/trace.mp3', { method: 'HEAD' }).then(r => { if (r.ok) btn.hidden = false; }).catch(() => {});
+    const fadeTo = (target, done) => {
+      clearInterval(fadeIv);
+      fadeIv = setInterval(() => {
+        amb.volume = Math.min(1, Math.max(0, amb.volume + (target > amb.volume ? .05 : -.05)));
+        if (Math.abs(amb.volume - target) < .06) { amb.volume = target; clearInterval(fadeIv); done && done(); }
+      }, 45);
+    };
+    btn.addEventListener('click', () => {
+      if (!playing) {
+        amb.play().then(() => { playing = true; icoOn.classList.remove('hidden'); icoOff.classList.add('hidden'); fadeTo(.5); }).catch(() => {});
+      } else {
+        playing = false; icoOn.classList.add('hidden'); icoOff.classList.remove('hidden');
+        fadeTo(0, () => amb.pause());
+      }
+    });
+  })();
+</script>
+
 <script>
   (function () {
     const gate = document.getElementById('cookie-gate');
