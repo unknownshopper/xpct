@@ -11,7 +11,7 @@
 <link rel="dns-prefetch" href="https://cdn.tailwindcss.com" />
 <link rel="preconnect" href="https://unpkg.com" />
 <link rel="dns-prefetch" href="https://unpkg.com" />
-<link rel="icon" type="image/png" href="img/log33.png" />
+<link rel="icon" type="image/png" href="img/log33s.png" />
 
 
 <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -381,8 +381,8 @@
 <!-- NAV -->
 <header id="navbar" class="fixed top-0 inset-x-0 z-50">
   <nav class="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-    <a href="#" class="flex items-center gap-2.5"><img src="img/log33.png" alt="PCT" class="h-12 md:h-14 w-auto drop-shadow-[0_0_16px_rgba(251,191,36,.6)] drop-shadow-[0_0_5px_rgba(255,255,255,.4)] brightness-[1.15]" /></a>
-    <div class="hidden md:flex items-center gap-3 text-sm text-muted">
+    <a href="#" class="flex items-center gap-2.5"><img id="nav-logo" src="img/log33s.png" alt="PCT" class="h-12 md:h-14 w-auto drop-shadow-[0_0_16px_rgba(251,191,36,.6)] drop-shadow-[0_0_5px_rgba(255,255,255,.4)] brightness-[1.15]" /></a>
+    <div id="nav-links" class="hidden md:flex items-center gap-3 text-sm text-muted">
       <a href="#servicios" class="nav-chip">Servicios</a>
       <a href="catalogo.html" class="nav-chip">Catálogo</a>
       <a href="#ecosistema" class="nav-chip">Trazabilidad</a>
@@ -405,7 +405,7 @@
   <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-ink" aria-hidden="true"></div>
 
   <div class="max-w-6xl mx-auto px-6 relative w-full pt-36 pb-24">
-    <div class="fade-up inline-flex items-center gap-3 px-4 py-2 rounded-full border border-accent/30 bg-accent/10 backdrop-blur-sm mb-8" style="animation-delay:.1s">
+    <div id="hero-eyebrow" class="fade-up inline-flex items-center gap-3 px-4 py-2 rounded-full border border-accent/30 bg-accent/10 backdrop-blur-sm mb-8" style="animation-delay:.1s">
       <span class="pulse-dot w-2 h-2 rounded-full bg-accent3 shrink-0"></span>
       <span class="text-sm md:text-base tracking-widest uppercase text-white/80">Renta de equipos de alta presión · Trazabilidad de cada equipo</span>
     </div>
@@ -801,7 +801,7 @@
     <div class="grid md:grid-cols-4 gap-10">
       <!-- Marca -->
       <div class="md:col-span-2">
-        <a href="#" class="flex items-center gap-2.5 w-fit"><img src="img/log33.png" alt="PCT" class="h-12 md:h-14 w-auto drop-shadow-[0_0_16px_rgba(251,191,36,.6)] drop-shadow-[0_0_5px_rgba(255,255,255,.4)] brightness-[1.15]" /></a>
+        <a href="#" class="flex items-center gap-2.5 w-fit"><img src="img/log33s.png" alt="PCT" class="h-12 md:h-14 w-auto drop-shadow-[0_0_16px_rgba(251,191,36,.6)] drop-shadow-[0_0_5px_rgba(255,255,255,.4)] brightness-[1.15]" /></a>
         <p class="text-sm text-muted mt-4 leading-relaxed max-w-sm">Renta de equipos de alta presión con trazabilidad.<br>Cada equipo, un historial completo.<br>Tabasco · México.</p>
       </div>
       <!-- Secciones -->
@@ -906,6 +906,35 @@
   /* ---------- Navbar condense ---------- */
   const nav = document.getElementById('navbar');
   addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 30), { passive: true });
+
+  /* ---------- Logo hero: gigante en diagonal, colapsa al hacer scroll ---------- */
+  const navLogo = document.getElementById('nav-logo');
+  const heroEyebrow = document.getElementById('hero-eyebrow');
+  const navLinks = document.getElementById('nav-links');
+  if (navLogo && heroEyebrow && !reduced) {
+    const RANGE = 320, THETA = 11 * Math.PI / 180, GAP = 26;
+    let S = 1;
+    const measure = () => {
+      navLogo.style.transform = '';
+      const H = navLogo.offsetHeight, W = navLogo.offsetWidth;
+      const logoTop = navLogo.getBoundingClientRect().top;
+      const ebTop = heroEyebrow.getBoundingClientRect().top + scrollY;
+      const avail = Math.max(ebTop - logoTop - GAP, H);
+      S = Math.max(1, Math.min(avail / (W * Math.sin(THETA) + H * Math.cos(THETA)), innerWidth * 1.35 / W, 9));
+      update();
+    };
+    const update = () => {
+      const k = 1 - Math.pow(1 - Math.min(scrollY / RANGE, 1), 2.2);
+      navLogo.style.transform = `scale(${(1 + (S - 1) * (1 - k)).toFixed(3)}) rotate(${(11 * (1 - k)).toFixed(2)}deg)`;
+      if (navLinks) navLinks.style.opacity = String(Math.min(1, k * 1.6));
+    };
+    navLogo.style.transformOrigin = 'top left';
+    navLogo.style.pointerEvents = 'none';
+    navLogo.style.willChange = 'transform';
+    measure();
+    addEventListener('scroll', update, { passive: true });
+    addEventListener('resize', measure);
+  }
 
   /* ---------- Cursor luminoso ---------- */
   if (!reduced) {

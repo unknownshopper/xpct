@@ -23,7 +23,7 @@
   panel.style.cssText = 'background:#14161b; box-shadow:0 20px 60px rgba(0,0,0,.55);';
   panel.innerHTML = `
     <div class="flex items-center gap-3 px-4 py-3 border-b border-white/10" style="background:linear-gradient(90deg,rgba(184,88,15,.25),transparent);">
-      <img src="img/log33s.png" alt="PCT" class="h-7" style="filter:drop-shadow(.6px 0 0 rgba(255,255,255,.9)) drop-shadow(-.6px 0 0 rgba(255,255,255,.9)) drop-shadow(0 .6px 0 rgba(255,255,255,.9)) drop-shadow(0 -.6px 0 rgba(255,255,255,.9)) drop-shadow(.45px .45px 0 rgba(255,255,255,.9)) drop-shadow(-.45px .45px 0 rgba(255,255,255,.9)) drop-shadow(.45px -.45px 0 rgba(255,255,255,.9)) drop-shadow(-.45px -.45px 0 rgba(255,255,255,.9));">
+      <img src="img/log33s.png" alt="PCT" class="h-7" style="filter:drop-shadow(.4px 0 0 rgba(255,255,255,.85)) drop-shadow(-.4px 0 0 rgba(255,255,255,.85)) drop-shadow(0 .4px 0 rgba(255,255,255,.85)) drop-shadow(0 -.4px 0 rgba(255,255,255,.85));">
       <div class="flex-1">
         <div class="font-display text-sm font-bold text-white">Asistente PCT</div>
         <div class="text-[10px] text-muted">Renta de equipos · inspección · servicios</div>
