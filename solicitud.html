@@ -405,7 +405,7 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast(`Solicitud ${fl} creada con éxito — PDF descargado`);
   } catch (e) {
-    err.textContent = 'No se pudo enviar. Intenta de nuevo o escríbenos a ventas@pc-t.com.mx';
+    err.textContent = 'No se pudo enviar. Intenta de nuevo o escríbenos a soporte@pc-t.com.mx';
     err.style.display = '';
     btn.disabled = false; btn.textContent = 'Enviar solicitud';
     enviando = false;

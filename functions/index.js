@@ -2957,7 +2957,7 @@ export const onContactoWeb = onDocumentCreated(
     await enviarCorreo({
       html,
       subject: `Contacto web — ${c.servicio || 'servicio'} — ${c.nombre || ''}`,
-      to: parseEmailList(process.env.MAIL_CONTACTO_TO || 'ventas@pc-t.com.mx'),
+      to: parseEmailList(process.env.MAIL_CONTACTO_TO || 'soporte@pc-t.com.mx'),
       cc: parseEmailList(process.env.MAIL_CONTACTO_CC || ''),
     });
     console.log('onContactoWeb: aviso enviado');
