@@ -322,11 +322,9 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
       creadoPor: usuario,
       fecha: new Date()
     };
-    await addDoc(collection(db, 'solicitudes_ext'), {
-      ...ultimaSol, fecha: undefined,
-      estado: 'NUEVA',
-      creadoEn: serverTimestamp()
-    });
+    const docData = { ...ultimaSol, estado: 'NUEVA', creadoEn: serverTimestamp() };
+    delete docData.fecha;
+    await addDoc(collection(db, 'solicitudes_ext'), docData);
     document.getElementById('f').style.display = 'none';
     document.getElementById('folio').textContent = fl;
     document.getElementById('ok').style.display = '';
