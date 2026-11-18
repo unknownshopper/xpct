@@ -54,8 +54,8 @@
     <section class="card">
       <h2>Datos del cliente</h2>
       <div class="grid2">
-        <div class="fld"><label>Nombre / contacto <em>*</em></label><input name="nombre" required placeholder="Ej. Juan Pérez"></div>
-        <div class="fld"><label>Empresa</label><input name="empresa" placeholder="Ej. Servicios del Golfo S.A."></div>
+        <div class="fld"><label>Nombre / contacto <em>*</em></label><input name="nombre" required placeholder="EJ. JUAN PÉREZ"></div>
+        <div class="fld"><label>Empresa</label><input name="empresa" placeholder="EJ. SERVICIOS DEL GOLFO S.A."></div>
       </div>
       <div class="grid2">
         <div class="fld"><label>Correo <em>*</em></label><input name="correo" type="email" required placeholder="correo@empresa.com"></div>
@@ -82,7 +82,7 @@
       </div>
       <div class="fld" style="margin-top:1rem; margin-bottom:0;">
         <label>Observaciones</label>
-        <textarea name="obs" rows="3" placeholder="Estado general de los equipos, urgencia, ubicación…"></textarea>
+        <textarea name="obs" rows="3" placeholder="ESTADO GENERAL DE LOS EQUIPOS, URGENCIA, UBICACIÓN…"></textarea>
       </div>
     </section>
 
@@ -162,7 +162,7 @@ function eqRow(i) {
           <option value="VALVULA">Válvula</option><option value="MANIFOLD">Manifold</option>
           <option value="CAJA">Caja / subs</option><option>Otro</option>
         </select>
-        <input name="eq-tipo-otro" placeholder="Especifica el tipo de equipo" style="display:none; margin-top:.45rem;"></div>
+        <input name="eq-tipo-otro" placeholder="ESPECIFICA EL TIPO DE EQUIPO" style="display:none; margin-top:.45rem;"></div>
       <div class="fld"><label>Serie / identificación</label><input name="eq-serie" placeholder="S/N"></div>
     </div>
     <div class="eq-ends"></div>
@@ -180,10 +180,10 @@ function eqRow(i) {
         <div class="chip" data-a="TAPON">Tapón</div>
         <div class="chip" data-a="OTRO">Otro…</div>
       </div>
-      <input name="eq-acc-otro" placeholder="Especifica el accesorio" style="display:none; margin-top:.4rem;">
+      <input name="eq-acc-otro" placeholder="ESPECIFICA EL ACCESORIO" style="display:none; margin-top:.4rem;">
     </div>
     <div class="fld" style="margin-bottom:0;"><label>Nota adicional (opcional)</label>
-      <input name="eq-desc" placeholder="Ej. Preventor anular 13-5/8&quot; 5M — solo si no aplica la notación de extremos"></div>
+      <input name="eq-desc" placeholder="EJ. PREVENTOR ANULAR 13-5/8&quot; 5M — SOLO SI NO APLICA LA NOTACIÓN DE EXTREMOS"></div>
     <div class="eq-prev" style="font-size:.74rem; color:var(--brick); font-weight:600; margin-top:.45rem; min-height:1em;"></div>
     <button type="button" class="rm">Quitar</button>`;
   const selTipo = d.querySelector('[name=eq-tipo]'), otro = d.querySelector('[name=eq-tipo-otro]');
@@ -253,6 +253,21 @@ function compDesc(d) {
 function addEq() { eqs.appendChild(eqRow(eqs.children.length)); }
 addEq();
 document.getElementById('btn-add-eq').addEventListener('click', addEq);
+
+// Mayúsculas sin acentos en vivo (delegado: cubre filas dinámicas)
+document.getElementById('f').addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
+  if (el.name === 'correo') return;
+  let nv = el.value;
+  if (el.name === 'telefono') nv = nv.replace(/[^\d\s]/g, '');
+  else nv = nv.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  if (nv !== el.value) {
+    const p = el.selectionStart;
+    el.value = nv;
+    try { el.setSelectionRange(p, p); } catch {}
+  }
+});
 
 chipWrap.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
   c.classList.toggle('on');
