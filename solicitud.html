@@ -137,6 +137,7 @@ const eqs = document.getElementById('eqs');
 const chipWrap = document.getElementById('chips-pruebas');
 const sel = new Set(['VT', 'UTT', 'MT', 'PT', 'LT']);
 let ultimaSol = null;
+let enviando = false;
 
 document.getElementById('fecha-hoy').textContent =
   new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -263,6 +264,11 @@ function folio() {
   return 'SOL-' + new Date().getFullYear() + '-' + n.slice(-5);
 }
 
+// Normalización: mayúsculas, sin acentos, espacios colapsados — clave para dedup
+const normTxt = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+const normMail = s => String(s || '').trim().toLowerCase();
+const normTel = s => String(s || '').replace(/\D/g, '');
+
 function toast(msg) {
   let t = document.getElementById('toast');
   if (!t) {
@@ -281,22 +287,22 @@ function recolectar() {
   const equipos = [...eqs.children].map(d => {
     const t = d.querySelector('[name=eq-tipo]').value;
     const otro = d.querySelector('[name=eq-tipo-otro]').value.trim();
-    const ends = [...d.querySelectorAll('[name=eq-end]')].map(i => i.value.trim()).filter(Boolean);
+    const ends = [...d.querySelectorAll('[name=eq-end]')].map(i => normTxt(i.value)).filter(Boolean);
     const pt = d.querySelector('[name=eq-pt]').value.trim();
     const accs = [...d.querySelectorAll('.chips-acc .chip.on')].map(c => c.dataset.a);
-    const accOtro = d.querySelector('[name=eq-acc-otro]').value.trim();
+    const accOtro = normTxt(d.querySelector('[name=eq-acc-otro]').value);
     if (accOtro) accs.splice(accs.indexOf('OTRO'), 1, `OTRO: ${accOtro}`);
     return {
-      tipo: t === 'Otro' ? otro : t,
-      serie: d.querySelector('[name=eq-serie]').value.trim(),
+      tipo: t === 'Otro' ? normTxt(otro) : t,
+      serie: normTxt(d.querySelector('[name=eq-serie]').value),
       desc: compDesc(d),
       accesorios: accs,
       espec: (ends.length || pt) ? { ends, pt, long: d.querySelector('[name=eq-long]').value.trim(), temp: d.querySelector('[name=eq-temp]').value.trim() } : undefined
     };
   }).filter(e => e.tipo || e.serie || e.desc);
   return {
-    nombre: f.nombre.value.trim(), empresa: f.empresa.value.trim(),
-    correo: f.correo.value.trim(), telefono: f.telefono.value.trim(),
+    nombre: normTxt(f.nombre.value), empresa: normTxt(f.empresa.value),
+    correo: normMail(f.correo.value), telefono: normTel(f.telefono.value),
     equipos, pruebas: [...sel], observaciones: f.obs.value.trim()
   };
 }
@@ -317,20 +323,31 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   err.style.display = 'none';
   const f = ev.target;
   if (f.empresa2.value) return; // honeypot
-  const { nombre, correo, telefono, equipos } = recolectar();
+  if (enviando) return;
+  const { nombre, empresa, correo, telefono, equipos } = recolectar();
   if (!nombre || !correo || !telefono) { err.textContent = 'Completa nombre, correo y teléfono.'; err.style.display = ''; return; }
   if (!equipos.length || equipos.some(e => !e.tipo)) { err.textContent = 'Cada equipo necesita su tipo — si elegiste "Otro", especifica cuál.'; err.style.display = ''; return; }
 
+  enviando = true;
   const btn = document.getElementById('btn-enviar');
   btn.disabled = true; btn.textContent = 'Enviando…';
   try {
-    const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const { collection, addDoc, serverTimestamp, getDocs, query, where, limit } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const db = window.db;
     const usuario = window.auth?.currentUser?.email || null;
+    // Dedup: si ya registró una solicitud de este cliente (mismo correo), confirmar
+    if (usuario) {
+      const prev = await getDocs(query(collection(db, 'solicitudes_ext'), where('creadoPor', '==', usuario), limit(50)));
+      let dup = null;
+      prev.forEach(d => { const s = d.data() || {}; if (normMail(s.correo) === correo && !dup) dup = s; });
+      if (dup && !confirm(`Ya registraste ${dup.folio || 'una solicitud'} para ${nombre} (${correo}). ¿Enviar otra de todos modos?`)) {
+        btn.disabled = false; btn.textContent = 'Enviar solicitud'; enviando = false; return;
+      }
+    }
     const fl = folio();
     ultimaSol = {
       folio: fl,
-      nombre, empresa: f.empresa.value.trim(), correo, telefono,
+      nombre, empresa, correo, telefono,
       equipos,
       pruebas: [...sel],
       observaciones: f.obs.value.trim(),
@@ -348,12 +365,14 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     addEq();
     document.querySelectorAll('#chips-pruebas .chip').forEach(c => { c.classList.add('on'); sel.add(c.dataset.p); });
     btn.disabled = false; btn.textContent = 'Enviar solicitud';
+    enviando = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast(`Solicitud ${fl} creada con éxito — PDF descargado`);
   } catch (e) {
     err.textContent = 'No se pudo enviar. Intenta de nuevo o escríbenos a ventas@pc-t.com.mx';
     err.style.display = '';
     btn.disabled = false; btn.textContent = 'Enviar solicitud';
+    enviando = false;
   }
 });
 

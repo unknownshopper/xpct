@@ -96,6 +96,7 @@ const auth = window.auth;
 if (!auth) window.location.href = 'login.html';
 
 const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const normTxt = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 const waLink = (tel, msg) => {
   const d = String(tel || '').replace(/\D/g, '');
   if (!d) return null;
@@ -162,7 +163,7 @@ function pintar(docs, box) {
     const f = s.creadoEn?.toDate?.();
     if (f && f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear()) esteMes++;
     if ((s.estado || 'NUEVA') === 'ENTREGADA') entregadas++;
-    const clave = (s.empresa || s.nombre || 'Sin nombre').trim();
+    const clave = normTxt(s.empresa || s.nombre) || 'SIN NOMBRE';
     if (!clientes[clave]) clientes[clave] = { nombre: s.nombre, empresa: s.empresa, correo: s.correo, telefono: s.telefono, sols: 0, eqs: 0, ultima: null };
     const c = clientes[clave];
     c.sols++; c.eqs += nEq;
