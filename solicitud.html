@@ -41,7 +41,7 @@
 </style>
 </head>
 <body>
-<header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE INSPECCIÓN</b></header>
+<header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE INSPECCIÓN</b><a id="lnk-panel" href="ventas.html" style="display:none;margin-left:auto;font-size:.78rem;font-weight:600;color:var(--brick);text-decoration:none;border:1px solid var(--brick);border-radius:999px;padding:.3rem .8rem;">← Mi panel</a></header>
 
 <main class="wrap" id="wrap" style="display:none;">
   <p class="lead">Registro de equipos para inspección</p>
@@ -124,6 +124,7 @@ else {
       || role === 'cops' || email === 'cops@pc-t.com.mx'
       || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'sgi@pc-t.com.mx', 'admin@pc-t.com.mx'].includes(email);
     if (!ok) { window.location.href = 'inspectlist.html'; return; }
+    if (role === 'vendedor') document.getElementById('lnk-panel').style.display = '';
     document.getElementById('wrap').style.display = '';
     document.dispatchEvent(new Event('sol-auth-ok'));
   });

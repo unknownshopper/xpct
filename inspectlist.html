@@ -676,6 +676,10 @@
         try {
             const token = await user.getIdTokenResult();
             const role = (token?.claims?.role) || null;
+            if (role === 'vendedor') {
+                window.location.href = 'ventas.html';
+                return;
+            }
             window.userRole = role;
             window.isAdmin = role === 'admin';
             window.isDirector = role === 'director';

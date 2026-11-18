@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCT · Panel comercial</title>
+<link rel="icon" type="image/png" href="img/log33.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --brick:#b8580f; --brick-d:#8f4509; --ink:#1c1e22; --mut:#6b7280; --bd:#d8dbe0; --bg:#f4f5f7; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; }
+  .top { background:#fff; border-bottom:3px solid var(--brick); padding:.7rem 1.2rem; display:flex; align-items:center; gap:.8rem; }
+  .top img { height:34px; }
+  .top b { font-family:'Space Grotesk',sans-serif; letter-spacing:.04em; }
+  .top .u { margin-left:auto; font-size:.78rem; color:var(--mut); }
+  .top .out { font-size:.75rem; font-weight:600; color:var(--brick); background:none; border:1px solid var(--brick); border-radius:999px; padding:.3rem .8rem; cursor:pointer; }
+  .wrap { max-width:820px; margin:0 auto; padding:1.6rem 1rem 4rem; display:none; }
+  .lead { font-family:'Space Grotesk',sans-serif; font-size:1.4rem; font-weight:700; margin-bottom:.3rem; }
+  .sub { color:var(--mut); font-size:.9rem; margin-bottom:1.4rem; }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:.7rem; margin-bottom:1.2rem; }
+  .kpi { background:#fff; border:1px solid #e8eaee; border-radius:12px; padding:.9rem .8rem; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .kpi b { display:block; font-family:'Space Grotesk'; font-size:1.6rem; color:var(--brick); }
+  .kpi span { font-size:.68rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--mut); }
+  .acciones { display:flex; gap:.7rem; margin-bottom:1.2rem; flex-wrap:wrap; }
+  .btn-main { flex:1; min-width:170px; border:none; border-radius:10px; padding:.85rem; font-family:'Space Grotesk'; font-weight:700; font-size:.95rem; color:#fff; background:linear-gradient(135deg,#c46418,var(--brick)); cursor:pointer; box-shadow:0 2px 8px rgba(184,88,15,.3); text-decoration:none; text-align:center; display:block; }
+  .btn-sec { flex:1; min-width:170px; border:1px solid var(--brick); color:var(--brick); background:#fff; border-radius:10px; padding:.85rem; font-family:'Space Grotesk'; font-weight:700; font-size:.95rem; cursor:pointer; }
+  .btn-sec.on { background:#fef3e8; }
+  .card { background:#fff; border:1px solid #e8eaee; border-radius:12px; padding:1.3rem; margin-bottom:1.2rem; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .card h2 { font-family:'Space Grotesk',sans-serif; font-size:.85rem; letter-spacing:.07em; text-transform:uppercase; color:var(--brick); margin-bottom:1rem; }
+  .sol { border:1px solid #eef0f3; border-radius:10px; padding:.9rem; margin-bottom:.7rem; }
+  .sol .cab { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.5rem; }
+  .sol .folio { font-family:'Space Grotesk'; font-weight:700; color:var(--brick); }
+  .sol .fecha { font-size:.72rem; color:var(--mut); }
+  .sol .cli { font-weight:600; font-size:.9rem; }
+  .sol .eqs { font-size:.78rem; color:var(--mut); margin:.3rem 0 .6rem; }
+  .estados { display:flex; flex-wrap:wrap; gap:.4rem; }
+  .est { border:1px solid var(--bd); border-radius:999px; padding:.28rem .7rem; font-size:.7rem; font-weight:700; cursor:pointer; background:#fff; user-select:none; }
+  .est.on[data-e="NUEVA"] { background:#fef3e8; border-color:var(--brick); color:var(--brick); }
+  .est.on[data-e="CONTACTADA"] { background:#e0ecff; border-color:#3b6fb5; color:#25548f; }
+  .est.on[data-e="EN PLANTA"] { background:#fdf3c8; border-color:#b59a1e; color:#7c6a08; }
+  .est.on[data-e="ENTREGADA"] { background:#dcfce7; border-color:#15803d; color:#166534; }
+  .est.on[data-e="CANCELADA"] { background:#f1f1f1; border-color:#9ca3af; color:#6b7280; }
+  .wa { display:inline-flex; align-items:center; gap:.35rem; font-size:.72rem; font-weight:700; color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:999px; padding:.28rem .7rem; text-decoration:none; }
+  .cli-card { border:1px solid #eef0f3; border-radius:10px; padding:.9rem; margin-bottom:.7rem; display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; }
+  .cli-card .nm { font-weight:700; }
+  .cli-card .dt { font-size:.78rem; color:var(--mut); margin-top:.15rem; }
+  .cli-card .stats { margin-left:auto; font-size:.72rem; font-weight:600; color:var(--brick); text-align:right; }
+  #clientes { display:none; }
+  @media (max-width:560px) { .kpis { grid-template-columns:1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="top">
+  <img src="img/log33.png" alt="PCT" onerror="this.remove()">
+  <b>PCT · Panel comercial</b>
+  <span class="u" id="usr"></span>
+  <button class="out" id="btn-out">Salir</button>
+</div>
+<div class="wrap" id="wrap">
+  <div class="lead">Mis solicitudes</div>
+  <div class="sub">Solicitudes de inspección que has registrado con clientes externos.</div>
+
+  <div class="kpis">
+    <div class="kpi"><b id="k-sol">0</b><span>Solicitudes</span></div>
+    <div class="kpi"><b id="k-eq">0</b><span>Equipos</span></div>
+    <div class="kpi"><b id="k-mes">0</b><span>Este mes</span></div>
+    <div class="kpi"><b id="k-ent">0</b><span>Entregadas</span></div>
+  </div>
+
+  <div class="acciones">
+    <a class="btn-main" href="solicitud.html">+ Nueva solicitud</a>
+    <button class="btn-sec" id="btn-clientes">Directorio de clientes</button>
+  </div>
+
+  <div class="card" id="card-sol">
+    <h2>Solicitudes registradas</h2>
+    <div id="lista-sol"><span style="color:#6b7280;">Cargando…</span></div>
+  </div>
+
+  <div class="card" id="clientes">
+    <h2>Directorio de clientes</h2>
+    <div id="lista-cli"></div>
+  </div>
+</div>
+
+<script type="module" src="firebase-init.js"></script>
+<script type="module">
+import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { collection, getDocs, query, where, limit, doc, updateDoc }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const ESTADOS = ['NUEVA', 'CONTACTADA', 'EN PLANTA', 'ENTREGADA', 'CANCELADA'];
+const auth = window.auth;
+if (!auth) window.location.href = 'login.html';
+
+const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const waLink = (tel, msg) => {
+  const d = String(tel || '').replace(/\D/g, '');
+  if (!d) return null;
+  const num = d.length === 10 ? '52' + d : d;
+  return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+};
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = 'login.html'; return; }
+  const email = (user.email || '').toLowerCase();
+  const role = (await user.getIdTokenResult()).claims?.role || null;
+  const esStaff = ['admin', 'director', 'sgi', 'cops'].includes(role)
+    || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'sgi@pc-t.com.mx', 'admin@pc-t.com.mx', 'cops@pc-t.com.mx'].includes(email);
+  const esVendedor = role === 'vendedor';
+  if (!esVendedor && !esStaff) { window.location.href = 'index.html'; return; }
+  document.getElementById('usr').textContent = email;
+  document.getElementById('wrap').style.display = '';
+  cargar(email, esVendedor);
+});
+
+document.getElementById('btn-out').addEventListener('click', async () => {
+  try { await signOut(auth); } finally { window.location.href = 'login.html'; }
+});
+document.getElementById('btn-clientes').addEventListener('click', (e) => {
+  const box = document.getElementById('clientes');
+  const ver = box.style.display === 'none';
+  box.style.display = ver ? '' : 'none';
+  e.target.classList.toggle('on', ver);
+  if (ver) box.scrollIntoView({ behavior: 'smooth' });
+});
+
+async function cargar(email, esVendedor) {
+  const box = document.getElementById('lista-sol');
+  try {
+    const q = esVendedor
+      ? query(collection(window.db, 'solicitudes_ext'), where('creadoPor', '==', email), limit(200))
+      : query(collection(window.db, 'solicitudes_ext'), limit(200));
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      box.innerHTML = '<span style="color:#6b7280;">Sin solicitudes aún. Empieza con «+ Nueva solicitud».</span>';
+      return;
+    }
+    const docs = [];
+    snap.forEach(d => docs.push(d));
+    docs.sort((a, b) => (b.data().creadoEn?.toMillis?.() || 0) - (a.data().creadoEn?.toMillis?.() || 0));
+    pintar(docs, box);
+  } catch (e) {
+    box.innerHTML = `<span style="color:#b91c1c;">No se pudo cargar (${esc(e?.message || e)}).</span>`;
+  }
+}
+
+function pintar(docs, box) {
+  let eqTotal = 0, esteMes = 0, entregadas = 0;
+  const ahora = new Date();
+  const clientes = {};
+  const sols = [];
+
+  docs.forEach(d => {
+    const s = d.data() || {};
+    s._id = d.id;
+    sols.push(s);
+    const nEq = (s.equipos || []).length;
+    eqTotal += nEq;
+    const f = s.creadoEn?.toDate?.();
+    if (f && f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear()) esteMes++;
+    if ((s.estado || 'NUEVA') === 'ENTREGADA') entregadas++;
+    const clave = (s.empresa || s.nombre || 'Sin nombre').trim();
+    if (!clientes[clave]) clientes[clave] = { nombre: s.nombre, empresa: s.empresa, correo: s.correo, telefono: s.telefono, sols: 0, eqs: 0, ultima: null };
+    const c = clientes[clave];
+    c.sols++; c.eqs += nEq;
+    if (!c.ultima || (f && f > c.ultima)) { c.ultima = f; c.telefono = s.telefono || c.telefono; c.correo = s.correo || c.correo; }
+  });
+
+  document.getElementById('k-sol').textContent = docs.length;
+  document.getElementById('k-eq').textContent = eqTotal;
+  document.getElementById('k-mes').textContent = esteMes;
+  document.getElementById('k-ent').textContent = entregadas;
+
+  box.innerHTML = sols.map(s => {
+    const fecha = s.creadoEn?.toDate ? s.creadoEn.toDate().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+    const pruebas = (s.pruebas || []).join(' · ') || '—';
+    const wa = waLink(s.telefono, `Hola ${s.nombre || ''}, le escribo de PCT sobre su solicitud ${s.folio || ''} (${(s.equipos || []).length} equipo(s) para inspección).`);
+    return `<div class="sol" data-id="${esc(s._id)}">
+      <div class="cab">
+        <span class="folio">${esc(s.folio || '—')}</span>
+        <span class="fecha">${esc(fecha)}</span>
+        ${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp cliente</a>` : ''}
+      </div>
+      <div class="cli">${esc(s.nombre)}${s.empresa ? ` · ${esc(s.empresa)}` : ''}</div>
+      <div class="eqs">${(s.equipos || []).length} equipo(s) · ${esc(pruebas)}</div>
+      <div class="estados">${ESTADOS.map(e =>
+        `<span class="est ${((s.estado || 'NUEVA') === e) ? 'on' : ''}" data-e="${e}">${e}</span>`).join('')}</div>
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('.est').forEach(chip => chip.addEventListener('click', async () => {
+    const card = chip.closest('.sol');
+    const id = card.dataset.id;
+    const estado = chip.dataset.e;
+    chip.parentElement.querySelectorAll('.est').forEach(c => c.classList.remove('on'));
+    chip.classList.add('on');
+    try {
+      await updateDoc(doc(window.db, 'solicitudes_ext', id), { estado });
+    } catch (e) {
+      alert('No se pudo actualizar el estado.');
+    }
+  }));
+
+  const lista = Object.entries(clientes).sort((a, b) => (b[1].ultima || 0) - (a[1].ultima || 0));
+  document.getElementById('lista-cli').innerHTML = lista.map(([clave, c]) => {
+    const wa = waLink(c.telefono, `Hola ${c.nombre || ''}, le escribo de PCT para darle seguimiento.`);
+    return `<div class="cli-card">
+      <div>
+        <div class="nm">${esc(clave)}</div>
+        <div class="dt">${esc(c.nombre || '')}${c.correo ? ` · ${esc(c.correo)}` : ''}${c.telefono ? ` · ${esc(c.telefono)}` : ''}</div>
+        <div class="dt">Última solicitud: ${c.ultima ? c.ultima.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
+      </div>
+      <div class="stats">${c.sols} solicitud(es)<br>${c.eqs} equipo(s)</div>
+      ${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+    </div>`;
+  }).join('') || '<span style="color:#6b7280;">Sin clientes aún.</span>';
+}
+</script>
+</body>
+</html>

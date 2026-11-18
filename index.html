@@ -219,6 +219,11 @@
         try {
             const token = await user.getIdTokenResult(true); // refresca claims
             const role = (token?.claims?.role) || null;
+            // Vendedor: solo su panel comercial, nada de operación
+            if (role === 'vendedor') {
+                window.location.href = 'ventas.html';
+                return;
+            }
             // Marcar flags globales para el navbar y nav.js
             window.isAdmin = role === 'admin';
             window.isDirector = role === 'director';
