@@ -124,8 +124,8 @@ onAuthStateChanged(auth, async (user) => {
         const token = await user.getIdTokenResult(true); // force refresh after role changes
         const role = (token?.claims?.role) || null;
         if (role) {
-            // Al ingresar al sistema siempre aterriza en dashboard (index)
-            location.href = next || 'index.html';
+            // Vendedor: directo a su panel; resto: dashboard (index)
+            location.href = next || (role === 'vendedor' ? 'ventas.html' : 'index.html');
         } else {
             // Sin rol asignado: mostrar mensaje y reintentar refrescar claims unos segundos
             const msg = document.getElementById('login-mensaje');
