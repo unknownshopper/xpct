@@ -42,8 +42,7 @@
     <style>
       #ai-panel .ai-chip { font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.75); background:rgba(255,255,255,.05); cursor:pointer; white-space:nowrap; }
       #ai-panel .ai-chip:hover { border-color:#c46418; color:#fbbf24; }
-      #ai-panel .ai-btn { display:inline-block; margin-top:6px; font-size:12px; font-weight:600; padding:6px 14px; border-radius:8px; border:none; color:#fff; background:linear-gradient(135deg,#c46418,#b8580f); cursor:pointer; }
-      #ai-panel .ai-btn:hover { filter:brightness(1.15); }
+      #ai-panel .ai-btn { display:none; }
     </style>`;
   document.body.appendChild(fab);
   document.body.appendChild(panel);
@@ -54,7 +53,7 @@
   let fn = null;
   let replayed = false;
 
-  // Acciones de los botones (chips fijos + botones inline [BTN:X] del modelo)
+  // Acciones de los chips fijos (Catálogo / Cotizar)
   const ACTIONS = {
     catalogo: () => { location.href = 'catalogo.html'; },
     form:     () => {
@@ -62,7 +61,6 @@
       else location.href = 'website.html#contacto';
     },
   };
-  const BTN_LABEL = { catalogo: 'Ver catálogo', form: 'Formulario de contacto' };
 
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
@@ -85,8 +83,7 @@
   function renderBot(el, text) {
     const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     el.innerHTML = esc
-      .replace(/\[BTN:(CATALOGO|FORM)\]/gi,
-        (m, k) => `<button type="button" class="ai-btn" data-act="${k.toLowerCase()}">${BTN_LABEL[k.toLowerCase()]}</button>`)
+      .replace(/\[BTN:[A-Z]+\]/gi, '')
       .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
 
@@ -124,7 +121,7 @@
       hist.push({ role: 'assistant', content: ans });
       save();
     } catch (e) {
-      renderBot(wait, 'Ahora no puedo responder — inténtalo de nuevo o usa el formulario. [BTN:FORM]');
+      renderBot(wait, 'Ahora no puedo responder — inténtalo de nuevo o usa el botón Cotizar.');
     }
     msgs.scrollTop = msgs.scrollHeight;
   });

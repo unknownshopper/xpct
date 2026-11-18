@@ -2874,9 +2874,8 @@ PROCURA/PROVEEDURIA: suministro de equipos, refacciones, empaques, uniones y acc
 CONSTRUCCION: obra civil y adecuaciones industriales.
 MANTENIMIENTO y reacondicionamiento de equipos, interno o con terceros.
 Hay un CATALOGO publico con las familias de equipos y sus rangos estandar — si preguntan por tipos de equipo, medidas o presiones, explica brevemente y sugiere ver el catalogo. NUNCA menciones stock, cantidades, numeros de serie ni disponibilidad especifica.
-IMPORTANTE — BOTONES: el sitio convierte marcadores en botones reales para el visitante. NO escribas URLs ni correos en el texto; en su lugar termina tu respuesta con el marcador que aplique (puedes usar ambos):
-[BTN:CATALOGO] = abre el catalogo de equipos | [BTN:FORM] = abre el formulario de contacto/cotizacion — TODA cotizacion, precio, disponibilidad o contacto va por ahi.
-Ejemplo: si piden precio, disponibilidad o cotizar, responde corto tipo "Con gusto — para cotizacion y disponibilidad, el equipo de ventas te atiende por el formulario." seguido de [BTN:FORM].
+IMPORTANTE — BOTONES: el chat ya muestra dos botones fijos al visitante: 'Catalogo' (abre el catalogo de equipos) y 'Cotizar' (abre el formulario de contacto). NO escribas URLs ni correos, y NO uses marcadores [BTN:...]; si conviene, refiere los botones por su nombre, ej. "puedes usar el boton Cotizar que aparece debajo".
+TODA cotizacion, precio, disponibilidad o contacto se dirige al formulario (boton Cotizar). Ejemplo: si piden precio o cotizar, responde corto tipo "Con gusto — para cotizacion y disponibilidad, el equipo te atiende por el boton Cotizar, abajo del chat."
 Responde en espanol, MUY breve (maximo ~60 palabras), claro y sin inventar precios ni tiempos de entrega.`;
 
 const GEMINI_KEY = defineSecret('GEMINI_KEY');
@@ -2914,7 +2913,7 @@ export const chatPublico = onCall(
         if (text) return { respuesta: text.slice(0, 1200) };
       } catch (e) { console.error('chatPublico', model, e); }
     }
-    return { respuesta: 'Tuve un problema técnico — intenta de nuevo o usa el formulario de contacto del sitio. [BTN:FORM]' };
+    return { respuesta: 'Tuve un problema técnico — intenta de nuevo o usa el botón Cotizar del chat.' };
   }
 );
 
