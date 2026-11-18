@@ -1645,7 +1645,11 @@
     };
 
     /* ---- Drone sintetizado (Web Audio) ---- */
-    let ctx = null, master = null;
+    let ctx = null, master = null, wet = null, motifTimer = null;
+    // AJUSTES DEL MOTIVO — tocar aqui:
+    const BEAT = 1.05;          // velocidad de las notas (seg por tiempo)
+    const MOTIF_MIN = 40, MOTIF_MAX = 75; // cada cuanto suena (seg, aleatorio)
+    const NOTE_F = [329.63, 261.63, 220]; // las 3 notas: E4 C4 A3 (desciende al grave)
     function buildDrone() {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       master = ctx.createGain();
@@ -1674,6 +1678,34 @@
       const lfo2 = ctx.createOscillator(), lg2 = ctx.createGain();
       lfo2.frequency.value = 1 / 31; lg2.gain.value = .06;
       lfo2.connect(lg2); lg2.connect(master.gain); lfo2.start();
+      // Echo espacial para el motivo (delay con feedback)
+      const dl = ctx.createDelay(2), fb = ctx.createGain();
+      wet = ctx.createGain();
+      dl.delayTime.value = .42; fb.gain.value = .32; wet.gain.value = .3;
+      dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(master);
+      wet.input = dl;
+    }
+    // Una nota campanosa: seno + armonico, ataque rapido y decaimiento largo
+    function pluck(f, t, dur) {
+      const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), g2 = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      o2.type = 'sine'; o2.frequency.value = f * 2.003; g2.gain.value = .28;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(.15, t + .025);
+      g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      g.connect(master); g.connect(wet.input);
+      o.start(t); o.stop(t + dur + .1); o2.start(t); o2.stop(t + dur + .1);
+    }
+    // "tan . tan tan | tan . tan tannnn" — figura de 3 golpes, repite y sostiene la ultima
+    function motif() {
+      if (playing && ctx.state === 'running') {
+        const t0 = ctx.currentTime + .15, B = BEAT;
+        [[0, 0, 1.6], [1, 2 * B, 1.3], [2, 3 * B, 1.3],
+         [0, 4.6 * B, 1.6], [1, 6.6 * B, 1.3], [2, 7.6 * B, 3.6]]
+          .forEach(([ni, off, dur]) => pluck(NOTE_F[ni], t0 + off, dur));
+      }
+      motifTimer = setTimeout(motif, (MOTIF_MIN + Math.random() * (MOTIF_MAX - MOTIF_MIN)) * 1000);
     }
     const ramp = (to, secs, cb) => {
       const t = ctx.currentTime;
@@ -1690,8 +1722,14 @@
         return;
       }
       if (!ctx) buildDrone();
-      if (!playing) { ctx.resume(); playing = true; swap(true); ramp(.42, 4); }
-      else { playing = false; swap(false); ramp(0, 1.5, () => ctx.suspend()); }
+      if (!playing) {
+        ctx.resume(); playing = true; swap(true); ramp(.42, 4);
+        if (!motifTimer) motifTimer = setTimeout(motif, 10000); // primer motivo tras el fade
+      } else {
+        playing = false; swap(false);
+        clearTimeout(motifTimer); motifTimer = null;
+        ramp(0, 1.5, () => ctx.suspend());
+      }
     });
     function swap(on) {
       icoOn.classList.toggle('hidden', !on);
