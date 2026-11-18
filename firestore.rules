@@ -167,8 +167,9 @@ service cloud.firestore {
         && request.resource.data.get('mensaje', '') is string
         && request.resource.data.get('mensaje', '').size() <= 2000
         && request.resource.data.hp == '';
-      allow read: if isRoleAny(['admin', 'director', 'sgi', 'cops', 'vendedor']);
-      allow update, delete: if false;
+      allow read: if isRoleAny(['admin', 'director', 'sgi', 'cops']);
+      allow update: if isRoleAny(['admin', 'director', 'sgi', 'cops']);
+      allow delete: if false;
     }
 
     // Solicitudes de inspeccion de clientes externos.

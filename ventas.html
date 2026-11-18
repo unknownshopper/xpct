@@ -41,6 +41,9 @@
   .est.on[data-e="EN PLANTA"] { background:#fdf3c8; border-color:#b59a1e; color:#7c6a08; }
   .est.on[data-e="ENTREGADA"] { background:#dcfce7; border-color:#15803d; color:#166534; }
   .est.on[data-e="CANCELADA"] { background:#f1f1f1; border-color:#9ca3af; color:#6b7280; }
+  .est.on[data-e="NUEVO"] { background:#fef3e8; border-color:var(--brick); color:var(--brick); }
+  .est.on[data-e="ATENDIDO"] { background:#dcfce7; border-color:#15803d; color:#166534; }
+  .est.on[data-e="DESCARTADO"] { background:#f1f1f1; border-color:#9ca3af; color:#6b7280; }
   .wa { display:inline-flex; align-items:center; gap:.35rem; font-size:.72rem; font-weight:700; color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:999px; padding:.28rem .7rem; text-decoration:none; }
   .cli-card { border:1px solid #eef0f3; border-radius:10px; padding:.9rem; margin-bottom:.7rem; display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; }
   .cli-card .nm { font-weight:700; }
@@ -72,6 +75,7 @@
     <a class="btn-main" href="solicitud.html">+ Nueva solicitud</a>
     <button class="btn-sec" id="btn-clientes">Directorio de clientes</button>
     <button class="btn-sec" id="btn-comis" style="display:none;">Comisiones</button>
+    <button class="btn-sec" id="btn-leads" style="display:none;">Leads del sitio</button>
   </div>
 
   <div class="card" id="card-sol">
@@ -87,6 +91,11 @@
   <div class="card" id="comisiones" style="display:none;">
     <h2>Comisiones — solicitudes entregadas por vendedor</h2>
     <div id="lista-comis"></div>
+  </div>
+
+  <div class="card" id="leads" style="display:none;">
+    <h2>Leads del sitio web</h2>
+    <div id="lista-leads"><span style="color:#6b7280;">Cargando…</span></div>
   </div>
 </div>
 
@@ -124,6 +133,7 @@ onAuthStateChanged(auth, async (user) => {
   esAdminDir = ['admin', 'director'].includes(role)
     || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'admin@pc-t.com.mx'].includes(email);
   if (esAdminDir) document.getElementById('btn-comis').style.display = '';
+  if (esStaff) document.getElementById('btn-leads').style.display = '';
   document.getElementById('usr').textContent = email;
   document.getElementById('wrap').style.display = 'block';
   cargar(email, esVendedor);
@@ -141,6 +151,52 @@ const toggleCard = (btnId, cardId) => document.getElementById(btnId).addEventLis
 });
 toggleCard('btn-clientes', 'clientes');
 toggleCard('btn-comis', 'comisiones');
+let leadsCargados = false;
+document.getElementById('btn-leads').addEventListener('click', (e) => {
+  const box = document.getElementById('leads');
+  const ver = box.style.display === 'none';
+  box.style.display = ver ? '' : 'none';
+  e.target.classList.toggle('on', ver);
+  if (ver && !leadsCargados) { leadsCargados = true; cargarLeads(); box.scrollIntoView({ behavior: 'smooth' }); }
+});
+
+const ESTADOS_LEAD = ['NUEVO', 'ATENDIDO', 'DESCARTADO'];
+async function cargarLeads() {
+  const box = document.getElementById('lista-leads');
+  try {
+    const snap = await getDocs(query(collection(window.db, 'contactos_web'), limit(100)));
+    const docs = [];
+    snap.forEach(d => docs.push(d));
+    docs.sort((a, b) => (b.data().creadoEn?.toMillis?.() || 0) - (a.data().creadoEn?.toMillis?.() || 0));
+    if (!docs.length) { box.innerHTML = '<span style="color:#6b7280;">Sin leads del sitio aún.</span>'; return; }
+    box.innerHTML = docs.map(d => {
+      const l = d.data() || {};
+      const fecha = l.creadoEn?.toDate ? l.creadoEn.toDate().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+      const tel = String(l.contacto || '').replace(/\D/g, '');
+      const wa = tel.length >= 10 ? waLink(tel, `Hola ${l.nombre || ''}, le escribo de PCT sobre su solicitud de ${l.servicio || 'servicio'} en nuestro sitio web.`) : null;
+      return `<div class="sol" data-id="${esc(d.id)}">
+        <div class="cab">
+          <span class="cli">${esc(l.nombre || '—')}</span>
+          <span class="fecha">${esc(fecha)} · ${esc(l.contacto || '—')}</span>
+          ${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+        </div>
+        <div style="font-size:.8rem; font-weight:600; color:var(--brick);">${esc(l.servicio || '—')}</div>
+        ${l.mensaje ? `<div style="font-size:.78rem; color:var(--mut); margin:.25rem 0 .5rem;">${esc(l.mensaje)}</div>` : '<div style="margin:.25rem 0 .5rem;"></div>'}
+        <div class="estados">${ESTADOS_LEAD.map(e =>
+          `<span class="est ${((l.estado || 'NUEVO') === e) ? 'on' : ''}" data-e="${e}" data-col="contactos_web">${e}</span>`).join('')}</div>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.est').forEach(chip => chip.addEventListener('click', async () => {
+      const card = chip.closest('.sol');
+      chip.parentElement.querySelectorAll('.est').forEach(c => c.classList.remove('on'));
+      chip.classList.add('on');
+      try { await updateDoc(doc(window.db, 'contactos_web', card.dataset.id), { estado: chip.dataset.e }); }
+      catch { alert('No se pudo actualizar el estado.'); }
+    }));
+  } catch (e) {
+    box.innerHTML = `<span style="color:#b91c1c;">No se pudo cargar (${esc(e?.message || e)}).</span>`;
+  }
+}
 
 async function cargar(email, esVendedor) {
   const box = document.getElementById('lista-sol');
