@@ -53,6 +53,12 @@
     <!-- CLIENTE -->
     <section class="card">
       <h2>Datos del cliente</h2>
+      <div id="asig-wrap" style="display:none; margin-bottom:.8rem; align-items:center; gap:.6rem; font-size:.85rem;">
+        <label style="display:flex; align-items:center; gap:.4rem; font-weight:600; cursor:pointer;">
+          <input type="checkbox" id="chk-asignar" style="accent-color:var(--brick); width:16px; height:16px;"> Asignar a vendedor
+        </label>
+        <select id="sel-vendedor" style="display:none; border:1px solid var(--bd); border-radius:8px; padding:.4rem .6rem; font-family:inherit; font-size:.85rem;"></select>
+      </div>
       <div class="grid2">
         <div class="fld"><label>Nombre / contacto <em>*</em></label><input name="nombre" required placeholder="EJ. JUAN PÉREZ"></div>
         <div class="fld"><label>Empresa</label><input name="empresa" placeholder="EJ. SERVICIOS DEL GOLFO S.A."></div>
@@ -102,10 +108,6 @@
     <button type="button" class="btn-main" id="btn-pdf" style="max-width:280px; margin:0 auto;">Descargar solicitud en PDF</button>
   </div>
 
-  <section class="card" id="card-solicitudes">
-    <h2>Solicitudes registradas</h2>
-    <div id="lista-sol" style="font-size:.83rem;">Cargando…</div>
-  </section>
 </main>
 
 <script src="config.local.js"></script>
@@ -122,17 +124,31 @@ else {
     const role = (await user.getIdTokenResult()).claims?.role || null;
     window.userRole = role;
     window.currentUserEmail = email;
-    const ok = ['admin', 'director', 'sgi', 'vendedor'].includes(role)
+    const esStaff = ['admin', 'director', 'sgi'].includes(role)
       || role === 'cops' || email === 'cops@pc-t.com.mx'
       || ['lgmt@pc-t.com.mx', 'jalcz@pc-t.com.mx', 'sgi@pc-t.com.mx', 'admin@pc-t.com.mx'].includes(email);
+    const ok = esStaff || role === 'vendedor';
     if (!ok) { window.location.href = 'inspectlist.html'; return; }
-    if (role === 'vendedor') document.getElementById('lnk-panel').style.display = '';
+    const lnk = document.getElementById('lnk-panel');
+    lnk.style.display = '';
+    lnk.textContent = role === 'vendedor' ? '← Mi panel' : 'Panel comercial →';
+    // Solo staff puede asignar solicitudes a un vendedor
+    if (esStaff) document.getElementById('asig-wrap').style.display = 'flex';
     document.getElementById('wrap').style.display = '';
-    document.dispatchEvent(new Event('sol-auth-ok'));
   });
 }
 </script>
 <script type="module">
+// Vendedores disponibles para asignación (solo staff ve el control)
+const VENDEDORES = [
+  { email: 'pilar@unknownshoppers.com', nombre: 'PILAR' },
+];
+const selVend = document.getElementById('sel-vendedor');
+selVend.innerHTML = VENDEDORES.map(v => `<option value="${v.email}">${v.nombre}</option>`).join('');
+document.getElementById('chk-asignar').addEventListener('change', (e) => {
+  selVend.style.display = e.target.checked ? '' : 'none';
+});
+
 const eqs = document.getElementById('eqs');
 const chipWrap = document.getElementById('chips-pruebas');
 const sel = new Set(['VT', 'UTT', 'MT', 'PT', 'LT']);
@@ -371,11 +387,15 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     };
     const docData = { ...ultimaSol, estado: 'NUEVA', creadoEn: serverTimestamp() };
     delete docData.fecha;
+    if (document.getElementById('chk-asignar').checked) {
+      docData.asignadoA = selVend.value;
+      docData.asignadoANombre = normTxt(selVend.options[selVend.selectedIndex].text);
+    }
     await addDoc(collection(db, 'solicitudes_ext'), docData);
     generarPdf();
-    cargarSolicitudes();
     // Limpiar formulario y quedarse en él (flujo vendedor: captura continua)
     f.reset();
+    selVend.style.display = 'none';
     eqs.innerHTML = '';
     addEq();
     document.querySelectorAll('#chips-pruebas .chip').forEach(c => { c.classList.add('on'); sel.add(c.dataset.p); });
@@ -557,46 +577,6 @@ async function ensureJsPdf() {
 }
 
 
-async function cargarSolicitudes() {
-  const box = document.getElementById('lista-sol');
-  try {
-    const { collection, getDocs, query, orderBy, limit, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const esVendedor = window.userRole === 'vendedor';
-    const q = esVendedor
-      ? query(collection(window.db, 'solicitudes_ext'), where('creadoPor', '==', window.currentUserEmail), limit(50))
-      : query(collection(window.db, 'solicitudes_ext'), orderBy('creadoEn', 'desc'), limit(30));
-    const snap = await getDocs(q);
-    if (snap.empty) { box.innerHTML = '<span style="color:#6b7280;">Sin solicitudes aún.</span>'; return; }
-    const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const rows = [];
-    const docs = [];
-    snap.forEach(d => docs.push(d));
-    docs.sort((a, b) => (b.data().creadoEn?.toMillis?.() || 0) - (a.data().creadoEn?.toMillis?.() || 0));
-    if (esVendedor) document.querySelector('#card-solicitudes h2').textContent = 'Mis solicitudes';
-    docs.forEach(d => {
-      const s = d.data() || {};
-      const fecha = s.creadoEn?.toDate ? s.creadoEn.toDate().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '—';
-      const pruebas = (s.pruebas || []).join(' ') || '—';
-      rows.push(`<tr>
-        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; font-weight:700; color:var(--brick); white-space:nowrap;">${esc(s.folio)}</td>
-        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; white-space:nowrap;">${esc(fecha)}</td>
-        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3;">${esc(s.nombre)}${s.empresa ? ` · ${esc(s.empresa)}` : ''}</td>
-        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; text-align:center;">${(s.equipos || []).length}</td>
-        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; font-size:.75rem; color:#6b7280;">${esc(pruebas)}</td>
-        <td style="padding:.4rem .5rem; border-bottom:1px solid #eef0f3; white-space:nowrap;"><span style="font-size:.7rem; font-weight:700; padding:.15rem .55rem; border-radius:999px; background:#fef3e8; color:var(--brick);">${esc(s.estado || 'NUEVA')}</span></td>
-      </tr>`);
-    });
-    box.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse;">
-      <thead><tr style="font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#6b7280;">
-        <th style="text-align:left; padding:.3rem .5rem;">Folio</th><th style="text-align:left; padding:.3rem .5rem;">Fecha</th>
-        <th style="text-align:left; padding:.3rem .5rem;">Cliente</th><th style="padding:.3rem .5rem;">Equipos</th>
-        <th style="text-align:left; padding:.3rem .5rem;">Pruebas</th><th style="text-align:left; padding:.3rem .5rem;">Estado</th>
-      </tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
-  } catch (e) {
-    box.innerHTML = `<span style="color:#b91c1c;">No se pudo cargar la lista (${String(e?.message || e)}).</span>`;
-  }
-}
-document.addEventListener('sol-auth-ok', cargarSolicitudes);
 </script>
 </body>
 </html>

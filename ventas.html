@@ -131,24 +131,31 @@ document.getElementById('btn-clientes').addEventListener('click', (e) => {
 async function cargar(email, esVendedor) {
   const box = document.getElementById('lista-sol');
   try {
-    const q = esVendedor
-      ? query(collection(window.db, 'solicitudes_ext'), where('creadoPor', '==', email), limit(200))
-      : query(collection(window.db, 'solicitudes_ext'), limit(200));
-    const snap = await getDocs(q);
-    if (snap.empty) {
+    const col = collection(window.db, 'solicitudes_ext');
+    const byId = new Map();
+    const push = snap => snap.forEach(d => { if (!byId.has(d.id)) byId.set(d.id, d); });
+    if (esVendedor) {
+      // Sus solicitudes: las que creó + las que le asignó el staff
+      push(await getDocs(query(col, where('creadoPor', '==', email), limit(200))));
+      try {
+        push(await getDocs(query(col, where('asignadoA', '==', email), limit(200))));
+      } catch {} // reglas sin asignadoA aún: no romper la lista
+    } else {
+      push(await getDocs(query(col, limit(200))));
+    }
+    if (!byId.size) {
       box.innerHTML = '<span style="color:#6b7280;">Sin solicitudes aún. Empieza con «+ Nueva solicitud».</span>';
       return;
     }
-    const docs = [];
-    snap.forEach(d => docs.push(d));
+    const docs = [...byId.values()];
     docs.sort((a, b) => (b.data().creadoEn?.toMillis?.() || 0) - (a.data().creadoEn?.toMillis?.() || 0));
-    pintar(docs, box);
+    pintar(docs, box, email, esVendedor);
   } catch (e) {
     box.innerHTML = `<span style="color:#b91c1c;">No se pudo cargar (${esc(e?.message || e)}).</span>`;
   }
 }
 
-function pintar(docs, box) {
+function pintar(docs, box, miEmail, esVendedor) {
   let eqTotal = 0, esteMes = 0, entregadas = 0;
   const ahora = new Date();
   const clientes = {};
@@ -179,13 +186,16 @@ function pintar(docs, box) {
     const fecha = s.creadoEn?.toDate ? s.creadoEn.toDate().toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
     const pruebas = (s.pruebas || []).join(' · ') || '—';
     const wa = waLink(s.telefono, `Hola ${s.nombre || ''}, le escribo de PCT sobre su solicitud ${s.folio || ''} (${(s.equipos || []).length} equipo(s) para inspección).`);
+    const asignada = esVendedor && s.creadoPor && s.creadoPor !== miEmail;
     return `<div class="sol" data-id="${esc(s._id)}">
       <div class="cab">
         <span class="folio">${esc(s.folio || '—')}</span>
         <span class="fecha">${esc(fecha)}</span>
+        ${asignada ? `<span style="font-size:.65rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; background:#e0ecff; color:#25548f;">ASIGNADA POR ${esc(normTxt(s.creadoPorNombre || s.creadoPor.split('@')[0]))}</span>` : ''}
         ${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp cliente</a>` : ''}
       </div>
-      <div class="cli">${esc(s.nombre)}${s.empresa ? ` · ${esc(s.empresa)}` : ''}</div>
+      <div class="cli">${esc(s.nombre)}</div>
+      ${s.empresa ? `<div style="font-size:.82rem; font-weight:600; color:var(--brick); margin-top:.1rem;">${esc(s.empresa)}</div>` : ''}
       <div class="eqs">${(s.equipos || []).length} equipo(s) · ${esc(pruebas)}</div>
       <div class="estados">${ESTADOS.map(e =>
         `<span class="est ${((s.estado || 'NUEVA') === e) ? 'on' : ''}" data-e="${e}">${e}</span>`).join('')}</div>

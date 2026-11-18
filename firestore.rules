@@ -159,9 +159,11 @@ service cloud.firestore {
     match /solicitudes_ext/{docId} {
       allow create: if isRoleAny(['admin', 'director', 'sgi', 'cops', 'vendedor']);
       allow read: if isRoleAny(['admin', 'director', 'sgi', 'cops'])
-        || (isRoleAny(['vendedor']) && resource.data.creadoPor == request.auth.token.email);
+        || (isRoleAny(['vendedor']) && (resource.data.creadoPor == request.auth.token.email
+            || resource.data.get('asignadoA', '') == request.auth.token.email));
       allow update, delete: if isRoleAny(['admin', 'director', 'sgi', 'cops'])
-        || (isRoleAny(['vendedor']) && resource.data.creadoPor == request.auth.token.email);
+        || (isRoleAny(['vendedor']) && (resource.data.creadoPor == request.auth.token.email
+            || resource.data.get('asignadoA', '') == request.auth.token.email));
     }
 
     // Estado de bloques post-trabajo por equipo (checkboxes operativos)
