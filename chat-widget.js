@@ -3,7 +3,7 @@
 // Requiere config.local.js cargado antes (window.PCT_FIREBASE_CONFIG).
 (function () {
   const KEY = 'pct_ai_hist';
-  const WELCOME = 'Hola, soy el asistente de PCT. Puedo orientarte sobre renta de equipos de alta presión, inspecciones y pruebas (VT, UTT, MT, PT, LT), limpieza industrial, procura y construcción. ¿Qué necesitas?';
+  const WELCOME = 'Hola, soy el asistente de PCT. Puedo orientarte sobre renta de equipos de alta presión, inspecciones y pruebas, limpieza industrial, procura y construcción. ¿Qué necesitas?\n[BTN:CATALOGO] [BTN:FORM]';
 
   let hist = [];
   try { hist = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch {}
@@ -23,7 +23,7 @@
   panel.style.cssText = 'background:#14161b; box-shadow:0 20px 60px rgba(0,0,0,.55);';
   panel.innerHTML = `
     <div class="flex items-center gap-3 px-4 py-3 border-b border-white/10" style="background:linear-gradient(90deg,rgba(184,88,15,.25),transparent);">
-      <img src="img/log33.png" alt="PCT" class="h-6">
+      <img src="img/log33.png" alt="PCT" class="h-7" style="filter:brightness(1.2) drop-shadow(0 0 10px rgba(251,191,36,.6)) drop-shadow(0 0 4px rgba(255,255,255,.4));">
       <div class="flex-1">
         <div class="font-display text-sm font-bold text-white">Asistente PCT</div>
         <div class="text-[10px] text-muted">Renta de equipos · inspección · servicios</div>
@@ -31,10 +31,21 @@
       <button id="ai-close" class="text-muted hover:text-white text-lg leading-none px-1" aria-label="Cerrar">×</button>
     </div>
     <div id="ai-msgs" class="h-72 overflow-y-auto px-4 py-3 space-y-3 text-sm"></div>
-    <form id="ai-form" class="flex gap-2 p-3 border-t border-white/10">
+    <div class="flex gap-1.5 px-3 pt-2 border-t border-white/10" id="ai-quick">
+      <button type="button" data-act="catalogo" class="ai-chip">Catálogo</button>
+      <button type="button" data-act="form" class="ai-chip">Cotizar</button>
+      <button type="button" data-act="ventas" class="ai-chip">Ventas</button>
+    </div>
+    <form id="ai-form" class="flex gap-2 p-3">
       <input id="ai-in" class="flex-1 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent" placeholder="Pregunta por renta, pruebas, servicios…" autocomplete="off" maxlength="500">
       <button id="ai-send" class="rounded-lg px-3.5 flex items-center justify-center" style="background:linear-gradient(135deg,#c46418,#b8580f);" aria-label="Enviar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-    </form>`;
+    </form>
+    <style>
+      #ai-panel .ai-chip { font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.14); color:rgba(255,255,255,.75); background:rgba(255,255,255,.05); cursor:pointer; white-space:nowrap; }
+      #ai-panel .ai-chip:hover { border-color:#c46418; color:#fbbf24; }
+      #ai-panel .ai-btn { display:inline-block; margin-top:6px; font-size:12px; font-weight:600; padding:6px 14px; border-radius:8px; border:none; color:#fff; background:linear-gradient(135deg,#c46418,#b8580f); cursor:pointer; }
+      #ai-panel .ai-btn:hover { filter:brightness(1.15); }
+    </style>`;
   document.body.appendChild(fab);
   document.body.appendChild(panel);
 
@@ -44,6 +55,22 @@
   let fn = null;
   let replayed = false;
 
+  // Acciones de los botones (chips fijos + botones inline [BTN:X] del modelo)
+  const ACTIONS = {
+    catalogo: () => { location.href = 'catalogo.html'; },
+    ventas:   () => { location.href = 'mailto:ventas@pc-t.com.mx'; },
+    form:     () => {
+      if (window.pctContact) window.pctContact();
+      else location.href = 'website.html#contacto';
+    },
+  };
+  const BTN_LABEL = { catalogo: 'Ver catálogo', ventas: 'Escribir a ventas', form: 'Formulario de contacto' };
+
+  panel.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (b && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act]();
+  });
+
   function bubble(text, me) {
     const d = document.createElement('div');
     d.className = me
@@ -51,13 +78,18 @@
       : 'mr-auto max-w-[85%] rounded-xl rounded-bl-sm px-3 py-2 text-white/90 bg-white/5 border border-white/10';
     if (me) d.style.background = 'linear-gradient(135deg,#c46418,#b8580f)';
     if (me) { d.textContent = text; }
-    else {
-      const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      d.innerHTML = esc.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
-    }
+    else { renderBot(d, text); }
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
     return d;
+  }
+
+  function renderBot(el, text) {
+    const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    el.innerHTML = esc
+      .replace(/\[BTN:(CATALOGO|VENTAS|FORM)\]/gi,
+        (m, k) => `<button type="button" class="ai-btn" data-act="${k.toLowerCase()}">${BTN_LABEL[k.toLowerCase()]}</button>`)
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
 
   fab.addEventListener('click', () => {
@@ -89,11 +121,12 @@
         fn = httpsCallable(getFunctions(app, 'us-central1'), 'chatPublico');
       }
       const r = await fn({ mensajes: hist.slice(-10) });
-      wait.textContent = r.data.respuesta || 'No pude responder, intenta de nuevo.';
-      hist.push({ role: 'assistant', content: wait.textContent });
+      const ans = r.data.respuesta || 'No pude responder, intenta de nuevo.';
+      renderBot(wait, ans);
+      hist.push({ role: 'assistant', content: ans });
       save();
     } catch (e) {
-      wait.textContent = 'Ahora no puedo responder — escríbenos a ventas@pc-t.com.mx o por WhatsApp.';
+      renderBot(wait, 'Ahora no puedo responder — inténtalo de nuevo o contáctanos directo. [BTN:VENTAS] [BTN:FORM]');
     }
     msgs.scrollTop = msgs.scrollHeight;
   });

@@ -1523,6 +1523,7 @@
     document.getElementById('cf-srv-insp').addEventListener('change', (e) => {
       document.getElementById('cf-srv-pnd').classList.toggle('hidden', !e.target.checked);
     });
+    if (location.hash === '#contacto') openC();
     document.getElementById('cform').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target;

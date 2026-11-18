@@ -2873,8 +2873,11 @@ LIMPIEZA INDUSTRIAL de equipos y componentes, en planta o sitio.
 PROCURA/PROVEEDURIA: suministro de equipos, refacciones, empaques, uniones y accesorios de alta presion.
 CONSTRUCCION: obra civil y adecuaciones industriales.
 MANTENIMIENTO y reacondicionamiento de equipos, interno o con terceros.
-Hay un CATALOGO publico en https://www.pc-t.com.mx/catalogo.html con las familias de equipos y sus rangos estandar — si preguntan por tipos de equipo, medidas o presiones disponibles, explica brevemente y sugiere ver el catalogo. NUNCA menciones stock, cantidades, numeros de serie ni disponibilidad especifica: para eso deriva a ventas.
-Responde en espanol, breve (maximo ~90 palabras), claro y sin inventar precios ni tiempos de entrega. Si piden cotizar, disponibilidad o algo que no sepas, invita a escribir a ventas@pc-t.com.mx o usar el formulario de contacto del sitio.`;
+Hay un CATALOGO publico con las familias de equipos y sus rangos estandar — si preguntan por tipos de equipo, medidas o presiones, explica brevemente y sugiere ver el catalogo. NUNCA menciones stock, cantidades, numeros de serie ni disponibilidad especifica.
+IMPORTANTE — BOTONES: el sitio convierte marcadores en botones reales para el visitante. NO escribas URLs ni correos en el texto; en su lugar termina tu respuesta con el marcador que aplique (puedes usar varios):
+[BTN:CATALOGO] = abre el catalogo de equipos | [BTN:FORM] = abre el formulario de contacto/cotizacion | [BTN:VENTAS] = escribir al correo de ventas.
+Ejemplo: si piden precio, disponibilidad o cotizar, responde corto tipo "Con gusto — para cotizacion y disponibilidad nuestro equipo de ventas te atiende directo." seguido de [BTN:FORM] [BTN:VENTAS].
+Responde en espanol, MUY breve (maximo ~60 palabras), claro y sin inventar precios ni tiempos de entrega.`;
 
 const GEMINI_KEY = defineSecret('GEMINI_KEY');
 const CHAT_MODELS = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.0-flash'];
