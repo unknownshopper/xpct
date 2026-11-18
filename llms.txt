@@ -1,0 +1,30 @@
+# PCT — Proveedora y Comercializadora Tabasqueña
+
+> Empresa mexicana con base en Tabasco. Actividad principal: **renta de equipos de alta presión** para la industria petrolera (hasta 15,000 psi, servicio H2S), con inspección anual vigente y trazabilidad digital de cada equipo. Servicios secundarios: inspección y pruebas para particulares (VT, UTT, MT, PT, LT), mantenimiento y reacondicionamiento, limpieza industrial, procura/proveeduría y construcción.
+
+## Servicios
+
+- Renta de equipos de alta presión: codos 45°/90°, tees, crosses, wyes, spools, bridas espaciadoras y adaptadoras, pup joints, niples, conos/reducciones, swivels, válvulas, manifolds, preventores/BOP, crossovers y cajas/subs. Figuras 206/602/1002/1502, 2000–15000 psi, servicio H2S, rango de temperatura -29 a 121 °C
+- Inspección y pruebas para particulares: VT (visual), UTT (ultrasonido de espesores, bajo referencia ASTM E114/API 1132), MT (partículas magnéticas, ASTM E1444), PT (líquidos penetrantes, ASTM E165) y LT (prueba de fuga/integridad a presión — no es PND)
+- Mantenimiento y reacondicionamiento de equipos de alta presión (incluye pintura)
+- Limpieza industrial
+- Procura y proveeduría industrial
+- Construcción
+
+## Diferenciadores
+
+- Trazabilidad digital por equipo: historial completo de inspecciones, pruebas, mantenimiento y evidencia fotográfica
+- Vigencia anual controlada: ningún equipo sale a renta sin reporte anual vigente
+- Inspección visual pre y post trabajo en cada renta
+- Solicitud de recepción de equipos de clientes externos con folio y documento PDF institucional
+
+## Contacto
+
+- Sitio: https://www.pc-t.com.mx
+- Ventas: ventas@pc-t.com.mx
+- Ubicación: Tabasco, México
+
+## Páginas
+
+- [Portada](https://www.pc-t.com.mx/website.html): servicios, catálogo y contacto
+- [Solicitud de inspección](https://www.pc-t.com.mx/solicitud.html): registro de equipos externos para inspección (acceso interno)
