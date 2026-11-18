@@ -23,7 +23,7 @@
   panel.style.cssText = 'background:#14161b; box-shadow:0 20px 60px rgba(0,0,0,.55);';
   panel.innerHTML = `
     <div class="flex items-center gap-3 px-4 py-3 border-b border-white/10" style="background:linear-gradient(90deg,rgba(184,88,15,.25),transparent);">
-      <img src="img/log33.png" alt="PCT" class="h-7" style="filter:brightness(0) invert(1); opacity:.92;">
+      <img src="img/log33.png" alt="PCT" class="h-6" style="background:#f2efe9; padding:3px 9px; border-radius:7px; box-sizing:content-box;">
       <div class="flex-1">
         <div class="font-display text-sm font-bold text-white">Asistente PCT</div>
         <div class="text-[10px] text-muted">Renta de equipos · inspección · servicios</div>
