@@ -1645,16 +1645,19 @@
     };
 
     /* ---- Drone sintetizado (Web Audio) ---- */
-    let ctx = null, master = null, wet = null, motifTimer = null;
+    let ctx = null, master = null, wet = null, motifTimer = null, whiteBuf = null;
     // AJUSTES DEL MOTIVO — tocar aqui:
     const BEAT = 0.6;                // velocidad (seg por tiempo) — compas = 4 tiempos (2.4s)
-    const CYCLE_BARS = 16;           // ciclo completo en compases (~38s a BEAT .6)
-    const A_BAR = 4, B_BAR = 8;      // donde caen las dos frases (~9.6s y ~19.2s)
+    const CYCLE_BARS = 24;           // ciclo completo (~58s): F A F B BOMBAZO, respiro, repite
+    const A_BAR = 4, B_BAR = 8;      // frases cada 4 compases, bombazo tras la 4ta
     const NOTE_F = [329.63, 261.63, 220]; // las 3 notas: E4 C4 A3 (desciende al grave)
-    // "tán . tan tan" en compas 8-9 | "tan . tan tannnn" en compas 40-41
+    // Secuencia: frase A, frase B, frase A, frase B, BOMBAZO — cada 4 compases
     const EVENTS = [
-      { bar: A_BAR, phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 1.3]] },
-      { bar: B_BAR, phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 3.6]] },
+      { bar: A_BAR,      phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 1.3]] },
+      { bar: B_BAR,      phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 3.6]] },
+      { bar: A_BAR + 8,  phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 1.3]] },
+      { bar: B_BAR + 8,  phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 3.6]] },
+      { bar: B_BAR + 12, breath: true },
     ];
     function buildDrone() {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1690,6 +1693,32 @@
       dl.delayTime.value = .42; fb.gain.value = .32; wet.gain.value = .3;
       dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(master);
       wet.input = dl;
+      // Ruido blanco para la exhalacion neumatica
+      whiteBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const wd = whiteBuf.getChannelData(0);
+      for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1;
+    }
+    // Bombazo industrial: piston comprime -> pfffff exhala (bomba de LT)
+    function exhale(t) {
+      // piston: golpe grave sordo que asienta
+      const th = ctx.createOscillator(), tg = ctx.createGain();
+      th.type = 'sine'; th.frequency.value = 58;
+      tg.gain.setValueAtTime(.15, t);
+      tg.gain.exponentialRampToValueAtTime(.0001, t + .16);
+      th.connect(tg); tg.connect(master); th.start(t); th.stop(t + .2);
+      // mete presion: ruido subiendo ~.4s, luego exhala con barrido hacia abajo
+      const src = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), ng = ctx.createGain();
+      src.buffer = whiteBuf; src.loop = true;
+      bp.type = 'bandpass'; bp.Q.value = 1.1;
+      bp.frequency.setValueAtTime(1400, t + .12);
+      ng.gain.setValueAtTime(0, t + .12);
+      ng.gain.linearRampToValueAtTime(.05, t + .52);           // compresion
+      bp.frequency.setValueAtTime(2800, t + .55);
+      bp.frequency.exponentialRampToValueAtTime(720, t + 1.35); // valvula abre
+      ng.gain.setValueAtTime(.12, t + .55);                   // pfffff
+      ng.gain.exponentialRampToValueAtTime(.0001, t + 1.45);
+      src.connect(bp); bp.connect(ng); ng.connect(master); ng.connect(wet.input);
+      src.start(t + .1); src.stop(t + 1.55);
     }
     // Una nota campanosa: seno + armonico, ataque rapido y decaimiento largo
     function pluck(f, t, dur) {
@@ -1715,8 +1744,9 @@
     }
     function fire() {
       if (playing && ctx.state === 'running') {
-        const t0 = ctx.currentTime + .12;
-        EVENTS[evIdx].phrase.forEach(([ni, ob, dur]) => pluck(NOTE_F[ni], t0 + ob * BEAT, dur));
+        const t0 = ctx.currentTime + .12, ev = EVENTS[evIdx];
+        if (ev.breath) exhale(t0);
+        else ev.phrase.forEach(([ni, ob, dur]) => pluck(NOTE_F[ni], t0 + ob * BEAT, dur));
       }
       if (++evIdx >= EVENTS.length) { evIdx = 0; cycleStart += CYCLE_BARS * 4 * BEAT; }
       planNext();
