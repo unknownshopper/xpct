@@ -178,6 +178,7 @@ async function cargarLeads() {
         <div class="cab">
           <span class="cli">${esc(l.nombre || '—')}</span>
           <span class="fecha">${esc(fecha)} · ${esc(l.contacto || '—')}</span>
+          ${l.origen && l.origen !== 'website' ? `<span style="font-size:.65rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; background:#ede9fe; color:#6d28d9;">${esc(l.origen.replace('web-', '').toUpperCase())}</span>` : ''}
           ${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
         </div>
         <div style="font-size:.8rem; font-weight:600; color:var(--brick);">${esc(l.servicio || '—')}</div>

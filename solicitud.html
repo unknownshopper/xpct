@@ -142,6 +142,7 @@ else {
 // Vendedores disponibles para asignación (solo staff ve el control)
 const VENDEDORES = [
   { email: 'pilar@unknownshoppers.com', nombre: 'PILAR' },
+  { email: 'ventasvirtual@pc-t.com.mx', nombre: 'VENTAS VIRTUAL' },
 ];
 const selVend = document.getElementById('sel-vendedor');
 selVend.innerHTML = VENDEDORES.map(v => `<option value="${v.email}">${v.nombre}</option>`).join('');

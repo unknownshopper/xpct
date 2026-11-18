@@ -1521,9 +1521,10 @@
         const { getFirestore, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
         const app = getApps().length ? getApps()[0] : initializeApp(window.PCT_FIREBASE_CONFIG);
         const db = getFirestore(app);
+        const src = new URLSearchParams(location.search).get('src') || new URLSearchParams(location.search).get('utm_source') || '';
         await addDoc(collection(db, 'contactos_web'), {
           nombre: n, contacto: c, servicio: s, servicios: sel, mensaje: m, hp: '',
-          origen: 'website', creadoEn: serverTimestamp()
+          origen: src ? 'web-' + src.slice(0, 30) : 'website', creadoEn: serverTimestamp()
         });
         f.innerHTML = `<div class="text-center py-8">
           <div class="text-4xl mb-3">✓</div>
