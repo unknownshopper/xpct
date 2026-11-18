@@ -923,7 +923,8 @@
       const logoTop = navLogo.getBoundingClientRect().top;
       const ebTop = heroEyebrow.getBoundingClientRect().top + scrollY;
       const avail = Math.max(ebTop - logoTop - GAP, H);
-      S = Math.max(1, Math.min(avail / H, innerWidth * 1.35 / W, 9));
+      const fitW = (innerWidth - 40) / W; // nunca mas ancho que el viewport - margen
+      S = Math.max(1, Math.min(avail / H, fitW, 9));
       update();
     };
     const update = () => {
