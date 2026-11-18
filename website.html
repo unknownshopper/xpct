@@ -1647,9 +1647,15 @@
     /* ---- Drone sintetizado (Web Audio) ---- */
     let ctx = null, master = null, wet = null, motifTimer = null;
     // AJUSTES DEL MOTIVO — tocar aqui:
-    const BEAT = 1.05;          // velocidad de las notas (seg por tiempo)
-    const MOTIF_MIN = 40, MOTIF_MAX = 75; // cada cuanto suena (seg, aleatorio)
+    const BEAT = 1.05;               // velocidad (seg por tiempo) — compas = 4 tiempos
+    const CYCLE_BARS = 64;           // ciclo completo en compases
+    const A_BAR = 8, B_BAR = 40;     // donde caen las dos frases
     const NOTE_F = [329.63, 261.63, 220]; // las 3 notas: E4 C4 A3 (desciende al grave)
+    // "tán . tan tan" en compas 8-9 | "tan . tan tannnn" en compas 40-41
+    const EVENTS = [
+      { bar: A_BAR, phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 1.3]] },
+      { bar: B_BAR, phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 3.6]] },
+    ];
     function buildDrone() {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       master = ctx.createGain();
@@ -1697,15 +1703,23 @@
       g.connect(master); g.connect(wet.input);
       o.start(t); o.stop(t + dur + .1); o2.start(t); o2.stop(t + dur + .1);
     }
-    // "tan . tan tan | tan . tan tannnn" — figura de 3 golpes, repite y sostiene la ultima
-    function motif() {
-      if (playing && ctx.state === 'running') {
-        const t0 = ctx.currentTime + .15, B = BEAT;
-        [[0, 0, 1.6], [1, 2 * B, 1.3], [2, 3 * B, 1.3],
-         [0, 4.6 * B, 1.6], [1, 6.6 * B, 1.3], [2, 7.6 * B, 3.6]]
-          .forEach(([ni, off, dur]) => pluck(NOTE_F[ni], t0 + off, dur));
+    // Secuenciador por compases: frases en A_BAR y B_BAR dentro del ciclo
+    let cycleStart = 0, evIdx = 0;
+    function planNext() {
+      let when = cycleStart + EVENTS[evIdx].bar * 4 * BEAT;
+      while (when <= ctx.currentTime) {
+        if (++evIdx >= EVENTS.length) { evIdx = 0; cycleStart += CYCLE_BARS * 4 * BEAT; }
+        when = cycleStart + EVENTS[evIdx].bar * 4 * BEAT;
       }
-      motifTimer = setTimeout(motif, (MOTIF_MIN + Math.random() * (MOTIF_MAX - MOTIF_MIN)) * 1000);
+      motifTimer = setTimeout(fire, Math.max(0, (when - ctx.currentTime) * 1000 - 80));
+    }
+    function fire() {
+      if (playing && ctx.state === 'running') {
+        const t0 = ctx.currentTime + .12;
+        EVENTS[evIdx].phrase.forEach(([ni, ob, dur]) => pluck(NOTE_F[ni], t0 + ob * BEAT, dur));
+      }
+      if (++evIdx >= EVENTS.length) { evIdx = 0; cycleStart += CYCLE_BARS * 4 * BEAT; }
+      planNext();
     }
     const ramp = (to, secs, cb) => {
       const t = ctx.currentTime;
@@ -1724,7 +1738,10 @@
       if (!ctx) buildDrone();
       if (!playing) {
         ctx.resume(); playing = true; swap(true); ramp(.42, 4);
-        if (!motifTimer) motifTimer = setTimeout(motif, 10000); // primer motivo tras el fade
+        if (!motifTimer) {
+          cycleStart = ctx.currentTime - (A_BAR - 1) * 4 * BEAT; // arrancamos en compas 7: la primera frase llega enseguida
+          evIdx = 0; planNext();
+        }
       } else {
         playing = false; swap(false);
         clearTimeout(motifTimer); motifTimer = null;
