@@ -1648,16 +1648,15 @@
     let ctx = null, master = null, wet = null, motifTimer = null, whiteBuf = null;
     // AJUSTES DEL MOTIVO — tocar aqui:
     const BEAT = 0.6;                // velocidad (seg por tiempo) — compas = 4 tiempos (2.4s)
-    const CYCLE_BARS = 24;           // ciclo completo (~58s): F A F B BOMBAZO, respiro, repite
-    const A_BAR = 4, B_BAR = 8;      // frases cada 4 compases, bombazo tras la 4ta
+    const CYCLE_BARS = 20;           // ciclo completo (~48s): A B A (B+bombazo), respiro, repite
+    const A_BAR = 4, B_BAR = 8;      // frases cada 4 compases — grid estricto
     const NOTE_F = [329.63, 261.63, 220]; // las 3 notas: E4 C4 A3 (desciende al grave)
-    // Secuencia: frase A, frase B, frase A, frase B, BOMBAZO — cada 4 compases
+    // Secuencia: A B A B — el bombazo va DENTRO de la 4ta marca, no agrega compas
     const EVENTS = [
       { bar: A_BAR,      phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 1.3]] },
       { bar: B_BAR,      phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 3.6]] },
       { bar: A_BAR + 8,  phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 1.3]] },
-      { bar: B_BAR + 8,  phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 3.6]] },
-      { bar: B_BAR + 12, breath: true },
+      { bar: B_BAR + 8,  phrase: [[0, 0, 1.6], [1, 2, 1.3], [2, 4, 3.6]], breath: true },
     ];
     function buildDrone() {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1746,7 +1745,7 @@
       if (playing && ctx.state === 'running') {
         const t0 = ctx.currentTime + .12, ev = EVENTS[evIdx];
         if (ev.breath) exhale(t0);
-        else ev.phrase.forEach(([ni, ob, dur]) => pluck(NOTE_F[ni], t0 + ob * BEAT, dur));
+        if (ev.phrase) ev.phrase.forEach(([ni, ob, dur]) => pluck(NOTE_F[ni], t0 + ob * BEAT, dur));
       }
       if (++evIdx >= EVENTS.length) { evIdx = 0; cycleStart += CYCLE_BARS * 4 * BEAT; }
       planNext();
