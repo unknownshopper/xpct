@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCT · Solicitud de inspección de equipos</title>
+<title>PCT · Solicitud de servicio</title>
 <link rel="icon" type="image/png" href="img/log33.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -43,11 +43,11 @@
 </style>
 </head>
 <body>
-<header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE INSPECCIÓN</b><a id="lnk-panel" href="ventas.html" style="display:none;margin-left:auto;font-size:.78rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#c46418,var(--brick));text-decoration:none;border-radius:999px;padding:.4rem .9rem;box-shadow:0 2px 8px rgba(184,88,15,.35);">← Mi panel</a></header>
+<header class="top"><img src="img/log33.png" alt="PCT"><b>SOLICITUD DE SERVICIO</b><a id="lnk-panel" href="ventas.html" style="display:none;margin-left:auto;font-size:.78rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#c46418,var(--brick));text-decoration:none;border-radius:999px;padding:.4rem .9rem;box-shadow:0 2px 8px rgba(184,88,15,.35);">← Mi panel</a></header>
 
 <main class="wrap" id="wrap" style="display:none;">
-  <p class="lead">Registro de equipos para inspección</p>
-  <p class="sub">Proveedora y Comercializadora Tabasqueña — completa el formulario y te contactamos para agendar la recepción. · <b id="fecha-hoy"></b></p>
+  <p class="lead">Registro de solicitud de servicio</p>
+  <p class="sub">Proveedora y Comercializadora Tabasqueña — completa el formulario y te contactamos para agendar. · <b id="fecha-hoy"></b></p>
 
   <form id="f" novalidate>
     <!-- CLIENTE -->
@@ -69,6 +69,19 @@
       </div>
     </section>
 
+    <!-- TIPO DE SERVICIO -->
+    <section class="card">
+      <h2>Tipo de servicio</h2>
+      <div class="chips" id="chips-tipo">
+        <div class="chip on" data-t="INSPECCION">Inspección / pruebas</div>
+        <div class="chip" data-t="RENTA">Renta de equipos</div>
+        <div class="chip" data-t="LIMPIEZA">Limpieza industrial</div>
+        <div class="chip" data-t="PROCURA">Procura / proveeduría</div>
+        <div class="chip" data-t="CONSTRUCCION">Construcción</div>
+      </div>
+    </section>
+
+    <div id="sec-insp">
     <!-- EQUIPOS -->
     <section class="card">
       <h2>Equipos a inspeccionar</h2>
@@ -86,10 +99,74 @@
         <div class="chip on" data-p="PT">Penetrant Test</div>
         <div class="chip on" data-p="LT">Leaking Test</div>
       </div>
-      <div class="fld" style="margin-top:1rem; margin-bottom:0;">
-        <label>Observaciones</label>
-        <textarea name="obs" rows="3" placeholder="ESTADO GENERAL DE LOS EQUIPOS, URGENCIA, UBICACIÓN…"></textarea>
+    </section>
+    </div>
+
+    <!-- RENTA -->
+    <section class="card" id="sec-renta" style="display:none;">
+      <h2>Equipos a rentar</h2>
+      <div class="fld"><label>Familias de interés <em>*</em></label>
+        <div class="chips" id="chips-fam">
+          <div class="chip" data-f="CODOS">Codos 45°/90°</div>
+          <div class="chip" data-f="PUP JOINTS">Pup joints</div>
+          <div class="chip" data-f="TEES">Tees</div>
+          <div class="chip" data-f="CROSSES / X-OVER">Crosses / X-over</div>
+          <div class="chip" data-f="TAPAS / TAPONES">Tapas / tapones</div>
+          <div class="chip" data-f="BRIDAS">Bridas</div>
+          <div class="chip" data-f="CARRETES">Carretes</div>
+          <div class="chip" data-f="DSA / SSA">DSA / SSA</div>
+          <div class="chip" data-f="WYES / SPOOLS">Wyes / spools</div>
+        </div>
       </div>
+      <div class="grid2">
+        <div class="fld"><label>Duración estimada</label><input name="r-duracion" placeholder="EJ. 15 DÍAS / 1 MES"></div>
+        <div class="fld"><label>Fecha requerida</label><input name="r-entrega" placeholder="EJ. 15 MARZO / URGENTE"></div>
+      </div>
+    </section>
+
+    <!-- LIMPIEZA -->
+    <section class="card" id="sec-limp" style="display:none;">
+      <h2>Limpieza industrial</h2>
+      <div class="fld"><label>Ubicación del sitio <em>*</em></label><input name="l-ubicacion" placeholder="PLANTA, BODEGA, RESTAURANTE, DIRECCIÓN…"></div>
+      <div class="fld"><label>Tipo de instalación</label>
+        <div class="chips" id="chips-inst">
+          <div class="chip" data-i="CAMPANA">Campana</div>
+          <div class="chip" data-i="CHIMENEA">Chimenea</div>
+          <div class="chip" data-i="DUCTO">Ducto</div>
+          <div class="chip" data-i="DRENAJE">Drenaje</div>
+          <div class="chip" data-i="TANQUE / SILO">Tanque / silo</div>
+          <div class="chip" data-i="OTRO">Otro</div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="fld"><label>Tamaño aproximado</label><input name="l-tamano" placeholder="EJ. 12 M DE DUCTO / 1 CAMPANA 2×3 M"></div>
+        <div class="fld"><label>Acceso / condiciones</label><input name="l-acceso" placeholder="ESCALERA, ANDAMIO, TECHO, INTERIOR…"></div>
+      </div>
+    </section>
+
+    <!-- PROCURA -->
+    <section class="card" id="sec-proc" style="display:none;">
+      <h2>Procura / proveeduría</h2>
+      <div class="fld"><label>Ítem requerido <em>*</em></label><input name="p-item" placeholder="QUÉ NECESITA CONSEGUIR"></div>
+      <div class="grid2">
+        <div class="fld"><label>Cantidad</label><input name="p-cant" placeholder="1"></div>
+        <div class="fld"><label>Urgencia</label>
+          <select name="p-urg"><option value="NORMAL">Normal</option><option value="URGENTE">Urgente</option><option value="PROGRAMADO">Programado</option></select></div>
+      </div>
+      <div class="fld" style="margin-bottom:0;"><label>Specs / referencia</label><input name="p-specs" placeholder="MARCA, MODELO, NORMA, DATASHEET…"></div>
+    </section>
+
+    <!-- CONSTRUCCION -->
+    <section class="card" id="sec-const" style="display:none;">
+      <h2>Construcción</h2>
+      <div class="fld"><label>Alcance del trabajo <em>*</em></label><textarea name="c-alcance" rows="3" placeholder="DESCRIBE EL TRABAJO REQUERIDO"></textarea></div>
+      <div class="fld" style="margin-bottom:0;"><label>Ubicación</label><input name="c-ubicacion" placeholder="SITIO / DIRECCIÓN"></div>
+    </section>
+
+    <!-- OBSERVACIONES -->
+    <section class="card">
+      <h2>Observaciones generales</h2>
+      <textarea name="obs" rows="3" placeholder="URGENTE, REFERENCIAS, DETALLES ADICIONALES…"></textarea>
     </section>
 
     <input class="hp" type="text" name="empresa2" tabindex="-1" autocomplete="off">
@@ -155,6 +232,25 @@ const chipWrap = document.getElementById('chips-pruebas');
 const sel = new Set(['VT', 'UTT', 'MT', 'PT', 'LT']);
 let ultimaSol = null;
 let enviando = false;
+
+/* Tipo de servicio → secciones condicionales */
+let tipoSel = 'INSPECCION';
+const SECCIONES = { RENTA: 'sec-renta', LIMPIEZA: 'sec-limp', PROCURA: 'sec-proc', CONSTRUCCION: 'sec-const' };
+const TIPO_LABEL = { INSPECCION: 'Inspección / pruebas', RENTA: 'Renta de equipos', LIMPIEZA: 'Limpieza industrial', PROCURA: 'Procura / proveeduría', CONSTRUCCION: 'Construcción' };
+document.querySelectorAll('#chips-tipo .chip').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('#chips-tipo .chip').forEach(x => x.classList.remove('on'));
+  c.classList.add('on');
+  tipoSel = c.dataset.t;
+  document.getElementById('sec-insp').style.display = tipoSel === 'INSPECCION' ? '' : 'none';
+  for (const [t, id] of Object.entries(SECCIONES)) document.getElementById(id).style.display = t === tipoSel ? '' : 'none';
+}));
+const famSel = new Set(), instSel = new Set();
+document.querySelectorAll('#chips-fam .chip').forEach(c => c.addEventListener('click', () => {
+  c.classList.toggle('on'); c.classList.contains('on') ? famSel.add(c.dataset.f) : famSel.delete(c.dataset.f);
+}));
+document.querySelectorAll('#chips-inst .chip').forEach(c => c.addEventListener('click', () => {
+  c.classList.toggle('on'); c.classList.contains('on') ? instSel.add(c.dataset.i) : instSel.delete(c.dataset.i);
+}));
 
 document.getElementById('fecha-hoy').textContent =
   new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -332,11 +428,38 @@ function recolectar() {
       espec: (ends.length || pt) ? { ends, pt, long: d.querySelector('[name=eq-long]').value.trim(), temp: d.querySelector('[name=eq-temp]').value.trim() } : undefined
     };
   }).filter(e => e.tipo || e.serie || e.desc);
-  return {
+  const d = {
     nombre: normTxt(f.nombre.value), empresa: normTxt(f.empresa.value),
     correo: normMail(f.correo.value), telefono: normTel(f.telefono.value),
-    equipos, pruebas: [...sel], observaciones: f.obs.value.trim()
+    tipoServicio: tipoSel, observaciones: f.obs.value.trim()
   };
+  if (tipoSel === 'INSPECCION') {
+    d.equipos = equipos; d.pruebas = [...sel];
+  } else if (tipoSel === 'RENTA') {
+    d.detalle = { familias: [...famSel], duracion: normTxt(f['r-duracion'].value), entrega: normTxt(f['r-entrega'].value) };
+  } else if (tipoSel === 'LIMPIEZA') {
+    d.detalle = { ubicacion: normTxt(f['l-ubicacion'].value), instalaciones: [...instSel], tamano: normTxt(f['l-tamano'].value), acceso: normTxt(f['l-acceso'].value) };
+  } else if (tipoSel === 'PROCURA') {
+    d.detalle = { item: normTxt(f['p-item'].value), cantidad: normTxt(f['p-cant'].value), urgencia: f['p-urg'].value, specs: normTxt(f['p-specs'].value) };
+  } else if (tipoSel === 'CONSTRUCCION') {
+    d.detalle = { alcance: normTxt(f['c-alcance'].value), ubicacion: normTxt(f['c-ubicacion'].value) };
+  }
+  return d;
+}
+
+function validar(d) {
+  if (d.tipoServicio === 'INSPECCION') {
+    if (!d.equipos.length || d.equipos.some(e => !e.tipo)) return 'Cada equipo necesita su tipo — si elegiste "Otro", especifica cuál.';
+  } else if (d.tipoServicio === 'RENTA') {
+    if (!d.detalle.familias.length) return 'Marca al menos una familia de equipos a rentar.';
+  } else if (d.tipoServicio === 'LIMPIEZA') {
+    if (!d.detalle.ubicacion) return 'La ubicación del sitio es requerida para limpieza industrial.';
+  } else if (d.tipoServicio === 'PROCURA') {
+    if (!d.detalle.item) return 'Describe el ítem requerido para procura.';
+  } else if (d.tipoServicio === 'CONSTRUCCION') {
+    if (!d.detalle.alcance) return 'Describe el alcance del trabajo de construcción.';
+  }
+  return null;
 }
 
 document.getElementById('btn-pdf-solo').addEventListener('click', () => {
@@ -344,7 +467,8 @@ document.getElementById('btn-pdf-solo').addEventListener('click', () => {
   err.style.display = 'none';
   const d = recolectar();
   if (!d.nombre) { err.textContent = 'Pon al menos el nombre del cliente para el PDF.'; err.style.display = ''; return; }
-  if (!d.equipos.length || d.equipos.some(e => !e.tipo)) { err.textContent = 'Cada equipo necesita su tipo — si elegiste "Otro", especifica cuál.'; err.style.display = ''; return; }
+  const vErr = validar(d);
+  if (vErr) { err.textContent = vErr; err.style.display = ''; return; }
   ultimaSol = { ...d, folio: 'PRE-' + folio().slice(4), creadoPor: window.auth?.currentUser?.email || 'borrador', fecha: new Date() };
   generarPdf();
 });
@@ -356,9 +480,11 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   const f = ev.target;
   if (f.empresa2.value) return; // honeypot
   if (enviando) return;
-  const { nombre, empresa, correo, telefono, equipos } = recolectar();
+  const datos = recolectar();
+  const { nombre, empresa, correo, telefono, tipoServicio, detalle, equipos } = datos;
   if (!nombre || !correo || !telefono) { err.textContent = 'Completa nombre, correo y teléfono.'; err.style.display = ''; return; }
-  if (!equipos.length || equipos.some(e => !e.tipo)) { err.textContent = 'Cada equipo necesita su tipo — si elegiste "Otro", especifica cuál.'; err.style.display = ''; return; }
+  const vErr = validar(datos);
+  if (vErr) { err.textContent = vErr; err.style.display = ''; return; }
 
   enviando = true;
   const btn = document.getElementById('btn-enviar');
@@ -380,8 +506,10 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     ultimaSol = {
       folio: fl,
       nombre, empresa, correo, telefono,
-      equipos,
-      pruebas: [...sel],
+      tipoServicio,
+      detalle,
+      equipos: equipos || [],
+      pruebas: tipoServicio === 'INSPECCION' ? [...sel] : [],
       observaciones: f.obs.value.trim(),
       creadoPor: usuario,
       fecha: new Date()
@@ -400,6 +528,12 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
     eqs.innerHTML = '';
     addEq();
     document.querySelectorAll('#chips-pruebas .chip').forEach(c => { c.classList.add('on'); sel.add(c.dataset.p); });
+    famSel.clear(); instSel.clear();
+    document.querySelectorAll('#chips-fam .chip, #chips-inst .chip').forEach(c => c.classList.remove('on'));
+    tipoSel = 'INSPECCION';
+    document.querySelectorAll('#chips-tipo .chip').forEach(c => c.classList.toggle('on', c.dataset.t === 'INSPECCION'));
+    document.getElementById('sec-insp').style.display = '';
+    for (const id of Object.values(SECCIONES)) document.getElementById(id).style.display = 'none';
     btn.disabled = false; btn.textContent = 'Enviar solicitud';
     enviando = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -440,12 +574,27 @@ function solicitudHtml(s) {
   };
   const generadoPor = NOMBRES[String(s.creadoPor || '').toLowerCase()] || s.creadoPor || '—';
 
-  const filas = (s.equipos || []).map((e, i) => `
+  const tipo = s.tipoServicio || 'INSPECCION';
+  const TIPO_TXT = { INSPECCION: 'Inspección / pruebas', RENTA: 'Renta de equipos', LIMPIEZA: 'Limpieza industrial', PROCURA: 'Procura / proveeduría', CONSTRUCCION: 'Construcción' };
+  let lineas;
+  if (tipo === 'INSPECCION') {
+    lineas = (s.equipos || []).map(e => ({ d: (e.desc || e.tipo) + (e.accesorios && e.accesorios.length ? `\nAccesorios: ${e.accesorios.join(', ')}` : ''), id: e.serie || 'S/N' }));
+  } else {
+    const dt = s.detalle || {};
+    const L = {
+      RENTA: [['Familias', (dt.familias || []).join(', ')], ['Duración estimada', dt.duracion], ['Fecha requerida', dt.entrega]],
+      LIMPIEZA: [['Ubicación del sitio', dt.ubicacion], ['Instalación', (dt.instalaciones || []).join(', ')], ['Tamaño aproximado', dt.tamano], ['Acceso / condiciones', dt.acceso]],
+      PROCURA: [['Ítem requerido', dt.item], ['Cantidad', dt.cantidad], ['Urgencia', dt.urgencia], ['Specs / referencia', dt.specs]],
+      CONSTRUCCION: [['Alcance del trabajo', dt.alcance], ['Ubicación', dt.ubicacion]],
+    }[tipo] || [];
+    lineas = L.filter(([, v]) => v).map(([k, v]) => ({ d: `${k}: ${v}`, id: '' }));
+  }
+  const filas = lineas.map((e, i) => `
     <tr>
       <td style="${td}text-align:center;">${i + 1}</td>
       <td style="${td}text-align:center;">1</td>
-      <td style="${td}">${esc(e.desc || e.tipo)}${e.accesorios && e.accesorios.length ? `<div style="font-size:10px;color:#7a3a08;margin-top:2px;">Accesorios: ${esc(e.accesorios.join(', '))}</div>` : ''}</td>
-      <td style="${td}text-align:center;font-weight:700;">${esc(e.serie || 'S/N')}</td>
+      <td style="${td}">${esc(e.d).replace(/\n/g, '<br>')}</td>
+      <td style="${td}text-align:center;font-weight:700;">${esc(e.id)}</td>
       <td style="${td}text-align:center;"></td>
       <td style="${td}text-align:center;"></td>
     </tr>`).join('');
@@ -461,7 +610,7 @@ function solicitudHtml(s) {
           </td>
         </tr>
       </table>
-      <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;color:#7a3a08;letter-spacing:.03em;border-bottom:2px solid #b8580f;padding-bottom:6px;">Solicitud de recepción de equipos para inspección</div>
+      <div style="text-align:center;font-size:16px;font-weight:800;margin:4px 0 8px;color:#7a3a08;letter-spacing:.03em;border-bottom:2px solid #b8580f;padding-bottom:6px;">Solicitud de servicio — ${esc(TIPO_TXT[tipo] || tipo)}</div>
 
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <tr>
@@ -481,8 +630,8 @@ function solicitudHtml(s) {
           <td style="${td}">${esc(s.correo || '—')}</td>
         </tr>
         <tr>
-          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Pruebas:</td>
-          <td style="${td}" colspan="3">${PRUEBAS.map(p => `${chk(prSel.has(p))}&nbsp;${p}`).join('&nbsp;&nbsp;&nbsp;')}</td>
+          <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Servicio:</td>
+          <td style="${td}" colspan="3">${tipo === 'INSPECCION' ? PRUEBAS.map(p => `${chk(prSel.has(p))}&nbsp;${p}`).join('&nbsp;&nbsp;&nbsp;') : `<b>${esc(TIPO_TXT[tipo] || tipo)}</b>`}</td>
           <td style="${td}background:#fdf0e5;font-weight:700;color:#7a3a08;">Generado por:</td>
           <td style="${td}">${esc(generadoPor)}</td>
         </tr>
@@ -503,7 +652,7 @@ function solicitudHtml(s) {
         <tfoot>
           <tr>
             <td style="${td}" colspan="4"></td>
-            <td style="${td}text-align:center;font-weight:800;" colspan="2">${(s.equipos || []).length}&nbsp;&nbsp;Pieza(s)</td>
+            <td style="${td}text-align:center;font-weight:800;" colspan="2">${lineas.length}&nbsp;&nbsp;${tipo === 'INSPECCION' ? 'Pieza(s)' : 'Concepto(s)'}</td>
           </tr>
         </tfoot>
       </table>
@@ -513,7 +662,7 @@ function solicitudHtml(s) {
         <tr><td style="${td}min-height:44px;height:44px;">${esc(s.observaciones || '')}</td></tr>
       </table>
 
-      <p style="font-size:10.5px;margin:12px 0 4px;">Por medio del presente documento se hace constar la solicitud de recepción de los equipos arriba citados para su inspección y pruebas, con las especificaciones y accesorios descritos por el cliente.</p>
+      <p style="font-size:10.5px;margin:12px 0 4px;">Por medio del presente documento se hace constar la solicitud de ${esc(TIPO_TXT[tipo] || tipo).toLowerCase()} descrita por el cliente, con las especificaciones arriba citadas.</p>
 
       <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11px;">
         <tr>

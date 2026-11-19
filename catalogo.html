@@ -19,9 +19,14 @@
 </script>
 <style>
   body { font-family:'Inter',sans-serif; background:#04060e; color:#e2e8f0; }
-  .fam { transition:.25s; }
+  .fam { transition:.25s; cursor:pointer; position:relative; user-select:none; }
   .fam:hover { border-color:rgba(251,191,36,.45); transform:translateY(-3px); box-shadow:0 12px 40px -12px rgba(217,119,6,.25); }
+  .fam.sel { border-color:rgba(251,191,36,.75); background:rgba(217,119,6,.10); box-shadow:0 0 0 1px rgba(251,191,36,.45), 0 14px 40px -14px rgba(217,119,6,.4); }
+  .fam .fam-check { position:absolute; top:.65rem; right:.65rem; width:1.3rem; height:1.3rem; border-radius:999px; border:1px solid rgba(251,191,36,.4); color:transparent; font-size:.7rem; font-weight:800; display:flex; align-items:center; justify-content:center; transition:.2s; }
+  .fam.sel .fam-check { background:#d97706; border-color:#d97706; color:#04060e; }
   .spec { font-size:.72rem; }
+  @keyframes cta-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+  .cta-shake { animation:cta-shake .45s ease; border-color:rgba(248,113,113,.7) !important; }
 </style>
 </head>
 <body class="antialiased">
@@ -34,7 +39,7 @@
       <div class="text-[11px] text-muted">Alta presión · especificaciones estándar</div>
     </div>
     <a href="website.html" class="ml-auto text-sm text-muted hover:text-white transition">← Sitio</a>
-    <a href="website.html#contacto" class="text-sm font-semibold text-accent3 border border-accent3/40 rounded-full px-4 py-1.5 hover:bg-accent3/10 transition">Cotizar</a>
+    <a href="website.html#contacto" class="js-cotizar text-sm font-semibold text-accent3 border border-accent3/40 rounded-full px-4 py-1.5 hover:bg-accent3/10 transition">Cotizar</a>
   </div>
 </header>
 
@@ -44,12 +49,15 @@
   <p class="text-muted mt-4 max-w-2xl">Medidas y presiones de nuestras líneas estándar. Uniones figuras 206, 602, 1002 y 1502 · bridas API 6A · servicio <b class="text-white/80">H2S</b> · temperatura -29 a 121 °C. Todo equipo sale con <b class="text-white/80">inspección anual vigente</b> y trazabilidad digital.</p>
   <p class="text-xs text-muted/70 mt-2">Especificaciones referenciales por familia — la configuración exacta y disponibilidad se confirman al cotizar.</p>
 
-  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-12" id="grid"></div>
+  <p class="text-xs text-accent3/80 mt-6 flex items-center gap-2"><span class="inline-block w-2 h-2 rounded-full bg-accent3 animate-pulse"></span>Toca las familias que te interesan — viajan contigo a la cotización.</p>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-5" id="grid"></div>
 
   <div class="mt-16 rounded-2xl border border-accent3/25 bg-accent3/[.06] p-8 text-center">
     <h2 class="font-display text-xl md:text-2xl font-bold text-white">¿Necesitas una configuración específica?</h2>
     <p class="text-muted text-sm mt-2">Cuéntanos medida, figura y presión requerida — armamos la pieza o el conjunto.</p>
-    <a href="website.html#contacto" class="inline-block mt-5 px-8 py-3 rounded-xl bg-primary font-semibold text-white hover:bg-primary/90 transition">Solicitar cotización</a>
+    <a href="website.html#contacto" id="cta-cotizar" class="js-cotizar inline-block mt-5 px-8 py-3 rounded-xl bg-primary font-semibold text-white hover:bg-primary/90 transition">Solicitar cotización</a>
+    <p id="cta-hint" class="hidden text-xs text-red-400 mt-3">Elige al menos una familia arriba — toca sus tarjetas.</p>
+    <p id="cta-sel" class="hidden text-xs text-accent3/90 mt-3"></p>
   </div>
 </main>
 
@@ -83,7 +91,8 @@ const FAMILIAS = [
 ];
 
 document.getElementById('grid').innerHTML = FAMILIAS.map(f => `
-  <div class="fam rounded-xl border border-white/10 bg-white/[.03] p-5">
+  <div class="fam rounded-xl border border-white/10 bg-white/[.03] p-5" data-n="${f.n}" role="button" tabindex="0" aria-pressed="false">
+    <span class="fam-check">✓</span>
     <h3 class="font-display font-semibold text-white">${f.n}</h3>
     <p class="text-sm text-muted mt-1.5">${f.d}</p>
     <div class="mt-4 space-y-1.5">
@@ -92,6 +101,35 @@ document.getElementById('grid').innerHTML = FAMILIAS.map(f => `
       <div class="spec flex justify-between gap-3"><span class="text-muted">Presión</span><span class="text-accent3 font-semibold text-right">${f.p}</span></div>
     </div>
   </div>`).join('');
+
+/* Selección de familias → viaja a la cotización */
+const sel = new Set();
+const ctaSel = document.getElementById('cta-sel');
+const ctaHint = document.getElementById('cta-hint');
+document.querySelectorAll('.fam').forEach((el) => {
+  const tgl = () => {
+    const n = el.dataset.n;
+    if (sel.has(n)) { sel.delete(n); el.classList.remove('sel'); }
+    else { sel.add(n); el.classList.add('sel'); }
+    el.setAttribute('aria-pressed', String(sel.has(n)));
+    ctaHint.classList.add('hidden');
+    ctaSel.classList.toggle('hidden', !sel.size);
+    ctaSel.textContent = sel.size ? `${sel.size} familia${sel.size > 1 ? 's' : ''} seleccionada${sel.size > 1 ? 's' : ''}: ${[...sel].join(' · ')}` : '';
+  };
+  el.addEventListener('click', tgl);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tgl(); } });
+});
+document.querySelectorAll('.js-cotizar').forEach((a) => a.addEventListener('click', (e) => {
+  if (!sel.size) {
+    e.preventDefault();
+    ctaHint.classList.remove('hidden');
+    const cta = document.getElementById('cta-cotizar');
+    cta.classList.remove('cta-shake'); void cta.offsetWidth; cta.classList.add('cta-shake');
+    document.getElementById('grid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  sessionStorage.setItem('pct_familias', JSON.stringify([...sel]));
+}));
 </script>
 </body>
 </html>

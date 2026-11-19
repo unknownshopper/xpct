@@ -336,6 +336,11 @@
 
   #graph { touch-action: pan-y; }
 
+  /* Chips NDT de la tarjeta 02 — toggle con panel de info */
+  .ndt-chip:hover { border-color: rgba(251,191,36,.55); background: rgba(251,191,36,.14); }
+  .ndt-chip.on { border-color: rgba(251,191,36,.8); background: rgba(251,191,36,.22); box-shadow: 0 0 12px -2px rgba(251,191,36,.45); }
+  #ndt-info { animation: fade-up .3s cubic-bezier(.22,1,.36,1) both; }
+
   /* Nav */
   #navbar { transition: background .35s, box-shadow .35s, border-color .35s; }
   /* Sin barra — solo chips flotantes; el fondo animado respira completo */
@@ -510,17 +515,19 @@
         <div class="svc-body">
           <p class="font-display text-sm font-medium grad-text mt-4 md:mt-0 mb-4">El equipo llega a planta, se evalúa y se documenta.</p>
         <div class="flex flex-wrap gap-1.5 mb-4">
-          <span class="text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10" title="Inspección visual con evidencia fotográfica">VT</span>
-          <span class="text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10" title="Espesores por ultrasonido">UTT</span>
-          <span class="text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10" title="Partículas magnéticas">MT</span>
-          <span class="text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10" title="Líquidos penetrantes">PT</span>
-          <span class="text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10" title="Prueba de fuga a presión — hermeticidad">LT</span>
+          <button type="button" class="ndt-chip text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10 cursor-pointer transition-colors" data-ndt="vt" title="Inspección visual con evidencia fotográfica">VT</button>
+          <button type="button" class="ndt-chip text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10 cursor-pointer transition-colors" data-ndt="utt" title="Espesores por ultrasonido">UTT</button>
+          <button type="button" class="ndt-chip text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10 cursor-pointer transition-colors" data-ndt="mt" title="Partículas magnéticas">MT</button>
+          <button type="button" class="ndt-chip text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10 cursor-pointer transition-colors" data-ndt="pt" title="Líquidos penetrantes">PT</button>
+          <button type="button" class="ndt-chip text-[11px] font-display font-semibold px-2.5 py-1 rounded-md border border-accent/30 text-accent3 bg-accent/10 cursor-pointer transition-colors" data-ndt="lt" title="Prueba de fuga a presión — hermeticidad">LT</button>
         </div>
+        <div id="ndt-info">
         <ul class="text-sm text-muted space-y-2 leading-relaxed">
           <li class="flex gap-2"><span class="text-accent">·</span>Bajo referencia normativa (API 6A, ASME BPVC V, ASTM E709/E165, ISO 9712).</li>
           <li class="flex gap-2"><span class="text-accent">·</span>Recepción por solicitud con registro de equipos y accesorios.</li>
           <li class="flex gap-2"><span class="text-accent">·</span>Historial del equipo para futuras renovaciones.</li>
           </ul>
+        </div>
         </div>
       </article>
 
@@ -879,6 +886,10 @@
         <label class="cf-opt"><input type="checkbox" value="Otro servicio"> Otro servicio</label>
       </fieldset>
       <textarea class="field" id="cf-msg" rows="3" placeholder="Cuéntanos brevemente (opcional)"></textarea>
+      <label class="cf-opt" style="font-size:.78rem; color:#b6c0d8; align-items:flex-start;">
+        <input type="checkbox" id="cf-aviso" required style="margin-top:.15rem;">
+        <span>He leído y acepto el <a href="aviso.html" target="_blank" class="text-accent hover:underline">Aviso de privacidad</a>. Mis datos se usarán solo para atender esta solicitud.</span>
+      </label>
       <input id="cf-hp" type="text" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true" />
       <button type="submit" class="btn-primary w-full py-3.5 font-medium text-white flex items-center justify-center gap-2">
         <i data-lucide="message-circle" class="w-4 h-4"></i> Enviar por correo
@@ -890,6 +901,31 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+
+  /* ---------- Tarjeta 02: chips NDT → panel de info ---------- */
+  const NDT = {
+    vt:  ['Inspección visual', 'Condición general del equipo: deformaciones, roscas, conexiones y estado superficial — con checklist y evidencia fotográfica.'],
+    utt: ['Ultrasonido de espesores', 'Medición del espesor restante en cuerpo y zonas críticas. Lecturas puntuales registradas en el reporte del equipo.'],
+    mt:  ['Partículas magnéticas', 'Detección de indicaciones superficiales en materiales ferromagnéticos, evaluadas como discontinuidades. Bajo referencia ASTM E709 / ASME SE-709.'],
+    pt:  ['Líquidos penetrantes', 'Detección de indicaciones superficiales en materiales no ferromagnéticos. Bajo referencia ASTM E165.'],
+    lt:  ['Leaking test', 'Prueba de fuga a presión — hermeticidad e integridad del conjunto, no un PND.']
+  };
+  const ndtInfo = document.getElementById('ndt-info');
+  if (ndtInfo) {
+    const ndtDefault = ndtInfo.innerHTML;
+    document.querySelectorAll('.ndt-chip').forEach((b) => b.addEventListener('click', () => {
+      const on = b.classList.contains('on');
+      document.querySelectorAll('.ndt-chip').forEach((x) => x.classList.remove('on'));
+      if (on) { ndtInfo.innerHTML = ndtDefault; return; }
+      b.classList.add('on');
+      const [t, d] = NDT[b.dataset.ndt];
+      ndtInfo.innerHTML =
+        `<div class="text-sm space-y-2 leading-relaxed">
+           <p class="font-display font-semibold text-accent3">${t}</p>
+           <p class="text-muted">${d}</p>
+         </div>`;
+    }));
+  }
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1560,6 +1596,17 @@
     document.getElementById('cf-srv-insp').addEventListener('change', (e) => {
       document.getElementById('cf-srv-pnd').classList.toggle('hidden', !e.target.checked);
     });
+    // Familias elegidas en el catálogo → pre-llenan la solicitud
+    try {
+      const fams = JSON.parse(sessionStorage.getItem('pct_familias') || 'null');
+      if (fams && fams.length) {
+        sessionStorage.removeItem('pct_familias');
+        const renta = [...document.querySelectorAll('#cf-servicios > .cf-opt input')].find(i => i.value === 'Renta de equipos');
+        if (renta) renta.checked = true;
+        document.getElementById('cf-msg').value = `Me interesa cotizar: ${fams.join(', ')}.`;
+        openC();
+      }
+    } catch (_) {}
     if (location.hash === '#contacto') openC();
     document.getElementById('cform').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1575,6 +1622,7 @@
       const idx = sel.indexOf('Inspección y pruebas');
       if (idx >= 0 && pnd.length) sel[idx] = `Inspección y pruebas (${pnd.join(', ')})`;
       if (!sel.length) { alert('Marca al menos un servicio.'); return; }
+      if (!document.getElementById('cf-aviso').checked) { alert('Debes aceptar el Aviso de privacidad para enviar.'); return; }
       const s = sel.join(' + ');
       const btn = f.querySelector('button[type="submit"]');
       btn.disabled = true;
@@ -1586,7 +1634,7 @@
         const db = getFirestore(app);
         const src = new URLSearchParams(location.search).get('src') || new URLSearchParams(location.search).get('utm_source') || '';
         await addDoc(collection(db, 'contactos_web'), {
-          nombre: n, contacto: c, servicio: s, servicios: sel, mensaje: m, hp: '',
+          nombre: n, contacto: c, servicio: s, servicios: sel, mensaje: m, hp: '', aceptoAviso: true,
           origen: src ? 'web-' + src.slice(0, 30) : 'website', creadoEn: serverTimestamp()
         });
         f.innerHTML = `<div class="text-center py-8">
